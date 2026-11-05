@@ -603,6 +603,8 @@ public sealed class PlanAnsicht : Control
         AuswahlAktualisieren();
         _pausenCache = PausenZeilen();
         _druck = druck;
+        // Schriftart laut Stundenplan-Einstellungen | Allgemein | Schrift
+        using var _f = Schriftcache.Familie(Format.Schriftart);
         try { ZeichnenIntern(g, bounds, druck); }
         finally { _pausenCache = null; _druck = false; }
     }
@@ -1070,37 +1072,48 @@ public sealed class PlanAnsicht : Control
             TextRenderer.DrawText(g, Ecke, f, Rectangle.Round(ecke), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
         }
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
-        var kopfSchrift = Schriftcache.Holen(klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f)), klein ? FontStyle.Regular : FontStyle.Bold);
+        // Spaltenbeschriftung (Stundenplan-Einstellungen): Fett/Kursiv/Unterstrichen, Schriftgröße in %, Tag + Datum, Stellen
+        var spaltenStil = klein ? FontStyle.Regular : (Format.SpaltenFett ? FontStyle.Bold : 0) | (Format.SpaltenKursiv ? FontStyle.Italic : 0) | (Format.SpaltenUnterstrichen ? FontStyle.Underline : 0);
+        var spaltenProzent = Math.Clamp(Format.SpaltenSchriftProzent, 50, 300) / 100f;
+        var kopfSchrift = Schriftcache.Holen((klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f))) * spaltenProzent, spaltenStil);
         for (var t = 0; t < Tage; t++)
         {
             var r = Zelle(bounds, t, 1);
             if (r.Right < bounds.X) continue;
             var kopf = new RectangleF(r.X, bounds.Y, r.Width, KopfHoehe);
             g.FillRectangle(rosaTag == t ? rosa : mint, kopf);
-            var text = Planungsdienst.Tagname(D, t, !klein && r.Width > 80);
-            if (_nurTag.HasValue && _woche?.AddDays(t) is DateOnly dt) text += " " + dt.ToString("dd.MM.");
+            var text = Format.SpaltenText(Planungsdienst.Tagname(D, t, !klein && r.Width > 80), _woche?.AddDays(t));
+            if (!Format.SpaltenTagUndDatum && _nurTag.HasValue && _woche?.AddDays(t) is DateOnly dt) text += " " + dt.ToString("dd.MM.");
             TextRenderer.DrawText(g, text, kopfSchrift, Rectangle.Round(kopf), Color.Black, flags);
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
             Relief(g, kopf, Format.Ueberschrift.Raeumlich);
         }
         var zh = Zelle(bounds, 0, 1).Height;
-        var nummer = Schriftcache.Holen(klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f)), klein ? FontStyle.Regular : FontStyle.Bold);
+        // Zeilenbeschriftung (Stundenplan-Einstellungen): Art der Überschrift, Stunden-Zeit, Fett/Kursiv/Unterstrichen, Schriftgröße in %
+        var zeilenStil = klein ? FontStyle.Regular : (Format.ZeilenFett ? FontStyle.Bold : 0) | (Format.ZeilenKursiv ? FontStyle.Italic : 0) | (Format.ZeilenUnterstrichen ? FontStyle.Underline : 0);
+        var zeilenProzent = Math.Clamp(Format.ZeilenSchriftProzent, 50, 300) / 100f;
+        var nummer = Schriftcache.Holen((klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f))) * zeilenProzent, zeilenStil);
         var zeit = Schriftcache.Holen(7f);
+        var art = Format.ZeilenArtWirksam;
         for (var s = 1; s <= Stunden; s++)
         {
             var r = Zelle(bounds, 0, s);
             var kopf = new RectangleF(bounds.X, r.Y, KopfBreite, r.Height);
             g.FillRectangle(rosaStunde == s ? rosa : mint, kopf);
             var z = zr.Zeit(s);
-            if (klein || !Format.ZeitenAnzeigen || z is null)
+            if (klein || art == ZeilenBeschriftung.Nummer || z is null)
                 TextRenderer.DrawText(g, zr.StundenLabel(s), nummer, Rectangle.Round(kopf), Color.Black, flags);
+            else if (art == ZeilenBeschriftung.Zeit)
+                TextRenderer.DrawText(g, Format.ZeilenZeit(z), Schriftcache.Holen(Math.Max(7f, 7.5f * zeilenProzent), zeilenStil), Rectangle.Round(kopf), Color.Black, flags);
+            else if (art == ZeilenBeschriftung.Bezeichnung)
+                TextRenderer.DrawText(g, z.Bezeichnung.Length > 0 ? z.Bezeichnung : zr.StundenLabel(s), Schriftcache.Holen(Math.Max(7f, 8f * zeilenProzent), zeilenStil), Rectangle.Round(kopf), Color.Black, flags);
             else
             {
                 // große Nummer links, kleine Uhrzeit rechts daneben (abgeschnitten wie im Vorbild)
                 var nb = TextRenderer.MeasureText(g, zr.StundenLabel(s), nummer, Size.Empty, TextFormatFlags.NoPadding).Width + 4;
                 var kr = Rectangle.Round(kopf);
                 TextRenderer.DrawText(g, zr.StundenLabel(s), nummer, new Rectangle(kr.X + 2, kr.Y, nb, kr.Height), Color.Black, flags);
-                TextRenderer.DrawText(g, $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}", zeit, new Rectangle(kr.X + 2 + nb, kr.Y + 1, Math.Max(1, kr.Width - nb - 4), kr.Height), Color.Black,
+                TextRenderer.DrawText(g, Format.ZeilenZeit(z), zeit, new Rectangle(kr.X + 2 + nb, kr.Y + 1, Math.Max(1, kr.Width - nb - 4), kr.Height), Color.Black,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
             }
             g.DrawRectangle(linie, kopf.X, kopf.Y, kopf.Width, kopf.Height);
@@ -1337,12 +1350,12 @@ public sealed class PlanAnsicht : Control
     /// Texte einer Stunde wie im Vorbild: alle Werte in einer Zeile, der erste fett (z. B. „*07 Do WL-“ im Raumplan), zentriert;
     /// reicht die Breite nicht und ist genug Höhe da, untereinander.
     /// </summary>
-    private void KlassikText(Graphics g, RectangleF r, IReadOnlyList<string> werte, Color farbe, bool durchgestrichen)
+    private void KlassikText(Graphics g, RectangleF r, IReadOnlyList<string> werte, Color farbe, bool durchgestrichen, FontStyle zusatz = FontStyle.Regular)
     {
         var liste = werte.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
         if (liste.Count == 0) return;
         var groesse = Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 1.75f));
-        var stil = durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular;
+        var stil = (durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular) | zusatz;
         var fett = Schriftcache.Holen(groesse, FontStyle.Bold | stil);
         var normal = Schriftcache.Holen(groesse, stil);
         const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
@@ -1672,6 +1685,8 @@ public sealed class PlanAnsicht : Control
         var v = e.Vertretung;
         var entfall = e.Status == TagesStatus.Entfall;
         var offen = e.Status == TagesStatus.Offen;
+        // Layout 2: „Entfälle und Platzhalter nicht anzeigen“ (nur ohne „Entfälle durchstreichen“) – Entfall wie eine freie Stunde
+        if (entfall && !Format.EntfaelleDurchstreichen && Format.EntfaelleNichtAnzeigen) { g.FillRectangle(Brushes.White, r); return; }
         using (var b = new SolidBrush(Grund)) g.FillRectangle(b, r);
         if (entfall && r.Width > 6 && r.Height > 6)
         {
@@ -1680,7 +1695,9 @@ public sealed class PlanAnsicht : Control
         }
         var geaendert = v != null || e.Status == TagesStatus.Zusaetzlich;
         var fixiert = e.Regel?.Planstunde.Fixiert == true || v?.Fixiert == true;
-        var praefix = (Format.KopplungenMitPunkt && e.Unterricht?.Zeilen.Count > 1 ? "." : "") + Stern(geaendert || fixiert);
+        // Layout 2, Geänderte Stunden: „Mit ! hervorheben“
+        var hervor = geaendert && !entfall && !offen;
+        var praefix = (hervor && Format.GeaendertAusrufezeichen ? "!" : "") + (Format.KopplungenMitPunkt && e.Unterricht?.Zeilen.Count > 1 ? "." : "") + Stern(geaendert || fixiert);
         var lehrerIds = entfall && e.LehrerIds.Count == 0 && v?.LehrerId is int ul ? new List<int> { ul } : e.LehrerIds;
         var lehrer = offen ? "???" : v?.Art == VertretungsArt.VertretungOhneLehrer ? "+++" : VeranstaltungsLehrer(e) ?? string.Join(",", lehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
         // ohne Fach (Veranstaltung, Sondereinsatz): erstes Wort des Textes, z. B. „Sportwoche“
@@ -1690,9 +1707,12 @@ public sealed class PlanAnsicht : Control
             Typ == ElementTyp.Raum ? "" : string.Join(",", e.RaumIds.Select(x => Kurz(ElementTyp.Raum, x))));
         // offene Vertretung im Plan der abwesenden Lehrkraft: „???“
         if (Format.Klein && offen && Typ == ElementTyp.Lehrer) werte = new List<string> { praefix + "???" };
-        var farbe = entfall || offen ? EntfallRot : Color.Black;
-        if (Format.Klein) KleinZeichnen(g, r, werte[0], farbe, entfall);
-        else KlassikText(g, r, werte, farbe, entfall);
+        // Layout 2, Geänderte Stunden: Rot (große Pläne), Fett, Kursiv, Unterstreichen
+        var farbe = entfall || offen || (hervor && Format.GeaendertRot && !Format.Klein) ? EntfallRot : Color.Black;
+        var zusatz = !hervor ? FontStyle.Regular : (Format.GeaendertFett ? FontStyle.Bold : 0) | (Format.GeaendertKursiv ? FontStyle.Italic : 0) | (Format.GeaendertUnterstreichen ? FontStyle.Underline : 0);
+        var streichen = entfall && Format.EntfaelleDurchstreichen;
+        if (Format.Klein) KleinZeichnen(g, r, werte[0], farbe, streichen);
+        else KlassikText(g, r, werte, farbe, streichen, zusatz);
         if (druck) return;
         if (gewaehlt) AuswahlRahmen(g, r);
         else if (MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? v?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);

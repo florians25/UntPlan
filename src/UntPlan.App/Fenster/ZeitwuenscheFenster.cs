@@ -66,6 +66,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         }
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Alle Zeitwünsche löschen", "loeschen", () => Uebernehmen(new Zeitwuensche(), "Zeitwünsche gelöscht")));
+        ts.Items.Add(Knopf("Serienänderung", "kopieren", Serienaenderung));
         ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => { if (_id.HasValue && _typ != ElementTyp.Unterricht) StundenplanFenster.Neu(_typ, _id, false); }));
         _laden = true;
         typBox.SelectedIndex = 1;
@@ -257,6 +258,29 @@ public sealed class ZeitwuenscheFenster : MdiFenster
             else d.AlleElemente(typ).First(e => e.Id == id).Zeitwuensche = neu.Kopie();
         });
         Neuaufbau();
+    }
+
+    /// <summary>
+    /// Vorbild „Serienänderung“: die Zeitwünsche (bestimmte und unbestimmte) des aktuellen Elements auf beliebige andere Elemente
+    /// kopieren – mit leeren Zeitwünschen auch zum Löschen bei vielen Elementen.
+    /// </summary>
+    private void Serienaenderung()
+    {
+        if (_id is null || _typ == ElementTyp.Unterricht || Aktuell() is not { } quelle) return;
+        var id = _id.Value;
+        var typ = _typ;
+        if (Druck.ElementAuswahlDialog.Zeigen(this, typ, Array.Empty<int>()) is not { Count: > 0 } ziele) return;
+        var unbestimmt = (Unbestimmte() ?? new()).Select(u => new UnbestimmterZeitwunsch { Bereich = u.Bereich, Anzahl = u.Anzahl, Wunsch = u.Wunsch }).ToList();
+        var kopie = quelle.Kopie();
+        Aendern($"Serienänderung Zeitwünsche ({ziele.Count})", AenderungsArt.Stammdaten, d =>
+        {
+            foreach (var e in d.AlleElemente(typ).Where(e => ziele.Contains(e.Id) && e.Id != id))
+            {
+                e.Zeitwuensche = kopie.Kopie();
+                e.UnbestimmteZeitwuensche = unbestimmt.Select(u => new UnbestimmterZeitwunsch { Bereich = u.Bereich, Anzahl = u.Anzahl, Wunsch = u.Wunsch }).ToList();
+            }
+        });
+        AppZustand.Haupt.StatusMelden($"Zeitwünsche auf {ziele.Count(z => z != id)} Element(e) übertragen.");
     }
 
     private void UnbestimmteSpeichern()

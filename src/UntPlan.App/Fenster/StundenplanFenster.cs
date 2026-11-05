@@ -20,7 +20,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private readonly PlanAnsicht _plan = new() { Dock = DockStyle.Fill };
     private readonly FlowLayoutPanel _pool = new() { Dock = DockStyle.Right, Width = 150, AutoScroll = true, BackColor = Color.FromArgb(244, 246, 250), AllowDrop = true, Padding = new Padding(4) };
     private readonly DataGridView _lupe = new() { Dock = DockStyle.Bottom, Height = 74 };
-    private readonly Label _detail = new() { Dock = DockStyle.Top, Height = 34, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(248, 249, 252) };
+    private readonly Label _detail = new() { Dock = DockStyle.Top, Height = 54, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(248, 249, 252) };
+    /// <summary>Informationsteil wie im Vorbild: Gruppe „DatumsBereich“ mit Zeitraum und Schulwochen.</summary>
+    private readonly GroupBox _datumsBereich = new() { Text = "DatumsBereich", Left = 190, Top = 0, Width = 190, Height = 50 };
+    private readonly Label _datumsText = new() { Left = 6, Top = 16, Width = 178, Height = 30 };
     private readonly TabControl _reiter = new() { Dock = DockStyle.Top, Height = 22, Visible = false };
     private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
     private readonly ToolStripButton _alleElemente;
@@ -28,6 +31,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripButton _wochenansicht;
     private readonly ToolStripButton _kleinKnopf;
     private readonly ToolStripButton _lupeKnopf;
+    private readonly ToolStripButton _farbenKnopf;
+    private readonly ToolStripButton _artKnopf;
+    private readonly ToolStripButton _ansichtKnopf;
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 105 };
     private readonly ToolStrip _leiste;
     /// <summary>Zweite Zeile wie im Vorbild: Zeitbereich (▼), Datum mit Hoch/Runter und Ende der Woche („- 16.10.2026“).</summary>
@@ -106,20 +112,44 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _sync = Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
         ts.Items.Add(_sync);
         _kleinSichtbar.Add(_sync);
+        // Vorbild-Symbolleiste: Normalform anzeigen | Raum zuordnen / löschen, Unterr.-Std. fixieren (F7), Tauschvorschläge,
+        // Änderungen rückgängig | Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert | Seitenlayout, Einstellungen |
+        // Alle Elemente im Unterricht; danach die eigenen Schaltflächen (klein, Lupe, Entplanen, Druck, HTML, Woche)
+        ts.Items.Add(Knopf("Normalform anzeigen", "normalform", NormalformAnzeigen));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Raum zuordnen / löschen", "raumzuordnen", RaumZuordnen));
+        ts.Items.Add(Knopf("Unterr.-Std. fixieren (F7)", "fixieren", Fixieren));
+        ts.Items.Add(Knopf("Tauschvorschläge", "tausch", TauschvorschlaegeZeigen));
+        ts.Items.Add(Knopf("Änderungen rückgängig", "rueckgaengig", AenderungenRueckgaengig));
+        ts.Items.Add(new ToolStripSeparator());
+        _farbenKnopf = new ToolStripButton(Symbole.Get("farbe")) { ToolTipText = "Unterrichts-Farben anzeigen", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
+        _farbenKnopf.Click += (_, _) => FarbenUmschalten(_farbenKnopf.Checked);
+        ts.Items.Add(_farbenKnopf);
+        _artKnopf = new ToolStripButton(Symbole.Get("fixieren")) { ToolTipText = "Art fixieren", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
+        _artKnopf.Click += (_, _) => ArtFixierenSetzen(_artKnopf.Checked);
+        ts.Items.Add(_artKnopf);
+        _ansichtKnopf = new ToolStripButton(Symbole.Get("schloss")) { ToolTipText = "Ansicht fixiert", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
+        _ansichtKnopf.Click += (_, _) => AnsichtFixierenSetzen(_ansichtKnopf.Checked);
+        ts.Items.Add(_ansichtKnopf);
+        ts.Items.Add(new ToolStripSeparator());
+        var seitenlayout = new ToolStripSplitButton(Symbole.Get("vorschau")) { ToolTipText = "Seitenlayout\nEinstellungen für den Druck der aktuellen Ansicht.", DisplayStyle = ToolStripItemDisplayStyle.Image };
+        seitenlayout.ButtonClick += (_, _) => Seitenlayout();
+        seitenlayout.DropDownItems.Add("Seitenansicht", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
+        seitenlayout.DropDownItems.Add("Seitenlayout", Symbole.Get("einstellungen", 16), (_, _) => Seitenlayout());
+        ts.Items.Add(seitenlayout);
+        ts.Items.Add(Knopf("Einstellungen", "einstellungen", Einstellungen));
+        ts.Items.Add(new ToolStripSeparator());
+        _format.SelectedIndexChanged += (_, _) => FormatAuswahlGeaendert();
+        _alleElemente = new ToolStripButton(Symbole.Get("uebersicht")) { ToolTipText = "Alle Elemente im Unterricht", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
+        _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
+        ts.Items.Add(_alleElemente);
+        ts.Items.Add(new ToolStripSeparator());
         _kleinKnopf = new ToolStripButton("klein") { CheckOnClick = true, Checked = klein, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Kleiner Stundenplan (nur Fachkürzel, Pausenzeilen) – z. B. mehrere nebeneinander in der Vertretungsplanung" };
         _kleinKnopf.CheckedChanged += (_, _) => { if (!_laden) KleinSetzen(_kleinKnopf.Checked); };
         ts.Items.Add(_kleinKnopf);
         _lupeKnopf = new ToolStripButton("Lupe") { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Stundenplanlupe unter dem Plan ein-/ausblenden" };
         _lupeKnopf.CheckedChanged += (_, _) => { if (!_laden) LupeUmschalten(_lupeKnopf.Checked); };
         ts.Items.Add(_lupeKnopf);
-        ts.Items.Add(new ToolStripSeparator());
-        _format.SelectedIndexChanged += (_, _) => FormatAuswahlGeaendert();
-        _alleElemente = new ToolStripButton(Symbole.Get("uebersicht")) { ToolTipText = "Alle Elemente im Unterricht", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
-        _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
-        ts.Items.Add(_alleElemente);
-        ts.Items.Add(Knopf("Unterr.-Std. fixieren / lösen", "fixieren", Fixieren));
-        ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
-        ts.Items.Add(Knopf("Tauschvorschläge", "tausch", TauschvorschlaegeZeigen));
         ts.Items.Add(Knopf("Stunde entplanen", "loeschen", Entplanen));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
@@ -129,7 +159,6 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _wochenansicht = new ToolStripButton("Woche", Symbole.Get("kalender")) { ToolTipText = "Wochenansicht mit Vertretungen", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.ImageAndText };
         _wochenansicht.CheckedChanged += (_, _) => WocheSetzen();
         ts.Items.Add(_wochenansicht);
-        ts.Items.Add(Knopf("Änderungen rückgängig (gewählte Stunde)", "rueckgaengig", AenderungenRueckgaengig));
         ts.Items.Add(MehrMenueAufbauen(ts));
 
         // zweite Zeile: Zeitbereich, Datum, Hoch/Runter, Ende der Woche
@@ -151,6 +180,16 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         datumDreh.Gedreht += r => { if (_plan.Woche.HasValue && _nurTag) TagBlaettern(r); else WocheBlaettern(7 * r); };
         _zeitLeiste.Items.Add(new ToolStripControlHost(datumDreh) { AutoSize = false, Size = datumDreh.Size, Margin = new Padding(0, 1, 2, 0) });
         _zeitLeiste.Items.Add(_bisText);
+        // Vorbild: Kalendersymbol rechts in der Zeitzeile mit „Zeitbereich: Woche“ / „Zeitbereich: Periode“
+        var kalender = new ToolStripDropDownButton(Symbole.Get("kalender")) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Zeitbereich", Margin = new Padding(16, 1, 2, 2) };
+        kalender.DropDownItems.Add("…");
+        kalender.DropDownOpening += (_, _) =>
+        {
+            var eintraege = ZeitbereichMenue().DropDownItems.Cast<ToolStripItem>().ToArray();
+            kalender.DropDownItems.Clear();
+            kalender.DropDownItems.AddRange(eintraege);
+        };
+        _zeitLeiste.Items.Add(kalender);
         _zeitZeile.Controls.Add(_zeitLeiste);
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _datum.ValueChanged += (_, _) => { if (!_laden) { AppZustand.DatumSetzen(DateOnly.FromDateTime(_datum.Value)); WocheSetzen(); } };
@@ -184,7 +223,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             }
         };
 
+        _datumsBereich.Controls.Add(_datumsText);
+        _detail.Controls.Add(_datumsBereich);
         Ui.RasterGestalten(_lupe, false);
+        _lupe.ColumnHeaderMouseClick += (_, e) => { if (e.Button == MouseButtons.Right) LupeKopfMenue(_lupe.PointToClient(Cursor.Position)); };
         _lupe.RowHeadersVisible = false;
         LupeSpalten(false);
 
@@ -359,6 +401,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Anzeige eines Formats wie im Vorbild: „Kla1 - Klassenplan klein“, große Pläne „Kla1A - Klassenplan groß“.</summary>
     private string FormatAnzeige(string name)
     {
+        // eigener Kurzname des Formats (Dialog „Neues Stundenplanformat“: Name, Langname)
+        if (D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Name == name && x.Klein == _klein) is { Kurzname.Length: > 0 } eigen) return $"{eigen.Kurzname} - {name}";
         var i = Math.Max(0, _format.Items.IndexOf(name));
         var kurz = _typ switch { ElementTyp.Klasse => "Kla", ElementTyp.Lehrer => "Leh", ElementTyp.Raum => "Rau", ElementTyp.Fach => "Fa", _ => "Stp" };
         return $"{kurz}{i + 1}{(_gross && !_klein ? "A" : "")} - {name}";
@@ -385,22 +429,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         var mehr = new ToolStripDropDownButton("»") { Alignment = ToolStripItemAlignment.Right, Overflow = ToolStripItemOverflow.Never, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Weitere Optionen", ShowDropDownArrow = true, Font = new Font(Ui.Schrift, FontStyle.Bold) };
         var farben = new ToolStripMenuItem("Unterrichts-Farben anzeigen", Symbole.Get("farbe", 16)) { CheckOnClick = true };
-        farben.Click += (_, _) =>
-        {
-            var f = Kopie(_plan.Format);
-            f.Farbe = farben.Checked ? (f.Farbe == FarbeNach.Keine ? FarbeNach.Fach : f.Farbe) : FarbeNach.Keine;
-            FormatSpeichern(f, f.Name);
-        };
+        farben.Click += (_, _) => FarbenUmschalten(farben.Checked);
         var art = new ToolStripMenuItem("Art fixieren", Symbole.Get("fixieren", 16)) { CheckOnClick = true };
-        art.Click += (_, _) => { ArtFixiert = art.Checked; _typKnopf.Enabled = !ArtFixiert; };
+        art.Click += (_, _) => ArtFixierenSetzen(art.Checked);
         var ansicht = new ToolStripMenuItem("Ansicht fixiert", Symbole.Get("schloss", 16)) { CheckOnClick = true };
-        ansicht.Click += (_, _) =>
-        {
-            AnsichtFixiert = ansicht.Checked;
-            if (AnsichtFixiert) Verknuepft = false;
-            _sync.Enabled = !AnsichtFixiert;
-            _sync.Checked = Verknuepft;
-        };
+        ansicht.Click += (_, _) => AnsichtFixierenSetzen(ansicht.Checked);
         var layout = new ToolStripMenuItem("Seitenlayout", Symbole.Get("einstellungen", 16));
         layout.DropDownItems.Add("Seitenansicht", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
         layout.DropDownItems.Add("Seitenlayout", Symbole.Get("einstellungen", 16), (_, _) => Seitenlayout());
@@ -432,13 +465,44 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         return mehr;
     }
 
-    /// <summary>Seitenlayout des Stundenplans: Papierformat, Ausrichtung und Ränder für Druck und Seitenansicht.</summary>
-    private void Seitenlayout()
+    /// <summary>„Unterrichts-Farben anzeigen“ (Farbpalette): ohne Farben ist die aktive Stunde rosa, die übrigen des Unterrichts hellblau.</summary>
+    private void FarbenUmschalten(bool an)
     {
-        using var dlg = new PageSetupDialog { PageSettings = StundenplanDruck.Seite, EnableMetric = true, AllowPrinter = true };
-        try { dlg.ShowDialog(this); }
-        catch (System.Drawing.Printing.InvalidPrinterException ex) { Ui.Info("Kein Drucker eingerichtet – das Seitenlayout kann erst mit einem Drucker gewählt werden.\n\n" + ex.Message, "Seitenlayout"); }
+        var f = Kopie(_plan.Format);
+        f.Farbe = an ? (f.Farbe == FarbeNach.Keine ? FarbeNach.Fach : f.Farbe) : FarbeNach.Keine;
+        FormatSpeichern(f, f.Name);
+        _farbenKnopf.Checked = an;
     }
+
+    private void ArtFixierenSetzen(bool an)
+    {
+        ArtFixiert = an;
+        _typKnopf.Enabled = !an;
+        _artKnopf.Checked = an;
+    }
+
+    private void AnsichtFixierenSetzen(bool an)
+    {
+        AnsichtFixiert = an;
+        if (an) Verknuepft = false;
+        _sync.Enabled = !an;
+        _sync.Checked = Verknuepft;
+        _ansichtKnopf.Checked = an;
+    }
+
+    /// <summary>„Normalform anzeigen“: Fenstergröße an den angezeigten Stundenplan anpassen.</summary>
+    private void NormalformAnzeigen()
+    {
+        if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
+        if (_klein) { Height = KleineHoehe(); return; }
+        var rand = Size - _planRahmen.ClientSize;
+        var breite = Math.Max(_plan.BenoetigteBreite, _gross ? 600 : 400);
+        var hoehe = _plan.BenoetigteHoehe;
+        Size = new Size(Math.Max(MinimumSize.Width, rand.Width + breite), Math.Max(MinimumSize.Height, rand.Height + hoehe));
+    }
+
+    /// <summary>Seitenlayout des Stundenplans wie im Vorbild: Seitenansicht mit Auswahl der Pläne und Druckeinstellungen.</summary>
+    private void Seitenlayout() => Druck.StundenplanSeitenlayout.Zeigen(this, _typ, new[] { _id }, _plan.Format, _plan.Woche);
 
     private void TypSetzen(ElementTyp typ)
     {
@@ -470,7 +534,9 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         AppZustand.Einstellungen.Stundenplanformate.TryGetValue(FormatSchluessel, out var gewaehlt);
         var name = _formatName ?? gewaehlt;
+        // Vorbild „Formate / Stundenpläne“: ohne gewähltes Format zuerst das als „Standard“ gekennzeichnete
         var f = (name is null ? null : D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Name == name && x.Klein == _klein)) ??
+                D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Klein == _klein && x.Standard && (_klein || x.Gross == _gross)) ??
                 D.Formate.FirstOrDefault(x => x.Typ == _typ && x.Klein == _klein && (_klein || x.Gross == _gross));
         return f ?? (_klein ? StundenplanFormat.KleinesFormat(_typ, StandardName) : new StundenplanFormat { Name = StandardName, Typ = _typ, Gross = _gross, Schriftgroesse = _gross ? 10 : 9 });
     }
@@ -630,15 +696,31 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>„Format speichern als…“: Kopie des aktuellen Formats unter neuem Namen.</summary>
     private void FormatSpeichernAls()
     {
-        var name = Ui.Eingabe("Name des Stundenplanformats:", "Format speichern als", _plan.Format.Name + " 2");
-        if (string.IsNullOrWhiteSpace(name)) return;
-        name = name.Trim();
-        if (D.Formate.Any(x => x.Typ == _typ && x.Name == name) && !Ui.Frage($"Das Format \"{name}\" gibt es bereits. Überschreiben?")) return;
+        if (NeuesFormatAbfragen(_plan.Format.Kurzname, _plan.Format.Name + " 2") is not { } neu) return;
+        if (D.Formate.Any(x => x.Typ == _typ && x.Name == neu.Lang) && !Ui.Frage($"Das Format \"{neu.Lang}\" gibt es bereits. Überschreiben?")) return;
         var f = Kopie(_plan.Format);
-        f.Name = name;
+        f.Name = neu.Lang;
+        f.Kurzname = neu.Kurz;
         f.Typ = _typ;
-        FormatSpeichern(f, name);
+        FormatSpeichern(f, neu.Lang);
     }
+
+    /// <summary>Vorbild-Dialog „Neues Stundenplanformat“: Name (Kurzname, z. B. „Le-Dru“) und Langname (z. B. „LehrerDruck“).</summary>
+    private (string Kurz, string Lang)? NeuesFormatAbfragen(string kurz, string lang)
+    {
+        using var d = KurznameDialog.Erzeugen(kurz, lang, out var k, out var l);
+        d.Text = "Neues Stundenplanformat";
+        d.ClientSize = new Size(360, d.ClientSize.Height);
+        k.Width = 110;
+        l.Width = 240;
+        foreach (var lb in d.Controls.OfType<Label>()) lb.Left = lb.Text == "Name" ? 130 : 260;
+        if (d.ShowDialog(this) != DialogResult.OK) return null;
+        var langname = l.Text.Trim().Length > 0 ? l.Text.Trim() : k.Text.Trim();
+        return string.IsNullOrWhiteSpace(langname) ? null : (k.Text.Trim(), langname);
+    }
+
+    /// <summary>Format nach Namen wählen (z. B. aus dem Fenster „Formate / Stundenpläne“).</summary>
+    public void FormatSetzen(string name) => FormatWaehlen(name);
 
     private void FormatWaehlen(string name)
     {
@@ -654,12 +736,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         // wie im Vorbild: zuerst die Grundform wählen (Format 01, 10, 11, 20, 21, 30, 40)
         if (StundenplanGrundformDialog.Zeigen(this, _plan.Format.Grundform) is not { } grundform) return;
-        var name = Ui.Eingabe("Name des neuen Stundenplanformats (Kopie des aktuellen Formats):", "Neues Stundenplanformat", _plan.Format.Name + " 2");
-        if (string.IsNullOrWhiteSpace(name)) return;
-        name = name.Trim();
+        if (NeuesFormatAbfragen("", _plan.Format.Name + " 2") is not { } neu) return;
+        var name = neu.Lang;
         if (D.Formate.Any(x => x.Typ == _typ && x.Name == name)) { Ui.Info($"Das Format \"{name}\" gibt es bereits."); return; }
         var f = Kopie(_plan.Format);
         f.Name = name;
+        f.Kurzname = neu.Kurz;
         f.Typ = _typ;
         f.Grundform = grundform;
         Aendern("Neues Stundenplanformat", AenderungsArt.Einstellungen, d => d.Formate.Add(f));
@@ -893,11 +975,11 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var woche = _plan.Woche.HasValue;
         var tag = woche && _nurTag;
         var m = new ToolStripMenuItem("Zeitbereich: " + (tag ? "Tag" : woche ? "Woche" : "Periode"));
-        var t = new ToolStripMenuItem("Tag – nur der gewählte Tag, tagesaktuell") { Checked = tag };
+        var t = new ToolStripMenuItem("Zeitbereich: Tag") { Checked = tag, ToolTipText = "Nur der gewählte Tag, tagesaktuell" };
         t.Click += (_, _) => ZeitbereichSetzen(true, true);
-        var w = new ToolStripMenuItem("Woche – tagesaktuell mit Vertretungen") { Checked = woche && !tag };
+        var w = new ToolStripMenuItem("Zeitbereich: Woche") { Checked = woche && !tag, ToolTipText = "Tagesaktuell mit Vertretungen (Strg+D)" };
         w.Click += (_, _) => ZeitbereichSetzen(true, false);
-        var p = new ToolStripMenuItem($"Periode – Regelplan ({D.AktivePeriode.Name})") { Checked = !woche };
+        var p = new ToolStripMenuItem("Zeitbereich: Periode") { Checked = !woche, ToolTipText = $"Regelplan der Periode {D.AktivePeriode.Name} (Strg+D)" };
         p.Click += (_, _) => ZeitbereichSetzen(false, false);
         m.DropDownItems.Add(t);
         m.DropDownItems.Add(w);
@@ -987,6 +1069,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}" + (_klein ? ":k" : "");
         _plan.Typ = _typ;
         _plan.ElementId = _id;
+        _farbenKnopf.Checked = _plan.Format.Farbe != FarbeNach.Keine;
         _plan.AuswahlAktualisieren();
         if (_plan.Tagesmodus) _plan.TageNeu();
         _plan.Invalidate();
@@ -1012,9 +1095,16 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             }
             var p = D.PeriodeAm(w);
             _detail.Text = $"Woche {Format.Datum(w)} – {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
+            _datumsBereich.Visible = false;
             return;
         }
-        _detail.Text = $"{wst} Wochenstunden   {nv} nicht verplante Std.   Datumsbereich: {Format.Datum(periode.Von)} – {Format.Datum(periode.Bis ?? D.Einstellungen.SchuljahrBis)} ({periode.Name})";
+        // Vorbild: links Wochenstunden, nicht verplante Stunden und Text des Elements (Klassen: Klassenlehrer), rechts „DatumsBereich“
+        var el = Ix.Element(_typ, _id);
+        var zusatz = el is Klasse kl && kl.KlassenlehrerIds.Count > 0 ? string.Join(", ", kl.KlassenlehrerIds.Select(Ix.KLehrer)) : el?.Text ?? "";
+        _detail.Text = $"{wst} Wochenstunden\n{nv} Nicht verplante Std.\n{zusatz}";
+        var bis = periode.Bis ?? D.Einstellungen.SchuljahrBis;
+        _datumsText.Text = $"{periode.Von:d.M.yyyy} - {bis:d.M.yyyy}\n{Kalender.Schulwoche(D, periode.Von)}. - {Kalender.Schulwoche(D, bis)}.Schulwoche";
+        _datumsBereich.Visible = true;
     }
 
     private void PoolAufbauen()
@@ -1231,12 +1321,45 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         foreach (var (n, t, w) in spalten)
             _lupe.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
         _lupe.Columns[0].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        // Vorbild: Spalten über das Kontextmenü der Überschriftszeile ein- bzw. ausblenden
+        LupeSpaltenSichtbarkeit();
         // Vorbild: Kopf „Lehr., Fa., Rm.“ orange hinterlegt
         _lupe.Columns["LFR"]!.HeaderCell.Style.BackColor = Ui.Erste;
     }
 
+    /// <summary>Ausgeblendete Spalten der Lupe laut Format, Schriftgröße laut „Schriftgröße in %: Stundenlupe“.</summary>
+    private void LupeSpaltenSichtbarkeit()
+    {
+        foreach (DataGridViewColumn c in _lupe.Columns) c.Visible = c.Index == 0 || !_plan.Format.LupeAusgeblendet.Contains(c.Name);
+        var groesse = Ui.Schrift.Size * Math.Clamp(_plan.Format.LupeSchriftProzent, 50, 300) / 100f;
+        if (Math.Abs((_lupe.DefaultCellStyle.Font?.Size ?? 0f) - groesse) > 0.1f) _lupe.DefaultCellStyle.Font = new Font(Ui.Schrift.FontFamily, groesse);
+    }
+
+    /// <summary>Vorbild: Kontextmenü der Überschriftszeile der Lupe – Spalten ein- bzw. ausblenden (wird im Format gespeichert).</summary>
+    private void LupeKopfMenue(Point pt)
+    {
+        var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        foreach (DataGridViewColumn c in _lupe.Columns)
+        {
+            if (c.Index == 0) continue;
+            var spalte = c;
+            var it = new ToolStripMenuItem(c.HeaderText) { Checked = c.Visible, CheckOnClick = true };
+            it.Click += (_, _) =>
+            {
+                var f = Kopie(_plan.Format);
+                f.LupeAusgeblendet.Remove(spalte.Name);
+                if (!it.Checked) f.LupeAusgeblendet.Add(spalte.Name);
+                FormatSpeichern(f, f.Name);
+                LupeSpaltenSichtbarkeit();
+            };
+            cm.Items.Add(it);
+        }
+        cm.Show(_lupe, pt);
+    }
+
     private void LupeFuellen(Planstunde? p, Unterricht? unv = null)
     {
+        LupeSpaltenSichtbarkeit();
         if (_plan.Tagesmodus) return;
         LupeSpalten(false);
         _lupe.Rows.Clear();
@@ -1249,6 +1372,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             {
                 var z = u.Zeilen[i];
                 var raum = p is null ? Ix.KRaum(z.Wunschraum) : Ix.KRaum(p.RaumFuerZeile(i));
+                // Vorbild: anderer Raum als beim Unterricht eingetragen (z. B. Ausweichraum) – eingetragener Raum in Klammern
+                if (p is not null && z.Wunschraum is int wr && p.RaumFuerZeile(i) is int vr && vr != wr) raum += $" ({Ix.KRaum(wr)})";
                 var lfr = string.Join(", ", new[] { Ix.KLehrer(z.LehrerId), Ix.KFach(z.FachId), raum }.Where(x => x.Length > 0));
                 var studt = D.Klassen.Where(k => z.KlassenIds.Contains(k.Id)).Sum(k => k.Schuelerzahl);
                 var r = _lupe.Rows.Add(i == 0 ? u.Id + (p?.Fixiert == true ? "*" : "") : "", lfr, Ix.KKlassen(z.KlassenIds), zeit, wochen, studt > 0 ? studt.ToString() : "",
@@ -1830,13 +1955,71 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             e.SuppressKeyPress = true;
             return;
         }
+        var keineEingabe = ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView);
+        // Vorbild: Strg+D wechselt den Zeitbereich (Woche / Periode), Strg+R Raumdialog, F7 Stunde fixieren
+        if (e.KeyData == (Keys.Control | Keys.D)) { ZeitbereichSetzen(!_plan.Woche.HasValue, false); e.Handled = e.SuppressKeyPress = true; return; }
+        if (e.KeyData == (Keys.Control | Keys.R) && keineEingabe) { RaumZuordnen(); e.Handled = e.SuppressKeyPress = true; return; }
+        if (e.KeyData == Keys.F7 && !RegelplanNurAnzeige) { Fixieren(); e.Handled = true; return; }
+        // Vorbild „Anzeige eines beliebigen Elementes“: Namen eintippen und mit der Eingabetaste bestätigen
+        if (keineEingabe && e.KeyData == Keys.Enter && _eingetippt.Length > 0)
+        {
+            ElementEintippen(_eingetippt.ToString());
+            _eingetippt.Clear();
+            e.Handled = e.SuppressKeyPress = true;
+            return;
+        }
+        if (keineEingabe && e.KeyData == Keys.Escape) _eingetippt.Clear();
         // Entf = entplanen, F = fixieren (nicht während einer Texteingabe)
-        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && e.Modifiers == Keys.None && !RegelplanNurAnzeige)
+        if (keineEingabe && e.Modifiers == Keys.None && !RegelplanNurAnzeige && _eingetippt.Length == 0)
         {
             if (e.KeyCode == Keys.Delete) { Entplanen(); e.Handled = true; }
             else if (e.KeyCode == Keys.F) { Fixieren(); e.Handled = true; }
         }
         base.OnKeyDown(e);
+    }
+
+    /// <summary>Eingetippter Name (Vorbild: Element bzw. Unterrichtsnummer eintippen und mit der Eingabetaste anzeigen).</summary>
+    private readonly System.Text.StringBuilder _eingetippt = new();
+    private DateTime _letzteTaste;
+
+    protected override void OnKeyPress(KeyPressEventArgs e)
+    {
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && !char.IsControl(e.KeyChar))
+        {
+            // „F“ allein fixiert weiterhin; ein Name beginnt erst, wenn schon getippt wird oder das Zeichen kein „f“ ist
+            if ((DateTime.Now - _letzteTaste).TotalSeconds > 3) _eingetippt.Clear();
+            _letzteTaste = DateTime.Now;
+            if (_eingetippt.Length > 0 || char.ToLowerInvariant(e.KeyChar) != 'f')
+            {
+                _eingetippt.Append(e.KeyChar);
+                AppZustand.Haupt.StatusMelden($"Element anzeigen: {_eingetippt} (Eingabetaste)");
+                e.Handled = true;
+            }
+        }
+        base.OnKeyPress(e);
+    }
+
+    /// <summary>Eingetipptes Element anzeigen: zuerst die aktuelle Planart, sonst (Art nicht fixiert) Klassen, Lehrer, Räume, Fächer; Zahl = Unterrichtsnummer.</summary>
+    private void ElementEintippen(string text)
+    {
+        text = text.Trim();
+        if (int.TryParse(text, out var unr) && Ix.Unterrichte.TryGetValue(unr, out var u) && D.Stundenplan.FirstOrDefault(p => p.UnterrichtId == unr) is { } ps)
+        {
+            if (_typ is ElementTyp.Klasse && u.KlassenIds.FirstOrDefault() is var k && k != 0 && !u.KlassenIds.Contains(_id)) { _id = k; Neuaufbau(); }
+            else if (_typ is ElementTyp.Lehrer && u.LehrerIds.FirstOrDefault() is var l && l != 0 && !u.LehrerIds.Contains(_id)) { _id = l; Neuaufbau(); }
+            StundeAnklicken(ps);
+            return;
+        }
+        var typen = new[] { _typ }.Concat(ArtFixiert ? Array.Empty<ElementTyp>() : new[] { ElementTyp.Klasse, ElementTyp.Lehrer, ElementTyp.Raum, ElementTyp.Fach }).Distinct();
+        foreach (var t in typen)
+        {
+            if (Stammdaten.Sortiert(D, t).FirstOrDefault(x => x.Kurzname.Equals(text, StringComparison.CurrentCultureIgnoreCase)) is not { } el) continue;
+            if (t != _typ) TypSetzen(t);
+            _id = el.Id;
+            Neuaufbau();
+            return;
+        }
+        AppZustand.Haupt.StatusMelden($"Kein Element „{text}“ gefunden.");
     }
 
     private List<Planstunde> Markierte() => _plan.Mehrfach.Count > 0 ? _plan.Mehrfach.ToList() : _plan.Ausgewaehlt is { } p ? new() { p } : new();
@@ -1928,6 +2111,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             cm.Items.Add("Ganzen Block markieren", null, (_, _) => { _plan.Mehrfach.Clear(); _plan.Mehrfach.AddRange(PlanAnsicht.Block(p)); _plan.Invalidate(); });
             cm.Items.Add(p.Fixiert ? "Fixierung lösen" : "Unterr.-Std. fixieren", Symbole.Get("fixieren"), (_, _) => Fixieren());
             cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => RaumZuordnen());
+            cm.Items.Add("Lehrer zuordnen…", Symbole.Get("lehrer"), (_, _) => { if (LehrerZuordnenDialog.Zeigen(this, p.UnterrichtId)) Neuaufbau(false); });
             cm.Items.Add("Tauschvorschläge…", Symbole.Get("tausch"), (_, _) => TauschvorschlaegeZeigen());
             cm.Items.Add("Stunde vom Unterricht entplanen", Symbole.Get("loeschen"), (_, _) => Entplanen());
             cm.Items.Add("Zeitwünsche des Unterrichts", Symbole.Get("zeitwunsch"), (_, _) => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, p.UnterrichtId));

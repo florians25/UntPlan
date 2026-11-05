@@ -189,6 +189,8 @@ public sealed partial class HauptFenster
             "pause" => Oeffnen("pause", () => new PausenaufsichtFenster()),
             "bereitplan" => Oeffnen("bereitplan", () => new BereitschaftsplanungFenster()),
             "ugruppen" => Oeffnen("ugruppen", () => new UGruppenFenster()),
+            "fixiert" => Oeffnen("fixiert", () => new FixierterUnterrichtFenster()),
+            "formate" => Oeffnen("formate", () => new StundenplanformateFenster()),
             "stat" => Oeffnen("stat", () => new StatistikFenster()),
             "diag" => Oeffnen("diag", () => new DiagnoseFenster()),
             "ferien" => Oeffnen("ferien", () => new FerienFenster()),
