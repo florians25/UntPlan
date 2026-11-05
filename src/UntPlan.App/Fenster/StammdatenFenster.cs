@@ -27,6 +27,17 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     private readonly Dictionary<string, Control> _formularEditoren = new();
     private Element? _aktuell;
     private int _ziehenZeile = -1;
+    /// <summary>Filterzeile zwischen Überschriften und Tabelleninhalt (Schaltfläche „Filter“); je Spalte ein Eingabefeld.</summary>
+    private readonly Panel _filterLeiste = new() { Dock = DockStyle.Top, Height = 22, Visible = false, BackColor = Color.FromArgb(255, 252, 230) };
+    private readonly Dictionary<string, string> _filter = new();
+    private ToolStripButton _filterKnopf = null!;
+    /// <summary>„Felder mit Inhalt“: vorübergehend alle Spalten mit mindestens einem Eintrag; beim zweiten Klick die vorherigen Spalten.</summary>
+    private List<string>? _spaltenVorMitInhalt;
+    private ToolStripButton _mitInhaltKnopf = null!;
+    /// <summary>Temporäre Sortierung per Klick in die Spaltenüberschrift (nach dem Schließen wieder aufgehoben).</summary>
+    private (string Feld, bool Absteigend)? _temporaereSortierung;
+    /// <summary>Beim nächsten Neuaufbau die Zeilenreihenfolge neu herstellen (nach Sortieren).</summary>
+    private bool _neuSortieren;
 
     private string FensterSchluessel => $"Stammdaten.{_typ}";
 
@@ -40,23 +51,54 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         Size = new Size(760, 420);
         Positionieren();
 
+        // Symbolleiste wie im Handbuch: Auswahl mit Blätterknöpfen | Normalform anzeigen, Felder der Ansicht, Neu, Löschen,
+        // Serienänderung, Filter | Sortieren, Felder mit Inhalt, Ansicht fixiert | Zeitwünsche | Schuljahreskalender |
+        // Farbe, Seitenlayout, Einstellungen, Aktualisieren
         var ts = Werkzeugleiste();
         ts.Items.Add(_auswahl);
         _auswahl.SelectedIndexChanged += (_, _) => { if (!_laden && _auswahl.SelectedItem is ElementEintrag ee) ZeileWaehlen(ee.Element); };
-        ts.Items.Add(VerknuepfenKnopf());
-        ts.Items.Add(Knopf("Normalform anzeigen", "normalform", Normalform));
+        ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(false), (_, _) => Blaettern(-1)) { ToolTipText = "Vorheriges Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
+        ts.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Blaettern(1)) { ToolTipText = "Nächstes Element", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Normalform anzeigen", "normalform", Normalform));
+        ts.Items.Add(Knopf("Felder der Ansicht", "uebersicht", FelderDialog));
         ts.Items.Add(Knopf("Neu", "neu", NeuesElement));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        ts.Items.Add(Knopf("Suchen", "suchen", Suchen));
+        ts.Items.Add(Knopf("Serienänderung", "kopieren", Serienaenderung));
+        _filterKnopf = Knopf("Filter", "filter", FilterUmschalten);
+        ts.Items.Add(_filterKnopf);
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Sortieren", "sortieren", Sortieren));
-        ts.Items.Add(Knopf("Alle Spalten anpassen", "uebersicht", () => _grid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells)));
-        ts.Items.Add(Knopf("Kommentar erstellen", "kommentar", KommentarErstellen));
+        _mitInhaltKnopf = Knopf("Felder mit Inhalt", "statistik", FelderMitInhalt);
+        ts.Items.Add(_mitInhaltKnopf);
+        // „Ansicht fixiert“: gedrückt = keine Synchronisation mit anderen Fenstern (Gegenstück der Fensterverknüpfung)
+        var fixiert = Knopf("Ansicht fixiert", "schloss", () => { });
+        fixiert.CheckOnClick = true;
+        fixiert.Checked = !Verknuepft;
+        fixiert.CheckedChanged += (_, _) => Verknuepft = !fixiert.Checked;
+        ts.Items.Add(fixiert);
         if (typ is ElementTyp.Klasse or ElementTyp.Lehrer or ElementTyp.Raum or ElementTyp.Fach)
         {
             ts.Items.Add(new ToolStripSeparator());
             ts.Items.Add(Knopf("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(_typ, _aktuell?.Id)));
+        }
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Schuljahreskalender", "kalender", () => HauptFenster.Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Farbe", "farbe", FarbeZuweisen));
+        var layout = new ToolStripSplitButton("Seitenlayout", Symbole.Get("vorschau", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Seitenlayout" };
+        layout.ButtonClick += (_, _) => Drucken(true);
+        layout.DropDownItems.Add("Seitenlayout", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
+        layout.DropDownItems.Add("Drucken", Symbole.Get("drucken", 16), (_, _) => Drucken(false));
+        ts.Items.Add(layout);
+        ts.Items.Add(Knopf("Einstellungen", "einstellungen", SchriftEinstellen));
+        ts.Items.Add(Knopf("Aktualisieren (F5)", "aktualisieren", Neuaufbau));
+        // weitere Funktionen dieses Programms (nicht im Handbuch-Fenster)
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Suchen", "suchen", Suchen));
+        ts.Items.Add(Knopf("Kommentar erstellen", "kommentar", KommentarErstellen));
+        if (typ is ElementTyp.Klasse or ElementTyp.Lehrer or ElementTyp.Raum or ElementTyp.Fach)
+        {
             if (typ != ElementTyp.Raum) ts.Items.Add(Knopf("Unterricht", "unterricht", () => UnterrichtFenster.Zeigen(_typ, _aktuell?.Id)));
             ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => StundenplanFenster.Neu(_typ, _aktuell?.Id, false)));
         }
@@ -65,9 +107,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             ts.Items.Add(Knopf("Fachfarben auf Standard setzen", "farbe", FachfarbenStandard, false));
             ts.Items.Add(Knopf("Farbe löschen (markierte Fächer, sonst alle)", "loeschen", () => FarbenLoeschen(true), false));
         }
-        ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
-        ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
+        KeyPreview = true;
+        KeyDown += (_, e) => { if (e.KeyCode == Keys.F5) { Neuaufbau(); e.Handled = true; } };
 
         Ui.RasterGestalten(_grid);
         _grid.AllowUserToOrderColumns = true;
@@ -109,6 +150,11 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _ansichtBox.SelectionChangeCommitted += (_, _) => AnsichtGewaehlt();
 
         _split.Panel1.Controls.Add(_grid);
+        _split.Panel1.Controls.Add(_filterLeiste);
+        _grid.ColumnWidthChanged += (_, _) => FilterLeisteAnordnen();
+        _grid.ColumnDisplayIndexChanged += (_, _) => FilterLeisteAnordnen();
+        _grid.Scroll += (_, e) => { if (e.ScrollOrientation == ScrollOrientation.HorizontalScroll) FilterLeisteAnordnen(); };
+        _grid.ColumnHeaderMouseClick += SpaltenkopfKlick;
         _split.Panel2.Controls.Add(_formular);
         _split.Panel2Collapsed = true;
         Controls.Add(_split);
@@ -157,6 +203,12 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         var ansicht = D.Ansichten.FirstOrDefault(a => a.Fenster == FensterSchluessel && a.Name == _ansichtName);
         var liste = Stammdaten.Sortiert(D, _typ).ToList();
+        if (_temporaereSortierung is { } temp && _felder.FirstOrDefault(x => x.Schluessel == temp.Feld) is { } tf)
+        {
+            Func<Element, string> key = e => tf.Anzeige(e, Ix);
+            var cmp = StringComparer.Create(Format.De, true);
+            return temp.Absteigend ? liste.OrderByDescending(key, cmp) : liste.OrderBy(key, cmp);
+        }
         if (ansicht?.Sortierung.Count > 0)
         {
             IOrderedEnumerable<Element>? o = null;
@@ -213,7 +265,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 col.Name = f.Schluessel;
                 col.HeaderText = f.Titel;
                 col.Width = f.Breite;
-                col.SortMode = DataGridViewColumnSortMode.NotSortable;
+                // Programmatic: Klick in die Überschrift sortiert temporär (mit Sortierpfeil), die Tabelle sortiert nicht selbst
+                col.SortMode = DataGridViewColumnSortMode.Programmatic;
                 col.ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" && _typ != ElementTyp.Schueler;
                 if (f.Schluessel is "Kurzname" or "Langname")
                     col.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 255);
@@ -221,6 +274,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 _grid.Columns.Add(col);
             }
         }
+        foreach (DataGridViewColumn c in _grid.Columns)
+            c.HeaderCell.SortGlyphDirection = _temporaereSortierung is { } ts && ts.Feld == c.Name ? (ts.Absteigend ? SortOrder.Descending : SortOrder.Ascending) : SortOrder.None;
         AuswahlWerteAktualisieren();
         var eintraege = Elemente().Cast<object>().Append(EingabeZeile).ToList();
         Steuerelemente.TabellenAbgleich.Anwenden(_grid, eintraege, Schluessel, Schluessel, (row, o) =>
@@ -233,7 +288,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 foreach (DataGridViewCell c in row.Cells) if (c.Value != null && c is not DataGridViewCheckBoxCell) c.Value = null;
                 row.DefaultCellStyle.BackColor = Color.FromArgb(252, 252, 240);
             }
-        });
+        }, neuSortieren: _neuSortieren);
+        _neuSortieren = false;
         _grid.ResumeLayout();
         _auswahl.Items.Clear();
         foreach (var e in Stammdaten.Sortiert(D, _typ)) _auswahl.Items.Add(new ElementEintrag(e));
@@ -247,6 +303,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             AktuellesGeaendert(false);
         }
         FormularAufbauen();
+        FilterLeisteAufbauen();
+        FilterAnwenden();
     }
 
     /// <summary>
@@ -621,21 +679,22 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             var flow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = true, AutoScroll = true, Padding = new Padding(4) };
             foreach (var f in gruppe)
             {
-                var p = new Panel { Width = 270, Height = 26, Margin = new Padding(2) };
-                var lbl = new Label { Text = f.Titel, Left = 0, Top = 4, Width = 110, AutoEllipsis = true, Cursor = Cursors.SizeAll, ForeColor = _spalten.Contains(f.Schluessel) ? Color.Gray : Color.Black };
+                // wie im Handbuch: Eingabefeld links, Beschriftung rechts daneben (Kontrollkästchen mit Text)
+                var p = new Panel { Width = f.Art == FeldArt.Bool ? 250 : 290, Height = 26, Margin = new Padding(2) };
+                var lbl = new Label { Text = f.Formulartext, Left = f.Art == FeldArt.Bool ? 20 : 132, Top = 4, Width = f.Art == FeldArt.Bool ? 226 : 156, AutoEllipsis = true, Cursor = Cursors.SizeAll, ForeColor = _spalten.Contains(f.Schluessel) ? Color.Gray : Color.Black };
                 _tip.SetToolTip(lbl, "Zum Einblenden in die Rasteransicht ziehen (Drag & Drop)");
                 var key = f.Schluessel;
                 lbl.MouseDown += (_, me) => { if (me.Button == MouseButtons.Left) lbl.DoDragDrop("ein:" + key, DragDropEffects.Copy); };
                 Control ed;
                 if (f.Art == FeldArt.Bool)
                 {
-                    var cb = new CheckBox { Left = 114, Top = 3, Width = 20, Enabled = f.Editierbar };
+                    var cb = new CheckBox { Left = 2, Top = 3, Width = 16, Enabled = f.Editierbar };
                     cb.CheckedChanged += (_, _) => FormularWert(f, cb.Checked ? "X" : "");
                     ed = cb;
                 }
                 else if (f.Art == FeldArt.Auswahl || f.Art == FeldArt.Element)
                 {
-                    var cb = new ComboBox { Left = 114, Top = 1, Width = 150, DropDownStyle = f.Art == FeldArt.Auswahl ? ComboBoxStyle.DropDownList : ComboBoxStyle.DropDown, Enabled = f.Editierbar };
+                    var cb = new ComboBox { Left = 2, Top = 1, Width = 124, DropDownStyle = f.Art == FeldArt.Auswahl ? ComboBoxStyle.DropDownList : ComboBoxStyle.DropDown, Enabled = f.Editierbar };
                     if (f.Art == FeldArt.Auswahl) cb.Items.AddRange(f.Auswahl);
                     else { cb.Items.Add(""); cb.Items.AddRange(D.AlleElemente(f.RefTyp).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
                     cb.SelectionChangeCommitted += (_, _) => FormularWert(f, cb.SelectedItem?.ToString() ?? "");
@@ -649,7 +708,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 }
                 else
                 {
-                    var tb = new TextBox { Left = 114, Top = 1, Width = 150, ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" };
+                    var tb = new TextBox { Left = 2, Top = 1, Width = 124, ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" };
                     tb.Leave += (_, _) => FormularWert(f, tb.Text);
                     tb.KeyDown += (_, ke) => { if (ke.KeyCode == Keys.Enter) { FormularWert(f, tb.Text); ke.SuppressKeyPress = true; } };
                     ed = tb;
@@ -718,9 +777,10 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _ansichtBox.Items.Clear();
         var namen = new[] { "Standard" }.Concat(D.Ansichten.Where(a => a.Fenster == FensterSchluessel).Select(a => a.Name)).Distinct().ToList();
         foreach (var n in namen) _ansichtBox.Items.Add(n == _ansichtName && _ansichtGeaendert ? n + "*" : n);
-        _ansichtBox.Items.Add("Ansicht speichern");
-        _ansichtBox.Items.Add("Ansicht speichern als…");
-        _ansichtBox.Items.Add("Ansicht löschen");
+        _ansichtBox.Items.Add(FormatSpeichern);
+        _ansichtBox.Items.Add(FormatSpeichernAls);
+        _ansichtBox.Items.Add(FormatBearbeiten);
+        _ansichtBox.Items.Add(FormatLoeschen);
         _ansichtBox.SelectedIndex = namen.IndexOf(_ansichtName);
     }
 
@@ -734,20 +794,37 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     private void AnsichtGewaehlt()
     {
         var t = _ansichtBox.SelectedItem?.ToString() ?? "";
-        if (t == "Ansicht speichern") AnsichtSpeichern(_ansichtName);
-        else if (t == "Ansicht speichern als…")
+        if (t == FormatSpeichern) AnsichtSpeichern(_ansichtName);
+        else if (t == FormatSpeichernAls)
         {
-            var n = Ui.Eingabe("Name der neuen Ansicht:", "Ansicht speichern als", "Neue Ansicht");
+            var n = Ui.Eingabe("Name des neuen Formats:", "Format speichern als", "Neues Format");
             if (!string.IsNullOrWhiteSpace(n)) AnsichtSpeichern(n.Trim());
             else AnsichtBoxFuellen();
         }
-        else if (t == "Ansicht löschen")
+        else if (t == FormatBearbeiten)
         {
-            if (_ansichtName != "Standard") Aendern("Ansicht löschen", AenderungsArt.Einstellungen, d => d.Ansichten.RemoveAll(a => a.Fenster == FensterSchluessel && a.Name == _ansichtName));
+            // Ansicht umbenennen (das Standardformat behält seinen Namen)
+            var neu = _ansichtName == "Standard" ? null : AnsichtUmbenennenDialog.Zeigen(this, _ansichtName);
+            if (neu != null && neu != _ansichtName && !D.Ansichten.Any(a => a.Fenster == FensterSchluessel && a.Name == neu))
+            {
+                var alt = _ansichtName;
+                Aendern("Format umbenennen", AenderungsArt.Einstellungen, d => { foreach (var a in d.Ansichten.Where(a => a.Fenster == FensterSchluessel && a.Name == alt)) a.Name = neu; });
+                _ansichtName = neu;
+            }
+            AnsichtBoxFuellen();
+        }
+        else if (t == FormatLoeschen)
+        {
+            if (_ansichtName != "Standard") Aendern("Format löschen", AenderungsArt.Einstellungen, d => d.Ansichten.RemoveAll(a => a.Fenster == FensterSchluessel && a.Name == _ansichtName));
             AnsichtLaden("Standard");
         }
         else AnsichtLaden(t.TrimEnd('*'));
     }
+
+    private const string FormatSpeichern = "Format speichern";
+    private const string FormatSpeichernAls = "Format speichern als...";
+    private const string FormatBearbeiten = "Bearbeiten";
+    private const string FormatLoeschen = "Löschen";
 
     private void AnsichtSpeichern(string name)
     {
@@ -809,6 +886,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             if (an is null) d.Ansichten.Add(an = new Ansicht { Fenster = FensterSchluessel, Name = name, Spalten = spalten });
             an.Sortierung = kriterien;
         });
+        _temporaereSortierung = null;
+        _neuSortieren = true;
         if (dauerhaft)
         {
             var liste = Elemente().ToList();
@@ -886,22 +965,54 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
     private void Filtern(int spalte, string wert)
     {
-        foreach (DataGridViewRow r in _grid.Rows)
+        // über die Filterzeile: Feldinhalt eintragen bzw. alle Filter aufheben
+        _filter.Clear();
+        foreach (var tb in _filterLeiste.Controls.OfType<TextBox>()) tb.Text = "";
+        _filter.Clear();
+        if (spalte >= 0)
         {
-            if (r.Tag is null) continue;
-            r.Visible = spalte < 0 || (r.Cells[spalte].Value?.ToString() ?? "") == wert;
+            if (!_filterLeiste.Visible) FilterUmschalten();
+            var name = _grid.Columns[spalte].Name;
+            if (_filterLeiste.Controls[name] is TextBox tb) tb.Text = wert;
+            else _filter[name] = wert;
         }
+        FilterAnwenden();
     }
 
     private void FelderDialog()
     {
-        var neu = FelderAuswahlDialog.Zeigen(this, _felder, _spalten);
-        if (neu is null) return;
-        _spalten = neu;
-        if (!_spalten.Contains("Kurzname")) _spalten.Insert(0, "Kurzname");
-        _ansichtGeaendert = true;
-        AnsichtBoxFuellen();
-        Neuaufbau();
+        void Anwenden(FelderDerAnsichtRaster.Auswahl a)
+        {
+            _spaltenVorMitInhalt = null;
+            _mitInhaltKnopf.Checked = false;
+            _spalten = a.Aktiv;
+            if (!_spalten.Contains("Kurzname")) _spalten.Insert(0, "Kurzname");
+            NichtDruckenSetzen(a.NichtDrucken);
+            _ansichtGeaendert = true;
+            AnsichtBoxFuellen();
+            Neuaufbau();
+        }
+        var neu = FelderDerAnsichtRaster.Zeigen(this, _felder, _spalten, NichtGedruckt(), Anwenden);
+        if (neu != null) Anwenden(neu);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Druck: Spalte „drucken“ im Dialog „Felder der Ansicht“ = Druckauswahl im Seitenlayout dieser Liste
+    // ------------------------------------------------------------------------------------------
+
+    private HashSet<string> NichtGedruckt()
+    {
+        var layout = ListenDruck.LayoutFuer(Text);
+        return _felder.Where(f => layout.Spalten.Any(s => s.Name == f.Titel && !s.Drucken)).Select(f => f.Schluessel).ToHashSet();
+    }
+
+    private void NichtDruckenSetzen(HashSet<string> nicht)
+    {
+        var layout = ListenDruck.LayoutFuer(Text);
+        var spalten = _spalten.Select(k => _felder.FirstOrDefault(f => f.Schluessel == k)).OfType<Feld>().ToList();
+        var alt = layout.Spalten.GroupBy(x => x.Name).ToDictionary(x => x.Key, x => x.First().Breite);
+        layout.Spalten = spalten.Select(f => new ListenDruck.DruckSpalte { Name = f.Titel, Drucken = !nicht.Contains(f.Schluessel), Breite = alt.TryGetValue(f.Titel, out var b) ? b : f.Breite }).ToList();
+        AppZustand.Einstellungen.Speichern();
     }
 
     public void Drucken(bool vorschau)
@@ -910,5 +1021,162 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Element && r.Visible)
             .Select(r => spalten.Select(c => r.Cells[c.Index].Value switch { bool b => b ? "X" : "", var v => v?.ToString() ?? "" }).ToArray()).ToList();
         ListenDruck.Drucken(this, Text, spalten.Select(c => c.HeaderText).ToArray(), spalten.Select(c => c.Width).ToArray(), zeilen, vorschau);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Symbolleiste: Blättern, Serienänderung, Filter, Felder mit Inhalt, Farbe, Einstellungen
+    // ------------------------------------------------------------------------------------------
+
+    private void Blaettern(int richtung)
+    {
+        var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Visible && r.Tag is Element).ToList();
+        if (zeilen.Count == 0) return;
+        var i = zeilen.FindIndex(r => r.Tag == _aktuell);
+        var ziel = zeilen[Math.Clamp(i < 0 ? 0 : i + richtung, 0, zeilen.Count - 1)];
+        ZeileWaehlen((Element)ziel.Tag!);
+    }
+
+    /// <summary>Serienänderung (Handbuch 2.3.3.4): in der aktuellen Spalte alle Felder mit „Alter Wert“ auf „Neuer Wert“ setzen.</summary>
+    private void Serienaenderung()
+    {
+        if (_grid.CurrentCell is null || _grid.Columns[_grid.CurrentCell.ColumnIndex].Tag is not Feld f) return;
+        if (!f.Editierbar || f.Schluessel == "Kurzname") { Ui.Info($"Das Feld \"{f.Titel}\" kann nicht per Serienänderung geändert werden."); return; }
+        var alt = _aktuell is null ? "" : f.Anzeige(_aktuell, Ix);
+        var ein = SerienaenderungDialog.Zeigen(this, f.Titel, alt);
+        if (ein is null) return;
+        object? wert;
+        try { wert = f.Parse(f.Art == FeldArt.Bool ? (ein.NeuerWert.Length > 0 ? "X" : "") : ein.NeuerWert, D); }
+        catch (Exception ex) when (ex is FormatException or OverflowException) { Ui.Fehler(new FormatException(ex.Message)); return; }
+        var kandidaten = ein.GanzeDatei ? D.AlleElemente(_typ).ToList() : _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Visible).Select(r => r.Tag).OfType<Element>().ToList();
+        var altText = f.Art == FeldArt.Bool ? (ein.AlterWert.Length > 0 ? "X" : "") : ein.AlterWert;
+        var ziele = kandidaten.Where(e => (!ein.NurMarkierte || e.Markiert) && string.Equals(f.Anzeige(e, Ix), altText, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (ziele.Count == 0) { Ui.Info("Kein Element mit diesem Wert gefunden."); return; }
+        if (Aendern($"Serienänderung {f.Titel}", AenderungsArt.Stammdaten, _ => { foreach (var e in ziele) f.Set!(e, wert); })) Neuaufbau();
+    }
+
+    private void FilterUmschalten()
+    {
+        _filterLeiste.Visible = !_filterLeiste.Visible;
+        _filterKnopf.Checked = _filterLeiste.Visible;
+        if (!_filterLeiste.Visible) _filter.Clear();
+        FilterLeisteAufbauen();
+        FilterAnwenden();
+        if (_filterLeiste.Visible && _grid.CurrentCell is { } c && _filterLeiste.Controls[_grid.Columns[c.ColumnIndex].Name] is TextBox tb) tb.Focus();
+    }
+
+    /// <summary>Eingabefelder der Filterzeile (je Spalte eines, mit dem Filtersymbol über den Zeilenköpfen).</summary>
+    private void FilterLeisteAufbauen()
+    {
+        if (!_filterLeiste.Visible) return;
+        var namen = _grid.Columns.Cast<DataGridViewColumn>().Select(c => c.Name).ToHashSet();
+        foreach (var tb in _filterLeiste.Controls.OfType<TextBox>().Where(t => !namen.Contains(t.Name)).ToList()) { _filterLeiste.Controls.Remove(tb); tb.Dispose(); }
+        if (_filterLeiste.Controls["FilterSymbol"] is null)
+            _filterLeiste.Controls.Add(new PictureBox { Name = "FilterSymbol", Image = Symbole.Get("filter", 16), SizeMode = PictureBoxSizeMode.CenterImage, Left = 0, Top = 0, Height = 22 });
+        foreach (DataGridViewColumn c in _grid.Columns)
+        {
+            if (_filterLeiste.Controls[c.Name] is TextBox) continue;
+            var tb = new TextBox { Name = c.Name, BorderStyle = BorderStyle.FixedSingle, Text = _filter.GetValueOrDefault(c.Name, ""), Font = Ui.Schrift };
+            var name = c.Name;
+            tb.TextChanged += (_, _) => { _filter[name] = tb.Text; FilterAnwenden(); };
+            _tip.SetToolTip(tb, "Filter: Platzhalter ? (ein Zeichen) und * (beliebig viele Zeichen), mehrere Werte mit | (oder)");
+            _filterLeiste.Controls.Add(tb);
+        }
+        FilterLeisteAnordnen();
+    }
+
+    private void FilterLeisteAnordnen()
+    {
+        if (!_filterLeiste.Visible) return;
+        if (_filterLeiste.Controls["FilterSymbol"] is Control sym) sym.Width = _grid.RowHeadersVisible ? _grid.RowHeadersWidth : 0;
+        foreach (DataGridViewColumn c in _grid.Columns)
+        {
+            if (_filterLeiste.Controls[c.Name] is not TextBox tb) continue;
+            var r = _grid.GetColumnDisplayRectangle(c.Index, false);
+            tb.Visible = c.Visible && r.Width > 0;
+            if (tb.Visible) tb.SetBounds(r.Left, 0, r.Width, _filterLeiste.Height);
+        }
+    }
+
+    /// <summary>Zeilen nach den Einträgen der Filterzeile ausblenden (UND über die Spalten; ? und * als Platzhalter, | = oder).</summary>
+    private void FilterAnwenden()
+    {
+        var aktiv = _filter.Where(x => x.Value.Trim().Length > 0 && _grid.Columns.Contains(x.Key)).ToList();
+        foreach (DataGridViewRow r in _grid.Rows)
+        {
+            if (r.Tag is not Element) continue;
+            var sichtbar = aktiv.All(x => FilterPasst(r.Cells[x.Key].Value switch { bool b => b ? "x" : "", var v => v?.ToString() ?? "" }, x.Value));
+            if (r.Visible == sichtbar) continue;
+            if (!sichtbar && _grid.CurrentRow == r)
+            {
+                try { _grid.CurrentCell = null; }
+                catch (InvalidOperationException) { continue; }
+            }
+            r.Visible = sichtbar;
+        }
+    }
+
+    /// <summary>Filterregel: Platzhalter ? und *, Alternativen mit |; bei Listen („LANG,EGB“) genügt ein passender Eintrag.</summary>
+    internal static bool FilterPasst(string wert, string filter)
+    {
+        foreach (var teil in filter.Split('|'))
+        {
+            var t = teil.Trim();
+            if (t.Length == 0) continue;
+            var muster = "^" + System.Text.RegularExpressions.Regex.Escape(t).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
+            var re = new System.Text.RegularExpressions.Regex(muster, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+            if (re.IsMatch(wert) || wert.Split(',').Any(x => re.IsMatch(x.Trim()))) return true;
+        }
+        return false;
+    }
+
+    /// <summary>„Felder mit Inhalt“: vorübergehend alle Spalten mit mindestens einem Eintrag; zweiter Klick stellt den Originalzustand wieder her.</summary>
+    private void FelderMitInhalt()
+    {
+        if (_spaltenVorMitInhalt != null)
+        {
+            _spalten = _spaltenVorMitInhalt;
+            _spaltenVorMitInhalt = null;
+        }
+        else
+        {
+            _spaltenVorMitInhalt = _spalten.ToList();
+            var elemente = D.AlleElemente(_typ).ToList();
+            _spalten = _felder.Where(f => f.Schluessel == "Kurzname" || elemente.Any(e => f.Anzeige(e, Ix).Length > 0)).Select(f => f.Schluessel).ToList();
+        }
+        _mitInhaltKnopf.Checked = _spaltenVorMitInhalt != null;
+        Neuaufbau();
+    }
+
+    /// <summary>Automatische temporäre Sortierung: Klick in die Überschrift sortiert aufsteigend, ein weiterer Klick absteigend.</summary>
+    private void SpaltenkopfKlick(object? sender, DataGridViewCellMouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Left || e.ColumnIndex < 0 || (ModifierKeys & Keys.Control) != 0) return;
+        var key = _grid.Columns[e.ColumnIndex].Name;
+        _temporaereSortierung = _temporaereSortierung is { } t && t.Feld == key ? (key, !t.Absteigend) : (key, false);
+        _neuSortieren = true;
+        Neuaufbau();
+    }
+
+    /// <summary>Farbe (Handbuch 2.3.1): Vorder- und Hintergrundfarbe für das aktive bzw. alle markierten Elemente.</summary>
+    private void FarbeZuweisen()
+    {
+        var markiert = _grid.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Element>().Distinct().ToList();
+        if (markiert.Count == 0 && _aktuell != null) markiert.Add(_aktuell);
+        if (markiert.Count == 0) return;
+        var e0 = markiert[0];
+        var farbe = ElementFarbeDialog.Zeigen(this, markiert.Count == 1 ? e0.Kurzname : $"{markiert.Count} Elemente", e0.Vordergrund, e0.Hintergrund);
+        if (farbe is not { } f) return;
+        if (Aendern(markiert.Count == 1 ? "Farbe geändert" : "Farben geändert", AenderungsArt.Stammdaten, _ => { foreach (var el in markiert) { el.Vordergrund = f.Vorder; el.Hintergrund = f.Hinter; } }))
+            Neuaufbau();
+    }
+
+    /// <summary>Einstellungen (Handbuch 2.3.1): Schriftart und -größe der Tabelle.</summary>
+    private void SchriftEinstellen()
+    {
+        using var fd = new FontDialog { Font = _grid.DefaultCellStyle.Font ?? _grid.Font, ShowEffects = false };
+        if (fd.ShowDialog(this) != DialogResult.OK) return;
+        _grid.DefaultCellStyle.Font = fd.Font;
+        _grid.RowTemplate.Height = Math.Max(18, fd.Font.Height + 6);
+        foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
     }
 }
