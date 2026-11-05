@@ -76,6 +76,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Felder der Ansicht", "rollup", FelderDialog));
         // Werkzeugleiste wie im Vorbild nur mit Symbolen (Text im Tooltip)
         ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen));
+        ts.Items.Add(Knopf("Diagnose – Vertretungs-Diagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis)));
         ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(new ToolStripButton("Entfall", Symbole.Get("loeschen", 16), (_, _) => Entfall())
@@ -342,7 +343,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false), ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false),
         ("Neu", "Neu", "Neue Vertretung", 36, true, false, false), ("Fix", "(X)", "(X) Fixiert", 30, true, false, false),
         ("ND", "(N)", "(N) Nicht Drucken", 30, true, false, false), ("Text2", "Text 2", "Vertretungs-Text 2", 120, false, false, false),
-        ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zähler", "Zähler", 46, true, false, false),
+        ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zählen", "Zählen", 46, true, false, false),
         ("Unterschrift", "Unterschrift", "Unterschrift", 80, true, false, false), ("Wert", "Wert", "Wert bzw. Faktor", 46, false, false, false),
         ("Abt", "Abteilung", "Abteilung", 70, true, false, true), ("Benutzer", "Benutzer", "Benutzer", 70, true, false, false),
         ("Mehr", "Mehrarb.", "Mehrarbeit", 54, true, false, false),
@@ -1014,7 +1015,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (v.Art == VertretungsArt.Freisetzung && neueKlassen.Length > 0) neueKlassen = $"({neueKlassen})";
         var zeit = D.Zeitraster.Zeiten.FirstOrDefault(z => z.Nr == (gruppe?.Min(x => x.Stunde) ?? v.Stunde)) is { } z1 && D.Zeitraster.Zeiten.FirstOrDefault(z => z.Nr == (gruppe?.Max(x => x.Stunde) ?? v.Stunde)) is { } z2
             ? $"{z1.Beginn:HH\\:mm}-{z2.Ende:HH\\:mm}" : "";
-        var zaehler = v.IstEntfall && v.Art != VertretungsArt.BereitschaftEntfaellt ? "-1" : v.VertreterId.HasValue && v.VertreterId != v.LehrerId && Vertretungen.ZaehlendeArten.Contains(v.Art) ? "+1" : "";
+        // Spalte „Zählen“ (Handbuch: Tipp Spalte „Zählen“): pos. / neg. / nicht gezählt laut Einstellungen zum Vertretungszähler
+        var zaehler = Zaehlung.Kennzeichen(D, v);
         var abteilung = v.NeueKlassenIds.Select(k => Ix.Klassen.GetValueOrDefault(k)?.AbteilungId).FirstOrDefault(x => x.HasValue);
         var benachrichtigen = v.VertreterId is int vt && v.Datum == DateOnly.FromDateTime(DateTime.Today) &&
                               !Plan(v.Datum).VonLehrer(vt).Any(e => e.Stunde < v.Stunde && e.Vertretung != v) ? "X" : "";

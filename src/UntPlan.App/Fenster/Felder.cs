@@ -157,15 +157,28 @@ public static class Felder
                 l.Add(F("Geburtsdatum", "Geburtsdatum", FeldArt.Datum, e => ((Lehrer)e).Geburtsdatum, (e, v) => ((Lehrer)e).Geburtsdatum = (DateOnly?)v, "Allgemeine Daten", false, 80));
                 l.Add(T("Geschlecht", "Geschlecht", e => ((Lehrer)e).Geschlecht, (e, v) => ((Lehrer)e).Geschlecht = (string)v!, "Allgemeine Daten"));
                 l.Add(T("Status", "Status", e => ((Lehrer)e).Status, (e, v) => ((Lehrer)e).Status = (string)v!, "Allgemeine Daten"));
-                l.Add(F("VertrMaxWoche", "Vtr. max/Woche", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxWoche, (e, v) => ((Lehrer)e).VertretungenMaxWoche = (int)v!, "Vertretungsplanung"));
-                l.Add(F("VertrMaxMonat", "Vtr. max/Monat", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxMonat, (e, v) => ((Lehrer)e).VertretungenMaxMonat = (int)v!, "Vertretungsplanung"));
-                l.Add(F("KeineVertretung", "Keine Vertretung", FeldArt.Bool, e => ((Lehrer)e).KeineVertretung, (e, v) => ((Lehrer)e).KeineVertretung = (bool)v!, "Vertretungsplanung"));
+                l.Add(F("VertrMaxWoche", "Vtr. max/Woche", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxWoche, (e, v) => ((Lehrer)e).VertretungenMaxWoche = (int)v!, "Vertr."));
+                l.Add(F("VertrMaxMonat", "Vtr. max/Monat", FeldArt.Ganzzahl, e => ((Lehrer)e).VertretungenMaxMonat, (e, v) => ((Lehrer)e).VertretungenMaxMonat = (int)v!, "Vertr."));
+                l.Add(F("KeineVertretung", "Keine Vertretung", FeldArt.Bool, e => ((Lehrer)e).KeineVertretung, (e, v) => ((Lehrer)e).KeineVertretung = (bool)v!, "Vertr."));
                 l.Add(F("AufsichtenMin", "Aufsichten min", FeldArt.Ganzzahl, e => ((Lehrer)e).AufsichtenMin, (e, v) => ((Lehrer)e).AufsichtenMin = (int)v!, "Pausenaufsicht"));
                 l.Add(F("AufsichtenMax", "Aufsichten max", FeldArt.Ganzzahl, e => ((Lehrer)e).AufsichtenMax, (e, v) => ((Lehrer)e).AufsichtenMax = (int)v!, "Pausenaufsicht"));
                 l.Add(F("KeineAufsicht", "Keine Aufsicht", FeldArt.Bool, e => ((Lehrer)e).KeineAufsicht, (e, v) => ((Lehrer)e).KeineAufsicht = (bool)v!, "Pausenaufsicht"));
                 l.Add(F("PaMaxMinuten", "Aufs. max. Minuten", FeldArt.Ganzzahl, e => ((Lehrer)e).PausenaufsichtMaxMinuten, (e, v) => ((Lehrer)e).PausenaufsichtMaxMinuten = (int)v!, "Pausenaufsicht"));
-                l.Add(F("Sperrvermerk", "Sperrvermerk (0-9)", FeldArt.Ganzzahl, e => ((Lehrer)e).Sperrvermerk, (e, v) => ((Lehrer)e).Sperrvermerk = Math.Clamp((int)v!, 0, 9), "Vertretungsplanung"));
-                l.Add(F("BereitschaftenMax", "Bereitschaften max", FeldArt.Ganzzahl, e => ((Lehrer)e).BereitschaftenMax, (e, v) => ((Lehrer)e).BereitschaftenMax = (int)v!, "Vertretungsplanung"));
+                l.Add(F("Sperrvermerk", "Sperrvermerk (0-9)", FeldArt.Ganzzahl, e => ((Lehrer)e).Sperrvermerk, (e, v) => ((Lehrer)e).Sperrvermerk = Math.Clamp((int)v!, 0, 9), "Vertr."));
+                l.Add(F("BereitschaftenMax", "Bereitschaften max", FeldArt.Ganzzahl, e => ((Lehrer)e).BereitschaftenMax, (e, v) => ((Lehrer)e).BereitschaftenMax = (int)v!, "Vertr."));
+                // Überblick Vertretungszähler (Handbuch: Lehrer | Stammdaten): Durchrechnungszeitraum laut Einstellungen der Vertretungsplanung
+                l.Add(F("PaVertr", "PA-Vertr.", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).PaVertretungen, null, "Vertr.", false, 60));
+                l.Add(F("PaEntf", "PA-Entf.", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).PaEntfaelle, null, "Vertr.", false, 60));
+                l.Add(F("Zaehler", "Zähler", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Summe, null, "Vertr.", false, 50));
+                l.Add(F("ZaehlerEntf", "Entf.", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Entfaelle, null, "Vertr.", false, 45));
+                l.Add(F("ZaehlerVertr", "Vertretungen", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Vertretungen, null, "Vertr.", false, 75));
+                l.Add(F("ZaehlerWk", "davon Wertkorrektur", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Wertkorrektur, null, "Vertr.", false, 75));
+                l.Add(F("ZaehlerBetr", "Betreuung", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Betreuungen, null, "Vertr.", false, 60));
+                l.Add(F("ZaehlerBez", "bezahlte Vertretungen", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).Bezahlt, null, "Vertr.", false, 60));
+                l.Add(F("JahresZaehler", "Jahres-Zähler", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e, true).Summe, null, "Vertr.", false, 80));
+                l.Add(F("JahresPa", "Jahres-Z. Pausenaufs.", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e, true).PaVertretungen, null, "Vertr.", false, 80));
+                l.Add(F("AnzBereit", "Anz. Bereit.", FeldArt.NurLesen, e => Zaehler.Bereitschaften((Lehrer)e), null, "Vertr.", false, 70));
+                l.Add(F("GehBereit", "Geh. Bereit.", FeldArt.NurLesen, e => Zaehler.Fuer((Lehrer)e).BereitschaftenGenutzt, null, "Vertr.", false, 70));
                 break;
             case ElementTyp.Fach:
                 l.AddRange(Gemeinsam());
@@ -197,12 +210,16 @@ public static class Felder
                 l.Add(F("Leiter", "Abteilungsleiter", FeldArt.Element, e => ((Abteilung)e).LeiterId, (e, v) => ((Abteilung)e).LeiterId = (int?)v, "Allgemein", true, 90, ElementTyp.Lehrer));
                 break;
             case ElementTyp.Abwesenheitsgrund:
-                l.AddRange(Gemeinsam().Take(3));
-                l.Add(F("Statistikrelevant", "Statistik", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Statistikrelevant, (e, v) => ((Abwesenheitsgrund)e).Statistikrelevant = (bool)v!, "Allgemein", true));
-                l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemein", true));
-                l.Add(F("EntfallZaehlen", "Entfall zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemein", true));
-                l.Add(F("FreisetzungNichtZaehlen", "Freisetzung nicht zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemein", true));
-                l.Add(F("NichtImAbsenzkopf", "nicht im Kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemein"));
+                // Spalten wie im Handbuch: Name, Langname, Beschr., Entf zählen, FS n.zählen, N. in Abs.kopf, Statistik
+                l.AddRange(Gemeinsam().Take(2));
+                l.Add(T("Beschreibung", "Beschr.", e => e.Beschreibung, (e, v) => e.Beschreibung = (string)v!, std: true, breite: 60));
+                l.Add(F("EntfallZaehlen", "Entf zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("FreisetzungNichtZaehlen", "FS n.zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("NichtImAbsenzkopf", "N. in Abs.kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemein", true));
+                l.Add(T("Statistik", "Statistik", e => e.Statistik, (e, v) => e.Statistik = (string)v!, std: true, breite: 60));
+                l.Add(Gemeinsam().ElementAt(2));
+                l.Add(F("Statistikrelevant", "Statistikrelevant", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Statistikrelevant, (e, v) => ((Abwesenheitsgrund)e).Statistikrelevant = (bool)v!, "Allgemein"));
+                l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemein"));
                 l.Add(F("Hintergrund", "Farbe", FeldArt.Farbe, e => e.Hintergrund, (e, v) => e.Hintergrund = (int)v!, "Allgemein", false, 50));
                 break;
             case ElementTyp.Schueler:
@@ -225,4 +242,53 @@ public static class Felder
             var p = t.Split(':');
             return new Ermaessigung { Grund = p[0].Trim(), Wert = p.Length > 1 ? decimal.Parse(p[1].Trim().Replace('.', ','), CultureInfo.GetCultureInfo("de-DE")) : 0 };
         }).ToList();
+}
+
+/// <summary>
+/// Zählerstände je Lehrer für die Stammdatenspalten (Überblick Vertretungszähler): Durchrechnungszeitraum um das eingestellte Datum
+/// bzw. das ganze Schuljahr („Jahres-Zähler“). Zwischengespeichert, bis sich die Daten oder das Datum ändern.
+/// </summary>
+public static class Zaehler
+{
+    public sealed record Stand(int Vertretungen, int Entfaelle, decimal Summe, decimal Wertkorrektur, int Betreuungen, int Bezahlt, int PaVertretungen, int PaEntfaelle, int BereitschaftenGenutzt);
+
+    private static object? _schluessel;
+    private static DateOnly _datum;
+    private static readonly Dictionary<(int, bool), Stand> Cache = new();
+
+    public static Stand Fuer(Lehrer l, bool schuljahr = false)
+    {
+        var d = AppZustand.D;
+        var ix = AppZustand.Doc.Index;
+        if (!ReferenceEquals(_schluessel, ix) || _datum != AppZustand.Datum)
+        {
+            Cache.Clear();
+            _schluessel = ix;
+            _datum = AppZustand.Datum;
+        }
+        if (Cache.TryGetValue((l.Id, schuljahr), out var s)) return s;
+        var (von, bis) = schuljahr ? (d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis) : Core.Vertretungsplanung.Zaehlung.Zeitraum(d, AppZustand.Datum);
+        var z = Core.Vertretungsplanung.Zaehlung.Lehrer(d, l, von, bis);
+        var paV = z.Zeilen.Count(x => x.Code == "P");
+        var paE = d.Vertretungen.Count(v => v.Datum >= von && v.Datum <= bis && v.Art == VertretungsArt.Pausenaufsicht && v.LehrerId == l.Id && v.VertreterId != l.Id);
+        s = new Stand(z.Vertretungen, z.Entfaelle, z.Summe, z.Zeilen.Where(x => x.Code == "WK").Sum(x => x.Wert), z.Betreuungen, z.Bezahlt, paV, paE, z.BereitschaftenGenutzt);
+        Cache[(l.Id, schuljahr)] = s;
+        return s;
+    }
+
+    /// <summary>Anz. Bereit.: verplante Bereitschaften der aktiven Periode; mit Deputats-Bereitschaften als „Summe (regulär:Deputat)“.</summary>
+    public static string Bereitschaften(Lehrer l)
+    {
+        var d = AppZustand.D;
+        var ix = AppZustand.Doc.Index;
+        int regulaer = 0, deputat = 0;
+        foreach (var p in d.Stundenplan)
+        {
+            if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) continue;
+            foreach (var zeile in u.Zeilen.Where(z => z.LehrerId == l.Id && z.FachId is int f && ix.Faecher.TryGetValue(f, out var fa) && fa.Bereitschaft))
+                if (ix.Faecher[zeile.FachId!.Value].BereitschaftImDeputat) deputat++; else regulaer++;
+        }
+        if (regulaer + deputat == 0) return "";
+        return deputat == 0 ? regulaer.ToString() : $"{regulaer + deputat} ({regulaer}:{deputat})";
+    }
 }
