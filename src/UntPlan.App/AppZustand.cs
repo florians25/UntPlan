@@ -166,7 +166,7 @@ public static class AppZustand
 /// in einstellungen.json; die Ansichtseinstellungen (<see cref="AnsichtsFelder"/>) werden zusätzlich mit der Schuldatei
 /// gespeichert und beim Öffnen daraus wiederhergestellt. Die lokale Kopie dient als Vorlage für neue und ältere Dateien.
 /// </summary>
-public sealed class Benutzereinstellungen
+public sealed partial class Benutzereinstellungen
 {
     /// <summary>Eigenschaften, die zur Ansicht gehören und in der .up-Datei gespeichert werden.</summary>
     public static readonly string[] AnsichtsFelder =
@@ -175,6 +175,7 @@ public sealed class Benutzereinstellungen
         nameof(Zeitwunschfarben), nameof(Fenstergruppen), nameof(Vertretungsansicht), nameof(Drucklayouts), nameof(Tabellenformate),
         nameof(AktiveTabellenformate), nameof(Tabellenlayouts), nameof(Zeitraumarten), nameof(Vertretungsdruck), nameof(SichtbareSpalten),
         nameof(AbsenzenVeranstaltungenZeigen), nameof(VertretungsFelder), nameof(VertretungsArtenAus), nameof(VertretungenUnterrichtZeigen),
+        nameof(EigeneVertretungsansichten), nameof(VertretungsSortierung),
     };
 
     private JsonObject? _ansichtStand;

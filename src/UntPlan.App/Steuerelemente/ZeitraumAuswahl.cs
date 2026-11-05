@@ -10,6 +10,8 @@ public enum Zeitraumart { Tag, Woche, VonBis }
 /// <item>Datum mit Wochentag.</item>
 /// <item>◄ ► blättert um einen Tag, eine Woche bzw. die Länge des Zeitraums.</item>
 /// <item>Die Schaltfläche mit Menü wählt die Zeitraumart Tag, Woche oder Von-Bis.</item>
+/// <item>Optional (Vertretungsfenster) friert das Schloss neben dem ersten Datum bei „Von-Bis“ den Tages-Abstand ein: er bleibt bei einer
+/// Datumsänderung erhalten (Handbuch Vertretungsplanung Kap. 13.1.1.4).</item>
 /// </list>
 /// Arbeitet mit zwei vorhandenen Datumsfeldern (Von, Bis); das Bis-Feld ist nur bei „Von-Bis“ sichtbar.
 /// </summary>
@@ -24,12 +26,19 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
     private readonly ToolStripDropDownButton _art = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Zeitraum: Tag, Woche oder Von-Bis" };
     private readonly string _schluessel;
     private bool _setzen;
+    /// <summary>Schloss „Tages-Abstand einfrieren“ (nur mit <c>schloss: true</c>).</summary>
+    private readonly CheckBox? _schloss;
+    /// <summary>Eingefrorener Abstand Bis − Von in Tagen.</summary>
+    private int _abstand;
+
+    /// <summary>Tages-Abstand bei „Von-Bis“ eingefroren (Schloss).</summary>
+    public bool Gesperrt => _schloss is { Checked: true } && Art == Zeitraumart.VonBis;
 
     public event Action? Geaendert;
 
     public Zeitraumart Art { get; private set; }
 
-    public ZeitraumAuswahl(DateTimePicker von, DateTimePicker bis, string schluessel)
+    public ZeitraumAuswahl(DateTimePicker von, DateTimePicker bis, string schluessel, bool schloss = false)
     {
         _von = von;
         _bis = bis;
@@ -85,7 +94,32 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
             return sp;
         }
         _bisZeile = Spalte(_bis, _wochentagBis, bisZurueck, bisVor);
-        Controls.AddRange(new Control[] { Spalte(_von, _wochentag, zurueck, vor), _bisZeile, kalender });
+        Controls.Add(Spalte(_von, _wochentag, zurueck, vor));
+        if (schloss)
+        {
+            _schloss = new CheckBox
+            {
+                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(22, 22), Margin = new Padding(0, 2, 6, 0),
+                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, Text = "", Visible = false,
+            };
+            _schloss.FlatAppearance.BorderColor = Color.FromArgb(160, 160, 160);
+            _schloss.FlatAppearance.CheckedBackColor = Color.FromArgb(255, 226, 150);
+            new ToolTip().SetToolTip(_schloss, "Tages-Abstand einfrieren: bleibt bei einer Datumsänderung erhalten");
+            if (AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel + ".Schloss", out var ab) && int.TryParse(ab, out var tage) && tage >= 0)
+            {
+                _abstand = tage;
+                _schloss.Checked = true;
+            }
+            _schloss.CheckedChanged += (_, _) =>
+            {
+                _abstand = Math.Max(0, (int)(_bis.Value.Date - _von.Value.Date).TotalDays);
+                if (_schloss.Checked) AppZustand.Einstellungen.Zeitraumarten[_schluessel + ".Schloss"] = _abstand.ToString();
+                else AppZustand.Einstellungen.Zeitraumarten.Remove(_schluessel + ".Schloss");
+                AppZustand.Einstellungen.Speichern();
+            };
+            Controls.Add(_schloss);
+        }
+        Controls.AddRange(new Control[] { _bisZeile, kalender });
         _von.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(true); };
         _bis.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(false); };
         var gespeichert = AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel, out var g) && Enum.TryParse<Zeitraumart>(g, out var z) ? z : Zeitraumart.Tag;
@@ -97,6 +131,7 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         Art = art;
         foreach (ToolStripMenuItem it in _art.DropDownItems) it.Checked = _art.DropDownItems.IndexOf(it) == (int)art;
         if (_bisZeile != null) _bisZeile.Visible = art != Zeitraumart.Tag;
+        if (_schloss != null) _schloss.Visible = art == Zeitraumart.VonBis;
         _bis.Visible = art != Zeitraumart.Tag;
         _bis.Enabled = art == Zeitraumart.VonBis;
         if (merken)
@@ -104,6 +139,19 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
             AppZustand.Einstellungen.Zeitraumarten[_schluessel] = art.ToString();
             AppZustand.Einstellungen.Speichern();
         }
+        Abgleichen(true);
+    }
+
+    /// <summary>
+    /// Auf ein Datum stellen (z. B. Tageswechsel im Kalender): Von = Datum, Bis = Datum – bei eingefrorenem Tages-Abstand (Schloss)
+    /// Datum plus Abstand, bei „Woche“ die Woche des Datums.
+    /// </summary>
+    public void DatumSetzen(DateTime datum)
+    {
+        _setzen = true;
+        _von.Value = datum.Date;
+        if (!Gesperrt || _bis.Value.Date < datum.Date) _bis.Value = datum.Date;
+        _setzen = false;
         Abgleichen(true);
     }
 
@@ -147,6 +195,16 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
                 var montag = von.AddDays(-(((int)von.DayOfWeek + 6) % 7));
                 _von.Value = montag;
                 _bis.Value = montag.AddDays(AppZustand.D.Zeitraster.TageProWoche - 1);
+                break;
+            case Zeitraumart.VonBis when Gesperrt:
+                // eingefrorener Tages-Abstand: geändertes Von verschiebt Bis mit, geändertes Bis setzt den neuen Abstand
+                if (vonGeaendert) _bis.Value = _von.Value.Date.AddDays(_abstand);
+                else if (_bis.Value.Date < _von.Value.Date) _von.Value = _bis.Value.Date;
+                else
+                {
+                    _abstand = (int)(_bis.Value.Date - _von.Value.Date).TotalDays;
+                    AppZustand.Einstellungen.Zeitraumarten[_schluessel + ".Schloss"] = _abstand.ToString();
+                }
                 break;
             default:
                 if (_bis.Value.Date < _von.Value.Date)

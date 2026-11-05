@@ -1161,6 +1161,70 @@ public static class Vertretungen
         return v;
     }
 
+    /// <summary>
+    /// Lehrer bzw. Klassen einer Vormerkung ändern (Handbuch Kap. 12.1.6): solange nichts verplant ist, problemlos; sind bereits Stunden
+    /// verplant, nur wenn die Änderung an keiner verplanten Stunde eine Kollision erzeugt – dann werden die verplanten Stunden mit
+    /// geändert. Vormerkungen aus einer Vertretung oder einem Unterricht sind nicht veränderbar.
+    /// </summary>
+    /// <returns>null bei Erfolg, sonst der Grund, warum die Änderung nicht möglich ist (es wird dann nichts geändert).</returns>
+    public static string? VormerkungAendern(Schuldatei d, Vormerkung vm, IReadOnlyList<int> lehrerIds, IReadOnlyList<int> klassenIds, string benutzer = "")
+    {
+        if (VormerkungAenderungPruefen(d, vm, lehrerIds, klassenIds) is { } fehler) return fehler;
+        var verplant = d.Vertretungen.Where(x => x.VormerkungId == vm.Id && x.Art != VertretungsArt.Vormerkung).ToList();
+        // keine Kollision: verplante Stunden mitführen (je Lehrkraft eine Zeile wie beim Verplanen)
+        foreach (var g in verplant.GroupBy(x => (x.Datum, x.Stunde)).ToList())
+        {
+            var muster = g.First();
+            var bleibend = new List<Vertretung>();
+            foreach (var x in g)
+            {
+                if (lehrerIds.Count == 0 ? bleibend.Count == 0 : x.VertreterId is int l && lehrerIds.Contains(l) && bleibend.All(y => y.VertreterId != l)) bleibend.Add(x);
+                else d.Vertretungen.Remove(x);
+            }
+            foreach (var l in lehrerIds.Where(l => bleibend.All(x => x.VertreterId != l)))
+            {
+                var neu = muster.Kopie();
+                neu.Id = d.NeueId();
+                neu.VertreterId = l;
+                d.Vertretungen.Add(neu);
+                bleibend.Add(neu);
+            }
+            foreach (var x in bleibend)
+            {
+                if (lehrerIds.Count == 0) x.VertreterId = null;
+                x.KlassenIds = klassenIds.ToList();
+                Markieren(x, benutzer);
+            }
+        }
+        vm.LehrerIds = lehrerIds.ToList();
+        vm.KlassenIds = klassenIds.ToList();
+        return null;
+    }
+
+    /// <summary>Prüft, ob Lehrer bzw. Klassen der Vormerkung so geändert werden dürfen (<see cref="VormerkungAendern"/>); null = ja, sonst der Grund.</summary>
+    public static string? VormerkungAenderungPruefen(Schuldatei d, Vormerkung vm, IReadOnlyList<int> lehrerIds, IReadOnlyList<int> klassenIds)
+    {
+        if (vm.Quelle is VormerkungsQuelle.Vertretung or VormerkungsQuelle.Unterricht)
+            return "Vormerkungen aus einer Vertretung oder einem Unterricht können nicht verändert werden.";
+        var verplant = d.Vertretungen.Where(x => x.VormerkungId == vm.Id && x.Art != VertretungsArt.Vormerkung).ToList();
+        if (verplant.Any(x => x.Art != VertretungsArt.SondereinsatzVormerkung))
+            return "Die Vormerkung ist als Verlegung verplant – Lehrer und Klassen können nicht geändert werden.";
+        var ix = DatenIndex.Fuer(d);
+        foreach (var g in verplant.GroupBy(x => (x.Datum, x.Stunde)))
+        {
+            var zeilen = g.ToHashSet();
+            var tp = Tagesplan.Berechnen(d, g.Key.Datum);
+            var stelle = $"{Format.Datum(g.Key.Datum)}, {g.Key.Stunde}. Stunde";
+            foreach (var l in lehrerIds.Except(zeilen.Select(x => x.VertreterId).OfType<int>()))
+                if (LehrerBelegt(d, tp, l, g.Key.Stunde) is { } grund)
+                    return $"Kollision: {ix.KLehrer(l)} ({grund}) am {stelle}.";
+            foreach (var k in klassenIds.Except(g.First().KlassenIds))
+                if (tp.Stunde(g.Key.Stunde).FirstOrDefault(e => e.Findetstatt && e.KlassenIds.Contains(k) && (e.Vertretung is null || !zeilen.Contains(e.Vertretung))) is { } e)
+                    return $"Kollision: Klasse {ix.K(ElementTyp.Klasse, k)} hat am {stelle} Unterricht ({ix.KFach(e.FachId)}).";
+        }
+        return null;
+    }
+
     /// <summary>Vertretungsfähigkeit für Drag &amp; Drop im tagesaktuellen Stundenplan.</summary>
     public static Planung.Feldstatus Feldstatus(Schuldatei d, Tagesplan ziel, IReadOnlyList<int> lehrerIds, IReadOnlyList<int> klassenIds, int stunde, int unterrichtId, int? raumId)
     {
@@ -1240,6 +1304,11 @@ public sealed class Kandidat
     public string Lage { get; set; } = "";
     /// <summary>Spalte „Stundenplan“: drei Stunden um die Vertretungsstunde (die Vertretungsstunde ist markiert).</summary>
     public List<StundenplanZelle> Zellen { get; set; } = new();
+    /// <summary>
+    /// Alle Stunden des Tages für die Spalte „Stundenplan“: angezeigt werden so viele, wie Platz ist (Handbuch Kap. 7.3.2), siehe
+    /// <see cref="VertretungsVorschlag.StundenplanFenster"/>.
+    /// </summary>
+    public List<StundenplanZelle> TagesZellen { get; set; } = new();
     /// <summary>Spalte „Vertr.“: gewertete Vertretungen im Zählzeitraum (Stundenwert).</summary>
     public decimal VertretungenWert { get; set; }
     /// <summary>Spalte „Entfall“: gewertete Entfälle und Freisetzungen im Zählzeitraum (Stundenwert, positiv).</summary>
@@ -1263,6 +1332,8 @@ public sealed record Betreuungskandidat(Lehrer Lehrer, string Klassen, string Fa
 {
     /// <summary>Spalte „Stundenplan“ wie im Vertretungsvorschlag.</summary>
     public List<StundenplanZelle> Zellen { get; init; } = new();
+    /// <summary>Alle Stunden des Tages (Spalte „Stundenplan“ zeigt so viele, wie Platz ist).</summary>
+    public List<StundenplanZelle> TagesZellen { get; init; } = new();
     public int Zeitwunsch { get; init; }
     public decimal Jahreszaehler { get; init; }
     public bool Kennzeichen { get; init; }
@@ -1292,6 +1363,15 @@ public sealed record Vorziehung(TagesEintrag Eintrag, DateOnly Datum, int Stunde
     public string Klassen { get; init; } = "";
     public string Fach { get; init; } = "";
     public string Raum { get; init; } = "";
+    /// <summary>
+    /// Zweiter Schritt (Handbuch Kap. 7.3.7): bei einer zweistufigen Vorziehung der Unterricht, der in die vom ersten Schritt
+    /// hinterlassene Lücke vorgezogen wird; bei Doppelstunden (Option „Stundenblock“) die Vorziehung für die zweite Stunde.
+    /// </summary>
+    public Vorziehung? Schritt2 { get; init; }
+    /// <summary>Doppelstunde: Vtr-Nr. der offenen zweiten Stunde, die <see cref="Schritt2"/> füllt (sonst füllt Schritt 2 die Lücke von Schritt 1).</summary>
+    public int? Schritt2VertretungId { get; init; }
+    /// <summary>Eindeutiger Schlüssel (Datum, Stunde, Unterricht – mit Schritt 2), um eine Vorziehung nach einer Neuberechnung wiederzufinden.</summary>
+    public string Schluessel => $"{Datum:yyyyMMdd}/{Stunde}/{Eintrag.Unterricht?.Id}" + (Schritt2 is { } s ? $"+{Schritt2VertretungId}:{s.Schluessel}" : "");
 }
 
 public enum AutomatikMethode
@@ -1366,7 +1446,9 @@ public static class VertretungsVorschlag
             using (Messung.Start("Vorschlag: Stundenplanzellen"))
             {
                 k.Stundenplan = StundenplanText(d, ix, tp, l.Id, v.Stunde);
-                k.Zellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde, ziele: stunden.Concat(markierteStunden ?? Array.Empty<int>()).ToList());
+                var ziele = stunden.Concat(markierteStunden ?? Array.Empty<int>()).ToList();
+                k.TagesZellen = StundenplanZellen(d, ix, tp, l.Id, v.Stunde, TagesStunden(d, ziele.Append(v.Stunde)), ziele);
+                k.Zellen = StundenplanFenster(k.TagesZellen, v.Stunde, 3);
             }
             var _mk = Messung.Start("Vorschlag: Klasse/Fach/Vorwoche");
             k.KenntKlasse = klassen.Count > 0 && d.Unterrichte.Any(u => u.Zeilen.Any(z => z.LehrerId == l.Id &&
@@ -1513,6 +1595,27 @@ public static class VertretungsVorschlag
         return res;
     }
 
+    /// <summary>Anzahl der Stunden eines Tages für die Spalte „Stundenplan“ (Zeitraster, mindestens bis zur letzten markierten Stunde).</summary>
+    public static int TagesStunden(Schuldatei d, IEnumerable<int> ziele) => Math.Max(d.Zeitraster.StundenProTag, ziele.DefaultIfEmpty(1).Max());
+
+    /// <summary>
+    /// Ausschnitt der Spalte „Stundenplan“ mit <paramref name="anzahl"/> Stunden aus allen Stunden des Tages – wie
+    /// <see cref="StundenplanZellen"/>: die markierten Stunden möglichst alle sichtbar, die Vertretungsstunde sonst in der Mitte, am Tagesrand verschoben.
+    /// </summary>
+    public static List<StundenplanZelle> StundenplanFenster(IReadOnlyList<StundenplanZelle> tag, int stunde, int anzahl)
+    {
+        if (tag.Count == 0) return new List<StundenplanZelle>();
+        anzahl = Math.Clamp(anzahl, 1, tag.Count);
+        var ziele = tag.Where(z => z.Ziel).Select(z => z.Stunde).DefaultIfEmpty(stunde).ToList();
+        var (lo, hi) = (ziele.Min(), ziele.Max());
+        var erste = tag[0].Stunde;
+        var letzteStart = tag[^1].Stunde - anzahl + 1;
+        var start = hi - lo + 1 <= anzahl
+            ? Math.Clamp(lo - (anzahl - (hi - lo + 1)) / 2, erste, Math.Max(erste, letzteStart))
+            : Math.Clamp(stunde - (anzahl - 1) / 2, erste, Math.Max(erste, letzteStart));
+        return tag.Where(z => z.Stunde >= start && z.Stunde < start + anzahl).ToList();
+    }
+
     /// <summary>Stunden des Stundenblocks (Doppelstunde/Block) der Vertretung am selben Tag.</summary>
     public static List<Vertretung> Block(Schuldatei d, Vertretung v)
     {
@@ -1577,6 +1680,7 @@ public static class VertretungsVorschlag
                     Zaehlung.Lehrer(d, le, zVon, zBis).Summe, naehe, text, heute.GetValueOrDefault(l), kennt.Contains(l))
                 {
                     Zellen = StundenplanZellen(d, ix, tp, l, v.Stunde, ziele: markierteStunden),
+                    TagesZellen = StundenplanZellen(d, ix, tp, l, v.Stunde, TagesStunden(d, (markierteStunden ?? Array.Empty<int>()).Append(v.Stunde)), markierteStunden),
                     Zeitwunsch = tag >= 0 ? le.Zeitwuensche.Get(tag, v.Stunde) : 0,
                     Jahreszaehler = Zaehlung.Lehrer(d, le, d.Einstellungen.SchuljahrVon, d.Einstellungen.SchuljahrBis).Summe,
                     Kennzeichen = kennzeichen.ContainsKey(l),
@@ -1624,9 +1728,14 @@ public static class VertretungsVorschlag
 
     /// <summary>Vorziehungsvorschlag: Unterricht der Klasse aus späteren Stunden (dieselbe und nächste Woche), der in die offene Stunde gezogen werden kann.</summary>
     /// <param name="nurSpaeteren">„Nur späteren Unterricht“ (null = laut Einstellungen).</param>
-    public static List<Vorziehung> Vorziehungen(Schuldatei d, Vertretung v, VorziehungsModus? modus = null, bool? nurSpaeteren = null)
+    /// <param name="zweistufig">
+    /// Auch zweistufige Vorziehungen (Handbuch Kap. 7.3.7): der in Schritt 1 vorgezogene Unterricht hinterlässt eine Lücke, in die in
+    /// Schritt 2 wiederum ein Unterricht vorgezogen wird (Schritt 2 erfüllt dabei die gewählte Art, z. B. eine Randstunde).
+    /// </param>
+    public static List<Vorziehung> Vorziehungen(Schuldatei d, Vertretung v, VorziehungsModus? modus = null, bool? nurSpaeteren = null, bool zweistufig = false)
     {
         var res = new List<Vorziehung>();
+        var luecken = new List<Vorziehung>();
         if (v.KlassenIds.Count == 0) return res;
         var e = d.Vertretungseinstellungen.Vorschlag;
         var m = modus ?? e.Vorziehungen;
@@ -1665,8 +1774,8 @@ public static class VertretungsVorschlag
                     VorziehungsModus.AusRandstunden => rand,
                     _ => true,
                 };
-                if (!ok) continue;
-                res.Add(new Vorziehung(c, t, c.Stunde,
+                if (!ok && (rand || !zweistufig)) continue;
+                var vz = new Vorziehung(c, t, c.Stunde,
                     $"{Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {Format.Datum(t)} {c.Stunde}. Std.: {ix.KFach(c.FachId)} {string.Join(",", c.LehrerIds.Select(ix.KLehrer))} {ix.KKlassen(c.KlassenIds)}" +
                     (rand ? " (Randstunde)" : " (erzeugt neue Lücke)"))
                 {
@@ -1675,20 +1784,147 @@ public static class VertretungsVorschlag
                     Klassen = ix.KKlassen(zeilen.SelectMany(z => z.KlassenIds).Distinct()),
                     Fach = string.Join(",", zeilen.Select(z => ix.KFach(z.FachId)).Where(f => f.Length > 0).Distinct()),
                     Raum = string.Join(",", zeilen.SelectMany(z => z.RaumIds).Distinct().Select(ix.KRaum)),
+                };
+                if (!rand) luecken.Add(vz);
+                if (ok) res.Add(vz);
+            }
+        }
+        res = Sortiert(res, v);
+        if (zweistufig) res.AddRange(Zweistufige(d, v, Sortiert(luecken, v), m, nurSpaeter));
+        return res;
+    }
+
+    private static List<Vorziehung> Sortiert(IEnumerable<Vorziehung> liste, Vertretung v) =>
+        liste.OrderBy(x => x.Datum == v.Datum ? 0 : 1).ThenBy(x => x.Datum).ThenByDescending(x => x.Stunde).ToList();
+
+    /// <summary>Höchstzahl der ersten Schritte, für die zweistufige Vorziehungen gesucht werden (je Schritt eine Probeberechnung).</summary>
+    private const int ZweistufigMax = 12;
+
+    /// <summary>
+    /// Zweistufige Vorziehungen: für jeden ersten Schritt, der eine Lücke hinterlässt, wird er auf einer leichten Kopie ausgeführt und
+    /// für die entstandene Lücke (gleiche Klassen) der Vorziehungsvorschlag berechnet.
+    /// </summary>
+    private static IEnumerable<Vorziehung> Zweistufige(Schuldatei d, Vertretung v, List<Vorziehung> ersteSchritte, VorziehungsModus modus, bool nurSpaeter)
+    {
+        if (ersteSchritte.Count == 0) return Array.Empty<Vorziehung>();
+        var res = new List<Vorziehung>();
+        var von = new[] { Kalender.Montag(v.Datum), ersteSchritte.Min(x => x.Datum) }.Min();
+        var bis = Kalender.Montag(v.Datum).AddDays(13);
+        foreach (var s1 in ersteSchritte.Take(ZweistufigMax))
+        {
+            var probe = Dokument.VertretungsProbe(d, von, bis);
+            var offen = probe.Vertretungen.FirstOrDefault(x => x.Id == v.Id && v.Id != 0);
+            try
+            {
+                if (offen != null) VorziehungAusfuehren(probe, offen, s1);
+                else Vertretungen.Verlegen(probe, s1.Eintrag.Unterricht!.Id, null, s1.Datum, s1.Stunde, v.Datum, v.Stunde);
+            }
+            catch (InvalidOperationException) { continue; }
+            var luecke = new Vertretung { Datum = s1.Datum, Stunde = s1.Stunde, KlassenIds = v.KlassenIds.ToList(), UnterrichtId = s1.Eintrag.Unterricht!.Id, Art = VertretungsArt.Vertretung };
+            foreach (var s2 in Vorziehungen(probe, luecke, modus, nurSpaeter))
+            {
+                if (s2.Datum == v.Datum && s2.Stunde == v.Stunde) continue;
+                res.Add(s1 with
+                {
+                    Schritt2 = s2,
+                    Randstunde = false,
+                    Beschreibung = $"Schritt 1: {s1.Beschreibung} – Schritt 2: {s2.Beschreibung}",
                 });
             }
         }
-        return res.OrderBy(x => x.Datum == v.Datum ? 0 : 1).ThenBy(x => x.Datum).ThenByDescending(x => x.Stunde).ToList();
+        return res;
+    }
+
+    /// <summary>
+    /// Vorziehungen für Doppelstunden (Handbuch Kap. 7.3.7.4, Option „Stundenblock“): zu den beiden offenen Stunden des Blocks je
+    /// Zeile die Vorziehung für die 1. Stunde (Schritt 1) und die für die 2. Stunde (Schritt 2); ein Doppelklick führt beide durch.
+    /// </summary>
+    public static List<Vorziehung> DoppelstundenVorziehungen(Schuldatei d, Vertretung v, VorziehungsModus? modus = null, bool? nurSpaeteren = null)
+    {
+        var block = Block(d, v).Where(x => x.Offen).OrderBy(x => x.Stunde).ToList();
+        if (block.Count < 2) return new List<Vorziehung>();
+        var (v1, v2) = (block[0], block[1]);
+        var erste = Vorziehungen(d, v1, modus, nurSpaeteren);
+        var zweite = Vorziehungen(d, v2, modus, nurSpaeteren);
+        var res = new List<Vorziehung>();
+        foreach (var a in erste)
+            foreach (var b in zweite)
+            {
+                if (a.Datum == b.Datum && a.Stunde == b.Stunde) continue;
+                res.Add(a with { Schritt2 = b, Schritt2VertretungId = v2.Id, Randstunde = a.Randstunde && b.Randstunde, Beschreibung = $"Schritt 1: {a.Beschreibung} – Schritt 2: {b.Beschreibung}" });
+                if (res.Count >= 400) return res;
+            }
+        return res;
     }
 
     /// <summary>Vorziehung durchführen: die offene Stunde entfällt, der vorgezogene Unterricht wird verlegt.</summary>
+    /// <remarks>
+    /// Mit Schritt 2: bei einer zweistufigen Vorziehung wird anschließend der zweite Unterricht in die Lücke des ersten verlegt,
+    /// bei Doppelstunden füllt Schritt 2 die zweite offene Stunde des Blocks.
+    /// </remarks>
     public static void VorziehungAusfuehren(Schuldatei d, Vertretung offen, Vorziehung vz, string benutzer = "")
     {
+        if (vz.Schritt2 is { } s2)
+        {
+            // Doppelstunde: die zweite Stunde zuerst ermitteln (Schritt 1 verändert die Liste der Vertretungen)
+            var zweite = vz.Schritt2VertretungId is int id ? d.Vertretungen.FirstOrDefault(x => x.Id == id) ?? throw new InvalidOperationException("Die zweite Stunde der Doppelstunde ist nicht mehr offen.") : null;
+            VorziehungAusfuehren(d, offen, vz with { Schritt2 = null, Schritt2VertretungId = null }, benutzer);
+            if (zweite != null) VorziehungAusfuehren(d, zweite, s2, benutzer);
+            else Vertretungen.Verlegen(d, s2.Eintrag.Unterricht!.Id, null, s2.Datum, s2.Stunde, vz.Datum, vz.Stunde, VertretungsArt.Verlegung, benutzer);
+            return;
+        }
         var uid = vz.Eintrag.Unterricht!.Id;
         offen.Art = VertretungsArt.Entfall;
         offen.VertreterId = null;
         offen.Bearbeitet = true;
         Vertretungen.Verlegen(d, uid, null, vz.Datum, vz.Stunde, offen.Datum, offen.Stunde, VertretungsArt.Verlegung, benutzer);
+    }
+
+    /// <summary>
+    /// Vormerkungen, mit denen die offene Vertretung aus Sicht der Klasse und der Lehrkraft gefüllt werden kann (Handbuch Kap. 12.2.2,
+    /// Spalte „Vormerkungen“ im Vertretungsvorschlag): noch nicht vollständig verplant, am Tag gültig, die Lehrkraft gehört zur Vormerkung,
+    /// alle Lehrkräfte der Vormerkung sind zur Stunde frei und ihre Klassen sind Klassen der offenen Vertretung.
+    /// </summary>
+    public static List<Vormerkung> PassendeVormerkungen(Schuldatei d, Vertretung v, int lehrerId, Tagesplan? tp = null)
+    {
+        var res = new List<Vormerkung>();
+        if (!v.Offen || v.Art == VertretungsArt.Pausenaufsicht) return res;
+        var klassen = v.NeueKlassenIds;
+        if (klassen.Count == 0) return res;
+        foreach (var vm in d.Vormerkungen.Where(x => x.Offen > 0 && x.LehrerIds.Contains(lehrerId) && x.KlassenIds.Count > 0 && x.KlassenIds.All(klassen.Contains)))
+        {
+            if ((vm.GueltigVon is DateOnly gv && v.Datum < gv) || (vm.GueltigBis is DateOnly gb && v.Datum > gb)) continue;
+            // die Stunde, aus der die Vormerkung entstand, füllt sich nicht selbst
+            if (vm.Datum == v.Datum && vm.Stunde == v.Stunde) continue;
+            tp ??= Tagesplan.Berechnen(d, v.Datum);
+            if (vm.LehrerIds.Any(l => Vertretungen.LehrerBelegt(d, tp, l, v.Stunde, v) != null)) continue;
+            res.Add(vm);
+        }
+        return res;
+    }
+
+    /// <summary>Kurztext einer Vormerkung für den Vertretungsvorschlag: „Vm 11: Ph Gauss 4 (3 Std. offen)“.</summary>
+    public static string VormerkungText(DatenIndex ix, Vormerkung vm) =>
+        $"Vm {vm.Id}: {string.Join(" ", new[] { ix.KFach(vm.FachId), string.Join(",", vm.LehrerIds.Select(ix.KLehrer)), ix.KKlassen(vm.KlassenIds) }.Where(t => t.Length > 0))} ({vm.Offen} Std. offen)";
+
+    /// <summary>
+    /// Vertretungslehrer mit seiner vorgemerkten Stunde in die offene Vertretung einsetzen (Doppelklick im Vertretungsvorschlag): die
+    /// offene Stunde entfällt und die Vormerkung wird an ihrer Position verplant („Sondereins. zu Vormerkung“).
+    /// </summary>
+    public static Vertretung VormerkungEinsetzen(Schuldatei d, Vertretung offen, Vormerkung vm, string benutzer = "")
+    {
+        if (vm.Offen <= 0) throw new InvalidOperationException("Alle Stunden der Vormerkung sind bereits verplant.");
+        offen.Art = VertretungsArt.Entfall;
+        offen.VertreterId = null;
+        offen.VertretungsraumId = null;
+        offen.Mehrarbeit = false;
+        offen.Bearbeitet = true;
+        Vertretungen.AlsGeaendertMarkieren(offen, benutzer);
+        // Raum: ohne eigenen Raum der Vormerkung bleibt die Klasse in ihrem Raum
+        var raum = vm.RaumId ?? offen.RaumId;
+        var se = Vertretungen.Sondereinsatz(d, offen.Datum, offen.Stunde, offen.Stunde, vm.KlassenIds, vm.LehrerIds, vm.FachId, raum, vm.Text, "", vm.Id, benutzer).First();
+        vm.VerplantAm.Add(offen.Datum);
+        return se;
     }
 
     public static bool EntfallSinnvoll(Schuldatei d, Vertretung v)

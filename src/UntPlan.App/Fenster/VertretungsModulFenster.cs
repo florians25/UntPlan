@@ -597,13 +597,20 @@ public sealed class KlausurenFenster : MdiFenster
 /// Vormerkungen wie im Handbuch: „Nur nicht verplante Vormerkungen anzeigen“; Spalten Vm-Nr., Nvpl Std. (zum Verplanen in den
 /// tagesaktuellen Stundenplan bzw. Planungsdialog ziehen), Stunden, Fach, Lehrer, Klasse(n), Raum, Statistik, Text, Vtr-Nr., U-Nr, Art,
 /// Studenten. Konkrete Vormerkungen werden direkt in der Tabelle (leere Zeile unten) eingegeben; Unterrichte aus dem Unterrichtsfenster
-/// und Stunden aus Stundenplan bzw. Planungsdialog können hierher gezogen werden.
+/// und Stunden aus Stundenplan bzw. Planungsdialog können hierher gezogen werden. Mit dem kleinen Plus vor der Vm-Nr. öffnen sich die
+/// Informationszeilen der verplanten Stunden („16.10. / 6 Sondereins. zu Vormerkung“, Handbuch Kap. 12.2.1); Lehrer und Klassen einer
+/// verplanten Vormerkung lassen sich ändern, wenn dadurch keine Kollision entsteht (Kap. 12.1.6).
 /// </summary>
 public sealed class VormerkungenFenster : MdiFenster
 {
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill, AllowDrop = true };
     private readonly CheckBox _nurOffen = new() { Text = "Nur nicht verplante Vormerkungen anzeigen", AutoSize = true, Left = 8, Top = 6 };
     private bool _laedt;
+    /// <summary>Vormerkungen mit aufgeklappten Informationszeilen (verplante Stunden).</summary>
+    private readonly HashSet<int> _aufgeklappt = new();
+
+    /// <summary>Informationszeile unter einer Vormerkung: eine verplante Stunde.</summary>
+    private sealed record InfoZeile(Vormerkung Vormerkung, string Text);
 
     public VormerkungenFenster()
     {
@@ -631,7 +638,44 @@ public sealed class VormerkungenFenster : MdiFenster
             _g.Columns[_g.Columns.Add(n, k)].Width = b;
         foreach (var n in new[] { "Nr", "O", "Stat", "VNr", "U", "A", "Stud", "Urspr", "G", "V" }) _g.Columns[n]!.ReadOnly = true;
         _g.Columns["T"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _g.Columns["Nr"]!.DefaultCellStyle.Padding = new Padding(14, 0, 0, 0);
+        _g.Columns["Nr"]!.HeaderCell.Style.Padding = new Padding(14, 0, 0, 0);
         _g.CellEndEdit += ZelleGeaendert;
+        // „+“ vor der Vm-Nr.: Informationszeilen der verplanten Stunden auf-/zuklappen; „−“ im Spaltenkopf klappt alle zu bzw. auf
+        _g.CellMouseClick += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Left || e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].Name != "Nr" || e.X > 14) return;
+            if (e.RowIndex == -1)
+            {
+                var alle = D.Vormerkungen.Where(v => Verplante(v).Count > 0).Select(v => v.Id).ToList();
+                if (alle.All(_aufgeklappt.Contains)) _aufgeklappt.Clear(); else _aufgeklappt.UnionWith(alle);
+                Neuaufbau();
+            }
+            else if (_g.Rows[e.RowIndex].Tag is Vormerkung vk && Verplante(vk).Count > 0)
+            {
+                if (!_aufgeklappt.Remove(vk.Id)) _aufgeklappt.Add(vk.Id);
+                Neuaufbau();
+            }
+        };
+        _g.CellPainting += InfoZeichnen;
+        // Kopf „Vm-Nr.“ klappt auf/zu statt zu sortieren; nach dem Sortieren einer anderen Spalte werden die Informationszeilen zugeklappt
+        _g.Columns["Nr"]!.SortMode = DataGridViewColumnSortMode.NotSortable;
+        _g.Sorted += (_, _) =>
+        {
+            if (_aufgeklappt.Count == 0) return;
+            _aufgeklappt.Clear();
+            for (var i = _g.Rows.Count - 1; i >= 0; i--)
+                if (_g.Rows[i].Tag is InfoZeile) _g.Rows.RemoveAt(i);
+        };
+        _g.RowPostPaint += (_, e) =>
+        {
+            // Informationszeile: Text über die Spalten ab „Nvpl Std.“ (wie im Handbuch)
+            if (_g.Rows[e.RowIndex].Tag is not InfoZeile iz) return;
+            var o = _g.GetCellDisplayRectangle(_g.Columns["O"]!.Index, e.RowIndex, false);
+            if (o.Width == 0) return;
+            var r = new Rectangle(o.X + 3, e.RowBounds.Y, Math.Max(40, e.RowBounds.Right - o.X - 3), e.RowBounds.Height);
+            TextRenderer.DrawText(e.Graphics, iz.Text, _g.Font, r, Color.Black, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+        };
         _g.SelectionChanged += (_, _) =>
         {
             // wie im Handbuch: offene Stundenpläne zeigen Lehrer bzw. Klasse der gewählten Vormerkung
@@ -698,9 +742,77 @@ public sealed class VormerkungenFenster : MdiFenster
                 if (v.Offen == 0) _g.Rows[r].DefaultCellStyle.ForeColor = Color.Gray;
                 // aus Vertretung bzw. Unterricht entstandene Vormerkungen sind nicht veränderbar
                 if (v.Quelle is VormerkungsQuelle.Vertretung or VormerkungsQuelle.Unterricht) _g.Rows[r].ReadOnly = true;
+                InfoZeilenAnhaengen(v);
             }
         }
         finally { _laedt = false; }
+    }
+
+    /// <summary>Verplante Stunden einer Vormerkung (Datum, Stunde, Art) – für die Informationszeilen.</summary>
+    private List<string> Verplante(Vormerkung v)
+    {
+        var zeilen = D.Vertretungen.Where(x => x.VormerkungId == v.Id && x.Art != VertretungsArt.Vormerkung)
+            .GroupBy(x => (x.Datum, x.Stunde)).OrderBy(g => g.Key.Datum).ThenBy(g => g.Key.Stunde)
+            .Select(g => $"{g.Key.Datum:d.M.} / {g.Key.Stunde} {Vertretungsplan.ArtText(D, g.First().Art)}").ToList();
+        // verplant, aber ohne eigene Zeile in der Vertretungsliste (z. B. eine vollständig durchgeführte Verlegung)
+        foreach (var t in v.VerplantAm.Where(t => !D.Vertretungen.Any(x => x.VormerkungId == v.Id && x.Datum == t && x.Art != VertretungsArt.Vormerkung)))
+            zeilen.Add($"{t:d.M.} verplant");
+        return zeilen;
+    }
+
+    /// <summary>Informationszeilen einer aufgeklappten Vormerkung hinter ihrer Zeile einfügen.</summary>
+    private void InfoZeilenAnhaengen(Vormerkung v)
+    {
+        if (!_aufgeklappt.Contains(v.Id)) return;
+        foreach (var text in Verplante(v))
+        {
+            var r = _g.Rows.Add();
+            _g.Rows[r].Tag = new InfoZeile(v, text);
+            _g.Rows[r].ReadOnly = true;
+            _g.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(250, 250, 240);
+        }
+    }
+
+    /// <summary>„+“ bzw. „−“ vor der Vm-Nr. (Zeile und Spaltenkopf), Baumlinie vor den Informationszeilen.</summary>
+    private void InfoZeichnen(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].Name != "Nr" || e.Graphics is null) return;
+        var kasten = new Rectangle(e.CellBounds.X + 3, e.CellBounds.Y + (e.CellBounds.Height - 9) / 2, 9, 9);
+        void Kasten(bool offen)
+        {
+            e.Graphics.FillRectangle(Brushes.White, kasten);
+            using var p = new Pen(Color.FromArgb(120, 120, 120));
+            e.Graphics.DrawRectangle(p, kasten);
+            var m = kasten.Y + kasten.Height / 2;
+            e.Graphics.DrawLine(Pens.Black, kasten.X + 2, m, kasten.Right - 2, m);
+            if (!offen) e.Graphics.DrawLine(Pens.Black, kasten.X + kasten.Width / 2, kasten.Y + 2, kasten.X + kasten.Width / 2, kasten.Bottom - 2);
+        }
+        if (e.RowIndex == -1)
+        {
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All);
+            var alle = D.Vormerkungen.Where(v => Verplante(v).Count > 0).Select(v => v.Id).ToList();
+            Kasten(alle.Count > 0 && alle.All(_aufgeklappt.Contains));
+            e.Handled = true;
+            return;
+        }
+        if (e.RowIndex < 0) return;
+        var tag = _g.Rows[e.RowIndex].Tag;
+        if (tag is Vormerkung v && Verplante(v).Count > 0)
+        {
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All);
+            Kasten(_aufgeklappt.Contains(v.Id));
+            e.Handled = true;
+        }
+        else if (tag is InfoZeile)
+        {
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All);
+            using var p = new Pen(Color.Gray) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot };
+            var x = kasten.X + 4;
+            var y = e.CellBounds.Y + e.CellBounds.Height / 2;
+            e.Graphics.DrawLine(p, x, e.CellBounds.Y, x, y);
+            e.Graphics.DrawLine(p, x, y, x + 10, y);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Direkte Eingabe bzw. Änderung (Stunden, Fach, Lehrer, Klasse(n), Raum, Text).</summary>
@@ -723,9 +835,27 @@ public sealed class VormerkungenFenster : MdiFenster
             case "F": vm.FachId = D.Faecher.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
             case "R": vm.RaumId = D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
             case "L" or "K":
-                if (vm.VerplantAm.Count > 0) { Ui.Info("Lehrer und Klassen einer bereits (teilweise) verplanten Vormerkung können nicht geändert werden."); BeginInvoke(Neuaufbau); return; }
-                if (spalte == "L") vm.LehrerIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Lehrer, wert);
-                else vm.KlassenIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Klasse, wert);
+                var lehrer = spalte == "L" ? VeranstaltungenFenster.Kurznamen(ElementTyp.Lehrer, wert) : vm.LehrerIds;
+                var klassen = spalte == "K" ? VeranstaltungenFenster.Kurznamen(ElementTyp.Klasse, wert) : vm.KlassenIds;
+                // Handbuch Kap. 12.1.6: bereits verplante Vormerkung nur ändern, wenn keine Kollision entsteht – die verplanten Stunden ändern sich mit
+                if (alt != null && D.Vertretungen.Any(x => x.VormerkungId == alt.Id && x.Art != VertretungsArt.Vormerkung))
+                {
+                    if (Vertretungen.VormerkungAenderungPruefen(D, alt, lehrer, klassen) is { } grund)
+                    {
+                        Ui.Info(grund + Environment.NewLine + Environment.NewLine + "Die Änderung wurde nicht durchgeführt.");
+                        BeginInvoke(Neuaufbau);
+                        return;
+                    }
+                    var id = alt.Id;
+                    Aendern("Vormerkung geändert", AenderungsArt.Vertretung, d =>
+                    {
+                        var x = d.Vormerkungen.First(m => m.Id == id);
+                        if (Vertretungen.VormerkungAendern(d, x, lehrer, klassen, AppZustand.Benutzer) is { } fehler) throw new InvalidOperationException(fehler);
+                    });
+                    return;
+                }
+                vm.LehrerIds = lehrer.ToList();
+                vm.KlassenIds = klassen.ToList();
                 break;
             case "T": vm.Text = wert; break;
             default: return;
