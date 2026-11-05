@@ -23,6 +23,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private int _letzterReiter;
     private bool _laedt;
     private bool _neuaufbauAusstehend;
+    private readonly Label _tage = new() { AutoSize = true };
 
     // Entwurf der gerade bearbeiteten Zeile: Änderungen werden erst beim Verlassen der Zeile übernommen,
     // damit z. B. eine stundenweise Absenz nicht schon nach der ersten Eingabe Vertretungen auslöst.
@@ -91,6 +92,11 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 80, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        // Reihenfolge wie im Vorbild: … Grund, Text, Anrechnung, Entfalltage, Absenztage, dann die weiteren Spalten
+        var nachText = _g.Columns["T"]!.DisplayIndex;
+        _g.Columns["Anr"]!.DisplayIndex = nachText + 1;
+        _g.Columns["Ent"]!.DisplayIndex = nachText + 2;
+        _g.Columns["Abs"]!.DisplayIndex = nachText + 3;
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
         Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
         {
@@ -156,6 +162,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
         gruppe.Controls.Add(_zeitraum);
         _zeitraum.Location = new Point(6, 18);
         kopf.Controls.Add(gruppe);
+        // wie im Vorbild: Anzahl der Tage des Zeitraums rechts daneben („329 Tage“)
+        _tage.Margin = new Padding(6, 30, 0, 0);
+        kopf.Controls.Add(_tage);
 
         Controls.Add(_g);
         Controls.Add(_tabs);
@@ -274,7 +283,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     private int LetzteStunde => Math.Max(1, D.Zeitraster.StundenProTag);
 
-    private static string TagText(DateOnly d) => $"{Planungsdienst.TageKurz[((int)d.DayOfWeek + 6) % 7]} {d:dd.MM.yy}";
+    /// <summary>Datum wie im Vorbild „TT.MM.“ (Jahr aus dem Schuljahr).</summary>
+    private static string TagText(DateOnly d) => $"{d:dd.MM.}";
 
     private static string? Schluessel(DataGridViewRow r) => r.Tag switch { Abwesenheit a => "A" + a.Id, Veranstaltung v => "VA" + v.Id, _ => "neu" };
 
@@ -329,6 +339,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         }
         _aufgebautFuer = Art;
         var (von, bis) = (Von, Bis);
+        var anzahl = bis.DayNumber - von.DayNumber + 1;
+        _tage.Text = anzahl == 1 ? "1 Tag" : $"{anzahl} Tage";
         _g.Columns["Beg"]!.Visible = Art == AbwesenheitsArt.Klasse;
         var eintraege = new List<object>();
         eintraege.AddRange(D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis).OrderBy(a => Ix.K(typ, a.ElementId), StringComparer.Create(Format.De, true)).ThenBy(a => a.Von));

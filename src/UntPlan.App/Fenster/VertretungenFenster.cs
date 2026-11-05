@@ -303,7 +303,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Springen(nr);
         };
 
+        // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle
+        var ansichtName = new Label { Dock = DockStyle.Top, Height = 22, Padding = new Padding(10, 4, 0, 0), BackColor = Ui.Kopf, Text = _ansicht.Text };
+        _ansicht.SelectedIndexChanged += (_, _) => ansichtName.Text = _ansicht.Text;
         Controls.Add(_g);
+        Controls.Add(ansichtName);
         Controls.Add(filter);
         Controls.Add(unten);
         Controls.Add(ts);
