@@ -22,6 +22,17 @@ struct HauptView: View {
                 // Neuer Aufbau je Konto: beim Kontowechsel starten alle Reiter frisch (keine Daten des vorigen Kontos)
                 AppTabView()
                     .id(zustand.kontoStand)
+                    // Kontowechsel (Original): die bisherige Oberfläche samt Tab-Leiste dunkelt ab und nimmt keine
+                    // Eingaben an; danach steht das neue Konto mit Ladekreis auf dunkler Fläche da
+                    .overlay {
+                        if zustand.kontoWechselLaeuft {
+                            Color.black.opacity(0.55)
+                                .ignoresSafeArea()
+                                .contentShape(Rectangle())
+                                .transition(.opacity)
+                                .accessibilityLabel("Profil wird gewechselt")
+                        }
+                    }
             }
         }
         .task {
