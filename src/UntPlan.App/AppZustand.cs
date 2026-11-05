@@ -263,6 +263,9 @@ public sealed class Benutzereinstellungen
     /// <summary>Zuletzt verwendete Eingaben je Feldart (Autovervollständigung in Text-, Bemerkungs- und ähnlichen Feldern).</summary>
     public Dictionary<string, List<string>> Eingabeverlauf { get; set; } = new();
 
+    /// <summary>Arbeitsplatzbezogene Einstellungen des Planungsdialogs (Schrift, Zellgröße, Stundenbereich, Anzeige).</summary>
+    public Fenster.PlanungsdialogEinstellungen Planungsdialog { get; set; } = new();
+
     private static string Pfad => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "UntPlan", "einstellungen.json");
 
     public static Benutzereinstellungen Laden()

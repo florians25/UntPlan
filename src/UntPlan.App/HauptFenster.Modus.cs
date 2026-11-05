@@ -155,16 +155,14 @@ public sealed partial class HauptFenster
         E("Eigene Fensteranordnungen…", "uebersicht", FensteranordnungMenue),
     });
 
-    /// <summary>Planungsdialog: Klassen- und Lehrerplan tagesaktuell nebeneinander.</summary>
+    /// <summary>
+    /// Planungsdialog wie im Handbuch: im Vertretungsmodus der Planungsdialog der Vertretungsplanung (Element, Woche-1/Woche-2, Lupe),
+    /// im Stundenplanmodus der Planungsdialog der Stundenplanung (Stecktafel mit Unterricht, Klassen, Lehrern und Räumen).
+    /// </summary>
     private void PlanungsdialogOeffnen()
     {
-        if (!AppZustand.Vertretungsmodus) VertretungsmodusUmschalten();
-        var mdi = Controls.OfType<MdiClient>().First().ClientSize;
-        var v = AppZustand.AktiveVertretung;
-        var kl = StundenplanFenster.Neu(ElementTyp.Klasse, v?.NeueKlassenIds.FirstOrDefault() is int k && k != 0 ? k : null, false);
-        var le = StundenplanFenster.Neu(ElementTyp.Lehrer, v?.LehrerId, false);
-        kl.Bounds = new Rectangle(0, 0, mdi.Width / 2, mdi.Height);
-        le.Bounds = new Rectangle(mdi.Width / 2, 0, mdi.Width - mdi.Width / 2, mdi.Height);
+        if (AppZustand.Vertretungsmodus) VertretungsPlanungsdialogFenster.Zeigen();
+        else PlanungsdialogFenster.Zeigen();
     }
 
     /// <summary>
