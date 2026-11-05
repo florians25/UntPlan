@@ -25,13 +25,7 @@
 .mk-plus { border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M8 3v10M3 8h10'/%3E%3C/svg%3E"); }
 .mk-plus::before, .mk-plus::after { content: none; }
-.mks .mk-verlegung { width: 12px; height: 12px; border-radius: 3px; background: var(--u-gruen) center / 10px 10px no-repeat
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8h9M9 4.5 12.5 8 9 11.5'/%3E%3C/svg%3E"); }
-.mks .mk-verlegung.von { background-color: #f03e3e; }
-/* Ursprungsstunde: rotes Entfall-Dreieck mit weißem Pfeil nach rechts (statt rotem Quadrat) – Pfeil gleich groß und kräftig wie im
-   grünen Quadrat (Länge 5,6px, Strich 1,25px), auf den Schwerpunkt des Dreiecks gesetzt (etwas tiefer als die Mitte) */
-.mks .mk-verlegung.von { width: 13px; height: 12px; border-radius: 0; background: transparent center / contain no-repeat
-  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 24'%3E%3Cpath d='M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M7.4 16h11.2M14.2 11.6l4.4 4.4-4.4 4.4' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+/* Verlegungs-Marker (grünes Quadrat mit Pfeil, Dreieck mit Pfeil): Formen in app.css wie Vorlage */
 .std .mks [data-hover] { cursor: default; }
 /* mehrere Symbole untereinander (z. B. „+“ und Änderung, Prüfung und Änderung) */
 .std .mks { gap: 4px; }

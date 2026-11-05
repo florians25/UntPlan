@@ -515,7 +515,7 @@ export function karteDialog(karte, kontext = {}) {
       if (kollegium) teile.push(notizFeld('notiz', 'Notizen für Lehrkräfte', ein ? ein.notiz : ersatz ? '' : k.notizLehrer, ebenenHinweis('notiz')));
     }
     const html = teile.filter(Boolean).join('');
-    return html || '<div class="sd-leer"><b>Keine weiteren Details</b><span>Zu dieser Stunde gibt es keine zusätzlichen Informationen.</span></div>';
+    return html || '<div class="sd-leer"><b>Keine weiteren Details</b><span>Zu dieser Stunde gibt es keine zusätzlichen Informationen</span></div>';
   }
 
   /**
