@@ -1036,9 +1036,20 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             v.Fixiert ? "X" : "", v.NichtDrucken ? "N" : "", v.Text2, benachrichtigen, zaehler, "", v.Wert?.ToString("0.##") ?? "",
             Anzeige(ElementTyp.Abteilung, abteilung, "Abt"), v.Benutzer, v.Mehrarbeit ? "x" : "",
         };
+        // Werte stehen oben in fester Folge (WerteFolge); die Spaltenliste darf anders sortiert sein (Felder der Ansicht wie im Handbuch)
+        werte = WerteZuSpalten.Select(i => werte[i]).ToArray();
         if (gruppe != null && _vaSammel.Contains(v.Id)) SammelWerte(werte, v, gruppe);
         return werte;
     }
+
+    /// <summary>Reihenfolge der Werte in <see cref="Werte"/> (unabhängig von der Reihenfolge der Spaltenliste).</summary>
+    private static readonly string[] WerteFolge =
+    {
+        "Nr", "Art", "Datum", "Tag", "Std", "Zeit", "Fach", "NFach", "Lehrer", "Vertreter", "AKlassen", "Klassen", "Raum", "NRaum", "Von", "Nach",
+        "Text", "Kz", "SG", "Grund", "UText", "UZText", "Beschr", "Entf", "Mitb", "Kopp", "Neu", "Fix", "ND", "Text2", "Ben", "Zaehler", "Unterschrift",
+        "Wert", "Abt", "Benutzer", "Mehr",
+    };
+    private static readonly int[] WerteZuSpalten = Spalten.Select(x => Array.IndexOf(WerteFolge, x.Name)).ToArray();
 
     /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie im Vorbild türkis).</summary>
     private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
