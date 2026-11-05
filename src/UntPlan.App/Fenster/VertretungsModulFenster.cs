@@ -89,6 +89,9 @@ public sealed class KalenderFenster : MdiFenster
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
         _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
+        // Reihenfolge wie im Handbuch: Art | Elemente | Gültig bis | Tagestext | Webportal
+        var reihe = new[] { "A", "E", "G", "X", "P" };
+        for (var i = 0; i < reihe.Length; i++) _texte.Columns[reihe[i]]!.DisplayIndex = i;
         Steuerelemente.SuchKombi.Aktivieren(_texte);
         _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["G"].Value = Format.Datum(AppZustand.Datum); e.Row.Cells["P"].Value = true; };
         _texte.CellEndEdit += (_, _) => TexteSpeichern();
@@ -369,6 +372,10 @@ public sealed class KalenderFenster : MdiFenster
 public sealed class KlausurenFenster : MdiFenster
 {
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly ToolStripButton _ganzesJahr = new("Ganzes Schuljahr") { CheckOnClick = true, Checked = true, ToolTipText = "Zwischen dem gewählten Zeitbereich und dem ganzen Schuljahr wechseln" };
+    private readonly ToolStripComboBox _klasse = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100, ToolTipText = "Ansicht auf eine Klasse einschränken" };
 
     public KlausurenFenster()
     {
@@ -381,6 +388,25 @@ public sealed class KlausurenFenster : MdiFenster
         ts.Items.Add(Knopf("Neue Klausur", "neu", () => KlausurDialog.Neu(this, AppZustand.Datum, 1, null), false));
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
+        // wie im Handbuch: Zeitbereich (Datumsfelder), „Ganzes Schuljahr“ und Einschränkung auf eine Klasse
+        ts.Items.Add(new ToolStripSeparator());
+        var heute = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
+        _von.Value = heute;
+        _bis.Value = heute.AddDays(27);
+        ts.Items.Add(new ToolStripControlHost(_von) { ToolTipText = "Zeitbereich von" });
+        ts.Items.Add(new ToolStripLabel("-"));
+        ts.Items.Add(new ToolStripControlHost(_bis) { ToolTipText = "Zeitbereich bis" });
+        _ganzesJahr.Image = Symbole.Get("kalender", 16);
+        ts.Items.Add(_ganzesJahr);
+        _klasse.Items.Add("Alle Klassen");
+        foreach (var k in Stammdaten.Sortiert(D.Klassen)) _klasse.Items.Add(k.Kurzname);
+        _klasse.SelectedIndex = 0;
+        ts.Items.Add(_klasse);
+        _von.ValueChanged += (_, _) => { if (_bis.Value < _von.Value) _bis.Value = _von.Value; Neuaufbau(); };
+        _bis.ValueChanged += (_, _) => { if (_bis.Value < _von.Value) _von.Value = _bis.Value; Neuaufbau(); };
+        _ganzesJahr.CheckedChanged += (_, _) => { _von.Enabled = _bis.Enabled = !_ganzesJahr.Checked; Neuaufbau(); };
+        _von.Enabled = _bis.Enabled = !_ganzesJahr.Checked;
+        _klasse.SelectedIndexChanged += (_, _) => Neuaufbau();
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         foreach (var (n, k, b) in new[] { ("N", "Name", 150), ("D", "Datum", 108), ("S", "Stunden", 60), ("K", "Klassen", 110), ("L", "Aufsicht", 110), ("R", "Räume", 90) })
@@ -409,17 +435,24 @@ public sealed class KlausurenFenster : MdiFenster
         if (_auswahlNachLoeschen is { } nach)
         {
             // nach dem Löschen: die nachfolgende Klausur (bzw. die letzte) auswählen, nicht die Leerzeile für neue Klausuren
-            var anzahl = D.Klausuren.Count;
+            var anzahl = D.Klausuren.Count(ImFilter);
             pos = (anzahl == 0 ? 0 : Math.Min(nach.Zeile, anzahl - 1), nach.Spalte);
             _auswahlNachLoeschen = null;
         }
         var nachLoeschen = pos != (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 0);
         _laedt = true;
         // nur betroffene Zeilen ändern (an Ort und Stelle, neue an ihren Platz) – Zeile, Spalte und Bildlauf bleiben
-        var eintraege = D.Klausuren.OrderBy(k => k.Datum).ThenBy(k => k.StundeVon).Cast<object>().Append(NeueKlausurZeile).ToList();
+        var eintraege = D.Klausuren.Where(ImFilter).OrderBy(k => k.Datum).ThenBy(k => k.StundeVon).Cast<object>().Append(NeueKlausurZeile).ToList();
         try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, KlausurSchluessel, r => KlausurSchluessel(r.Tag ?? NeueKlausurZeile), KlausurZeileSetzen); }
         finally { _laedt = false; }
         if (nachLoeschen && pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count) _g.CurrentCell = _g.Rows[pos.Item1].Cells[Math.Clamp(pos.Item2, 0, _g.Columns.Count - 1)];
+    }
+
+    /// <summary>Zeitbereich (bzw. ganzes Schuljahr) und gewählte Klasse.</summary>
+    private bool ImFilter(Klausur k)
+    {
+        if (!_ganzesJahr.Checked && (k.Datum < DateOnly.FromDateTime(_von.Value) || k.Datum > DateOnly.FromDateTime(_bis.Value))) return false;
+        return _klasse.SelectedIndex <= 0 || k.KlassenIds.Any(id => Ix.KKlassen(new[] { id }) == _klasse.SelectedItem as string);
     }
 
     /// <summary>Platzhalter der Leerzeile für neue Klausuren.</summary>
@@ -560,40 +593,76 @@ public sealed class KlausurenFenster : MdiFenster
     internal int SelbsttestAktuelleZeile => _g.CurrentCell?.RowIndex ?? -1;
 }
 
-/// <summary>Vormerkungen: beiseitegelegte bzw. noch zu verplanende Stunden. Ziehen in den tagesaktuellen Stundenplan verplant die Vormerkung.</summary>
+/// <summary>
+/// Vormerkungen wie im Handbuch: „Nur nicht verplante Vormerkungen anzeigen“; Spalten Vm-Nr., Nvpl Std. (zum Verplanen in den
+/// tagesaktuellen Stundenplan bzw. Planungsdialog ziehen), Stunden, Fach, Lehrer, Klasse(n), Raum, Statistik, Text, Vtr-Nr., U-Nr, Art,
+/// Studenten. Konkrete Vormerkungen werden direkt in der Tabelle (leere Zeile unten) eingegeben; Unterrichte aus dem Unterrichtsfenster
+/// und Stunden aus Stundenplan bzw. Planungsdialog können hierher gezogen werden.
+/// </summary>
 public sealed class VormerkungenFenster : MdiFenster
 {
-    private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
-    private readonly ToolStripButton _alle = new("Auch verplante") { CheckOnClick = true };
+    private readonly DataGridView _g = new() { Dock = DockStyle.Fill, AllowDrop = true };
+    private readonly CheckBox _nurOffen = new() { Text = "Nur nicht verplante Vormerkungen anzeigen", AutoSize = true, Left = 8, Top = 6 };
+    private bool _laedt;
 
     public VormerkungenFenster()
     {
         Text = "Vormerkungen";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("zurueck");
+        Icon = SymbolIcon("vormerkung");
         Size = new Size(900, 300);
         Positionieren();
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Neue Vormerkung", "neu", Neu, false));
         ts.Items.Add(Knopf("Am Planungsdatum verplanen…", "planen", Verplanen, false));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        ts.Items.Add(_alle);
-        ts.Items.Add(new ToolStripLabel("   Vormerkung mit der Maus in einen tagesaktuellen Stundenplan ziehen, um sie zu verplanen.") { ForeColor = Color.DimGray });
-        _alle.CheckedChanged += (_, _) => Neuaufbau();
-        Ui.RasterGestalten(_g, false);
-        _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        foreach (var (n, k, b) in new[] { ("Nr", "Nr.", 45), ("Q", "Herkunft", 85), ("S", "Std.", 38), ("O", "offen", 42), ("F", "Fach", 55), ("L", "Lehrer", 75), ("K", "Klassen", 85), ("R", "Raum", 55), ("U", "ursprünglich", 110), ("G", "gültig", 140), ("T", "Text", 200), ("V", "verplant am", 120) })
+        _nurOffen.CheckedChanged += (_, _) => Neuaufbau();
+        var oben = new Panel { Dock = DockStyle.Top, Height = 28 };
+        oben.Controls.Add(_nurOffen);
+        Ui.RasterGestalten(_g, true);
+        _g.AllowUserToAddRows = true;
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        foreach (var (n, k, b) in new[]
+        {
+            ("Nr", "Vm-Nr.", 55), ("O", "Nvpl Std.", 62), ("S", "Stunden", 55), ("F", "Fach", 55), ("L", "Lehrer", 75), ("K", "Klasse(n)", 85), ("R", "Raum", 55),
+            ("Stat", "Statistik", 60), ("T", "Text", 160), ("VNr", "Vtr-Nr.", 55), ("U", "U-Nr", 50), ("A", "Art", 110), ("Stud", "Studenten", 70),
+            ("Urspr", "ursprünglich", 110), ("G", "gültig", 140), ("V", "verplant am", 120),
+        })
             _g.Columns[_g.Columns.Add(n, k)].Width = b;
+        foreach (var n in new[] { "Nr", "O", "Stat", "VNr", "U", "A", "Stud", "Urspr", "G", "V" }) _g.Columns[n]!.ReadOnly = true;
         _g.Columns["T"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _g.CellEndEdit += ZelleGeaendert;
+        _g.SelectionChanged += (_, _) =>
+        {
+            // wie im Handbuch: offene Stundenpläne zeigen Lehrer bzw. Klasse der gewählten Vormerkung
+            if (_laedt || _g.CurrentRow?.Tag is not Vormerkung vm) return;
+            if (vm.LehrerIds.Count > 0) AppZustand.Waehlen(ElementTyp.Lehrer, vm.LehrerIds[0], this);
+            if (vm.KlassenIds.Count > 0) AppZustand.Waehlen(ElementTyp.Klasse, vm.KlassenIds[0], this);
+        };
+        // Ziehen aus „Nvpl Std.“ (bzw. der ganzen Zeile) in den tagesaktuellen Stundenplan oder Planungsdialog verplant die Vormerkung
         Point start = Point.Empty;
         _g.MouseDown += (_, e) => start = e.Location;
         _g.MouseMove += (_, e) =>
         {
             if (e.Button != MouseButtons.Left || Math.Abs(e.X - start.X) + Math.Abs(e.Y - start.Y) < 6) return;
             var hit = _g.HitTest(start.X, start.Y);
-            if (hit.RowIndex >= 0 && _g.Rows[hit.RowIndex].Tag is Vormerkung vm && vm.Offen > 0) _g.DoDragDrop("vormerkung:" + vm.Id, DragDropEffects.Move);
+            if (hit.RowIndex >= 0 && hit.ColumnIndex >= 0 && _g.Columns[hit.ColumnIndex].ReadOnly && _g.Rows[hit.RowIndex].Tag is Vormerkung vm && vm.Offen > 0)
+                _g.DoDragDrop("vormerkung:" + vm.Id, DragDropEffects.Move);
         };
+        _g.CellPainting += (_, e) =>
+        {
+            // Symbol „ziehen“ vor der Anzahl der nicht verplanten Stunden
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _g.Columns[e.ColumnIndex].Name != "O" || _g.Rows[e.RowIndex].Tag is not Vormerkung { Offen: > 0 } || e.Graphics is null) return;
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All);
+            e.Graphics.DrawImage(Symbole.Get("vormerkung", 16), e.CellBounds.Left + 2, e.CellBounds.Top + (e.CellBounds.Height - 16) / 2, 16, 16);
+            e.Handled = true;
+        };
+        _g.Columns["O"]!.DefaultCellStyle.Padding = new Padding(20, 0, 0, 0);
+        // Unterricht (Unterrichtsfenster) bzw. Stunde (Stundenplan, Planungsdialog) hierher ziehen = Vormerkung anlegen
+        _g.DragOver += (_, e) => e.Effect = e.Data?.GetData(DataFormats.Text) is string s && (s.StartsWith("unterricht:") || s.StartsWith("tag:")) ? DragDropEffects.Move : DragDropEffects.None;
+        _g.DragDrop += (_, e) => { if (e.Data?.GetData(DataFormats.Text) is string s) Fallen(s); };
         Controls.Add(_g);
+        Controls.Add(oben);
         Controls.Add(ts);
         Neuaufbau();
     }
@@ -601,17 +670,100 @@ public sealed class VormerkungenFenster : MdiFenster
     protected override bool EigeneAenderungenAnzeigen => true;
     protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
 
+    private static string ArtText(Vormerkung v, Schuldatei d) => v.Quelle switch
+    {
+        VormerkungsQuelle.Unterricht => $"Unterricht / {d.Unterrichte.FirstOrDefault(u => u.Id == v.UnterrichtId)?.Wochenstunden ?? 0}",
+        VormerkungsQuelle.Vertretung => "Vertretung",
+        VormerkungsQuelle.Verdraengung => "Verdrängung",
+        VormerkungsQuelle.Stundenplan => "Verlegung",
+        _ => "Sondereinsatz",
+    };
+
     private void Neuaufbau()
     {
-        _g.Rows.Clear();
-        foreach (var v in D.Vormerkungen.Where(v => _alle.Checked || v.Offen > 0).OrderBy(v => v.Datum ?? DateOnly.MaxValue))
+        if (_g.IsCurrentCellInEditMode) return;
+        _laedt = true;
+        try
         {
-            var r = _g.Rows.Add(v.Id, v.Quelle switch { VormerkungsQuelle.Vertretung => "Vertretung", VormerkungsQuelle.Verdraengung => "Verdrängung", VormerkungsQuelle.Stundenplan => "Stundenplan", VormerkungsQuelle.Unterricht => "Unterricht", _ => "konkret" },
-                v.Stunden, v.Offen, Ix.KFach(v.FachId), string.Join(",", v.LehrerIds.Select(Ix.KLehrer)), Ix.KKlassen(v.KlassenIds), Ix.KRaum(v.RaumId),
-                v.Datum is DateOnly dd ? $"{Format.Datum(dd)} / {v.Stunde}" : "", v.GueltigVon.HasValue || v.GueltigBis.HasValue ? $"{(v.GueltigVon is DateOnly a ? Format.Datum(a) : "")} – {(v.GueltigBis is DateOnly b ? Format.Datum(b) : "")}" : "",
-                v.Text, string.Join(", ", v.VerplantAm.Select(Format.Datum)));
-            _g.Rows[r].Tag = v;
-            if (v.Offen == 0) _g.Rows[r].DefaultCellStyle.ForeColor = Color.Gray;
+            _g.Rows.Clear();
+            foreach (var v in D.Vormerkungen.Where(v => !_nurOffen.Checked || v.Offen > 0).OrderBy(v => v.Id))
+            {
+                var u = v.UnterrichtId is int uid ? D.Unterrichte.FirstOrDefault(x => x.Id == uid) : null;
+                var vtr = D.Vertretungen.FirstOrDefault(x => x.VormerkungId == v.Id && x.Art == VertretungsArt.Vormerkung);
+                var r = _g.Rows.Add(v.Id, v.Offen, v.Stunden, Ix.KFach(v.FachId), string.Join(",", v.LehrerIds.Select(Ix.KLehrer)), Ix.KKlassen(v.KlassenIds), Ix.KRaum(v.RaumId),
+                    u?.Statistik ?? "", v.Text, vtr?.Id.ToString() ?? "", v.UnterrichtId?.ToString() ?? "", ArtText(v, D), "",
+                    v.Datum is DateOnly dd ? $"{Format.Datum(dd)} / {v.Stunde}" : "", v.GueltigVon.HasValue || v.GueltigBis.HasValue ? $"{(v.GueltigVon is DateOnly a ? Format.Datum(a) : "")} – {(v.GueltigBis is DateOnly b ? Format.Datum(b) : "")}" : "",
+                    string.Join(", ", v.VerplantAm.Select(Format.Datum)));
+                _g.Rows[r].Tag = v;
+                if (v.Offen == 0) _g.Rows[r].DefaultCellStyle.ForeColor = Color.Gray;
+                // aus Vertretung bzw. Unterricht entstandene Vormerkungen sind nicht veränderbar
+                if (v.Quelle is VormerkungsQuelle.Vertretung or VormerkungsQuelle.Unterricht) _g.Rows[r].ReadOnly = true;
+            }
+        }
+        finally { _laedt = false; }
+    }
+
+    /// <summary>Direkte Eingabe bzw. Änderung (Stunden, Fach, Lehrer, Klasse(n), Raum, Text).</summary>
+    private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (_laedt || e.RowIndex < 0) return;
+        var zeile = _g.Rows[e.RowIndex];
+        var spalte = _g.Columns[e.ColumnIndex].Name;
+        var wert = zeile.Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
+        var alt = zeile.Tag as Vormerkung;
+        if (alt is null && wert.Length == 0) return;
+        var vm = alt is null ? new Vormerkung { Quelle = VormerkungsQuelle.Konkret } : System.Text.Json.JsonSerializer.Deserialize<Vormerkung>(System.Text.Json.JsonSerializer.Serialize(alt))!;
+        switch (spalte)
+        {
+            case "S":
+                if (!int.TryParse(wert, out var n) || n < 1) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+                if (n < vm.VerplantAm.Count) { Ui.Info($"Die Stundenzahl kann nur bis zur Anzahl der bereits verplanten Stunden ({vm.VerplantAm.Count}) vermindert werden."); BeginInvoke(Neuaufbau); return; }
+                vm.Stunden = n;
+                break;
+            case "F": vm.FachId = D.Faecher.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+            case "R": vm.RaumId = D.Raeume.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+            case "L" or "K":
+                if (vm.VerplantAm.Count > 0) { Ui.Info("Lehrer und Klassen einer bereits (teilweise) verplanten Vormerkung können nicht geändert werden."); BeginInvoke(Neuaufbau); return; }
+                if (spalte == "L") vm.LehrerIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Lehrer, wert);
+                else vm.KlassenIds = VeranstaltungenFenster.Kurznamen(ElementTyp.Klasse, wert);
+                break;
+            case "T": vm.Text = wert; break;
+            default: return;
+        }
+        Aendern(alt is null ? "Vormerkung" : "Vormerkung geändert", AenderungsArt.Vertretung, d =>
+        {
+            if (alt != null) d.Vormerkungen[d.Vormerkungen.FindIndex(x => x.Id == alt.Id)] = vm;
+            else { vm.Id = d.NeueId(); d.Vormerkungen.Add(vm); }
+        });
+    }
+
+    /// <summary>Vormerkung aus Unterricht (befristet: Wochenstunden × Wochen) bzw. aus Stundenplan / Planungsdialog.</summary>
+    private void Fallen(string s)
+    {
+        if (s.StartsWith("unterricht:") && int.TryParse(s[11..], out var uid) && D.Unterrichte.FirstOrDefault(x => x.Id == uid) is { } u)
+        {
+            var stunden = Math.Max(1, u.Wochenstunden);
+            if (u.VonDatum is DateOnly von && u.BisDatum is DateOnly bis && bis >= von)
+                stunden = Math.Max(1, u.Wochenstunden) * Math.Max(1, (bis.DayNumber - von.DayNumber + 7) / 7);
+            var z = u.Zeilen.FirstOrDefault();
+            var vm = new Vormerkung
+            {
+                Quelle = VormerkungsQuelle.Unterricht, UnterrichtId = u.Id, Stunden = stunden, FachId = u.HauptfachId, LehrerIds = u.LehrerIds.ToList(), KlassenIds = u.KlassenIds.ToList(),
+                RaumId = z?.FachraumId ?? z?.StammraumId, GueltigVon = u.VonDatum, GueltigBis = u.BisDatum, Text = u.Text,
+            };
+            Aendern("Vormerkung aus Unterricht", AenderungsArt.Vertretung, d => { vm.Id = d.NeueId(); d.Vormerkungen.Add(vm); });
+            return;
+        }
+        if (s.StartsWith("tag:"))
+        {
+            var t = s.Split(':');
+            if (t.Length < 5 || !DateOnly.TryParseExact(t[1], "yyyyMMdd", out var datum) || !int.TryParse(t[2], out var st) || !int.TryParse(t[3], out var unt)) return;
+            int? zeile = int.TryParse(t[4], out var zz) && zz >= 0 ? zz : null;
+            var laenge = t.Length > 5 && int.TryParse(t[5], out var l5) ? Math.Max(1, l5) : 1;
+            Aendern(laenge > 1 ? $"Vormerkung ({laenge} Stunden)" : "Vormerkung", AenderungsArt.Vertretung, d =>
+            {
+                for (var i = 0; i < laenge; i++) Tagesverlegung.Vormerken(d, datum, st + i, unt, zeile, VormerkungsQuelle.Stundenplan, AppZustand.Benutzer);
+            });
         }
     }
 
@@ -638,11 +790,30 @@ public sealed class VormerkungenFenster : MdiFenster
         Aendern("Vormerkung verplanen", AenderungsArt.Vertretung, d => Vertretungen.VormerkungVerplanen(d, d.Vormerkungen.First(x => x.Id == vm.Id), AppZustand.Datum, stunde, AppZustand.Benutzer));
     }
 
+    /// <summary>
+    /// Löschen wie im Handbuch: sind bereits Stunden verplant, werden diese nach der Rückfrage „Verplante Stunden löschen“ wieder entplant;
+    /// sind keine Stunden (mehr) verplant, wird die ganze Vormerkung gelöscht.
+    /// </summary>
     private void Loeschen()
     {
-        var liste = _g.SelectedRows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Vormerkung>().ToList();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Vormerkung(en) löschen?")) return;
+        var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Vormerkung>().Distinct().ToList();
+        if (liste.Count == 0 && _g.CurrentRow?.Tag is Vormerkung aktuell) liste.Add(aktuell);
+        if (liste.Count == 0) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
+        var verplant = D.Vertretungen.Where(v => v.VormerkungId is int id && ids.Contains(id) && v.Art != VertretungsArt.Vormerkung).ToList();
+        if (verplant.Count > 0)
+        {
+            if (!Ui.Frage($"Verplante Stunden löschen? ({verplant.Count} Stunde(n))")) return;
+            Aendern("Verplante Stunden löschen", AenderungsArt.Vertretung, d =>
+            {
+                var sonder = verplant.Where(v => v.Art is VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung).Select(v => v.Id).ToList();
+                Verlegungsaufhebung.SondereinsaetzeLoeschen(d, sonder);
+                foreach (var v in verplant.Where(v => !sonder.Contains(v.Id)))
+                    if (d.Vertretungen.FirstOrDefault(x => x.Id == v.Id) is { } w) Verlegungsaufhebung.Aufheben(d, w);
+            });
+            return;
+        }
+        if (!Ui.Frage($"{liste.Count} Vormerkung(en) löschen?")) return;
         Aendern("Vormerkung löschen", AenderungsArt.Vertretung, d => d.Vormerkungen.RemoveAll(v => ids.Contains(v.Id)));
     }
 }

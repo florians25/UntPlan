@@ -325,34 +325,64 @@ public static class SondereinsatzDialog
         {
             if (e.Alt && e.KeyCode == Keys.Down && g.CurrentCell is { } c && Mehrfach(c.ColumnIndex)) { e.Handled = true; MehrfachZeigen(c.RowIndex, c.ColumnIndex); }
         };
-        bKl.Click += (_, _) =>        bKl.Click += (_, _) =>
+        bKl.Click += (_, _) =>
         {
             var i = Zeile();
-            var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassen des Sondereinsatzes", Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value));
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Klasse, Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value), Array.Empty<int>());
             if (w != null) { g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "K"); }
         };
         bLe.Click += (_, _) =>
         {
             var i = Zeile();
-            var w = AuswahlDialog.Mehrere(f, ElementTyp.Lehrer, "Lehrer des Sondereinsatzes", Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value));
-            if (w != null) { g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "L"); }
+            var kl = Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Lehrer, Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value), kl);
+            if (w is null) return;
+            // Klassenlehrer-Unterricht (wie im Handbuch): mehrere Klassen und deren Klassenlehrer gewählt – jeder Klassenlehrer wird seiner
+            // Klasse zugeordnet (je Klasse eine Zeile, Raum = Stammraum der Klasse)
+            var gewaehlt = w.Select(x => x.Id).ToHashSet();
+            var klassenObj = kl.Select(k => d.Klassen.FirstOrDefault(x => x.Id == k)).OfType<Klasse>().ToList();
+            var zuordnung = klassenObj.Select(k => (Klasse: k, Lehrer: k.KlassenlehrerIds.Where(gewaehlt.Contains).ToList())).ToList();
+            if (klassenObj.Count > 1 && zuordnung.All(z => z.Lehrer.Count > 0) && gewaehlt.All(l => zuordnung.Any(z => z.Lehrer.Contains(l))))
+            {
+                var kopf = g.Rows[i];
+                if (IstKind(kopf)) kopf = (DataGridViewRow)kopf.Tag!;
+                syncAktiv = true;
+                var zeilen = new List<DataGridViewRow> { kopf };
+                try
+                {
+                    foreach (var k in Kinder(kopf)) g.Rows.Remove(k);
+                    var pos = kopf.Index + 1;
+                    for (var n = 1; n < zuordnung.Count; n++)
+                    {
+                        g.Rows.Insert(pos, kopf.Cells["D"].Value, kopf.Cells["SV"].Value, kopf.Cells["SB"].Value, "", "", kopf.Cells["F"].Value ?? "", "", kopf.Cells["G"].Value, kopf.Cells["T"].Value);
+                        zeilen.Add(g.Rows[pos]);
+                        pos++;
+                    }
+                    for (var n = 0; n < zuordnung.Count; n++)
+                    {
+                        var (klasse, kls) = zuordnung[n];
+                        zeilen[n].Cells["K"].Value = klasse.Kurzname;
+                        zeilen[n].Cells["L"].Value = string.Join(",", kls.Select(ix.KLehrer));
+                        zeilen[n].Cells["R"].Value = klasse.StammraumId is int sr ? ix.KRaum(sr) : "";
+                    }
+                }
+                finally { syncAktiv = false; }
+                foreach (var z in zeilen) KinderAufbauen(z);
+                return;
+            }
+            g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname));
+            Uebertragen(i, "L");
         };
         bKk.Click += (_, _) =>
         {
-            // Klassenkonferenz: alle Lehrer, die die gewählten Klassen unterrichten
+            // Klassenkonferenz: Klasse wählen – alle Lehrkräfte, die in dieser Klasse unterrichten, werden übernommen
             var i = Zeile();
             var kl = Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value);
-            if (kl.Count == 0)
-            {
-                var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassenkonferenz für Klasse(n)", Array.Empty<int>());
-                if (w is null || w.Count == 0) return;
-                kl = w.Select(x => x.Id).ToList();
-                g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname));
-            }
-            var lehrerIds = d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.KlassenIds.Intersect(kl).Any() && z.LehrerId.HasValue).Select(z => z.LehrerId!.Value)
-                .Concat(d.Klassen.Where(k => kl.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct();
-            g.Rows[i].Cells["L"].Value = string.Join(",", lehrerIds.Select(ix.KLehrer).OrderBy(x => x));
-            if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(kl);
+            var w = SondereinsatzAuswahl.Klassenkonferenz(f, kl.Count > 0 ? kl[0] : null);
+            if (w is null) return;
+            g.Rows[i].Cells["K"].Value = ix.KKlassen(new[] { w.Value.Klasse });
+            g.Rows[i].Cells["L"].Value = string.Join(",", w.Value.Lehrer.Select(ix.KLehrer));
+            if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(new[] { w.Value.Klasse });
             Uebertragen(i, "K"); Uebertragen(i, "L"); Uebertragen(i, "T");
         };
         if (klassen.Length > 0 || lehrer.Length > 0)
@@ -437,6 +467,124 @@ public static class SondereinsatzDialog
     }
 }
 
+/// <summary>
+/// Auswahldialoge des Fensters „Sondereinsätze“ wie im Handbuch: „Auswahl“ (Kurzname, Langname, bei Lehrern Klasse(n); Mehrfachauswahl mit
+/// Strg; Filter Lehrer / Klassenlehrer / Lehrer im Unterricht; Alle, Inverse, Markierte) und „Klassenkonferenz“.
+/// </summary>
+public static class SondereinsatzAuswahl
+{
+    /// <summary>Lehrkräfte, die in den Klassen unterrichten (Unterrichte und Klassenlehrer).</summary>
+    public static List<int> LehrerDerKlassen(Schuldatei d, IReadOnlyCollection<int> klassen) =>
+        d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.KlassenIds.Intersect(klassen).Any() && z.LehrerId.HasValue).Select(z => z.LehrerId!.Value)
+            .Concat(d.Klassen.Where(k => klassen.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct().ToList();
+
+    /// <param name="rot">Elemente, die rot angezeigt werden (z. B. zu diesem Zeitpunkt im Unterricht bzw. besetzt).</param>
+    public static List<Element>? Waehlen(IWin32Window owner, ElementTyp typ, IReadOnlyCollection<int> vorauswahl, IReadOnlyCollection<int> klassen, Func<int, bool>? rot = null)
+    {
+        var d = AppZustand.D;
+        var lehrer = typ == ElementTyp.Lehrer;
+        using var f = new Dialog("Auswahl", lehrer ? 300 : 280, 420);
+        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        f.Ok.Text = "Ok";
+        var g = new DataGridView { Left = 6, Top = 6, Width = f.ClientSize.Width - 12, Height = lehrer ? 290 : 322, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(g, false);
+        g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        g.MultiSelect = true;
+        g.RowHeadersVisible = false;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
+        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
+        string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
+        if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 70;
+        foreach (var e in Stammdaten.Sortiert(d, typ).Where(x => !x.Ignorieren))
+        {
+            var i = lehrer ? g.Rows.Add(e.Kurzname, e is Lehrer l ? l.VollerName : e.Langname, KlassenVon(e)) : g.Rows.Add(e.Kurzname, e.Langname);
+            g.Rows[i].Tag = e;
+            if (rot?.Invoke(e.Id) == true) g.Rows[i].DefaultCellStyle.ForeColor = Color.Red;
+        }
+        var vor = vorauswahl.ToHashSet();
+        f.Shown += (_, _) =>
+        {
+            g.ClearSelection();
+            foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
+        };
+        f.Controls.Add(g);
+        var y = g.Bottom + 6;
+        if (lehrer)
+        {
+            // Filter: Lehrer / Klassenlehrer (Klassen) / Lehrer im Unterricht (Klassen)
+            var kText = AppZustand.Doc.Index.KKlassen(klassenAlle);
+            f.Controls.Add(new Label { Text = "Filter", Left = 8, Top = y + 4, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 64, Top = y, Width = f.ClientSize.Width - 72, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            filter.Items.AddRange(new object[] { "Lehrer", $"Klassenlehrer ({kText})", $"Lehrer im Unterricht ({kText})" });
+            filter.SelectedIndex = 0;
+            var kls = d.Klassen.Where(k => klassenAlle.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
+            var imUnterricht = LehrerDerKlassen(d, klassenAlle).ToHashSet();
+            filter.SelectedIndexChanged += (_, _) =>
+            {
+                g.CurrentCell = null;
+                foreach (DataGridViewRow r in g.Rows)
+                {
+                    var id = ((Element)r.Tag!).Id;
+                    r.Visible = filter.SelectedIndex switch { 1 => kls.Contains(id), 2 => imUnterricht.Contains(id), _ => true };
+                    if (!r.Visible) r.Selected = false;
+                }
+            };
+            f.Controls.Add(filter);
+            y += 30;
+        }
+        var nurMarkierte = false;
+        void Knopf(string text, int x, Action a)
+        {
+            var b = new Button { Text = text, Left = x, Top = y, Width = 80, Height = 24, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            b.Click += (_, _) => a();
+            f.Controls.Add(b);
+        }
+        Knopf("Alle", 8, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
+        Knopf("Inverse", 94, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
+        Knopf("Markierte", 180, () =>
+        {
+            nurMarkierte = !nurMarkierte;
+            g.CurrentCell = null;
+            foreach (DataGridViewRow r in g.Rows) r.Visible = !nurMarkierte || r.Selected;
+        });
+        if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        return g.Rows.Cast<DataGridViewRow>().Where(r => r.Selected).Select(r => (Element)r.Tag!).ToList();
+    }
+
+    /// <summary>„Klassenkonferenz“: Für welche Klasse? – zeigt sofort die Lehrkräfte, die in dieser Klasse unterrichten.</summary>
+    public static (int Klasse, List<int> Lehrer)? Klassenkonferenz(IWin32Window owner, int? klasse)
+    {
+        var d = AppZustand.D;
+        using var f = new Dialog("Klassenkonferenz", 280, 400);
+        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        f.Ok.Text = "Ok";
+        f.Controls.Add(new Label { Text = "Für welche Klasse soll die Klassenkonferenz angelegt werden?", Left = 8, Top = 6, Width = 264, Height = 32 });
+        var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 8, Top = 40, Width = 150 };
+        var klassen = Stammdaten.Sortiert(d.Klassen).Where(k => !k.Ignorieren).ToList();
+        foreach (var k in klassen) cb.Items.Add(k.Kurzname);
+        var g = new DataGridView { Left = 8, Top = 70, Width = 264, Height = 280, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(g, false);
+        g.RowHeadersVisible = false;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
+        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        var lehrer = new List<int>();
+        cb.SelectedIndexChanged += (_, _) =>
+        {
+            g.Rows.Clear();
+            if (cb.SelectedIndex < 0) return;
+            var ids = LehrerDerKlassen(d, new[] { klassen[cb.SelectedIndex].Id }).ToHashSet();
+            var liste = Stammdaten.Sortiert(d.Lehrer).Where(l => ids.Contains(l.Id)).ToList();
+            lehrer = liste.Select(l => l.Id).ToList();
+            foreach (var l in liste) g.Rows.Add(l.Kurzname, l.Langname);
+        };
+        cb.SelectedIndex = klasse is int kid ? Math.Max(0, klassen.FindIndex(k => k.Id == kid)) : klassen.Count > 0 ? 0 : -1;
+        f.Controls.AddRange(new Control[] { cb, g });
+        if (f.ShowDialog(owner) != DialogResult.OK || cb.SelectedIndex < 0) return null;
+        return (klassen[cb.SelectedIndex].Id, lehrer);
+    }
+}
+
 /// <summary>Klausur anlegen bzw. bearbeiten.</summary>
 public static class KlausurDialog
 {
@@ -447,7 +595,7 @@ public static class KlausurDialog
             Datum = datum, StundeVon = stunde, StundeBis = stunde, KlassenIds = e?.KlassenIds.ToList() ?? new(), LehrerIds = e?.LehrerIds.ToList() ?? new(),
             RaumIds = e?.RaumIds.ToList() ?? new(), UnterrichtId = e?.Unterricht?.Id, Name = e is null ? "Klausur" : $"Klausur {AppZustand.Doc.Index.KFach(e.FachId)}".Trim(),
         };
-        if (!Zeigen(owner, k)) return;
+        if (!Zeigen(owner, k, true)) return;
         try
         {
             AppZustand.Doc.Aendern("Klausur anlegen", AenderungsArt.Vertretung, d =>
@@ -460,24 +608,111 @@ public static class KlausurDialog
         catch (Exception ex) { Ui.Fehler(ex); }
     }
 
-    public static bool Zeigen(IWin32Window owner, Klausur k)
+    public static bool Zeigen(IWin32Window owner, Klausur k) => Zeigen(owner, k, false);
+
+    /// <summary>
+    /// „Neue Klausur“ wie im Handbuch: links Name und Text, rechts Datum, Stunde von und Stunde bis; darunter die Reiter „Kurse“
+    /// (Unterricht, Klassen) und „Lehrer/Räume“ mit den Schaltflächen Lehrer, Lehrer aus Kurs, Räume und Raum aus Kurs – in den
+    /// Auswahllisten sind zum Zeitpunkt der Klausur unterrichtende Lehrer bzw. besetzte Räume rot.
+    /// </summary>
+    public static bool Zeigen(IWin32Window owner, Klausur k, bool neu)
     {
-        using var f = new Dialog("Klausur", 470, 340);
-        var y = 14;
-        var name = Ui.Zeile(f, "Name:", new TextBox { Text = k.Name }, ref y, 140, 290);
-        var dat = Ui.Zeile(f, "Datum:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd, dd.MM.yyyy", Value = k.Datum.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 150);
-        var von = Ui.Zeile(f, "Stunde von:", ElementListe.Stunde(k.StundeVon), ref y, 140, 56);
+        var d = AppZustand.D;
+        var ix = AppZustand.Doc.Index;
+        using var f = new Dialog(neu ? "Neue Klausur" : "Klausur", 620, 380);
+        f.Ok.Text = "Ok";
+        var name = new TextBox { Text = k.Name, Left = 10, Top = 12, Width = 280 };
+        var tx = new TextBox { Text = k.Text, Left = 10, Top = 40, Width = 280 };
+        Steuerelemente.Textverlauf.Anbinden(tx, "Klausur:Text");
+        f.Controls.AddRange(new Control[] { name, new Label { Text = "Name", Left = 298, Top = 15, AutoSize = true }, tx, new Label { Text = "Text", Left = 298, Top = 43, AutoSize = true } });
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 380, Top = 12, Width = 120 };
+        var von = ElementListe.Stunde(k.StundeVon);
+        von.SetBounds(380, 40, 120, 23);
         var bis = ElementListe.Stunde(k.StundeBis);
-        bis.Left = von.Right + 40;
-        bis.Top = von.Top;
-        f.Controls.Add(new Label { Text = "bis", Left = von.Right + 10, Top = von.Top + 3, AutoSize = true });
-        f.Controls.Add(bis);
-        var kl = Ui.Zeile(f, "Klasse(n):", new ElementWahl(ElementTyp.Klasse, k.KlassenIds), ref y, 140, 290);
-        var le = Ui.Zeile(f, "Aufsicht (Lehrer):", new ElementWahl(ElementTyp.Lehrer, k.LehrerIds), ref y, 140, 290);
-        var ra = Ui.Zeile(f, "Räume:", new ElementWahl(ElementTyp.Raum, k.RaumIds), ref y, 140, 290);
-        var ent = Ui.Zeile(f, "", new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, AutoSize = true }, ref y, 140);
-        var akt = Ui.Zeile(f, "", new CheckBox { Text = "Aktiv", Checked = k.Aktiv, AutoSize = true }, ref y, 140);
-        var tx = Ui.Zeile(f, "Text:", new TextBox { Text = k.Text }, ref y, 140, 290);
+        bis.SetBounds(380, 68, 120, 23);
+        f.Controls.AddRange(new Control[]
+        {
+            dat, new Label { Text = "Datum", Left = 506, Top = 15, AutoSize = true }, von, new Label { Text = "Stunde von", Left = 506, Top = 43, AutoSize = true },
+            bis, new Label { Text = "Stunde bis", Left = 506, Top = 71, AutoSize = true },
+        });
+        von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; };
+        bis.ValueChanged += (_, _) => { if (bis.Value < von.Value) von.Value = bis.Value; };
+
+        var tabs = new TabControl { Left = 10, Top = 104, Width = 420, Height = 178 };
+        var kurse = new TabPage("Kurse");
+        var lr = new TabPage("Lehrer/Räume");
+        tabs.TabPages.AddRange(new[] { kurse, lr });
+        f.Controls.Add(tabs);
+        // Reiter „Kurse“: der Unterricht, aus dem die Klausur entstand, und die Klassen
+        var u = k.UnterrichtId is int uid ? d.Unterrichte.FirstOrDefault(x => x.Id == uid) : null;
+        var kg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 70 };
+        Ui.RasterGestalten(kg, false);
+        kg.RowHeadersVisible = false;
+        foreach (var (n, h, w) in new[] { ("U", "Unterricht", 70), ("Fa", "Fa.", 60), ("Le", "Le.", 90), ("St", "Studenten", 90) }) kg.Columns[kg.Columns.Add(n, h)].Width = w;
+        if (u != null) kg.Rows.Add(u.Id, string.Join(",", u.FachIds.Select(x => ix.KFach(x))), string.Join(",", u.LehrerIds.Select(ix.KLehrer)), "");
+        kurse.Controls.Add(kg);
+        kurse.Controls.Add(new Label { Text = "Klasse(n):", Left = 4, Top = 86, AutoSize = true });
+        var kl = new ElementWahl(ElementTyp.Klasse, k.KlassenIds) { Left = 80, Top = 82, Width = 324 };
+        kurse.Controls.Add(kl);
+        var ent = new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, Left = 4, Top = 114, AutoSize = true };
+        kurse.Controls.Add(ent);
+        // Reiter „Lehrer/Räume“: Aufsicht und Räume
+        var lehrer = k.LehrerIds.ToList();
+        var raeume = k.RaumIds.ToList();
+        var lg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 140 };
+        Ui.RasterGestalten(lg, false);
+        lg.RowHeadersVisible = false;
+        lg.Columns[lg.Columns.Add("L", "Lehrer")].Width = 190;
+        lg.Columns[lg.Columns.Add("R", "Räume")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        void LehrerRaeume()
+        {
+            lg.Rows.Clear();
+            for (var i = 0; i < Math.Max(1, Math.Max(lehrer.Count, raeume.Count)); i++)
+                lg.Rows.Add(i < lehrer.Count ? ix.KLehrer(lehrer[i]) : "", i < raeume.Count ? ix.KRaum(raeume[i]) : "");
+        }
+        LehrerRaeume();
+        lr.Controls.Add(lg);
+        var akt = new CheckBox { Text = "Aktiv", Checked = k.Aktiv, Left = 14, Top = 290, AutoSize = true };
+        f.Controls.Add(akt);
+
+        // belegt zum Zeitpunkt der Klausur (rot in den Auswahllisten)
+        HashSet<int> Belegt(bool raum)
+        {
+            var tp = Tagesplan.Berechnen(d, DateOnly.FromDateTime(dat.Value));
+            var res = new HashSet<int>();
+            for (var s = (int)von.Value; s <= (int)Math.Max(von.Value, bis.Value); s++)
+                foreach (var e in tp.Stunde(s).Where(e => e.Findetstatt)) res.UnionWith(raum ? e.RaumIds : e.LehrerIds);
+            return res;
+        }
+        Button Knopf(string text, int y, Action a)
+        {
+            var b = new Button { Text = text, Left = 446, Top = y, Width = 160, Height = 26 };
+            b.Click += (_, _) => { a(); tabs.SelectedTab = lr; LehrerRaeume(); };
+            f.Controls.Add(b);
+            return b;
+        }
+        var bL = Knopf("Lehrer", 126, () =>
+        {
+            var belegt = Belegt(false);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Lehrer, lehrer, kl.Ids, belegt.Contains);
+            if (w != null) lehrer = w.Select(x => x.Id).ToList();
+        });
+        var bLk = Knopf("Lehrer aus Kurs", 156, () => { if (u != null) lehrer = u.LehrerIds.ToList(); });
+        var bR = Knopf("Räume", 192, () =>
+        {
+            var belegt = Belegt(true);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Raum, raeume, Array.Empty<int>(), belegt.Contains);
+            if (w != null) raeume = w.Select(x => x.Id).ToList();
+        });
+        var bRk = Knopf("Raum aus Kurs", 222, () =>
+        {
+            if (u is null) return;
+            var tp = Tagesplan.Berechnen(d, DateOnly.FromDateTime(dat.Value));
+            var r = tp.Stunde((int)von.Value).Where(e => (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == u.Id).SelectMany(e => e.RaumIds).Distinct().ToList();
+            if (r.Count == 0) r = u.Zeilen.Select(z => z.StammraumId ?? z.FachraumId).OfType<int>().Distinct().ToList();
+            raeume = r;
+        });
+        bLk.Enabled = bRk.Enabled = u != null;
         if (k.Importiert)
         {
             // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
@@ -487,19 +722,23 @@ public static class KlausurDialog
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
         if (k.Importiert)
         {
-            k.LehrerIds = le.Ids;
-            k.RaumIds = ra.Ids;
+            k.LehrerIds = lehrer;
+            k.RaumIds = raeume;
             k.Aktiv = akt.Checked;
             return true;
         }
         k.Name = name.Text;
         k.Datum = DateOnly.FromDateTime(dat.Value);
+        var alteSpanne = k.StundeBis - k.StundeVon;
         k.StundeVon = (int)von.Value;
         k.StundeBis = (int)Math.Max(von.Value, bis.Value);
         k.KlassenIds = kl.Ids;
-        k.LehrerIds = le.Ids;
-        k.RaumIds = ra.Ids;
+        k.LehrerIds = lehrer;
+        k.RaumIds = raeume;
         k.UnterrichtEntfaellt = ent.Checked;
+        // wie im Handbuch: umfasst eine neue Klausur mehr Stunden als die gewählte, wird gefragt, ob kollidierender Unterricht entfällt
+        if (neu && k.StundeBis - k.StundeVon > alteSpanne)
+            k.UnterrichtEntfaellt = Ui.Frage("Sollen eventuell kollidierende Unterrichte aufgrund der Klausur entfallen?");
         k.Aktiv = akt.Checked;
         k.Text = tx.Text;
         return true;
@@ -626,13 +865,15 @@ public static class TagestextDialog
         Ui.RasterGestalten(g, true);
         g.AllowUserToAddRows = true;
         g.AllowUserToDeleteRows = true;
-        var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "für", Width = 90, FlatStyle = FlatStyle.Flat };
+        // Spalten wie im Handbuch: Art | Elemente | gültig bis [Tage] | Tagestext | Webportal
+        var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 90, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         g.Columns.Add(art);
-        g.Columns[g.Columns.Add("E", "Klassen/Lehrer")].Width = 110;
-        g.Columns[g.Columns.Add("T", "Text")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        g.Columns[g.Columns.Add("G", "Tage")].Width = 45;
-        g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Portal", Width = 50 });
+        g.Columns[g.Columns.Add("E", "Elemente")].Width = 110;
+        g.Columns[g.Columns.Add("T", "Tagestext")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        g.Columns[g.Columns.Add("G", "gültig bis [Tage]")].Width = 90;
+        g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Webportal", Width = 64 });
+        g.Columns["G"]!.DisplayIndex = 2;
         var ix = AppZustand.Doc.Index;
         foreach (var t in d.Tagestexte.Where(t => t.Datum == datum))
         {

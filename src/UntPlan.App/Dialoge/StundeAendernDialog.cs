@@ -42,6 +42,18 @@ public sealed class StundeAendernDialog : Dialog
         return f.ShowDialog(owner) == DialogResult.OK && f.Ausfuehren(owner);
     }
 
+    /// <summary>
+    /// „Sondereinsatz / Stunde ändern“ in einer freien Stunde (wie im Handbuch „Sondereinsatz: 15.11. / 5“, Reiter „?.“): Klasse bzw.
+    /// Lehrer laut Stundenplan vorausgewählt; legt einen Sondereinsatz an.
+    /// </summary>
+    public static bool Neu(IWin32Window owner, DateOnly datum, int stunde, IReadOnlyList<int> klassen, IReadOnlyList<int> lehrer)
+    {
+        using var f = new StundeAendernDialog(datum, stunde, Array.Empty<TagesEintrag>());
+        f.Text = $"Sondereinsatz:  {datum.Day}.{datum.Month}. / {stunde}";
+        f.SeiteHinzufuegen(new Seite { Klassen = klassen.ToList(), Lehrer = lehrer.Count > 0 ? lehrer[0] : null }, "?.");
+        return f.ShowDialog(owner) == DialogResult.OK && f.Ausfuehren(owner);
+    }
+
     /// <summary>Nicht modal (Selbsttest).</summary>
     public static Form Anzeigen(IWin32Window owner, DateOnly datum, int stunde, IReadOnlyList<TagesEintrag> eintraege)
     {
@@ -82,10 +94,10 @@ public sealed class StundeAendernDialog : Dialog
         return _block.Checked ? Raumvertretungen.Block(D, _datum, _stunde, s.UnterrichtId, s.Zeile) : new List<int> { _stunde };
     }
 
-    private void SeiteHinzufuegen(Seite s)
+    private void SeiteHinzufuegen(Seite s, string? titel = null)
     {
         var ix = AppZustand.Doc.Index;
-        var seite = new TabPage(s.UnterrichtId is null ? "Neuer Lehrer" : $"{ix.KLehrer(s.Lehrer)}, {ix.KFach(s.Fach)}".Trim(' ', ','));
+        var seite = new TabPage(titel ?? (s.UnterrichtId is null ? "Neuer Lehrer" : $"{ix.KLehrer(s.Lehrer)}, {ix.KFach(s.Fach)}".Trim(' ', ',')));
         var anwenden = new GroupBox { Text = "Anwenden auf", Left = 8, Top = 6, Width = 170, Height = 62 };
         if (_seiten.Count == 0) anwenden.Controls.AddRange(new Control[] { _einzeln, _block });
         else anwenden.Controls.Add(new Label { Text = "(wie erster Reiter)", Left = 10, Top = 26, AutoSize = true, ForeColor = Color.DimGray });
