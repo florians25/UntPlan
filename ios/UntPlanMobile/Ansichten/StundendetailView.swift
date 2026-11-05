@@ -67,6 +67,9 @@ struct StundendetailInhalt: View {
     @State private var bereit = false
     /// Systemblatt (iPad): Inhalt erst nach dem Einblenden aufbauen
     @State private var eingeblendet = false
+    /// Daten der gewählten Stunde lagen beim Öffnen schon vor (Zwischenspeicher): der fertige Inhalt fährt direkt mit dem
+    /// Blatt ein und wieder aus – kein Ladebild und kein Sprung vom Ladebild zum Inhalt
+    @State private var vorgeladen: Bool
     @State private var onlineFehler: String? = nil
     /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
     @State private var raumZiel: RaumZiel? = nil
@@ -79,7 +82,9 @@ struct StundendetailInhalt: View {
         self.karten = karten
         self.typ = typ
         let s = min(max(start, 0), max(karten.count - 1, 0))
-        _datenListe = State(initialValue: karten.map { Stundendaten.fuer($0) })
+        let liste = karten.map { Stundendaten.fuer($0) }
+        _datenListe = State(initialValue: liste)
+        _vorgeladen = State(initialValue: liste.indices.contains(s) && MainActor.assumeIsolated { liste[s].geladen })
         _auswahl = State(initialValue: s)
         _seitenPosition = State(initialValue: s)
         _reiterSicht = State(initialValue: s)
@@ -105,7 +110,8 @@ struct StundendetailInhalt: View {
     /// Ladebild statt Inhalt: bis die Daten der beim Öffnen gewählten Stunde da sind und während das Blatt ein- oder
     /// ausfährt (wie im Original – die Seiten werden erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
     private var zeigtSkelett: Bool {
-        !(bereit || daten.geladen) || (blattBewegt ?? !eingeblendet)
+        if vorgeladen { return false }
+        return !(bereit || daten.geladen) || (blattBewegt ?? !eingeblendet)
     }
 
     var body: some View {
@@ -158,11 +164,6 @@ struct StundendetailInhalt: View {
         // Hauptseite ohne Textfelder: bleibt beim Ein- und Ausblenden der Tastatur (z. B. beim Zurückkehren aus einer
         // Notiz) unverändert stehen
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        // Randblatt: im Ruhezustand liegt die Seite genau zwischen Statusleiste und Home-Indikator (sichere Ränder 0). Beim
-        // Ein- und Ausfahren überdeckt sie unten den Home-Indikator – der Navigationsstapel meldete dann in jedem Bild
-        // andere sichere Ränder und Kopf, Ladebild und Liste wurden mitten in der Bewegung neu angeordnet (Zucken). Ohne
-        // diese Ränder bleibt die Anordnung während der Bewegung starr.
-        .ignoresSafeArea(.container, edges: blattBewegt == nil ? Edge.Set() : .vertical)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: Detailseite.self) { seite in
             seitenansicht(index).ziel(seite)
