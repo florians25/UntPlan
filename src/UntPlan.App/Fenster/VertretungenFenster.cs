@@ -341,7 +341,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Entf", "Entfall", "Entfall", 44, true, false, false),
         ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false), ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false),
         ("Neu", "Neu", "Neue Vertretung", 36, true, false, false), ("Fix", "(X)", "(X) Fixiert", 30, true, false, false),
-        ("ND", "(N)", "(N) Nicht Drucken", 30, true, false, false), ("Text2", "Text 2", "Vertretungs-Text 2", 120, false, false, false),
+        ("ND", "N.Druck (N)", "N. Druck (N)", 44, true, false, false), ("Text2", "Vertr.-Text-2", "Vertr.-Text-2", 120, false, false, false),
         ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zähler", "Zähler", 46, true, false, false),
         ("Unterschrift", "Unterschrift", "Unterschrift", 80, true, false, false), ("Wert", "Wert", "Wert bzw. Faktor", 46, false, false, false),
         ("Abt", "Abteilung", "Abteilung", 70, true, false, true), ("Benutzer", "Benutzer", "Benutzer", 70, true, false, false),

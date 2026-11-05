@@ -1642,7 +1642,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         cm.Items.Add("Sondereinsatz / Stunde ändern", Symbole.Get("sondereinsatz"), (_, _) =>
         {
             if (findet && e != null && uid is int) { if (StundeAendernDialog.Zeigen(this, datum, stunde, StundenEintraege(datum, stunde, e))) Neuaufbau(false); }
-            else SondereinsatzDialog.Neu(this, datum, stunde, _typ == ElementTyp.Klasse ? new[] { _id } : Array.Empty<int>(), _typ == ElementTyp.Lehrer ? new[] { _id } : Array.Empty<int>());
+            else if (StundeAendernDialog.Neu(this, datum, stunde, _typ == ElementTyp.Klasse ? new[] { _id } : Array.Empty<int>(), _typ == ElementTyp.Lehrer ? new[] { _id } : Array.Empty<int>())) Neuaufbau(false);
         });
         var entfall = cm.Items.Add("Stunde entfallen lassen", Symbole.Get("entfall"), (_, _) =>
         {
