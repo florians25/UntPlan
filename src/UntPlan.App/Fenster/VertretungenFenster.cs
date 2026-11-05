@@ -294,7 +294,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
+            if (e.KeyData == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
             if (e.KeyCode == Keys.Enter && !_g.IsCurrentCellInEditMode) { VorschlagOeffnen(); e.Handled = true; }
             if (e.KeyCode == Keys.F3) { NaechsteOffene(e.Shift ? -1 : 1); e.Handled = true; }
         };
@@ -705,7 +705,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             var f = Fmt;
             if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
-            if (!Ui.Frage($"Vertretungsformat „{f.Langname}“ löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Vertretungsformat", "Vertretungsformate", f.Langname)) return;
             FormatLoeschen(f);
         }
     }
@@ -1695,7 +1695,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 Ausfuehren("Schülergruppe", id, (d, x) => x.Schuelergruppe = wert);
                 return;
             case "Kopp":
-                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Ui.Info("Vertretungs-Kopplung: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Neuaufbau(); Steuerelemente.Tabellenbedienung.Ungueltig(_g, wert, "Vertretungs-Kopplung: bitte eine Zahl eingeben."); return; }
                 Ausfuehren("Vertretungs-Kopplung", id, (d, x) => x.Kopplung = kopp);
                 return;
             case "Wert":
@@ -1703,7 +1703,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 if (wert.Length > 0)
                 {
                     if (decimal.TryParse(wert.Replace('.', ','), System.Globalization.NumberStyles.Number, Format.De, out var wd)) w = wd;
-                    else { Ui.Info("Wert: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                    else { Neuaufbau(); Steuerelemente.Tabellenbedienung.Ungueltig(_g, wert, "Wert: bitte eine Zahl eingeben."); return; }
                 }
                 Ausfuehren("Wert", id, (d, x) => x.Wert = w);
                 return;
@@ -1943,7 +1943,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             return;
         }
         var nicht = alle.Count - liste.Count;
-        if (!Ui.Frage($"{liste.Count} Vertretung(en) löschen?" + (nicht > 0 ? $"\n\n{nicht} Zeile(n) aus Absenzen/Veranstaltungen bleiben erhalten." : ""))) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Vertretung", "Vertretungen", zusatz: nicht > 0 ? $"{nicht} Zeile(n) aus Absenzen/Veranstaltungen bleiben erhalten." : null)) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Vertretungen löschen", AenderungsArt.Vertretung, d =>
         {

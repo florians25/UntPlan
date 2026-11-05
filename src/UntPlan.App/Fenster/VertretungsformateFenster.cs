@@ -144,7 +144,7 @@ public sealed class VertretungsformateFenster : MdiFenster
     {
         if (Aktuell() is not { } f) return;
         if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
-        if (!Ui.Frage($"Vertretungsformat „{f.Langname}“ löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Vertretungsformat", "Vertretungsformate", f.Langname)) return;
         VertretungenFenster.FormatLoeschen(f);
         Neuaufbau();
     }

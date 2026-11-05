@@ -461,7 +461,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _grid.CellMouseClick += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) Kontextmenue(e); };
         _grid.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; }
+            if (e.KeyData == Keys.Delete && !_grid.IsCurrentCellInEditMode && !Tabellenbedienung.GanzeZeilenMarkiert(_grid)) { ZelleLeeren(); e.Handled = true; }
             // Zwischenablage (Handbuch 3.3.7): Strg+C / Strg+X / Strg+V kopieren, ausschneiden bzw. fügen markierte Unterrichte ein
             else if (e.Control && !e.Shift && !e.Alt && e.KeyCode is Keys.C or Keys.X && !_grid.IsCurrentCellInEditMode) { UnterrichteKopieren(e.KeyCode == Keys.X); e.Handled = true; }
             else if (e.Control && !e.Shift && !e.Alt && e.KeyCode == Keys.V && !_grid.IsCurrentCellInEditMode && _zwischenablage.Count > 0) { UnterrichteEinfuegen(); e.Handled = true; e.SuppressKeyPress = true; }
@@ -1500,7 +1500,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         var ids = _grid.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<ZeilenTag>().Select(t => t.U.Id).Distinct().ToList();
         if (ids.Count == 0) return;
-        if (!Ui.Frage($"{ids.Count} Unterricht(e) samt verplanter Stunden löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(ids.Count, "Unterricht", "Unterrichte", $"U-Nr. {ids[0]}", "Verplante Stunden werden mit gelöscht.")) return;
         if (Aendern("Unterricht löschen", AenderungsArt.Unterricht, d => ids.ForEach(id => Stammdaten.UnterrichtLoeschen(d, id)))) Neuaufbau();
     }
 
@@ -1534,7 +1534,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         if (Aktuell() is not { } t || t.U.Zeilen.Count <= 1) return;
         var idx = t.Index;
-        if (!Ui.Frage($"Kopplungszeile {idx + 1} des Unterrichts {t.U.Id} löschen?\n\nLehrkraft, Fach, Klassen und Räume dieser Zeile werden entfernt (rückgängig mit Strg+Z).", "UntPlan - Frage")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Kopplungszeile", "Kopplungszeilen", $"Zeile {idx + 1} von U-Nr. {t.U.Id}", "Lehrkraft, Fach, Klassen und Räume dieser Zeile werden entfernt (rückgängig mit Strg+Z).")) return;
         if (Aendern("Kopplungszeile löschen", AenderungsArt.Unterricht, d =>
         {
             var u = d.Unterrichte.First(x => x.Id == t.U.Id);

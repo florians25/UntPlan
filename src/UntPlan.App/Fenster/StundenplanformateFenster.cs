@@ -130,7 +130,7 @@ public sealed class StundenplanformateFenster : MdiFenster
     private void Loeschen()
     {
         if (Aktuell() is not { } f) return;
-        if (!Ui.Frage($"Stundenplanformat \"{f.Name}\" löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Stundenplanformat", "Stundenplanformate", f.Name)) return;
         var (typ, name) = (f.Typ, f.Name);
         Aendern("Stundenplanformat löschen", AenderungsArt.Einstellungen, d => d.Formate.RemoveAll(x => x.Typ == typ && x.Name == name));
     }

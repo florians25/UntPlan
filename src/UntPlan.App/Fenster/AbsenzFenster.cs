@@ -39,6 +39,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private readonly Steuerelemente.ZellKommentare _kommentare;
     /// <summary>Mit Strg+C gemerkte Absenzen (Strg+V fügt sie am eingestellten Tag ein).</summary>
     private static List<Abwesenheit> _zwischenablage = new();
+    private static string? _ablageText;
 
     public AbwesenheitenFenster()
     {
@@ -140,10 +141,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (e.KeyCode == Keys.Escape && _entwurf != null) { EntwurfVerwerfen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Enter && _entwurf != null && e.Modifiers == Keys.Control) { EntwurfSofortUebernehmen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.Control) { Loeschen(); e.Handled = true; }
-            if (e.KeyCode == Keys.Insert) Neu();
+            if (e.KeyData == Keys.Insert) { Neu(); e.Handled = true; }
             // wie im Vorbild (Kap. 5.2 Absenzen kopieren): Strg+C merkt die markierten Absenzen, Strg+V fügt sie am eingestellten Tag ein
-            if (e.KeyCode == Keys.C && e.Modifiers == Keys.Control) { AbsenzenMerken(); e.Handled = true; }
-            if (e.KeyCode == Keys.V && e.Modifiers == Keys.Control) { AbsenzenEinfuegen(); e.Handled = true; }
+            // zusätzlich wie in jeder Tabelle: Strg+C kopiert die Zellen als Text; kam danach anderer Text in die Zwischenablage,
+            // fügt Strg+V diesen in die Felder ein (Tabellenbedienung)
+            if (e.KeyCode == Keys.C && e.Modifiers == Keys.Control) { AbsenzenMerken(); _ablageText = Steuerelemente.Tabellenbedienung.DatensaetzeKopieren(_g); e.Handled = true; }
+            if (e.KeyCode == Keys.V && e.Modifiers == Keys.Control && _zwischenablage.Count > 0 && Steuerelemente.Tabellenbedienung.DatensatzEinfuegen(_ablageText)) { AbsenzenEinfuegen(); e.Handled = true; }
         };
         _kommentare = Steuerelemente.ZellKommentare.Aktivieren(_g, r => r.Tag is Abwesenheit a ? ("Absenz:" + a.Id, "Absenz Nr. " + a.Id) : null);
         _g.CellMouseDown += (_, e) =>
@@ -744,7 +747,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     {
         EntwurfSofortUebernehmen();
         var liste = Markierte();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Absenz", "Absenzen", zusatz: "Daraus entstandene Vertretungen werden entfernt.")) return;
         Speichern(Array.Empty<Abwesenheit>(), liste, "Absenz löschen");
     }
 }

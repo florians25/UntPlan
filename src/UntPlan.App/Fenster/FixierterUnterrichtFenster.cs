@@ -146,6 +146,7 @@ public sealed class FixierterUnterrichtFenster : MdiFenster
         var text = zelle.Value as string ?? "";
         if (text.Length == 0) return;
         var ign = Ignoriert;
+        if (!Ui.LoeschenBestaetigen(1, ign ? "Ignorieren-Kennzeichen" : "Fixierung", ign ? "Ignorieren-Kennzeichen" : "Fixierungen", text)) return;
         var namen = text.Split(',').Select(x => x.Trim()).ToHashSet();
         void Element(Element e) { if (ign) e.Ignorieren = false; else e.Fix = false; }
         Aendern(ign ? "Ignorieren aufheben" : "Fixierung löschen", spalte is "STF" ? AenderungsArt.Stundenplan : spalte is "UF" ? AenderungsArt.Unterricht : AenderungsArt.Stammdaten, d =>

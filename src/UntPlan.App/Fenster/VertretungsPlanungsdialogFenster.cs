@@ -526,7 +526,7 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
         }
         if (uid is null && e.Vertretung is { } se)
         {
-            if (!Ui.Frage("Sondereinsatz löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Sondereinsatz", "Sondereinsätze")) return;
             Aendern("Sondereinsatz löschen", AenderungsArt.Vertretung, d => Verlegungsaufhebung.SondereinsaetzeLoeschen(d, new[] { se.Id }));
             Neuaufbau();
             return;
@@ -543,7 +543,7 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
     {
         if (daten.StartsWith("sondereinsatz:") && int.TryParse(daten[14..], out var vid))
         {
-            if (!Ui.Frage("Sondereinsatz löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Sondereinsatz", "Sondereinsätze")) return;
             Aendern("Sondereinsatz löschen", AenderungsArt.Vertretung, d => Verlegungsaufhebung.SondereinsaetzeLoeschen(d, new[] { vid }));
             Neuaufbau();
             return;

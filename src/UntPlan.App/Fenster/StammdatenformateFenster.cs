@@ -80,7 +80,7 @@ public sealed class StammdatenformateFenster : MdiFenster
         if (spalte == "Name")
         {
             var neu = (wert as string ?? "").Trim();
-            if (neu.Length == 0 || D.Ansichten.Any(x => x.Fenster == fenster && x.Name == neu && x != a)) { Ui.Info($"Der Name \"{neu}\" ist ungültig bzw. bereits vergeben."); Neuaufbau(); return; }
+            if (neu.Length == 0 || D.Ansichten.Any(x => x.Fenster == fenster && x.Name == neu && x != a)) { Neuaufbau(); Steuerelemente.Tabellenbedienung.Ungueltig(_g, e.RowIndex, e.ColumnIndex, neu, $"Der Name \"{neu}\" ist ungültig bzw. bereits vergeben."); return; }
         }
         Aendern("Stammdatenformat", AenderungsArt.Einstellungen, d =>
         {
@@ -130,7 +130,7 @@ public sealed class StammdatenformateFenster : MdiFenster
     {
         if (_g.CurrentRow?.Tag is not Ansicht a) return;
         if (a.Geschuetzt) { Ui.Info($"Das Format \"{a.Name}\" ist geschützt."); return; }
-        if (!Ui.Frage($"Format \"{a.Name}\" löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Format", "Formate", a.Name)) return;
         var (fenster, name) = (a.Fenster, a.Name);
         Aendern("Stammdatenformat löschen", AenderungsArt.Einstellungen, d => d.Ansichten.RemoveAll(x => x.Fenster == fenster && x.Name == name));
         Neuaufbau();

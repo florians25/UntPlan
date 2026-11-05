@@ -231,7 +231,11 @@ public class MdiFenster : Form
     private void AktualisierenGemessen(AenderungsArt art)
     {
         using var _m = Core.Messung.Start($"Aktualisieren {GetType().Name}");
+        // Zeile/Spalte und Bildlauf aller Tabellen merken: baut das Fenster seine Tabelle neu auf (Rows.Clear) und springt dabei an
+        // den Anfang, wird derselbe Datensatz wieder aktuell – nach Speichern, Rückgängig bzw. Änderungen in verknüpften Fenstern
+        var staende = Steuerelemente.Tabellenbedienung.StandMerken(this);
         Aktualisieren(art);
+        Steuerelemente.Tabellenbedienung.StandWiederherstellen(staende);
     }
 
     /// <summary>Änderung mit Rückgängig-Möglichkeit durchführen.</summary>

@@ -1543,7 +1543,7 @@ public sealed partial class HauptFenster
             {
                 (MeldungsArt.Warnung, "UntPlan - Hinweis", "Absenzgrund fehlt.", new[] { "OK" }, false),
                 (MeldungsArt.Info, "UntPlan", "Stundenplanänderungen wurden nacherfasst.", new[] { "OK" }, false),
-                (MeldungsArt.Frage, "UntPlan - Frage", "3 Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
+                (MeldungsArt.Frage, Ui.LoeschenTitel, Ui.LoeschenFrageText + "\n\n3 Absenzen\n\nDaraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
                 (MeldungsArt.Warnung, "UntPlan - Raum belegt", "Raum R104 ist in der 3. Stunde bereits durch 7a/Ma/MÜL belegt.", new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Kollision erzeugen" }, true),
                 (MeldungsArt.Fehler, "UntPlan - Fehler", "Raum oder Raumgruppe \"X99\" ist nicht vorhanden.", new[] { "OK" }, false),
             };
@@ -1829,6 +1829,284 @@ public sealed partial class HauptFenster
             lehrer.DroppedDown = false;
             d.Close();
         }, -1);
+        // ---------------------------------------------------------------- R3B: einheitliches, verlässliches Eingabeverhalten in allen Masken
+        // Tasten werden wie vom Benutzer gesendet (Enter/Esc als Fensternachricht an das Eingabefeld, Tastenkombinationen über die
+        // gemeinsame Tastenverarbeitung); jede Maske muss gleich reagieren, sonst wird der Schritt rot.
+        DataGridView R3BTabelle(Form f) => Ui.Tabellen(f).Where(g => g.Visible && g.Width > 40 && g.Height > 40).OrderByDescending(g => g.Width * g.Height).First();
+        string R3BSchl(DataGridViewRow r) => Steuerelemente.Tabellenbedienung.ZeilenSchluessel(r) ?? "#" + r.Index;
+        DataGridViewCell? R3BZelle(DataGridView g, string schluessel, int spalte) =>
+            g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => R3BSchl(r) == schluessel) is { } r && spalte < g.Columns.Count ? r.Cells[spalte] : null;
+        string R3BText(DataGridViewCell? c) => c is null ? "<Zeile fehlt>" : Steuerelemente.NurText.ZellText(c);
+        void R3BTaste(Control ziel, Keys taste)
+        {
+            R3BPostMessage(ziel.Handle, 0x100, (IntPtr)(int)taste, IntPtr.Zero);
+            R3BPostMessage(ziel.Handle, 0x101, (IntPtr)(int)taste, (IntPtr)unchecked((int)0xC0000001));
+            Warten(150);
+        }
+        void R3BKombi(DataGridView g, Keys keys) { Steuerelemente.Tabellenbedienung.Senden(g, keys); Warten(350); }
+        void R3BWaehlen(DataGridView g, DataGridViewCell? z)
+        {
+            if (z is null) return;
+            g.ClearSelection();
+            g.CurrentCell = z;
+            if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect) z.OwningRow.Selected = true; else z.Selected = true;
+            Warten(80);
+        }
+        void R3BMaske(string maske, Form f, string[] spaltenWunsch, bool historie)
+        {
+            Warten(400);
+            // neue Fenster werden sonst erst im Leerlauf erfasst (im Selbsttest läuft kein Leerlauf)
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            f.Activate();
+            var g = R3BTabelle(f);
+            g.Focus();
+            var fehler = new List<string>();
+            var spalte = spaltenWunsch.Select(n => g.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.Name == n || c.HeaderText == n)).FirstOrDefault(c => c != null)
+                ?? throw new InvalidOperationException($"{maske}: keine Spalte {string.Join("/", spaltenWunsch)}");
+            if (!spalte.Visible) { spalte.Visible = true; Warten(100); }
+            var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && r.Tag != null && Steuerelemente.Tabellenbedienung.ZelleAenderbar(r.Cells[spalte.Index]))
+                ?? throw new InvalidOperationException($"{maske}: keine änderbare Zeile in Spalte „{spalte.HeaderText}“");
+            var key = R3BSchl(zeile);
+            var si = spalte.Index;
+            var original = R3BText(zeile.Cells[si]);
+            var neu = original == "R3B-Eingabe" ? "R3B-Eingabe2" : "R3B-Eingabe";
+            void Zurueck()
+            {
+                if (historie) { R3BKombi(g, Keys.Control | Keys.Z); return; }
+                if (R3BZelle(g, key, si) is { } z) { Steuerelemente.Tabellenbedienung.Setzen(g, z, original); Warten(300); }
+            }
+
+            // 1. F2 bearbeitet, Esc verwirft die laufende Eingabe
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            R3BKombi(g, Keys.F2);
+            if (!g.IsCurrentCellInEditMode || g.EditingControl is not TextBox tb1) fehler.Add("F2 startet keine Bearbeitung");
+            else
+            {
+                tb1.Text = neu;
+                R3BTaste(tb1, Keys.Escape);
+                Warten(200);
+                if (g.IsCurrentCellInEditMode) fehler.Add("Esc beendet die Bearbeitung nicht");
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add($"Esc verwirft die Eingabe nicht („{R3BText(R3BZelle(g, key, si))}“)");
+            }
+
+            // 2. Enter prüft und übernimmt die Eingabe und springt zum nächsten Feld
+            var historieVorher = AppZustand.Doc.Historie.Count;
+            var rueckVorher = AppZustand.Doc.RueckgaengigText;
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            g.BeginEdit(true);
+            Warten(80);
+            if (g.EditingControl is TextBox tb2)
+            {
+                tb2.Text = neu;
+                R3BTaste(tb2, Keys.Enter);
+                Warten(500);
+                if (g.IsCurrentCellInEditMode) fehler.Add("Enter beendet die Bearbeitung nicht");
+                if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add($"Enter übernimmt die Eingabe nicht („{R3BText(R3BZelle(g, key, si))}“)");
+                if (g.CurrentCell is { } cc && R3BSchl(cc.OwningRow) == key && cc.ColumnIndex == si) fehler.Add("Enter springt nicht zum nächsten Feld");
+                if (historie && AppZustand.Doc.Historie.Count == historieVorher && AppZustand.Doc.RueckgaengigText == rueckVorher) fehler.Add("Eingabe steht nicht in der Historie");
+            }
+            else fehler.Add("Bearbeitung lässt sich nicht starten");
+
+            // 3. Strg+Z / Strg+Y wirken in der Maske, mit Hinweis in der Statuszeile; die Zeile bleibt aktuell
+            if (historie && R3BText(R3BZelle(g, key, si)) == neu)
+            {
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BKombi(g, Keys.Control | Keys.Z);
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add($"Strg+Z stellt den Wert nicht wieder her („{R3BText(R3BZelle(g, key, si))}“)");
+                if (!Ui.LetzterHinweis.StartsWith("Rückgängig:", StringComparison.Ordinal)) fehler.Add($"kein Statuszeilen-Hinweis nach Strg+Z („{Ui.LetzterHinweis}“)");
+                if (g.CurrentCell is null || R3BSchl(g.CurrentCell.OwningRow) != key) fehler.Add("nach Strg+Z steht der Cursor nicht mehr auf der bearbeiteten Zeile");
+                R3BKombi(g, Keys.Control | Keys.Y);
+                if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add("Strg+Y stellt die Änderung nicht wieder her");
+                if (!Ui.LetzterHinweis.StartsWith("Wiederhergestellt:", StringComparison.Ordinal)) fehler.Add($"kein Statuszeilen-Hinweis nach Strg+Y („{Ui.LetzterHinweis}“)");
+                R3BKombi(g, Keys.Control | Keys.Z);
+            }
+            else if (!historie) Zurueck();
+            if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Ausgangswert nicht wiederhergestellt");
+
+            // 4. Strg+V fügt ein (eine Rückgängig-Stufe), Strg+C kopiert die markierten Zellen
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            var ablage = Steuerelemente.NurText.Kopieren(neu) && Steuerelemente.NurText.Einfuegetext() == neu;
+            if (ablage) R3BKombi(g, Keys.Control | Keys.V);
+            else { Steuerelemente.Tabellenbedienung.Einfuegen(g, neu); Warten(350); }
+            if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add($"Strg+V fügt nicht ein („{R3BText(R3BZelle(g, key, si))}“)");
+            else
+            {
+                if (ablage)
+                {
+                    Steuerelemente.NurText.Kopieren("leer");
+                    R3BWaehlen(g, R3BZelle(g, key, si));
+                    R3BKombi(g, Keys.Control | Keys.C);
+                    var kopiert = Steuerelemente.NurText.Einfuegetext() ?? "";
+                    // Zeilenmarkierung kopiert die ganze Zeile, Zellmarkierung die Zelle
+                    if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect ? !kopiert.Split('\t').Contains(neu) : kopiert != neu) fehler.Add($"Strg+C kopiert die Zelle nicht („{Steuerelemente.NurText.Einfuegetext()}“)");
+                }
+                Zurueck();
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Einfügen nicht als eine Rückgängig-Stufe");
+            }
+
+            // 5. Entf leert das Feld (rückgängig mit Strg+Z)
+            if (original.Length > 0)
+            {
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BTaste(g, Keys.Delete);
+                Warten(350);
+                if (R3BText(R3BZelle(g, key, si)) != "" && !Ui.LetzterHinweis.Contains("nicht übernommen")) fehler.Add($"Entf leert das Feld nicht („{R3BText(R3BZelle(g, key, si))}“)");
+                if (R3BText(R3BZelle(g, key, si)) == "") Zurueck();
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Wert nach Entf nicht wiederherstellbar");
+            }
+
+            // 6. Strg+E / Strg+F passen die Spaltenbreiten an
+            if (g.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.Visible && c.AutoSizeMode != DataGridViewAutoSizeColumnMode.Fill && c.HeaderText.Length > 3 && c.Resizable != DataGridViewTriState.False) is { } breit)
+            {
+                var alt = breit.Width;
+                foreach (var (taste, name) in new[] { (Keys.E, "Strg+E"), (Keys.F, "Strg+F") })
+                {
+                    breit.Width = Math.Max(breit.MinimumWidth, 6);
+                    var schmal = breit.Width;
+                    R3BKombi(g, Keys.Control | taste);
+                    if (breit.Width <= schmal) fehler.Add($"{name} passt die Spaltenbreite nicht an");
+                }
+                breit.Width = alt;
+            }
+
+            // 7. Löschen: überall dieselbe Rückfrage (auch bei Mehrfachauswahl); „Nein“ löscht nichts
+            var antwortVorher = Ui.FrageAntwort;
+            var infoVorher = Ui.InfoAntwort;
+            var gestellt = new List<string>();
+            var info = new List<string>();
+            var zeilenVorher = g.Rows.Count;
+            var stufenVorher = AppZustand.Doc.Historie.Count;
+            var rueckText = AppZustand.Doc.RueckgaengigText;
+            try
+            {
+                Ui.FrageAntwort = (t, _) => { gestellt.Add(t); return false; };
+                Ui.InfoAntwort = (t, _) => info.Add(t);
+                if (Steuerelemente.Tabellenbedienung.LoeschKnopf(g) is null) fehler.Add("kein Knopf „Löschen“ für Strg+Entf");
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BKombi(g, Keys.Control | Keys.Delete);
+                var andere = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && r.Tag != null && R3BSchl(r) != key && r.Tag.GetType() == zeile.Tag!.GetType());
+                if (andere != null)
+                {
+                    R3BWaehlen(g, R3BZelle(g, key, si));
+                    if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect) andere.Selected = true; else andere.Cells[si].Selected = true;
+                    R3BKombi(g, Keys.Control | Keys.Delete);
+                }
+                var einheitlich = gestellt.Where(t => t.StartsWith(Ui.LoeschenFrageText, StringComparison.Ordinal)).ToList();
+                if (einheitlich.Count == 0 && info.Count == 0) fehler.Add($"Rückfrage vor dem Löschen fehlt bzw. weicht ab: {string.Join(" / ", gestellt)}");
+                if (gestellt.Count > einheitlich.Count) fehler.Add($"Rückfrage mit abweichendem Wortlaut: {string.Join(" / ", gestellt.Except(einheitlich))}");
+                if (andere != null && einheitlich.Count >= 2 && !einheitlich[^1].Contains("\n\n2 ")) fehler.Add($"Mehrfachauswahl: Rückfrage nennt nicht 2 Datensätze ({einheitlich[^1].Replace("\n", " ")})");
+                if (g.Rows.Count != zeilenVorher || AppZustand.Doc.Historie.Count != stufenVorher || AppZustand.Doc.RueckgaengigText != rueckText) fehler.Add("mit „Nein“ wurde trotzdem gelöscht");
+                log.Add($"INFO  R3B {maske}: Rückfrage „{(einheitlich.FirstOrDefault() ?? info.FirstOrDefault() ?? "").Replace("\n", " ")}“");
+            }
+            finally
+            {
+                Ui.FrageAntwort = antwortVorher;
+                Ui.InfoAntwort = infoVorher;
+            }
+            if (fehler.Count > 0) throw new InvalidOperationException($"{maske} weicht vom einheitlichen Eingabeverhalten ab: " + string.Join("; ", fehler));
+            log.Add($"INFO  R3B {maske}: F2/Esc/Enter/Strg+Z/Strg+Y/Strg+C/Strg+V/Entf/Strg+E/Strg+F/Löschen einheitlich (Spalte „{spalte.HeaderText}“)");
+        }
+        void R3BVertretungsmodus(bool an)
+        {
+            if (AppZustand.Vertretungsmodus != an) { VertretungsmodusUmschalten(); Warten(300); }
+            if (an) AppZustand.DatumSetzen(tag);
+        }
+        Schritt("R3B_Stammdaten_Lehrer", () => { R3BVertretungsmodus(false); R3BMaske("Lehrer", Max(Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer))), new[] { "Langname" }, true); }, 1);
+        Schritt("R3B_Stammdaten_Faecher", () => { R3BVertretungsmodus(false); R3BMaske("Fächer", Max(Oeffnen<StammdatenFenster>("st:Fach", () => new StammdatenFenster(ElementTyp.Fach))), new[] { "Langname" }, true); }, 1);
+        Schritt("R3B_Unterricht", () => { R3BVertretungsmodus(false); R3BMaske("Unterricht", Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse))), new[] { "Text", "Zeilentext" }, true); }, 1);
+        Schritt("R3B_Ferien", () => { R3BVertretungsmodus(false); R3BMaske("Ferien", Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), new[] { "L" }, false); }, 0);
+        Schritt("R3B_Absenzen", () => { R3BVertretungsmodus(true); R3BMaske("Absenzen", Max(FensterOeffnen("abw")!), new[] { "T" }, true); }, -1);
+        Schritt("R3B_Veranstaltungen", () => { R3BVertretungsmodus(true); R3BMaske("Veranstaltungen", Max(FensterOeffnen("veranst")!), new[] { "T" }, true); }, -1);
+        Schritt("R3B_Vertretungen", () => { R3BVertretungsmodus(true); R3BMaske("Vertretungen", Max(FensterOeffnen("vertr")!), new[] { "Text" }, true); }, -1);
+        Schritt("R3B_Klausuren", () =>
+        {
+            R3BVertretungsmodus(true);
+            if (!AppZustand.D.Klausuren.Any(k => k.Datum == tag && !k.Importiert))
+                AppZustand.Doc.Aendern("R3B Testklausur", AenderungsArt.Vertretung, d => d.Klausuren.Add(new Klausur
+                {
+                    Id = d.NeueId(), Name = "R3B", Datum = tag, StundeVon = 1, StundeBis = 1, KlassenIds = new() { d.Klassen[0].Id }, Text = "Probe", Aktiv = true, UnterrichtEntfaellt = false,
+                }));
+            R3BMaske("Klausuren", Max(FensterOeffnen("klaus")!), new[] { "T" }, true);
+        }, -1);
+        Schritt("R3B_Vormerkungen", () =>
+        {
+            R3BVertretungsmodus(true);
+            if (AppZustand.D.Vormerkungen.Count == 0)
+                AppZustand.Doc.Aendern("R3B Testvormerkung", AenderungsArt.Vertretung, d => d.Vormerkungen.Add(new Vormerkung
+                {
+                    Id = d.NeueId(), Quelle = VormerkungsQuelle.Konkret, Stunden = 1, FachId = d.Faecher[0].Id, LehrerIds = new() { d.Lehrer[0].Id }, Text = "Probe",
+                }));
+            R3BMaske("Vormerkungen", Max(FensterOeffnen("vorm")!), new[] { "T" }, true);
+        }, -1);
+        // ungültige Eingabe: Hinweis in Statuszeile/Tooltip, kein Meldungsfenster, Eingabe bleibt zur Korrektur stehen, Esc verwirft sie
+        Schritt("R3B_Ungueltige_Eingabe", () =>
+        {
+            R3BVertretungsmodus(true);
+            var f = Max(FensterOeffnen("veranst")!);
+            Warten(400);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var g = R3BTabelle(f);
+            var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Veranstaltung) ?? throw new InvalidOperationException("keine Veranstaltung");
+            var key = R3BSchl(zeile);
+            var si = g.Columns["SV"]!.Index;
+            var original = R3BText(zeile.Cells[si]);
+            var infos = new List<string>();
+            var infoVorher = Ui.InfoAntwort;
+            var hinweis = "";
+            var vaId = ((Veranstaltung)zeile.Tag!).Id;
+            var stundeVon = AppZustand.D.Veranstaltungen.First(v => v.Id == vaId).StundeVon;
+            try
+            {
+                Ui.InfoAntwort = (t, _) => infos.Add(t);
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                g.BeginEdit(true);
+                Warten(80);
+                if (g.EditingControl is not TextBox tb) throw new InvalidOperationException("Stunde-von nicht bearbeitbar");
+                tb.Text = "xx";
+                R3BTaste(tb, Keys.Enter);
+                Warten(600);
+                hinweis = Ui.LetzterHinweis;
+                if (infos.Count > 0) throw new InvalidOperationException("Ungültige Eingabe öffnet ein Meldungsfenster: " + infos[0]);
+                if (!Ui.LetzterHinweis.Contains("ungültig", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException($"kein Hinweis in der Statuszeile („{Ui.LetzterHinweis}“)");
+                if (!g.IsCurrentCellInEditMode || g.EditingControl is not TextBox tb2 || tb2.Text != "xx") throw new InvalidOperationException("ungültige Eingabe steht nicht mehr zur Korrektur in der Zelle");
+                if (g.CurrentCell is not { } cc || R3BSchl(cc.OwningRow) != key || cc.ColumnIndex != si) throw new InvalidOperationException("Cursor hat die Zelle der ungültigen Eingabe verlassen");
+                R3BTaste(tb2, Keys.Escape);
+                Warten(300);
+                if (g.IsCurrentCellInEditMode || R3BText(R3BZelle(g, key, si)) != original) throw new InvalidOperationException("Esc verwirft die ungültige Eingabe nicht");
+                if (AppZustand.D.Veranstaltungen.First(v => v.Id == vaId).StundeVon != stundeVon) throw new InvalidOperationException("ungültige Eingabe hat die Daten geändert");
+                if (Ui.FehlerProtokoll is { Count: > 0 }) throw new InvalidOperationException("Ausnahme bei ungültiger Eingabe");
+            }
+            finally { Ui.InfoAntwort = infoVorher; }
+            log.Add($"INFO  R3B ungültige Eingabe: „{hinweis}“");
+        }, -1);
+        // Fokus nach Neuaufbau: Änderung aus einem anderen Fenster (bzw. Rückgängig) – Zeile und Spalte bleiben erhalten
+        Schritt("R3B_Fokus_nach_Neuaufbau", () =>
+        {
+            R3BVertretungsmodus(false);
+            var f = Max(Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer)));
+            Warten(400);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var g = R3BTabelle(f);
+            var zeilen = g.Rows.Cast<DataGridViewRow>().Where(r => r.Visible && r.Tag != null).ToList();
+            if (zeilen.Count < 6) throw new InvalidOperationException("zu wenige Lehrer");
+            var spalte = g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Skip(2).First();
+            R3BWaehlen(g, zeilen[5].Cells[spalte.Index]);
+            var key = R3BSchl(zeilen[5]);
+            var erste = g.FirstDisplayedScrollingRowIndex;
+            var anderer = AppZustand.D.Lehrer.First(l => R3BSchl(zeilen[5]) != "Lehrer:" + l.Id);
+            AppZustand.Doc.Aendern("R3B fremde Änderung", AenderungsArt.Stammdaten, d => d.Lehrer.First(l => l.Id == anderer.Id).Langname += " ");
+            Warten(400);
+            void Pruefen(string wann)
+            {
+                if (g.CurrentCell is not { } c || R3BSchl(c.OwningRow) != key || c.ColumnIndex != spalte.Index)
+                    throw new InvalidOperationException($"{wann}: Zeile/Spalte nicht erhalten (jetzt {(g.CurrentCell is { } x ? R3BSchl(x.OwningRow) + "/" + x.OwningColumn.HeaderText : "keine")})");
+                if (Math.Abs(g.FirstDisplayedScrollingRowIndex - erste) > 1) throw new InvalidOperationException($"{wann}: Bildlauf gesprungen ({erste} → {g.FirstDisplayedScrollingRowIndex})");
+            }
+            Pruefen("nach Änderung in anderem Fenster");
+            Ui.Rueckgaengig();
+            Warten(400);
+            Pruefen("nach Rückgängig");
+        }, 1);
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
     }
@@ -2042,6 +2320,9 @@ public sealed partial class HauptFenster
             }
         return erg;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
+    private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
 
     private static void Warten(int ms)
     {

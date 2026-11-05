@@ -184,6 +184,8 @@ public static class Auswahlbreite
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
                 // Kopieren nur als reiner Text (sichtbare Zellen, ohne HTML/CSV-Formate)
                 NurText.Tabelle(g);
+                // einheitliches Eingabeverhalten (Enter/Esc/F2/Entf/Strg+V/Strg+X, ungültige Eingaben) in allen Tabellen
+                Tabellenbedienung.Einrichten(g);
                 // Freitextspalten (Text, Bemerkung …): Vorschläge aus den zuletzt verwendeten Eingaben
                 Textverlauf.Tabelle(g);
                 g.CellPainting += KontrollkaestchenOhneHover;

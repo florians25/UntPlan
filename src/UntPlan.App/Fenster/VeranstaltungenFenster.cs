@@ -17,6 +17,7 @@ namespace UntPlan.App.Fenster;
 public sealed class VeranstaltungenFenster : MdiFenster
 {
     private static Veranstaltung? _zwischenablage;
+    private static string? _ablageText;
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -247,14 +248,14 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private void Taste(object? sender, KeyEventArgs e)
     {
         if (_g.IsCurrentCellInEditMode) return;
-        if (e.Control && e.KeyCode == Keys.C) { KopierenMerken(); e.Handled = true; }
-        else if (e.Control && e.KeyCode == Keys.V) { Einfuegen(); e.Handled = true; }
+        if (e.Control && e.KeyCode == Keys.C) { KopierenMerken(); _ablageText = Steuerelemente.Tabellenbedienung.DatensaetzeKopieren(_g); e.Handled = true; }
+        else if (e.Control && e.KeyCode == Keys.V && _zwischenablage != null && Steuerelemente.Tabellenbedienung.DatensatzEinfuegen(_ablageText)) { Einfuegen(); e.Handled = true; }
         else if ((e.KeyCode == Keys.F4 || (e.Alt && e.KeyCode == Keys.Down)) && _g.CurrentCell is { } c && AuswahlSpalten.Contains(c.OwningColumn.Name))
         {
             AuswahlZeigen(c.RowIndex, c.ColumnIndex);
             e.Handled = true;
         }
-        else if (e.KeyCode == Keys.Delete && e.Control) { Loeschen(); e.Handled = true; }
+        else if (e.KeyData == (Keys.Control | Keys.Delete)) { Loeschen(); e.Handled = true; }
     }
 
     /// <summary>Auswahlliste der Spalte (Klassen/Lehrer/Räume mehrfach mit Strg-Klick, Schülergruppe einfach).</summary>
@@ -543,8 +544,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         }
         catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
         {
-            Ui.Info(ex is FormatException { Message: { Length: > 0 } m } && !m.StartsWith("Input") && !m.StartsWith("The input") ? m : $"Die Eingabe \"{wert}\" ist ungültig.");
             NachZellwechsel(Neuaufbau);
+            Steuerelemente.Tabellenbedienung.Ungueltig(_g, e.RowIndex, e.ColumnIndex, wert,
+                ex is FormatException { Message: { Length: > 0 } m } && !m.StartsWith("Input") && !m.StartsWith("The input") ? m : $"Die Eingabe \"{wert}\" ist ungültig.");
             return;
         }
         if (alt is null && string.IsNullOrWhiteSpace(v.Text) && v.KlassenIds.Count == 0 && v.KlassenteilIds.Count == 0 && v.LehrerIds.Count == 0) return;
@@ -638,7 +640,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private void Loeschen()
     {
         var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Veranstaltung>().Distinct().ToList();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Veranstaltung(en) löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Veranstaltung", "Veranstaltungen", liste.Count == 1 ? liste[0].Text : null)) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Veranstaltung löschen", AenderungsArt.Vertretung, d =>
         {

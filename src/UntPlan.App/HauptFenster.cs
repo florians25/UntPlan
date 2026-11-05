@@ -42,8 +42,8 @@ public sealed partial class HauptFenster : Form
         _schnell.Items.AddRange(new ToolStripItem[]
         {
             SKnopf("Neu", "neu", Neu), SKnopf("Öffnen", "oeffnen", Oeffnen), SKnopf("Speichern (Strg+S)", "speichern", () => Speichern()),
-            new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => AppZustand.Doc.Rueckgaengig()),
-            SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => AppZustand.Doc.Wiederholen()), new ToolStripSeparator(),
+            new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => Ui.Rueckgaengig()),
+            SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => Ui.Rueckgaengig(wiederherstellen: true)), new ToolStripSeparator(),
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)),
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
             WebKnopf(), new ToolStripSeparator(),
@@ -726,10 +726,10 @@ public sealed partial class HauptFenster : Form
         switch (keyData)
         {
             case Keys.Control | Keys.Z when ActiveMdiChild?.ActiveControl is not TextBoxBase:
-                AppZustand.Doc.Rueckgaengig();
+                Ui.Rueckgaengig();
                 return true;
             case Keys.Control | Keys.Y when ActiveMdiChild?.ActiveControl is not TextBoxBase:
-                AppZustand.Doc.Wiederholen();
+                Ui.Rueckgaengig(wiederherstellen: true);
                 return true;
             // Vertretungsmodus wie im Handbuch (Kap. 4.3 Datum): Strg+T heute, Strg+M kommender, Strg+G vergangener Schultag
             case Keys.Control | Keys.T when AppZustand.Vertretungsmodus:

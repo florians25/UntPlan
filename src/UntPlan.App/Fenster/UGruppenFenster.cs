@@ -112,7 +112,7 @@ public sealed class UGruppenFenster : MdiFenster
     private void Loeschen()
     {
         var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<UGruppe>().Distinct().ToList();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Unterrichtsgruppe(n) löschen? Zugeordneter Unterricht findet danach jede Woche statt.")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Unterrichtsgruppe", "Unterrichtsgruppen", liste.Count == 1 ? liste[0].Kurzname : null, "Zugeordneter Unterricht findet danach jede Woche statt.")) return;
         var ids = liste.Select(x => x.Id).ToHashSet();
         Aendern("Unterrichtsgruppe löschen", AenderungsArt.Unterricht, d =>
         {

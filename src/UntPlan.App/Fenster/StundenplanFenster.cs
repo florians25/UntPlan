@@ -764,7 +764,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         var name = _plan.Format.Name;
         if (!D.Formate.Any(x => x.Typ == _typ && x.Name == name)) { Ui.Info("Das Standardformat ist nicht gespeichert und kann nicht gelöscht werden."); return; }
-        if (!Ui.Frage($"Stundenplanformat \"{name}\" löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Stundenplanformat", "Stundenplanformate", name)) return;
         Aendern("Stundenplanformat löschen", AenderungsArt.Einstellungen, d => d.Formate.RemoveAll(x => x.Typ == _typ && x.Name == name));
         _formatName = null;
         AppZustand.Einstellungen.Stundenplanformate.Remove(FormatSchluessel);
