@@ -210,9 +210,10 @@ public sealed class VertretungTests : IClassFixture<StudioFabrik>
         var datum = DateOnly.Parse(S((await c.GetJsonAsync($"{basis0}/start"))["datum"]));
         var up = await c.GetByteArrayAsync($"/api/dokumente/{id0}/herunterladen");
         var d = JsonSerializer.Deserialize<Schuldatei>(up, Dokument.JsonOptionen)!;
-        var tag = Kalender.TagIndex(d, datum);
-        var lehrerId = d.AktivePeriode.Plan.Where(p => p.Tag == tag).Select(p => d.Unterrichte.First(u => u.Id == p.UnterrichtId).Zeilen[0].LehrerId).OfType<int>().First();
+        // Lehrkraft mit Unterricht am Tag der Absenz (nicht am Starttag – sonst hängt der Test vom Wochentag ab)
         var naechster = Kalender.NaechsterUnterrichtstag(d, datum);
+        var tag = Kalender.TagIndex(d, naechster);
+        var lehrerId = d.AktivePeriode.Plan.Where(p => p.Tag == tag).Select(p => d.Unterrichte.First(u => u.Id == p.UnterrichtId).Zeilen[0].LehrerId).OfType<int>().First();
         d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = lehrerId, Von = naechster, Bis = naechster });
         var id = await c.BeispielHochladenAsync(d);
         var basis = $"/api/dokumente/{id}/vertretung";
