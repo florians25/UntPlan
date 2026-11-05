@@ -94,4 +94,8 @@ enum Datumsformat {
     static func istHeute(_ text: String) -> Bool {
         text.prefix(10) == iso(Date())
     }
+
+    static func istMorgen(_ text: String) -> Bool {
+        text.prefix(10) == iso(tage(1, nach: Date()))
+    }
 }

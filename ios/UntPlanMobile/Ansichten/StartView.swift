@@ -292,13 +292,14 @@ struct StartView: View {
         let sichtbar = alleStunden ? stunden : Array(stunden.prefix(2))
         let rest = Array(stunden.dropFirst(sichtbar.count))
         return VStack(alignment: .leading, spacing: 0) {
-            (Text(istHeute ? "Heute" : Datumsformat.anzeige(h.datum, "EEEE"))
+            // Original-Widget: „Heute“ bzw. „Morgen“ (sonst Wochentag) | Anmeldename
+            (Text(istHeute ? "Heute" : Datumsformat.istMorgen(h.datum) ? "Morgen" : Datumsformat.anzeige(h.datum, "EEEE"))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Farben.tinte2)
              + Text("  |  ")
                 .font(.system(size: 12))
                 .foregroundColor(Farben.gedaempft.opacity(0.6))
-             + Text("Mein Stundenplan")
+             + Text(zustand.benutzer?.login ?? "Mein Stundenplan")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(Farben.tinte2))
                 .lineLimit(1)
@@ -572,17 +573,25 @@ struct NaechsteStunde: View {
     let karte: Karte
     let typ: String
 
+    /// Original-Widget: geänderte Stunde grün hinterlegt mit grünem Rand, geänderte Werte als grüne Plakette
+    private var istAenderung: Bool { !karte.istEntfall && ["geaendert", "offen"].contains(karte.status) && !karte.istPruefung }
+
     var body: some View {
         let stil = Kartenstil(karte)
-        let zeilen = kartenzeilen(karte, typ: typ).filter { !$0.isEmpty }
+        let z = kartenzeilen(karte, typ: typ)
+        // Reihenfolge wie im Original-Widget: Lehrkraft (bzw. Klasse), Fach, Raum
+        let erste = z.first ?? []
+        let letzte = z.count > 1 ? z[1] : []
         VStack(alignment: .leading, spacing: 1) {
-            ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
-                zeile(eintrag.element, stil: stil)
-                    .font(.system(size: 15, weight: eintrag.offset == 0 ? .medium : .regular))
+            if !erste.isEmpty {
+                zeile(erste, stil: stil).font(.system(size: 15, weight: .medium))
             }
             Text(karte.fach.isEmpty ? karte.titel : karte.fach)
-                .font(.system(size: 15, weight: zeilen.isEmpty ? .medium : .regular))
+                .font(.system(size: 15, weight: erste.isEmpty ? .medium : .regular))
                 .strikethrough(stil.durchgestrichen)
+            if !letzte.isEmpty {
+                zeile(letzte, stil: stil).font(.system(size: 15))
+            }
         }
         .lineLimit(1)
         .foregroundStyle(Farben.tinte)
@@ -607,7 +616,7 @@ struct NaechsteStunde: View {
         .padding(.top, 3)
         .padding(.bottom, 5)
         .padding(.trailing, 6)
-        .padding(.horizontal, karte.istEntfall ? 8 : 0)
+        .padding(.horizontal, karte.istEntfall || istAenderung ? 8 : 0)
         .background {
             if karte.istEntfall {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -616,16 +625,39 @@ struct NaechsteStunde: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .strokeBorder(Farben.entfallRand, lineWidth: 1.5)
                     }
+            } else if istAenderung {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Farben.widgetAenderungFlaeche)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Farben.widgetAenderungRand, lineWidth: 2)
+                    }
             }
         }
         .contentShape(Rectangle())
     }
 
-    private func zeile(_ werte: [Wert], stil: Kartenstil) -> Text {
+    @ViewBuilder
+    private func zeile(_ werte: [Wert], stil: Kartenstil) -> some View {
         if stil.durchgestrichen {
-            return Text(werteKurz(werte)).strikethrough(true)
+            Text(werteKurz(werte)).strikethrough(true)
+        } else if istAenderung, werte.contains(where: { $0.geaendert }) {
+            // geänderte Werte als grüne Plakette (wie „C126“ im Original-Widget), übrige normal daneben
+            HStack(spacing: 4) {
+                ForEach(Array(werte.enumerated()), id: \.offset) { e in
+                    if e.element.geaendert && !e.element.k.isEmpty {
+                        Text(e.element.k)
+                            .foregroundStyle(Farben.widgetPlaketteText)
+                            .padding(.horizontal, 4)
+                            .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Farben.widgetAenderungRand))
+                    } else if !e.element.k.isEmpty {
+                        Text(e.element.k)
+                    }
+                }
+            }
+        } else {
+            werteText(werte, offen: werte == karte.lehrer && istOffeneVertretung(karte))
         }
-        return werteText(werte, offen: werte == karte.lehrer && istOffeneVertretung(karte))
     }
 }
 
