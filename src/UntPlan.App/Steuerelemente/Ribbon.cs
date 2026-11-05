@@ -188,8 +188,10 @@ public sealed class Ribbon : Control
         foreach (var gr in seite.Gruppen)
         {
             using (var p = new Pen(Color.FromArgb(215, 220, 228))) g.DrawLine(p, gr.Bounds.Right, gr.Bounds.Y + 4, gr.Bounds.Right, gr.Bounds.Bottom - 4);
-            TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 16, gr.Bounds.Width, 14), Color.FromArgb(110, 115, 125),
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
+            // Vertretungsmodus wie im Vorbild: nur die Gruppe „Stundenpläne“ trägt eine Beschriftung
+            if (!Ui.Vertretungsmodus || gr.Text == "Stundenpläne")
+                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 16, gr.Bounds.Width, 14), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(110, 115, 125),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
             foreach (var it in gr.Eintraege)
             {
                 var aktiv = it.Aktiviert?.Invoke() ?? true;

@@ -144,7 +144,7 @@ public sealed partial class HauptFenster : Form
         var produkt = MultiUser.MultiUserSitzung.Aktiv ? "UntPlan MultiUser 2026" : "UntPlan 2026";
         if (MultiUser.MultiUserSitzung.Aktiv) name = MultiUser.MultiUserSitzung.Titel;
         Text = $"{produkt}  -  {name}{(nurLesen ? " [schreibgeschützt]" : "")}{(AppZustand.Doc.IstGeaendert && !MultiUser.MultiUserSitzung.Aktiv ? " *" : "")}  -  {d.Einstellungen.Schulname}  -  Stundenplan {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
-        _statusMitte.Text = (nurLesen ? "SCHREIBGESCHÜTZT (Datei wird von jemand anderem verwendet) · " : "") + $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}";
+        _statusMitte.Text = (nurLesen ? "SCHREIBGESCHÜTZT (Datei wird von jemand anderem verwendet) · " : "") + (AppZustand.Vertretungsmodus ? "Vertr." : $"Wertrechnung: {(d.Einstellungen.TagesgenaueWertrechnung ? "tagesgenau" : "alle Wochen zählen")}");
         _statusRechts.Text = $"{d.AktivePeriode.Name} · {d.Klassen.Count} Klassen · {d.Lehrer.Count} Lehrer · {d.Unterrichte.Count} Unterrichte";
         _ribbon.Invalidate();
         _assistent.Aktualisieren();

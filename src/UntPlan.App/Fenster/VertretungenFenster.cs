@@ -74,14 +74,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Felder der Ansicht", "rollup", FelderDialog));
-        ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen, false));
-        ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", TextImageRelation = TextImageRelation.TextBeforeImage });
+        // Werkzeugleiste wie im Vorbild nur mit Symbolen (Text im Tooltip)
+        ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen));
+        ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(new ToolStripButton("Entfall", Symbole.Get("loeschen", 16), (_, _) => Entfall())
         {
             ToolTipText = "Entfall – Unterricht entfällt (Taste - beim Vertreter); erneut klicken macht wieder eine offene Vertretung daraus", DisplayStyle = ToolStripItemDisplayStyle.Image,
         });
-        ts.Items.Add(Knopf("Vertr. o. Lehrkr. (+)", "planen", OhneLehrkraft, false));
+        ts.Items.Add(Knopf("Vertr. o. Lehrkr. (+)", "planen", OhneLehrkraft));
         ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
         ts.Items.Add(Knopf("Lehrkraft zur Veranstaltung hinzufügen", "lehrer", LehrkraftHinzufuegen));
         ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
@@ -1212,14 +1213,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         public override string ToString() => Text;
     }
 
-    /// <summary>Elementauswahl passend zur Ansicht: Klassen bzw. Lehrer, zuerst „(alle)“.</summary>
+    /// <summary>Elementauswahl passend zur Ansicht: Klassen bzw. Lehrer, zuerst „Alle“ (wie im Vorbild).</summary>
     private void ElementeFuellen()
     {
         var lehrer = _ansicht.SelectedIndex is 1 or 3;
         var alt = (_element.SelectedItem as Eintrag)?.Id;
         _laedt = true;
         _element.Items.Clear();
-        _element.Items.Add(new Eintrag(null, "(alle)"));
+        _element.Items.Add(new Eintrag(null, "Alle"));
         IEnumerable<Element> elemente = lehrer ? Stammdaten.Sortiert(D.Lehrer) : Stammdaten.Sortiert(D.Klassen);
         foreach (var e in elemente.Where(e => !e.Ignorieren)) _element.Items.Add(new Eintrag(e.Id, e.Kurzname));
         _element.SelectedItem = _element.Items.Cast<Eintrag>().FirstOrDefault(x => x.Id == alt) ?? _element.Items[0];
