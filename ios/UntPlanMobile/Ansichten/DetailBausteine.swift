@@ -350,11 +350,15 @@ struct Randblatt<Inhalt: View>: View {
             .coordinateSpace(NamedCoordinateSpace.named(Self.raum))
         }
         .onAppear {
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true } completion: {
-                if !schliesst { bewegt = false }
+            // Erst nach dem ersten Layout einfahren (nächster Durchlauf der Hauptschleife): Aufbau von Vollbild und Ladebild
+            // fällt so nicht in die ersten Bilder der Animation – das Blatt startet ohnehin unsichtbar unter dem Rand
+            DispatchQueue.main.async {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true } completion: {
+                    if !schliesst { bewegt = false }
+                }
+                // Ein darunterliegendes Blatt schrumpft mit
+                elternSchrumpfen?(true)
             }
-            // Ein darunterliegendes Blatt schrumpft mit
-            elternSchrumpfen?(true)
         }
         // Auch wenn das Blatt ohne eigene Animation verschwindet: das darunterliegende Blatt wieder in voller Größe
         .onDisappear { elternSchrumpfen?(false) }
