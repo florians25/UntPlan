@@ -9,13 +9,9 @@ struct StundendetailView: View {
     let karten: [Karte]
     let typ: String
     var element: String = ""
+    /// Beim Öffnen gewählter Reiter (bei mehreren Stunden zur selben Zeit)
+    let start: Int
     @EnvironmentObject var zustand: AppZustand
-    /// Gewählter Reiter (bei mehreren Stunden zur selben Zeit)
-    @State private var auswahl: Int
-    /// Richtung, aus der der Inhalt des neu gewählten Reiters hereingleitet (1 = von rechts, -1 = von links, 0 = keine)
-    @State private var einflug: CGFloat = 0
-    /// Gemeinsamer Raum für die Unterstreichung des aktiven Reiters (gleitet beim Wechsel zum neuen Reiter)
-    @Namespace private var reiterRaum
 
     init(karte: Karte, typ: String, element: String = "") {
         self.init(karten: [karte], start: 0, typ: typ, element: element)
@@ -25,20 +21,17 @@ struct StundendetailView: View {
         self.karten = karten
         self.typ = typ
         self.element = element
-        _auswahl = State(initialValue: min(max(start, 0), max(karten.count - 1, 0)))
+        self.start = min(max(start, 0), max(karten.count - 1, 0))
     }
 
     var body: some View {
         NavigationStack {
-            if karten.indices.contains(auswahl) {
-                StundendetailInhalt(karte: karten[auswahl], typ: typ, karten: karten, auswahl: $auswahl,
-                                    einflug: $einflug, reiterRaum: reiterRaum)
-                    .id(karten[auswahl].id)
-                    // Kopf und Reiter wechseln ohne Überblenden; der Inhalt gleitet selbst herein
-                    .transition(.identity)
-            } else {
+            if karten.isEmpty {
                 ContentUnavailableView("Keine Stunde", systemImage: "calendar")
                     .toolbar(.hidden, for: .navigationBar)
+            } else {
+                // Eine feste Wurzel für alle Reiter: beim Wechsel wird nichts ausgetauscht, die Seiten liegen nebeneinander
+                StundendetailInhalt(karten: karten, start: start, typ: typ)
             }
         }
         .environmentObject(zustand)
@@ -49,52 +42,47 @@ struct StundendetailView: View {
     }
 }
 
-/// Inhalt der Stundendetails für eine Stunde; bei mehreren Stunden derselben Zeit stehen die Reiter
-/// in einer eigenen Zeile zwischen Kopf und Kopfblock (sie überlappen nichts).
+/// Stundendetails für eine oder mehrere Stunden derselben Zeit. Bei mehreren Stunden stehen die Reiter in einer eigenen
+/// Zeile zwischen Kopf und Inhalt; die Seiten aller Stunden liegen nebeneinander und lassen sich wie die Wochen im
+/// Stundenplan direkt mit dem Finger blättern (rasten seitenweise ein). Die Daten aller Stunden laden beim Öffnen
+/// gleichzeitig – ein Reiterwechsel zeigt nie das Ladebild.
 struct StundendetailInhalt: View {
-    let karte: Karte
-    let typ: String
     let karten: [Karte]
-    @Binding var auswahl: Int
-    @Binding var einflug: CGFloat
-    let reiterRaum: Namespace.ID
+    let typ: String
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
     @Environment(\.blattBewegt) private var blattBewegt
+    /// Daten aller Stunden (aus dem Zwischenspeicher bzw. neu; einmal beim Öffnen gemeinsam geladen)
+    @State private var datenListe: [Stundendaten]
+    /// Gewählter Reiter
+    @State private var auswahl: Int
+    /// Seite des Blätterbereichs (folgt dem Finger und rastet ein; Antippen eines Reiters gleitet dorthin)
+    @State private var seitenPosition: Int?
+    /// Ziel eines angetippten Reiters, solange die Seiten dorthin gleiten (Zwischenseiten wählen dabei keinen Reiter)
+    @State private var reiterZiel: Int? = nil
+    /// Sichtbarer Reiter in der Reiterleiste (der gewählte steht mittig)
+    @State private var reiterSicht: Int?
+    /// Daten der beim Öffnen gewählten Stunde sind da (danach nie wieder das Ladebild, außer beim Ein- und Ausfahren)
+    @State private var bereit = false
     /// Systemblatt (iPad): Inhalt erst nach dem Einblenden aufbauen
     @State private var eingeblendet = false
-    /// Inhalt nach einem Reiterwechsel im offenen Blatt: nie das Ladebild – die Stunde steht sofort da, Zusatzdaten laden still nach
-    @State private var reiterwechsel = false
-    @Environment(\.openURL) private var oeffneURL
-    @StateObject private var daten: Stundendaten
     @State private var onlineFehler: String? = nil
     /// Raumliste („Ersetzen“ bzw. „Raum hinzufügen“) aus der Raumzeile
     @State private var raumZiel: RaumZiel? = nil
     /// Als Unterblatt geöffnete Unterseite (iPhone)
     @State private var unterseite: Detailseite? = nil
-    /// Waagrechtes Wischen zwischen parallelen Stunden: Richtung (zu Beginn festgelegt), Verschiebung des Inhalts
-    @State private var wischWaagrecht: Bool? = nil
-    @State private var wischVersatz: CGFloat = 0
-    @State private var wechselt = false
-    @State private var inhaltBreite: CGFloat = 0
-    @GestureState private var wischt = false
-    /// Hereingleiten nach einem Reiterwechsel (Anteil der Breite, 0 = an seinem Platz)
-    @State private var einflugVersatz: CGFloat
+    /// Gemeinsamer Raum für die Unterstreichung des aktiven Reiters (gleitet beim Wechsel zum neuen Reiter)
+    @Namespace private var reiterRaum
 
-    init(karte: Karte, typ: String, karten: [Karte], auswahl: Binding<Int>,
-         einflug: Binding<CGFloat> = .constant(0), reiterRaum: Namespace.ID) {
-        self.karte = karte
-        self.typ = typ
+    init(karten: [Karte], start: Int, typ: String) {
         self.karten = karten
-        _auswahl = auswahl
-        _einflug = einflug
-        self.reiterRaum = reiterRaum
-        _daten = StateObject(wrappedValue: Stundendaten.fuer(karte))
-        _einflugVersatz = State(initialValue: einflug.wrappedValue)
-        // Reiterwechsel im offenen Blatt: nicht erneut auf das Einblenden warten
-        _eingeblendet = State(initialValue: einflug.wrappedValue != 0)
-        _reiterwechsel = State(initialValue: einflug.wrappedValue != 0)
+        self.typ = typ
+        let s = min(max(start, 0), max(karten.count - 1, 0))
+        _datenListe = State(initialValue: karten.map { Stundendaten.fuer($0) })
+        _auswahl = State(initialValue: s)
+        _seitenPosition = State(initialValue: s)
+        _reiterSicht = State(initialValue: s)
     }
 
     /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
@@ -102,44 +90,36 @@ struct StundendetailInhalt: View {
         if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
-    /// Hinterlegte Fachfarbe der Stunde (leer bzw. Weiß = keine; nicht bei Entfall – dort steht der rote Balken).
-    private var fachfarbe: Color? { Self.fachfarbe(karte) }
+    private var kollegium: Bool { zustand.istKollegium }
+    private var index: Int { min(max(auswahl, 0), max(karten.count - 1, 0)) }
+    private var karte: Karte { karten[index] }
+    private var daten: Stundendaten { datenListe[index] }
 
-    /// Fachfarbe einer beliebigen Stunde (für die Reiter bei mehreren Stunden zur selben Zeit).
+    /// Hinterlegte Fachfarbe einer Stunde (leer bzw. Weiß = keine; nicht bei Entfall – dort steht der rote Balken).
     static func fachfarbe(_ karte: Karte) -> Color? {
         let hex = karte.farbe.trimmingCharacters(in: .whitespaces)
         guard !karte.istEntfall, !hex.isEmpty, !["#FFFFFF", "FFFFFF", "#FFF"].contains(hex.uppercased()) else { return nil }
         return Color(hex: hex)
     }
 
-    /// Ladebild statt Inhalt: solange geladen wird und während das Blatt ein- oder ausfährt (wie im Original –
-    /// die schwere Liste wird erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
+    /// Ladebild statt Inhalt: bis die Daten der beim Öffnen gewählten Stunde da sind und während das Blatt ein- oder
+    /// ausfährt (wie im Original – die Seiten werden erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
     private var zeigtSkelett: Bool {
-        (!daten.geladen && !reiterwechsel) || (blattBewegt ?? !eingeblendet)
+        !(bereit || daten.geladen) || (blattBewegt ?? !eingeblendet)
     }
-
-    private var kollegium: Bool { zustand.istKollegium }
-    private var mitUnterricht: Bool { karte.unterricht != nil }
-    private var istVeranstaltung: Bool { karte.istVeranstaltung }
 
     var body: some View {
         VStack(spacing: 0) {
             // Kein Ladebalken in den Details (Wunsch); solange geladen wird, zeigt das Blatt wie im Original nur das
-            // runde X und darunter graue Platzhalterbalken (Detailskelett)
-            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
-                datumsMenue
-                    .opacity(zeigtSkelett ? 0 : 1)
-            }, rechts: {
-                weitereAktionen
-                    .opacity(zeigtSkelett ? 0 : 1)
-                    .allowsHitTesting(!zeigtSkelett)
-            })
+            // runde X und darunter graue Platzhalterbalken (Detailskelett). Der Kopf bleibt beim Blättern stehen.
+            StundendetailKopf(karte: karte, karten: karten, auswahl: index, daten: daten, verborgen: zeigtSkelett,
+                              schliessen: { schliessen() }, waehlen: { reiterWaehlen($0) })
             if karten.count > 1 {
                 reiterleiste
             }
             // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
             // Mehrere Stunden: die Fachfarbe steht stattdessen als Strich unter dem jeweiligen Reiter
-            if let farbe = fachfarbe, !zeigtSkelett, karten.count <= 1 {
+            if karten.count <= 1, !zeigtSkelett, let farbe = Self.fachfarbe(karte) {
                 Rectangle()
                     .fill(farbe)
                     .frame(height: 4)
@@ -149,64 +129,8 @@ struct StundendetailInhalt: View {
                 Detailskelett()
                     .transition(.identity)
             } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Vorlage: erste Zeile (Versalhöhe) 25 pt unter Kopf bzw. Reiterleiste, Trennlinie 22 pt unter der
-                    // Grundlinie der letzten Zeile
-                    kopfblock
-                        .padding(.horizontal, Detailmass.rand)
-                        .padding(.top, 16.5)
-                        .padding(.bottom, 11.67)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(karte.istEntfall ? Farben.detailEntfallFlaeche : Color.clear)
-                    if karte.istEntfall {
-                        // Original: roter Balken über die volle Breite mit „ENTFÄLLT“
-                        Text("ENTFÄLLT")
-                            .font(.system(size: 17))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 27)
-                            .background(Farben.detailEntfallBalken)
-                            .accessibilityLabel("Entfällt")
-                    } else {
-                        Rectangle()
-                            .fill(Farben.detailLinie)
-                            .frame(height: 1)
-                    }
-                    zeilen
-                        .padding(.top, 11.5)
-                        .padding(.bottom, 24)
-                }
-            }
-            .scrollIndicators(.hidden)
-            .scrollDisabled(wischWaagrecht == true)
-            // Mehrere Stunden zur selben Zeit: waagrecht wischen wechselt den Reiter (der Inhalt folgt dem Finger)
-            .offset(x: wischVersatz)
-            .visualEffect { [einflugVersatz] inhalt, geometrie in
-                inhalt.offset(x: einflugVersatz * geometrie.size.width)
-            }
-            .background {
-                GeometryReader { g in
-                    Color.clear
-                        .onAppear { inhaltBreite = g.size.width }
-                        .onChange(of: g.size.width) { _, neu in inhaltBreite = neu }
-                }
-            }
-            .clipped()
-            .simultaneousGesture(reiterWischen, including: karten.count > 1 ? .all : .subviews)
-            .onChange(of: wischt) { _, neu in
-                // Geste abgebrochen (z. B. vom senkrechten Scrollen übernommen): zurückfedern
-                guard !neu else { return }
-                wischWaagrecht = nil
-                if !wechselt && wischVersatz != 0 {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { wischVersatz = 0 }
-                }
-            }
-            .onAppear {
-                guard einflugVersatz != 0 else { return }
-                einflug = 0
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { einflugVersatz = 0 }
-            }
+                seiten
+                    .transition(.identity)
             }
         }
         // Platzhalter → Inhalt ohne Überblenden: beim Überblenden zeichnet das Blatt beide Ebenen gleichzeitig und baut die Liste
@@ -218,13 +142,30 @@ struct StundendetailInhalt: View {
             try? await Task.sleep(for: .milliseconds(350))
             eingeblendet = true
         }
+        // Alle Stunden sofort und gleichzeitig laden (nicht erst beim Reiterwechsel); das Ladebild wartet nur auf die
+        // gewählte Stunde, die übrigen sind bis zum ersten Wischen meist längst da
+        .task {
+            let k = kollegium
+            let liste = datenListe
+            let s = index
+            let uebrige = liste.indices.filter { $0 != s }.map { liste[$0] }
+            async let andere: Void = Self.alleLaden(uebrige, kollegium: k)
+            if liste.indices.contains(s) { await liste[s].laden(kollegium: k) }
+            bereit = true
+            await andere
+        }
         .background(Farben.blatt.ignoresSafeArea())
         // Hauptseite ohne Textfelder: bleibt beim Ein- und Ausblenden der Tastatur (z. B. beim Zurückkehren aus einer
         // Notiz) unverändert stehen
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        // Randblatt: im Ruhezustand liegt die Seite genau zwischen Statusleiste und Home-Indikator (sichere Ränder 0). Beim
+        // Ein- und Ausfahren überdeckt sie unten den Home-Indikator – der Navigationsstapel meldete dann in jedem Bild
+        // andere sichere Ränder und Kopf, Ladebild und Liste wurden mitten in der Bewegung neu angeordnet (Zucken). Ohne
+        // diese Ränder bleibt die Anordnung während der Bewegung starr.
+        .ignoresSafeArea(.container, edges: blattBewegt == nil ? Edge.Set() : .vertical)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(for: Detailseite.self) { seite in
-            ziel(seite)
+            seitenansicht(index).ziel(seite)
                 .environmentObject(daten)
                 .environmentObject(zustand)
         }
@@ -232,7 +173,7 @@ struct StundendetailInhalt: View {
         // 10 pt tiefer); iPad: Unterseite im festen Detailblatt
         .detailPraesentation(item: $unterseite, breit: false) { seite in
             NavigationStack {
-                ziel(seite)
+                seitenansicht(index).ziel(seite)
                     .environmentObject(daten)
                     .environmentObject(zustand)
                     .environment(\.unterblatt, true)
@@ -244,29 +185,184 @@ struct StundendetailInhalt: View {
                 .environmentObject(zustand)
         }
         .overlay(alignment: .bottom) {
-            if let hinweis = daten.hinweis {
-                Text(hinweis)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.black.opacity(0.78), in: Capsule())
-                    .padding(.bottom, 28)
-                    .transition(.opacity)
-                    .task(id: hinweis) {
-                        try? await Task.sleep(nanoseconds: 2_400_000_000)
-                        withAnimation { daten.hinweis = nil }
-                    }
-            }
+            Hinweismeldung(daten: daten)
         }
-        .task { await daten.laden(kollegium: kollegium) }
-        .environmentObject(daten)
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { onlineFehler != nil }, set: { if !$0 { onlineFehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(onlineFehler ?? "")
         }
+    }
+
+    /// Lädt mehrere Stunden gleichzeitig.
+    private static func alleLaden(_ liste: [Stundendaten], kollegium: Bool) async {
+        await withTaskGroup(of: Void.self) { gruppe in
+            for d in liste {
+                gruppe.addTask { await d.laden(kollegium: kollegium) }
+            }
+        }
+    }
+
+    /// Seite einer Stunde (Kopfblock und Liste).
+    private func seitenansicht(_ i: Int) -> StundendetailSeite {
+        StundendetailSeite(karte: karten[i], mehrere: karten.count > 1, daten: datenListe[i],
+                           raumZiel: $raumZiel, onlineFehler: $onlineFehler, oeffnen: { unterseite = $0 })
+    }
+
+    // MARK: - Seiten
+
+    /// Eine Stunde: ihre Seite. Mehrere Stunden: alle Seiten nebeneinander in einer waagrecht blätternden Fläche – der
+    /// Inhalt folgt dem Finger 1:1 und rastet auf der Seite ein (wie das Wochenwischen); senkrecht rollt jede Seite für
+    /// sich (die Richtung legt das System zu Beginn der Bewegung fest).
+    @ViewBuilder
+    private var seiten: some View {
+        if karten.count > 1 {
+            ScrollView(.horizontal) {
+                HStack(spacing: 0) {
+                    ForEach(karten.indices, id: \.self) { i in
+                        seitenansicht(i)
+                            .environmentObject(datenListe[i])
+                            .containerRelativeFrame([.horizontal, .vertical])
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $seitenPosition)
+            .onChange(of: seitenPosition) { _, neu in
+                // Gewischt: der Reiter folgt (Unterstreichung gleitet mit)
+                guard let neu, reiterZiel == nil, neu != auswahl, karten.indices.contains(neu) else { return }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { auswahl = neu }
+            }
+        } else {
+            seitenansicht(0)
+                .environmentObject(datenListe[0])
+        }
+    }
+
+    // MARK: - Reiter
+
+    /// Reiter wählen (Antippen, Menü): die Seiten gleiten zur gewählten Stunde, die Unterstreichung zum neuen Reiter.
+    private func reiterWaehlen(_ neu: Int) {
+        guard karten.indices.contains(neu), neu != auswahl else { return }
+        reiterZiel = neu
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.9)) {
+            auswahl = neu
+            seitenPosition = neu
+        } completion: {
+            reiterZiel = nil
+        }
+    }
+
+    static func reitertitel(_ k: Karte) -> String {
+        // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
+        if k.istVeranstaltung { return "Veranstaltung" }
+        if k.istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
+        if !k.fach.isEmpty { return k.fach }
+        if !k.anzeigeText.isEmpty { return k.anzeigeText }
+        return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
+    }
+
+    /// Reiterleiste in eigener Zeile unter dem Kopf genau nach Vorlage (133): hellgraue Zeile, waagrecht scrollbare
+    /// Text-Reiter (Regular, aktiv Medium), nur unter dem aktiven eine Unterstreichung (dunkelgrau bzw. im Dunkeln weiß)
+    /// etwas breiter als der Text; der Reitertext wird nie durchgestrichen (auch nicht bei Entfall). Der aktive Reiter
+    /// steht mittig (schon beim ersten Aufbau, ohne Sprung) und wird beim Wechsel in den sichtbaren Bereich gerollt.
+    private var reiterleiste: some View {
+        // Vorlagen 167f94e6 (dunkel) und e40685da (hell): Leiste 50 pt (hell #f3f4f6, dunkel #323d45), Reiter 17 pt
+        // Semibold (gewählt dunkel bzw. weiß, sonst grau), unter dem gewählten ein 4 pt dicker Strich bündig am
+        // unteren Rand, je 8,3 pt breiter als der Text; Text 27,7 pt auseinander
+        ScrollView(.horizontal) {
+            HStack(spacing: 0) {
+                ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
+                    let gewaehlt = eintrag.offset == index
+                    Button {
+                        reiterWaehlen(eintrag.offset)
+                    } label: {
+                        Text(Self.reitertitel(eintrag.element))
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(gewaehlt ? Farben.detailText : Farben.reiterText)
+                            .lineLimit(1)
+                            .padding(.horizontal, 13.83)
+                            .frame(height: 50)
+                            .overlay(alignment: .bottom) {
+                                // Strich unter dem gewählten Reiter in dessen Fachfarbe (ohne Fachfarbe wie bisher)
+                                if gewaehlt {
+                                    Rectangle()
+                                        .fill(Self.fachfarbe(eintrag.element) ?? Farben.reiterStrich)
+                                        .frame(height: 4)
+                                        .padding(.horizontal, 5.5)
+                                        .matchedGeometryEffect(id: "aktiverDetailReiter", in: reiterRaum)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(OhneTippStil())
+                    .accessibilityAddTraits(gewaehlt ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 10.5)
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollPosition(id: $reiterSicht, anchor: .center)
+        .onChange(of: auswahl) { _, neu in
+            withAnimation(.easeInOut(duration: 0.2)) { reiterSicht = neu }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 50)
+        .background(Farben.reiterGrund)
+    }
+}
+
+/// Kurze Meldung unten im Blatt (z. B. „Raum C197 hinzugefügt“) der gewählten Stunde.
+private struct Hinweismeldung: View {
+    @ObservedObject var daten: Stundendaten
+
+    var body: some View {
+        if let hinweis = daten.hinweis {
+            Text(hinweis)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.78), in: Capsule())
+                .padding(.bottom, 28)
+                .transition(.opacity)
+                .task(id: hinweis) {
+                    try? await Task.sleep(nanoseconds: 2_400_000_000)
+                    withAnimation { daten.hinweis = nil }
+                }
+        }
+    }
+}
+
+/// Kopf der Stundendetails (X, Datum und Uhrzeit, ⋮) für die gewählte Stunde; steht beim Blättern fest.
+private struct StundendetailKopf: View {
+    let karte: Karte
+    let karten: [Karte]
+    let auswahl: Int
+    @ObservedObject var daten: Stundendaten
+    /// Ladebild sichtbar: Titel und ⋮ ausgeblendet
+    let verborgen: Bool
+    let schliessen: () -> Void
+    let waehlen: (Int) -> Void
+    @EnvironmentObject var zustand: AppZustand
+
+    private var kollegium: Bool { zustand.istKollegium }
+    private var mitUnterricht: Bool { karte.unterricht != nil }
+    private var istVeranstaltung: Bool { karte.istVeranstaltung }
+
+    var body: some View {
+        Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, mitte: {
+            datumsMenue
+                .opacity(verborgen ? 0 : 1)
+        }, rechts: {
+            weitereAktionen
+                .opacity(verborgen ? 0 : 1)
+                .allowsHitTesting(!verborgen)
+        })
     }
 
     // MARK: - Kopf (Datum, Uhrzeit, ⋮)
@@ -304,9 +400,9 @@ struct StundendetailInhalt: View {
                 }
                 if karten.count > 1 {
                     Section("Stunden zur selben Zeit") {
-                        Picker("Stunden zur selben Zeit", selection: Binding(get: { auswahl }, set: { reiterWechseln($0) })) {
+                        Picker("Stunden zur selben Zeit", selection: Binding(get: { auswahl }, set: { waehlen($0) })) {
                             ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
-                                Text(reitertitel(eintrag.element)).tag(eintrag.offset)
+                                Text(StundendetailInhalt.reitertitel(eintrag.element)).tag(eintrag.offset)
                             }
                         }
                         .pickerStyle(.inline)
@@ -367,124 +463,81 @@ struct StundendetailInhalt: View {
         })
     }
 
-    // MARK: - Reiter
+    private var stundentext: String {
+        karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
+    }
 
-    /// Waagrechtes Wischen mit Richtungssperre (wie beim Blättern im Plan): links → nächster Reiter, rechts → vorheriger;
-    /// am ersten bzw. letzten Reiter federt der Inhalt gedämpft zurück.
-    private var reiterWischen: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .updating($wischt) { _, status, _ in status = true }
-            .onChanged { wert in
-                guard !wechselt else { return }
-                if wischWaagrecht == nil {
-                    let dx = abs(wert.translation.width)
-                    let dy = abs(wert.translation.height)
-                    guard dx > 8 || dy > 8 else { return }
-                    wischWaagrecht = dx > dy * 1.3
+    /// Räume (auch der ursprüngliche), Klassen und Lehrkräfte, deren Plan das Konto sehen darf.
+    private var planziele: [PlanAuswahl] {
+        var ergebnis: [PlanAuswahl] = []
+        func hinzu(_ typ: String, _ werte: [Wert]) {
+            for w in werte {
+                for k in [w.alt ?? "", w.k] where !k.isEmpty && !Kachelbau.platzhalter.contains(k) {
+                    let plan = PlanAuswahl(typ: typ, element: k, name: k)
+                    if !ergebnis.contains(where: { $0.id == plan.id }) { ergebnis.append(plan) }
                 }
-                guard wischWaagrecht == true else { return }
-                let dx = wert.translation.width
-                let hatNachbar = dx < 0 ? auswahl < karten.count - 1 : auswahl > 0
-                wischVersatz = hatNachbar ? dx : dx * 0.25
             }
-            .onEnded { wert in
-                let war = wischWaagrecht
-                wischWaagrecht = nil
-                guard war == true, !wechselt else { return }
-                let w = max(inhaltBreite, 1)
-                let dx = wert.translation.width
-                let voraus = wert.predictedEndTranslation.width
-                if (dx < -w * 0.22 || voraus < -w * 0.5) && auswahl < karten.count - 1 {
-                    reiterWechseln(auswahl + 1)
-                } else if (dx > w * 0.22 || voraus > w * 0.5) && auswahl > 0 {
-                    reiterWechseln(auswahl - 1)
+        }
+        hinzu("raum", daten.aktuelleRaeume)
+        if kollegium {
+            hinzu("klasse", karte.klassen)
+            hinzu("lehrer", karte.lehrer)
+        } else if let eigene = zustand.benutzer?.element, !eigene.isEmpty {
+            hinzu("klasse", karte.klassen.filter { $0.k.caseInsensitiveCompare(eigene) == .orderedSame })
+        }
+        return ergebnis
+    }
+}
+
+/// Seite einer Stunde: Kopfblock (Klasse | Gruppe, Fach, Raum, Lehrkraft) und die Liste der Menüpunkte, senkrecht rollbar.
+private struct StundendetailSeite: View {
+    let karte: Karte
+    /// Mehrere Stunden zur selben Zeit (Reiter sichtbar)
+    let mehrere: Bool
+    @ObservedObject var daten: Stundendaten
+    @Binding var raumZiel: RaumZiel?
+    @Binding var onlineFehler: String?
+    /// Unterseite als Unterblatt öffnen (iPhone)
+    let oeffnen: (Detailseite) -> Void
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.openURL) private var oeffneURL
+
+    private var kollegium: Bool { zustand.istKollegium }
+    private var mitUnterricht: Bool { karte.unterricht != nil }
+    private var istVeranstaltung: Bool { karte.istVeranstaltung }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Vorlage: erste Zeile (Versalhöhe) 25 pt unter Kopf bzw. Reiterleiste, Trennlinie 22 pt unter der
+                // Grundlinie der letzten Zeile
+                kopfblock
+                    .padding(.horizontal, Detailmass.rand)
+                    .padding(.top, 16.5)
+                    .padding(.bottom, 11.67)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(karte.istEntfall ? Farben.detailEntfallFlaeche : Color.clear)
+                if karte.istEntfall {
+                    // Original: roter Balken über die volle Breite mit „ENTFÄLLT“
+                    Text("ENTFÄLLT")
+                        .font(.system(size: 17))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 27)
+                        .background(Farben.detailEntfallBalken)
+                        .accessibilityLabel("Entfällt")
                 } else {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { wischVersatz = 0 }
+                    Rectangle()
+                        .fill(Farben.detailLinie)
+                        .frame(height: 1)
                 }
-            }
-    }
-
-    /// Reiter wechseln (Antippen, Wischen, Menü): der Inhalt gleitet zur Seite hinaus, der neue von der anderen Seite
-    /// herein; die Unterstreichung gleitet zum neuen Reiter.
-    private func reiterWechseln(_ neu: Int) {
-        guard neu != auswahl, karten.indices.contains(neu), !wechselt else { return }
-        let vor: CGFloat = neu > auswahl ? 1 : -1
-        guard inhaltBreite > 0 else {
-            einflug = vor
-            auswahl = neu
-            return
-        }
-        wechselt = true
-        withAnimation(.easeIn(duration: 0.14)) {
-            wischVersatz = -vor * inhaltBreite
-        } completion: {
-            einflug = vor
-            // Gleiche Kennung (kein neuer Inhalt): wieder an den Platz
-            wischVersatz = 0
-            wechselt = false
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { auswahl = neu }
-        }
-    }
-
-    private func reitertitel(_ k: Karte) -> String {
-        // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
-        if k.istVeranstaltung { return "Veranstaltung" }
-        if k.istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
-        if !k.fach.isEmpty { return k.fach }
-        if !k.anzeigeText.isEmpty { return k.anzeigeText }
-        return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
-    }
-
-    /// Reiterleiste in eigener Zeile unter dem Kopf genau nach Vorlage (133): hellgraue Zeile, waagrecht scrollbare
-    /// Text-Reiter (Regular, aktiv Medium), nur unter dem aktiven eine Unterstreichung (dunkelgrau bzw. im Dunkeln weiß)
-    /// etwas breiter als der Text; der Reitertext wird nie durchgestrichen (auch nicht bei Entfall). Der aktive Reiter
-    /// wird beim Wechsel in den sichtbaren Bereich gerollt.
-    private var reiterleiste: some View {
-        // Vorlagen 167f94e6 (dunkel) und e40685da (hell): Leiste 50 pt (hell #f3f4f6, dunkel #323d45), Reiter 17 pt
-        // Semibold (gewählt dunkel bzw. weiß, sonst grau), unter dem gewählten ein 4 pt dicker Strich bündig am
-        // unteren Rand, je 8,3 pt breiter als der Text; Text 27,7 pt auseinander
-        ScrollViewReader { leser in
-            ScrollView(.horizontal) {
-                HStack(spacing: 0) {
-                    ForEach(Array(karten.enumerated()), id: \.offset) { eintrag in
-                        let gewaehlt = eintrag.offset == auswahl
-                        Button {
-                            reiterWechseln(eintrag.offset)
-                        } label: {
-                            Text(reitertitel(eintrag.element))
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(gewaehlt ? Farben.detailText : Farben.reiterText)
-                                .lineLimit(1)
-                                .padding(.horizontal, 13.83)
-                                .frame(height: 50)
-                                .overlay(alignment: .bottom) {
-                                    // Strich unter dem gewählten Reiter in dessen Fachfarbe (ohne Fachfarbe wie bisher)
-                                    if gewaehlt {
-                                        Rectangle()
-                                            .fill(Self.fachfarbe(eintrag.element) ?? Farben.reiterStrich)
-                                            .frame(height: 4)
-                                            .padding(.horizontal, 5.5)
-                                            .matchedGeometryEffect(id: "aktiverDetailReiter", in: reiterRaum)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(OhneTippStil())
-                        .id(eintrag.offset)
-                        .accessibilityAddTraits(gewaehlt ? .isSelected : [])
-                    }
-                }
-                .padding(.horizontal, 10.5)
-            }
-            .scrollIndicators(.hidden)
-            .onAppear { leser.scrollTo(auswahl, anchor: .center) }
-            .onChange(of: auswahl) { _, neu in
-                withAnimation(.easeInOut(duration: 0.2)) { leser.scrollTo(neu, anchor: .center) }
+                zeilen
+                    .padding(.top, 11.5)
+                    .padding(.bottom, 24)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 50)
-        .background(Farben.reiterGrund)
+        .scrollIndicators(.hidden)
+        .background(Farben.blatt)
     }
 
     /// Vertretungstext bzw. Information der Stunde (Zusatzstunde: nur manuell eingegebene Texte).
@@ -526,27 +579,6 @@ struct StundendetailInhalt: View {
 
     private var stundentext: String {
         karte.von == karte.bis ? "\(karte.von). Stunde" : "\(karte.von).–\(karte.bis). Stunde"
-    }
-
-    /// Räume (auch der ursprüngliche), Klassen und Lehrkräfte, deren Plan das Konto sehen darf.
-    private var planziele: [PlanAuswahl] {
-        var ergebnis: [PlanAuswahl] = []
-        func hinzu(_ typ: String, _ werte: [Wert]) {
-            for w in werte {
-                for k in [w.alt ?? "", w.k] where !k.isEmpty && !Kachelbau.platzhalter.contains(k) {
-                    let plan = PlanAuswahl(typ: typ, element: k, name: k)
-                    if !ergebnis.contains(where: { $0.id == plan.id }) { ergebnis.append(plan) }
-                }
-            }
-        }
-        hinzu("raum", daten.aktuelleRaeume)
-        if kollegium {
-            hinzu("klasse", karte.klassen)
-            hinzu("lehrer", karte.lehrer)
-        } else if let eigene = zustand.benutzer?.element, !eigene.isEmpty {
-            hinzu("klasse", karte.klassen.filter { $0.k.caseInsensitiveCompare(eigene) == .orderedSame })
-        }
-        return ergebnis
     }
 
     // MARK: - Kopfblock
@@ -698,7 +730,7 @@ struct StundendetailInhalt: View {
         // Vorlagen: Prüfung rechts neben dem Fach; Veranstaltung und zusätzliche Unterrichtsstunde in eigener Zeile
         // unter der Kopfzeile (Zusatzstunde ohne Fachzeile – das Fach steht im Reiter)
         let pilleEigeneZeile = istVeranstaltung || karte.istZusatzstunde
-        let fachZeile = fachSichtbar && !istVeranstaltung && !(karte.istZusatzstunde && karten.count > 1)
+        let fachZeile = fachSichtbar && !istVeranstaltung && !(karte.istZusatzstunde && mehrere)
         if let pille = karte.statusPille, fachZeile, !pilleEigeneZeile {
             fachteile.append(.pille(pille))
         }
@@ -828,7 +860,7 @@ struct StundendetailInhalt: View {
             .buttonStyle(OhneTippStil())
         } else {
             Button {
-                unterseite = seite
+                oeffnen(seite)
             } label: {
                 inhalt
             }
@@ -878,7 +910,7 @@ struct StundendetailInhalt: View {
     }
 
     @ViewBuilder
-    private func ziel(_ seite: Detailseite) -> some View {
+    func ziel(_ seite: Detailseite) -> some View {
         switch seite {
         case .text:
             DetailTextSeite(titel: textTitel, text: detailText, karte: karte)
