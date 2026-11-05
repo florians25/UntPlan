@@ -69,7 +69,7 @@ public sealed class FensterTitel : Control
             else rechts = Schalter(0).X - 4;
             for (var i = 0; i < 2; i++) SchalterZeichnen(g, Schalter(i), i == 1, _schalterHover == i);
         }
-        TextRenderer.DrawText(g, _form.Text, Aktiv ? Ui.SchriftFett : Ui.Schrift, new Rectangle(x, 0, Math.Max(0, rechts - x), Height), text,
+        TextRenderer.DrawText(g, _form.Text, Ui.Schrift, new Rectangle(x, 0, Math.Max(0, rechts - x), Height), text,
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         for (var i = 0; i < 3; i++)
         {

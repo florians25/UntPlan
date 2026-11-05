@@ -282,9 +282,11 @@ public sealed partial class HauptFenster
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
         KopfFarben();
         _status.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauHell : SystemColors.Control;
-        _statusLinks.Text = AppZustand.Vertretungsmodus ? "VERTRETUNGSPLANUNG" : "STUNDENPLANUNG";
-        _statusLinks.Font = Ui.SchriftFett;
-        _statusLinks.ForeColor = Ui.Blau;
+        // Statuszeile wie im Vorbild: links der Hilfehinweis, in der Mitte der Modus („Vertr.“)
+        _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
+        _statusLinks.Font = Ui.Schrift;
+        _statusLinks.ForeColor = Color.Black;
+
         _ribbon.Invalidate();
         // Listen und Pläne in der Modusfarbe
         foreach (var f in MdiChildren)

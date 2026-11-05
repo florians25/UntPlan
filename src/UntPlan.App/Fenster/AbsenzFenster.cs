@@ -87,6 +87,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true });
+        // wie im Vorbild: Anrechnung, Entfalltage und Absenztage (Unterrichtstage im Zeitraum)
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 80, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
         Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
         {
@@ -365,20 +369,24 @@ public sealed class AbwesenheitenFenster : MdiFenster
             {
                 var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.OffenOderRaumOffen);
                 var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
+                var absenztage = 0;
+                for (var t = a.Von; t <= a.Bis && absenztage < 400; t = t.AddDays(1)) if (Kalender.IstUnterrichtstag(D, t)) absenztage++;
+                var entfalltage = D.Vertretungen.Where(v => v.AbwesenheitId == a.Id && v.IstEntfall).Select(v => v.Datum).Distinct().Count();
                 werte = new object?[] { a.Id, Ix.K(typ, a.ElementId), TagText(a.Von), a.StundeVon, TagText(a.Bis), Math.Min(a.StundeBis, LetzteStunde).ToString(), grund, a.Text,
-                    string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString() };
+                    string.Join(", ", a.BegleitLehrerIds.Select(Ix.KLehrer)), offen == 0 ? "" : offen.ToString(),
+                    0m.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture), entfalltage.ToString(), absenztage.ToString() };
                 // Fensterverknüpfung: Absenzen des in einem anderen Fenster gewählten Elements hervorheben
                 if (_markiert is { } m && m.Typ == typ && m.Id == a.ElementId) hinter = Ui.ZelleAktivVertretung;
                 break;
             }
             case Veranstaltung va:
                 werte = new object?[] { $"VA {va.Id}", "", TagText(va.Von), va.StundeVon, TagText(va.Bis), va.StundeBis >= 99 ? LetzteStunde.ToString() : va.StundeBis.ToString(),
-                    D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == va.GrundId)?.Kurzname ?? "", $"Veranstaltung: {VeranstaltungsElemente(va)} {va.Text}".Trim(), "", "" };
+                    D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == va.GrundId)?.Kurzname ?? "", $"Veranstaltung: {VeranstaltungsElemente(va)} {va.Text}".Trim(), "", "", "", "", "" };
                 nurLesen = true;
                 break;
             default:
                 // leere Eingabezeile
-                werte = new object?[] { "", "", "", "", "", "", "", "", "", "" };
+                werte = new object?[] { "", "", "", "", "", "", "", "", "", "", "", "", "" };
                 hinter = Color.FromArgb(255, 228, 190);
                 break;
         }
