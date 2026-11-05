@@ -48,7 +48,8 @@ public sealed partial class HauptFenster
             null,
             Fenstergruppe(),
         }));
-        g.Eintraege.Add(E("Ausgabe", "drucken", () => { if (VertretungsFensterOeffnen("vertr") is IDruckbar dr) dr.Drucken(true); }, true, new()
+        // Handbuch S. 19–20: „Ausgabe“ öffnet die Fenstergruppe mit Schüler- (Druck - Klasse) und Lehrerliste (Druck - Lehrer)
+        g.Eintraege.Add(E("Ausgabe", "drucken", () => AusgabeFenstergruppe(), true, new()
         {
             // wie im Handbuch (Kap. 13.3): Druck Klassen, Druck Lehrer, Tageslisten
             E("Druck Klassen", "drucken", () => VertretungsplanDrucken(false)),
