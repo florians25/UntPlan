@@ -22,6 +22,8 @@ public static class SuchKombi
         public string Ausgang = "";
         /// <summary>Die Liste wird gerade auf den Wert der Zelle gesetzt (keine sofortige Übernahme auslösen).</summary>
         public bool Abgleich;
+        /// <summary>Darstellung der Einträge (Farbe, Zusatztext) – vom Fenster gesetzt, sonst Kurz- und Langname.</summary>
+        public Func<DataGridViewCell, string, ListenStil?>? Stil;
     }
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, Bearbeitung> Laufend = new();
@@ -105,10 +107,16 @@ public static class SuchKombi
         g.CommitEdit(DataGridViewDataErrorContexts.Commit);
     }
 
+    /// <summary>
+    /// Auswahlzellen der Tabelle auf den gemeinsamen Baustein <see cref="ListenSuche"/> umstellen. Jede Tabelle wird programmweit
+    /// automatisch erfasst (<see cref="Auswahlbreite"/>); ein Fenster kann jederzeit – auch danach – eine eigene Darstellung
+    /// (z. B. belegte Lehrkräfte rot) angeben.
+    /// </summary>
     public static void Aktivieren(DataGridView g, Func<DataGridViewCell, string, ListenStil?>? stil = null)
     {
-        if (!Aktiv.Add(g)) return;
         var b = Laufend.GetValue(g, _ => new Bearbeitung());
+        if (stil != null) b.Stil = stil;
+        if (!Aktiv.Add(g)) return;
         g.Disposed += (_, _) => Aktiv.Remove(g);
         g.EditingControlShowing += (_, e) =>
         {
@@ -116,8 +124,8 @@ public static class SuchKombi
             b.Zelle = g.CurrentCell;
             b.Ausgang = g.CurrentCell?.FormattedValue?.ToString() ?? "";
             if (e.Control is not ComboBox cb || g.CurrentCell is not DataGridViewComboBoxCell zelle) return;
-            cb.MaxDropDownItems = 18;
-            ListenSuche.Einrichten(cb, stil is null ? null : text => stil(zelle, text));
+            var st = b.Stil;
+            ListenSuche.Einrichten(cb, st is null ? null : text => st(zelle, text));
             if (Pfeile.Add(cb)) cb.KeyDown += (_, k) => ZeileWechseln(cb, k);
             // die Liste zeigt genau den Wert dieser Zelle (nie einen Rest der vorher bearbeiteten Zeile)
             if (cb.Text != b.Ausgang || (cb.SelectedIndex >= 0 && cb.GetItemText(cb.SelectedItem) != b.Ausgang))
@@ -150,8 +158,11 @@ public static class SuchKombi
             {
                 // nichts Passendes: Ausgangswert der Zelle behalten
                 if (cb.DropDownStyle != ComboBoxStyle.DropDownList) cb.Text = b.Ausgang;
+                ListenSuche.UngueltigMelden(cb, text);
                 return;
             }
+            // ungültige Eingabe durch den alten Wert ersetzt: darauf hinweisen
+            if (text.Length > 0 && ListenSuche.Treffer(cb, text) < 0) ListenSuche.UngueltigMelden(cb, text);
             if (cb.SelectedIndex != i) cb.SelectedIndex = i;
             cb.Text = namen[i];
             if (g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) g.NotifyCurrentCellDirty(true);
@@ -174,6 +185,7 @@ public static class SuchKombi
         {
             Name = name, HeaderText = kopf, Width = breite, FlatStyle = FlatStyle.Flat, DisplayStyle = DataGridViewComboBoxDisplayStyle.ComboBox,
             DisplayStyleForCurrentCellOnly = true, AutoComplete = false, SortMode = DataGridViewColumnSortMode.NotSortable,
+            MaxDropDownItems = ListenSuche.SichtbareEintraege,
         };
         if (leer) c.Items.Add("");
         foreach (var w in werte.Distinct()) c.Items.Add(w);

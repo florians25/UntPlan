@@ -296,7 +296,7 @@ public static partial class Ui
 
     public static void Suchliste(ComboBox cb)
     {
-        if (cb.DropDownStyle != ComboBoxStyle.DropDownList || cb.Tag as string == "suche" || cb.DrawMode != DrawMode.Normal) return;
+        if (cb.DropDownStyle != ComboBoxStyle.DropDownList || cb.Tag as string == "suche" || cb.DrawMode != DrawMode.Normal || Steuerelemente.ListenSuche.IstAusgenommen(cb)) return;
         cb.Tag ??= "suche";
         var letzter = cb.SelectedIndex;
         Steuerelemente.ListenSuche.Einrichten(cb);
@@ -306,6 +306,7 @@ public static partial class Ui
         {
             var namen = cb.Items.Cast<object>().Select(cb.GetItemText).ToList();
             var i = Steuerelemente.ListenSuche.Treffer(cb, cb.Text);
+            if (i < 0 && cb.Text.Trim().Length > 0) Steuerelemente.ListenSuche.UngueltigMelden(cb, cb.Text);
             if (i < 0) i = letzter;
             if (i >= 0 && i < cb.Items.Count) { if (cb.SelectedIndex != i) cb.SelectedIndex = i; else cb.Text = namen[i]; }
         }

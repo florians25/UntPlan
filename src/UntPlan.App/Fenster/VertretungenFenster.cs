@@ -89,7 +89,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _ansicht.DrawMode = DrawMode.OwnerDrawFixed;
         _ansicht.DrawItem += AnsichtZeichnen;
         _ansicht.DropDownWidth = 190;
-        _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, Ui.SchriftFett.Height + 2);
+        _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, 18);
         AnsichtenFuellen(AppZustand.Einstellungen.Vertretungsansicht);
         Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
         ElementeFuellen();
@@ -681,15 +681,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         e.DrawBackground();
         if (e.Index < 0) return;
         var item = _ansicht.Items[e.Index];
-        var befehl = item is AnsichtBefehl;
-        var schrift = e.Font ?? Ui.Schrift;
-        using var fett = new Font(schrift, FontStyle.Bold);
+        // wie alle Auswahllisten: normaler Schnitt (auch die Befehle „Speichern …“), geglättete Listenschrift
+        var schrift = Ui.OhneFett(e.Font ?? _ansicht.Font);
         var text = item is Vertretungsformat f ? f.Langname : Convert.ToString(item) ?? "";
         // „Löschen“ gilt nur für eigene Formate
         var grau = ReferenceEquals(item, BefehlLoeschen) && !(_letztesFormat?.Eigen ?? false);
         var farbe = (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : grau ? SystemColors.GrayText : SystemColors.ControlText;
-        TextRenderer.DrawText(e.Graphics, text, befehl ? fett : schrift, e.Bounds, farbe,
-            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        Ui.ListenText(e.Graphics, text, schrift, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height), farbe);
         if (ReferenceEquals(item, BefehlSpeichern) && (e.State & DrawItemState.ComboBoxEdit) == 0) e.Graphics.DrawLine(SystemPens.ControlDark, e.Bounds.Left, e.Bounds.Top, e.Bounds.Right, e.Bounds.Top);
     }
 

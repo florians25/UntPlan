@@ -113,7 +113,8 @@ public static class ElementListe
         var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
         if (leer) c.Items.Add("");
         foreach (var e in Stammdaten.Sortiert(AppZustand.D, typ)) c.Items.Add(e);
-        c.Format += (_, e) => e.Value = e.ListItem is Element el ? Ui.ElementName(el) : "";
+        // wie jede Auswahlliste: Kurzname im Feld, in der geöffneten Liste Kurzname | Langname in zwei Spalten (gemeinsamer Baustein)
+        c.Format += (_, e) => e.Value = e.ListItem is Element el ? el.Kurzname : "";
         c.SelectedItem = AppZustand.D.AlleElemente(typ).FirstOrDefault(e => e.Id == id);
         if (c.SelectedIndex < 0 && c.Items.Count > 0) c.SelectedIndex = 0;
         return c;

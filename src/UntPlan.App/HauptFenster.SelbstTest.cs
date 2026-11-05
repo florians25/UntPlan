@@ -1673,8 +1673,241 @@ public sealed partial class HauptFenster
                 e.AnsichtStandMerken();
             }
         });
+        Schritt("R3A_Auswahllisten_einheitlich", () =>
+        {
+            // R3-A: jede Auswahlliste jeder Maske nutzt denselben Baustein (Kurz-/Langname, Suche, Mausradschutz, nie fett) und
+            // Auswahllisten mit Lehrkräften sind überall gleich sortiert und gleich breit
+            List<string> lehrerSortiert = Stammdaten.Sortiert(AppZustand.D, ElementTyp.Lehrer).Select(l => l.Kurzname).ToList();
+            List<string> fehler = new();
+            var felder = 0;
+            var zellen = 0;
+            List<(string Ort, int Breite)> lehrerListen = new();
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => new[] { k }.Concat(Alle(k)));
+            void LehrerReihenfolge(string ort, ComboBox cb)
+            {
+                var namen = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
+                var lehrer = namen.Where(n => lehrerSortiert.Contains(n)).ToList();
+                if (lehrer.Count < Math.Max(3, lehrerSortiert.Count * 3 / 4)) return;
+                if (!lehrer.SequenceEqual(lehrerSortiert.Where(lehrer.Contains))) fehler.Add($"{ort}: Lehrkräfte anders sortiert ({string.Join(",", lehrer.Take(5))} …)");
+                lehrerListen.Add((ort, cb.DropDownWidth));
+            }
+            void FeldPruefen(string ort, ComboBox cb)
+            {
+                felder++;
+                cb.Focus();
+                Warten(40);
+                Steuerelemente.Auswahlbreite.Vereinheitlichen(cb);
+                if (!Steuerelemente.Auswahlbreite.Einheitlich(cb)) fehler.Add($"{ort}: nicht der gemeinsame Baustein");
+                if (cb.Font.Bold) fehler.Add($"{ort}: fett");
+                if (cb.Items.Count == 0 || !Steuerelemente.ListenSuche.IstEingerichtet(cb)) return;
+                cb.DroppedDown = true;
+                Warten(60);
+                var noetig = Math.Min(Steuerelemente.ListenSuche.BenoetigteBreite(cb, langname: Steuerelemente.ListenSuche.Langname), 760);
+                if (cb.DropDownWidth < Math.Min(noetig, Steuerelemente.ListenSuche.MindestListenbreite)) fehler.Add($"{ort}: Liste {cb.DropDownWidth} px schmaler als {noetig} px");
+                if (cb.MaxDropDownItems != Steuerelemente.ListenSuche.SichtbareEintraege) fehler.Add($"{ort}: {cb.MaxDropDownItems} statt {Steuerelemente.ListenSuche.SichtbareEintraege} sichtbare Einträge");
+                LehrerReihenfolge(ort, cb);
+                cb.DroppedDown = false;
+            }
+            void ZellePruefen(string ort, DataGridView g, DataGridViewComboBoxColumn spalte)
+            {
+                var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => !r.IsNewRow && r.Visible && !r.Cells[spalte.Index].ReadOnly && r.Cells[spalte.Index] is DataGridViewComboBoxCell);
+                if (zeile is null) return;
+                try
+                {
+                    g.CurrentCell = zeile.Cells[spalte.Index];
+                    g.BeginEdit(true);
+                    Warten(80);
+                    if (g.EditingControl is not ComboBox cb) return;
+                    zellen++;
+                    if (!Steuerelemente.SuchKombi.IstAktiv(g)) fehler.Add($"{ort}: Tabelle ohne Direktsuche");
+                    if (!Steuerelemente.ListenSuche.IstEingerichtet(cb)) fehler.Add($"{ort}: Zelle nicht der gemeinsame Baustein");
+                    if (!Steuerelemente.ListenSuche.HatMausradSchutz(cb)) fehler.Add($"{ort}: Zelle ohne Mausradschutz");
+                    if (cb.Font.Bold) fehler.Add($"{ort}: Zelle fett");
+                    if (cb.MaxDropDownItems != Steuerelemente.ListenSuche.SichtbareEintraege) fehler.Add($"{ort}: Zelle {cb.MaxDropDownItems} sichtbare Einträge");
+                    cb.DroppedDown = true;
+                    Warten(60);
+                    LehrerReihenfolge(ort, cb);
+                    cb.DroppedDown = false;
+                }
+                finally { g.CancelEdit(); g.EndEdit(); }
+            }
+            void FormPruefen(string name, Form f)
+            {
+                Steuerelemente.Auswahlbreite.AlleErfassen();
+                Warten(150);
+                foreach (var cb in Alle(f).OfType<ComboBox>().Where(c => c.Visible && c.Enabled && c is not IDataGridViewEditingControl).ToList())
+                    FeldPruefen($"{name}/{(cb.Name is { Length: > 0 } n ? n : cb.Parent?.GetType().Name + ":" + cb.Text)}", cb);
+                foreach (var ts in Alle(f).OfType<ToolStrip>().ToList())
+                    foreach (var tc in ts.Items.OfType<ToolStripComboBox>().Where(x => x.Visible && x.Enabled).ToList())
+                        FeldPruefen($"{name}/Leiste:{tc.Text}", tc.ComboBox);
+                foreach (var g in Alle(f).OfType<DataGridView>().Where(x => x.Visible && !x.ReadOnly && x.RowCount > 0).ToList())
+                    foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>().Where(c => c.Visible && !c.ReadOnly).ToList())
+                        ZellePruefen($"{name}/{g.Name}.{spalte.HeaderText}", g, spalte);
+            }
+            foreach (var schluessel in new[] { "vertr", "abw", "veranst", "st:Lehrer", "st:Raum", "u:Klasse", "u:Lehrer" })
+            {
+                AlleSchliessen();
+                if (FensterOeffnen(schluessel) is not { } f) { fehler.Add($"{schluessel}: Fenster fehlt"); continue; }
+                f.WindowState = FormWindowState.Maximized;
+                Warten(300);
+                FormPruefen(schluessel, f);
+            }
+            AlleSchliessen();
+            // ein beliebiges Fenster (keine Ableitung von Dialog): wird programmweit erfasst – Felder und Tabellenzellen gleich
+            using (var d = new Form { Text = "R3A", Size = new Size(520, 300), StartPosition = FormStartPosition.CenterScreen, ShowInTaskbar = false })
+            {
+                var lehrer = ElementListe.Combo(ElementTyp.Lehrer, null);
+                lehrer.SetBounds(10, 10, 120, 24);
+                var kurz = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Items = { "Standard", "links", "rechts" }, SelectedIndex = 0 };
+                kurz.SetBounds(140, 10, 100, 24);
+                var frei = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, Items = { "2025/2026", "2026/2027" }, Text = "frei" };
+                frei.SetBounds(250, 10, 100, 24);
+                var g = new DataGridView { Left = 10, Top = 50, Width = 480, Height = 180, AllowUserToAddRows = false, Name = "R3A" };
+                g.Columns.Add(new DataGridViewComboBoxColumn { Name = "L", HeaderText = "Lehrer", Width = 60, DataSource = new[] { "" }.Concat(lehrerSortiert).ToList() });
+                d.Controls.AddRange(new Control[] { lehrer, kurz, frei, g });
+                d.Show(this);
+                g.Rows.Add("");
+                Warten(300);
+                FormPruefen("Fenster", d);
+                if (!Steuerelemente.ListenSuche.IstFrei(frei)) fehler.Add("freies Feld nicht als frei erkannt");
+                if (lehrerListen.Count > 1 && lehrerListen.Select(x => x.Breite).Distinct().Count() > 2)
+                    log.Add("INFO  Lehrerlisten-Breiten: " + string.Join(", ", lehrerListen.Select(x => $"{x.Ort}={x.Breite}")));
+                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad ändert nichts
+                log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld Lehrer", lehrer, lehrerSortiert));
+                log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld kurz", kurz, new List<string> { "Standard", "links", "rechts" }));
+                d.Close();
+            }
+            // gleiches Verhalten im Kopfbereich bzw. in einer Tabellenzelle der Vertretungsliste
+            if (FensterOeffnen("vertr") is VertretungenFenster vf)
+            {
+                Max(vf);
+                Warten(400);
+                var g = Alle(vf).OfType<DataGridView>().FirstOrDefault(x => x.Columns.Contains("Vertreter"));
+                var zeile = g?.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && !r.Cells["Vertreter"].ReadOnly && r.Cells["Vertreter"] is DataGridViewComboBoxCell);
+                if (g != null && zeile != null)
+                {
+                    g.CurrentCell = zeile.Cells["Vertreter"];
+                    g.BeginEdit(true);
+                    Warten(150);
+                    if (g.EditingControl is ComboBox zc)
+                    {
+                        var vorher = zc.Text;
+                        zc.Text = "xq§";
+                        Aufrufen(zc, "OnTextUpdate", EventArgs.Empty);
+                        Aufrufen(zc, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+                        Warten(60);
+                        if (zc.Text != vorher) fehler.Add($"Vertreterzelle: ungültige Eingabe übernommen („{zc.Text}“ statt „{vorher}“)");
+                        if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) fehler.Add("Vertreterzelle: kein Hinweis auf die ungültige Eingabe");
+                        var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+                        Aufrufen(zc, "OnMouseWheel", rad);
+                        if (!rad.Handled || zc.Text != vorher) fehler.Add("Vertreterzelle: Mausrad ändert den Wert");
+                    }
+                    g.CancelEdit();
+                    g.EndEdit();
+                }
+            }
+            log.Add($"INFO  Auswahllisten geprüft: {felder} Felder, {zellen} Tabellenzellen, {lehrerListen.Count} Lehrerlisten");
+            if (felder < 6 || zellen < 6) throw new InvalidOperationException($"Zu wenige Auswahllisten gefunden ({felder} Felder, {zellen} Zellen).");
+            if (fehler.Count > 0) throw new InvalidOperationException("Auswahllisten uneinheitlich: " + string.Join("; ", fehler.Take(15)));
+        }, -1);
+        Schritt("R3A_Auswahlliste_Bild", () =>
+        {
+            // Bildschirmfoto einer geöffneten Auswahlliste in einem Formularfeld (Kurzname | Langname, nach unten, nicht fett)
+            var d = new Form { Text = "Auswahlliste", Size = new Size(420, 520), StartPosition = FormStartPosition.CenterScreen, ShowInTaskbar = false };
+            var lehrer = ElementListe.Combo(ElementTyp.Lehrer, AppZustand.D.Lehrer.FirstOrDefault()?.Id);
+            lehrer.SetBounds(20, 20, 120, 24);
+            d.Controls.Add(lehrer);
+            d.Show(this);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            Warten(200);
+            lehrer.Focus();
+            Steuerelemente.Auswahlbreite.Vereinheitlichen(lehrer);
+            Warten(100);
+            lehrer.DroppedDown = true;
+            Warten(300);
+            Foto(Path.Combine(ordner, "R3A_Auswahlliste_offen.png"));
+            lehrer.DroppedDown = false;
+            d.Close();
+        }, -1);
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
+    }
+
+    /// <summary>Geschützte Ereignismethode eines Steuerelements aufrufen (Selbsttest: Tippen, Tasten, Mausrad nachstellen).</summary>
+    private static void Aufrufen(Control c, string methode, object argument)
+    {
+        for (var t = c.GetType(); t != null; t = t.BaseType)
+        {
+            var m = t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly)
+                .FirstOrDefault(x => x.Name == methode && x.GetParameters() is { Length: 1 } p && p[0].ParameterType.IsInstanceOfType(argument));
+            if (m is null) continue;
+            m.Invoke(c, new[] { argument });
+            return;
+        }
+        throw new InvalidOperationException($"{methode} nicht gefunden");
+    }
+
+    /// <summary>
+    /// R3-A: Bedienung einer Auswahlliste prüfen – Tippen springt zum Treffer, Enter übernimmt (wie ein Mausklick), Esc stellt den
+    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad ändert nichts.
+    /// </summary>
+    private static string AuswahlVerhaltenPruefen(string ort, ComboBox cb, List<string> werte)
+    {
+        string Wert() => cb.SelectedIndex >= 0 ? cb.GetItemText(cb.SelectedItem) ?? "" : "";
+        void Tippen(string text)
+        {
+            // wie echtes Tippen: erst ein Zeichen (öffnet die Liste), dann der Rest – ohne dass das Setzen des Texts vorab auswählt
+            cb.Text = text[..1];
+            Aufrufen(cb, "OnTextUpdate", EventArgs.Empty);
+            cb.Text = text;
+            Aufrufen(cb, "OnTextUpdate", EventArgs.Empty);
+            Warten(40);
+        }
+        var bestaetigt = 0;
+        void Zaehlen(object? s, EventArgs e) => bestaetigt++;
+        cb.Focus();
+        Warten(40);
+        cb.SelectionChangeCommitted += Zaehlen;
+        try
+        {
+            var kandidaten = werte.Where(w => w.Length > 0 && w != Wert()).Take(2).ToList();
+            if (kandidaten.Count < 2) return $"{ort}: zu wenige Einträge";
+            // 1) Tippen + Enter
+            Tippen(kandidaten[0]);
+            if (!cb.DroppedDown) throw new InvalidOperationException($"{ort}: Tippen öffnet die Liste nicht");
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+            Warten(40);
+            if (Wert() != kandidaten[0]) throw new InvalidOperationException($"{ort}: Enter übernimmt „{Wert()}“ statt „{kandidaten[0]}“");
+            if (bestaetigt == 0) throw new InvalidOperationException($"{ort}: Enter meldet die Auswahl nicht wie ein Mausklick");
+            if (cb.DroppedDown) throw new InvalidOperationException($"{ort}: Liste bleibt nach Enter offen");
+            // 2) Esc stellt her
+            var vorher = Wert();
+            Tippen(kandidaten[1][..1]);
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Escape));
+            Warten(40);
+            if (Wert() != vorher || cb.Text != vorher) throw new InvalidOperationException($"{ort}: Esc stellt „{vorher}“ nicht her („{cb.Text}“)");
+            // 3) ungültige Eingabe
+            Tippen("xq§");
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+            Warten(40);
+            if (Wert() != vorher || cb.Text != vorher) throw new InvalidOperationException($"{ort}: ungültige Eingabe übernommen („{cb.Text}“)");
+            if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) throw new InvalidOperationException($"{ort}: kein Hinweis auf ungültige Eingabe");
+            // 4) Tab übernimmt
+            Tippen(kandidaten[1]);
+            Aufrufen(cb, "OnPreviewKeyDown", new PreviewKeyDownEventArgs(Keys.Tab));
+            Warten(40);
+            if (Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Tab übernimmt „{Wert()}“ statt „{kandidaten[1]}“");
+            // 5) Mausrad über der geschlossenen Liste
+            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+            Aufrufen(cb, "OnMouseWheel", rad);
+            if (!rad.Handled || Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Mausrad ändert den Wert der geschlossenen Liste");
+            return $"{ort}: Tippen/Enter, Esc, ungültig, Tab und Mausrad wie überall";
+        }
+        finally
+        {
+            cb.SelectionChangeCommitted -= Zaehlen;
+            if (cb.DroppedDown) cb.DroppedDown = false;
+        }
     }
 
     /// <summary>Simuliert das Überfahren jeder sichtbaren Zelle einer nicht aktuellen Zeile und meldet Zellen, die dabei nicht hervorgehoben werden.</summary>

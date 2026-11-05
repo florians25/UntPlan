@@ -708,7 +708,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 {
                     var cb = new ComboBox { Left = 2, Top = 1, Width = 124, DropDownStyle = f.Art == FeldArt.Auswahl ? ComboBoxStyle.DropDownList : ComboBoxStyle.DropDown, Enabled = f.Editierbar };
                     if (f.Art == FeldArt.Auswahl) cb.Items.AddRange(f.Auswahl);
-                    else { cb.Items.Add(""); cb.Items.AddRange(D.AlleElemente(f.RefTyp).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
+                    else { cb.Items.Add(""); cb.Items.AddRange(Stammdaten.Sortiert(D, f.RefTyp).Where(x => !x.Ignorieren).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
                     cb.SelectionChangeCommitted += (_, _) => FormularWert(f, cb.SelectedItem?.ToString() ?? "");
                     cb.Leave += (_, _) =>
                     {
