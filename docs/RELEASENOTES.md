@@ -6,6 +6,24 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop – Funktionen wie im Handbuch
+- Planungsdialog (Stecktafel mit Klassen, Lehrern und Räumen, Lupe, Tauschketten, Drag & Drop) und Planungs-Stundenplan; Planungsdialog der Vertretungsplanung mit Entfall, Verlegen und Sondereinsätzen.
+- Stammdaten und Unterricht: alle Kennzeichen des Handbuchs mit Wirkung in Optimierung und Diagnose, Unterrichtsfolgen, Unterrichtsvergleich, Koppeln per Drag & Drop, Stammdatenformate, UND-Filter.
+- Vertretungen: eigene Formate (Format speichern / speichern als), Formate / Vertretung mit Tageslisten, Sortierkriterien, Von-Bis mit Schloss, „Zu zählende farbig“.
+- Vertretungsvorschlag: Stundenplan-Spalte mit so vielen Stunden wie Platz ist, Vormerkungen, Bereitschafts-Zähler, Pausenaufsichten, zweistufige Vorziehungen.
+- Ausgabe: Seitenlayout mit Berichts-Einstellungen und Ziehen per Maus, Absenzkopf, Vertretungsnachrichten, Import der Vertretungsplanung aus einer zweiten Datei.
+- Optimierung mit Begleitfenster und Lehrerzuordnung, Totaldiagnose, CCC-Analyse, Lehrerteams, Vergleichsmodus, weitere Einstellungsseiten, Stundenplan-Seitenlayout mit mehreren Plänen pro Seite, Element-Rollup zum Andocken.
+- Menüband verkleinert sich bei schmalen Fenstern statt abzuschneiden.
+
+### UntPlanWeb
+- Seitenleiste immer 280 px breit; Schriftschnitte wie im Original (Menüpunkte und Namen Demi, Fließtext Regular); Überfahren in allen Menüs hellorange.
+
+### iOS
+- Parallele Stunden werden beim Öffnen geladen und lassen sich direkt wischen; Details fahren ohne Zucken ein.
+- Entfall-Kopf blaugrau, Startseiten-Widget mit grün hinterlegten Änderungen.
+
+## Vorherige Version
+
 ### Desktop
 - Bei Windows-Skalierung 125 %, 150 % oder 200 % sehen alle Masken aus wie bei 100 % – nichts wird mehr abgeschnitten (Datum mit Wochentag, Spaltenköpfe, Zeilen, Kopfbereiche).
 
@@ -33,19 +51,3 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ### UntPlanWeb
 - Entfall-Dreieck und Verlegungs-Marker abgerundet wie Vorlage, Seitenleiste und Stundendetails („Keine weiteren Details“) nach Vorlage.
-
-## Vorherige Version
-
-
-### Desktop
-- Wichtige Korrektur: Wird eine Lehrkraft abwesend, deren Stunde schon eine Raumänderung hat (z. B. gesperrter Raum mit gewähltem Ausweichraum), erscheint die Stunde jetzt als offene Vertretung (bzw. Entfall laut Regel) – der gewählte Raum bleibt. Bestehende Dateien werden beim Öffnen korrigiert.
-- Raumänderungen in Kopplungen gelten für alle Zeilen und Klassen; die Vertretungsliste fasst sie in einer Zeile mit allen Klassen zusammen, Pläne zeigen einen Block mit allen Klassen.
-- Aufsichtsplanung im Vertretungsmodus: Das Fenster Pausenaufsichten zeigt die Woche des Planungsdatums; jede Änderung (andere Lehrkraft, offen „???“, entfällt „---“, Lehrer-Vorschlag mit Übernahme, offene Aufsichten der Woche besetzen) wird als Vertretung dieses Tages erfasst – der reguläre Aufsichtsplan bleibt unverändert.
-- Kompakte Warnhinweise direkt neben der Maus (Fach 2x/Tag, fixierter Unterricht, gesperrter Raum) mit „nicht mehr anzeigen“.
-- Neues Farbschema für Stunden- und Vertretungsmodus, kleine Stundenpläne mit fetten Tagen und Stunden.
-- Klassenlehrkräfte per Dropdown (auch mehrere, durch Komma getrennt).
-
-### UntPlanWeb und Apps
-- Vorgemerkte Raumänderungen machen die Stunde zur grünen Änderungskarte.
-- Entfallene Stunden und Stundendetails nach Vorlage; verlegte Stunden mit Pille „Zusätzliche Unterrichtsstunde“.
-- iOS: Ladebild in den Stundendetails (flüssigeres Öffnen und Schließen), Fachfarbe als Balken bzw. unter dem gewählten Reiter, mehrere Klassenlehrkräfte, breitere Fenster auf dem iPad, kein Lehrer-Label bei Klassenabwesenheit oder Verlegung, schnellere Animationen.

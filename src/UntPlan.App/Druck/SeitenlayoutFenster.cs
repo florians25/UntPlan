@@ -415,17 +415,138 @@ public sealed class SeitenlayoutFenster : Form
     private static string? Gezogen(DragEventArgs e, string praefix) =>
         e.Data?.GetData(DataFormats.StringFormat) is string s && s.StartsWith(praefix, StringComparison.Ordinal) ? s[praefix.Length..] : null;
 
+    // ---------------- Ziehen mit der Maus: Seitenrand, Spaltenbreite, Zeilenhöhe ----------------
+
+    /// <summary>Art des Anfassers im Seitenlayout.</summary>
+    private enum Anfasser { Keiner, RandLinks, RandRechts, Spalte, Zeile }
+
+    private VertretungsplanDruck.Seitengeometrie _geo;
+    private (Anfasser Art, int Index) _zug;
+    private Point _zugStart;
+    private int _zugPos;
+
+    /// <summary>Anfasser unter dem Mauszeiger (nur auf der ersten Seite, deren Lage bekannt ist).</summary>
+    private (Anfasser Art, int Index) AnfasserBei(Point p)
+    {
+        if (_seiteNr != 0 || _geo.Spaltengrenzen is null || _geo.Bereich.Width == 0) return (Anfasser.Keiner, 0);
+        const float Toleranz = 4f;
+        float X(float v) => v * _faktor;
+        var zeile = _geo.ErsteZeile;
+        // blaue Linie unter der ersten Tabellenzeile: Zeilenhöhe
+        if (zeile != RectangleF.Empty && Math.Abs(p.Y - X(zeile.Bottom)) <= Toleranz && p.X >= X(zeile.Left) && p.X <= X(zeile.Right)) return (Anfasser.Zeile, 0);
+        // Spaltengrenzen im Bereich der Spaltenköpfe und der Tabelle
+        var oben = _spalten.Count > 0 ? _spalten.Min(s => s.Kopf.Top) : zeile.Top;
+        var unten = zeile != RectangleF.Empty ? zeile.Bottom : _spalten.Count > 0 ? _spalten.Max(s => s.Kopf.Bottom) : 0;
+        for (var i = 1; i < _geo.Spaltengrenzen.Length - 1; i++)
+            if (Math.Abs(p.X - X(_geo.Spaltengrenzen[i])) <= Toleranz && p.Y >= X(oben) && p.Y <= X(unten) + 4) return (Anfasser.Spalte, i);
+        // Seitenränder: senkrechte Linien links und rechts über die ganze Seite
+        if (Math.Abs(p.X - X(_geo.Bereich.Left)) <= Toleranz) return (Anfasser.RandLinks, 0);
+        if (Math.Abs(p.X - X(_geo.Bereich.Right)) <= Toleranz) return (Anfasser.RandRechts, 0);
+        return (Anfasser.Keiner, 0);
+    }
+
+    /// <summary>Blaue Hilfslinien wie im Handbuch: Zeilenhöhe (erste Tabellenzeile), Seitenränder; beim Ziehen die neue Lage.</summary>
+    private void HilfslinienZeichnen(object? sender, PaintEventArgs e)
+    {
+        if (_seiteNr != 0 || _geo.Bereich.Width == 0) return;
+        float X(float v) => v * _faktor;
+        using var blau = new Pen(Color.FromArgb(60, 90, 230)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Solid };
+        using var rand = new Pen(Color.FromArgb(150, 60, 90, 230)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
+        var g = e.Graphics;
+        if (_geo.ErsteZeile != RectangleF.Empty)
+        {
+            g.DrawLine(blau, 0, X(_geo.ErsteZeile.Top), _seite.Width, X(_geo.ErsteZeile.Top));
+            g.DrawLine(blau, 0, X(_geo.ErsteZeile.Bottom), _seite.Width, X(_geo.ErsteZeile.Bottom));
+        }
+        g.DrawLine(rand, X(_geo.Bereich.Left), 0, X(_geo.Bereich.Left), _seite.Height);
+        g.DrawLine(rand, X(_geo.Bereich.Right), 0, X(_geo.Bereich.Right), _seite.Height);
+        if (_zug.Art == Anfasser.Keiner) return;
+        using var zug = new Pen(Color.FromArgb(220, 40, 40), 1.5f);
+        if (_zug.Art == Anfasser.Zeile) g.DrawLine(zug, 0, _zugPos, _seite.Width, _zugPos);
+        else g.DrawLine(zug, _zugPos, 0, _zugPos, _seite.Height);
+    }
+
+    /// <summary>Gezogene Linie übernehmen: Seitenrand, Breite der beiden angrenzenden Spalten bzw. Zeilenhöhe.</summary>
+    private void ZugAnwenden(Point ende)
+    {
+        var art = _zug;
+        _zug = (Anfasser.Keiner, 0);
+        ZugAnwenden(art, (ende.X - _zugStart.X) / Math.Max(0.05f, _faktor), (ende.Y - _zugStart.Y) / Math.Max(0.05f, _faktor));
+    }
+
+    /// <summary>Verschiebung um <paramref name="dx"/>/<paramref name="dy"/> Bildpunkte der Seite (100 dpi) übernehmen.</summary>
+    private void ZugAnwenden((Anfasser Art, int Index) art, float dx, float dy)
+    {
+        switch (art.Art)
+        {
+            case Anfasser.RandLinks: E.RandLinks = Math.Clamp((int)Math.Round(E.RandLinks + dx), 10, 300); break;
+            case Anfasser.RandRechts: E.RandRechts = Math.Clamp((int)Math.Round(E.RandRechts - dx), 10, 300); break;
+            case Anfasser.Zeile:
+                E.ZeilenAbstand = Math.Clamp((int)Math.Round(E.ZeilenAbstand + dy), 0, 60);
+                break;
+            case Anfasser.Spalte:
+                var gedruckt = VertretungsplanDruck.Felder(E).Where(f => f.Drucken).ToList();
+                var i = art.Index;
+                if (i <= 0 || i >= gedruckt.Count) break;
+                var summe = gedruckt.Sum(f => Math.Max(0.02f, f.Anteil));
+                var anteil = dx / Math.Max(1, _geo.Bereich.Width) * summe;
+                var links = gedruckt[i - 1];
+                var rechts = gedruckt[i];
+                anteil = Math.Clamp(anteil, 0.02f - Math.Max(0.02f, links.Anteil), Math.Max(0.02f, rechts.Anteil) - 0.02f);
+                links.Anteil = Math.Max(0.02f, links.Anteil) + anteil;
+                rechts.Anteil = Math.Max(0.02f, rechts.Anteil) - anteil;
+                break;
+            default: return;
+        }
+        Neuzeichnen();
+    }
+
+    /// <summary>Selbsttest: Anfasser ziehen (Bildpunkte der Vorschau bei Zoom 100 %).</summary>
+    internal void SelbsttestZiehen(string art, int index, int dx, int dy)
+    {
+        ZugAnwenden((Enum.Parse<Anfasser>(art), index), dx, dy);
+    }
+
     private void SpaltenZiehenAnbinden()
     {
         string? gefasst = null;
         var start = Point.Empty;
+        _seite.Paint += HilfslinienZeichnen;
         _seite.MouseDown += (_, e) =>
         {
             start = e.Location;
+            gefasst = null;
+            if (e.Button == MouseButtons.Left && AnfasserBei(e.Location) is { Art: not Anfasser.Keiner } a)
+            {
+                _zug = a;
+                _zugStart = e.Location;
+                _zugPos = a.Art == Anfasser.Zeile ? e.Y : e.X;
+                _seite.Capture = true;
+                return;
+            }
             gefasst = _spalten.Where(s => Skaliert(s.Kopf).Contains(e.Location)).Select(s => s.Schluessel).FirstOrDefault();
+        };
+        _seite.MouseUp += (_, e) =>
+        {
+            if (_zug.Art == Anfasser.Keiner) return;
+            _seite.Capture = false;
+            ZugAnwenden(e.Location);
+            _seite.Invalidate();
         };
         _seite.MouseMove += (_, e) =>
         {
+            if (_zug.Art != Anfasser.Keiner)
+            {
+                _zugPos = _zug.Art == Anfasser.Zeile ? e.Y : e.X;
+                _seite.Invalidate();
+                return;
+            }
+            var anfasser = AnfasserBei(e.Location).Art;
+            if (anfasser != Anfasser.Keiner && e.Button == MouseButtons.None)
+            {
+                _seite.Cursor = anfasser == Anfasser.Zeile ? Cursors.HSplit : Cursors.VSplit;
+                return;
+            }
             var ueberKopf = _spalten.Any(s => Skaliert(s.Kopf).Contains(e.Location));
             _seite.Cursor = ueberKopf ? Cursors.SizeAll : _titel != RectangleF.Empty && Skaliert(_titel).Contains(e.Location) ? Cursors.Hand : Cursors.Default;
             if (gefasst is null || e.Button != MouseButtons.Left || Math.Abs(e.X - start.X) + Math.Abs(e.Y - start.Y) < 6) return;
@@ -434,6 +555,8 @@ public sealed class SeitenlayoutFenster : Form
             _seite.DoDragDrop(SpalteFormat + k, DragDropEffects.Move);
         };
         _seite.MouseUp += (_, _) => gefasst = null;
+        var tipp = new ToolTip();
+        tipp.SetToolTip(_seite, "Blaue Linie ziehen: Zeilenhöhe · Linie zwischen den Spalten ziehen: Spaltenbreite · gestrichelte Linie links/rechts ziehen: Seitenrand\nSpaltenkopf ziehen: Anordnung ändern bzw. ausblenden");
         _seite.DragOver += (_, e) => e.Effect = Gezogen(e, FeldFormat) is not null || Gezogen(e, SpalteFormat) is not null ? DragDropEffects.Move : DragDropEffects.None;
         _seite.DragDrop += (_, e) =>
         {
@@ -586,6 +709,7 @@ public sealed class SeitenlayoutFenster : Form
         if (_laden) return;
         foreach (var b in _bilder) b.Dispose();
         _bilder = VertretungsplanDruck.Bilder(_von, _bis, _lehrer, out _spalten, out _titel);
+        _geo = VertretungsplanDruck.Geometrie;
         _seiteNr = Math.Clamp(_seiteNr, 0, Math.Max(0, _bilder.Count - 1));
         Anordnen();
     }
@@ -641,6 +765,10 @@ public sealed class SeitenlayoutFenster : Form
             _vorschauRahmen.Controls.Add(stift);
             stift.BringToFront();
         }
+        // Stift „Berichtseinstellungen“ oben in der Mitte des Seitenkopfs (Kopf- und Fußzeile aller Berichte)
+        if (_seiteNr == 0 && _geo.Bereich.Width > 0)
+            Stift(new Point(_seite.Left + (int)((_geo.Bereich.Left + _geo.Bereich.Width * 0.62f) * faktor), _seite.Top + (int)(_geo.Bereich.Top * faktor) - 2), "Berichtseinstellungen (Kopf- und Fußzeile)",
+                () => { if (BerichtseinstellungenDialog.Zeigen(this)) Neuzeichnen(); });
         // Stift „Listenüberschrift“ rechts neben dem Titel
         if (_seiteNr == 0 && _titel != RectangleF.Empty)
             Stift(new Point(_seite.Left + (int)(_titel.Right * faktor) + 4, _seite.Top + (int)(_titel.Top * faktor)), "Listenüberschrift ändern", ListenueberschriftAendern);

@@ -22,6 +22,10 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     private readonly ToolTip _tip = new();
     private List<string> _spalten = new();
     private string _ansichtName = "Standard";
+    /// <summary>Felder mit Langnamen-Anzeige („Anzeige von“ im Dialog „Felder der Ansicht“).</summary>
+    private HashSet<string> _langnamen = new();
+    /// <summary>Gewählte Schrift der Rasteransicht („Name;Größe“, wird mit dem Format gespeichert).</summary>
+    private string _schrift = "";
     private bool _ansichtGeaendert;
     private bool _laden;
     private readonly Dictionary<string, Control> _formularEditoren = new();
@@ -168,7 +172,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         Controls.Add(ts);
         Load += (_, _) => { _split.SplitterDistance = Math.Max(80, _split.Height - 170); };
 
-        AnsichtLaden(D.Ansichten.FirstOrDefault(a => a.Fenster == FensterSchluessel)?.Name ?? "Standard");
+        AnsichtLaden(Standardformat(D, FensterSchluessel));
         AppZustand.ElementGewaehlt += ElementGewaehlt;
         AppZustand.StundeGewaehlt += StundeGewaehlt;
         FormClosed += (_, _) =>
@@ -250,7 +254,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         var aktId = _aktuell?.Id;
         var spalte = _grid.CurrentCell?.ColumnIndex ?? 1;
         _grid.SuspendLayout();
-        var stand = string.Join("|", _spalten);
+        var stand = string.Join("|", _spalten) + "#" + string.Join("|", _langnamen.OrderBy(x => x));
         if (stand != _spaltenStand || _grid.Columns.Count == 0)
         {
             _spaltenStand = stand;
@@ -264,6 +268,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 {
                     FeldArt.Bool => new DataGridViewCheckBoxColumn { ThreeState = false },
                     FeldArt.Auswahl => new DataGridViewComboBoxColumn { DataSource = f.Auswahl.ToList(), FlatStyle = FlatStyle.Flat, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing },
+                    // Anzeige mit Langnamen: nur lesen (Eingabe über den Kurznamen in der Formularansicht)
+                    FeldArt.Element or FeldArt.ElementListe when _langnamen.Contains(f.Schluessel) => new DataGridViewTextBoxColumn(),
                     // Elementfelder (z. B. Raum, Klassenlehrer) als Auswahlliste mit Direktsuche wie die Lehrerauswahl im Vertretungsmodus
                     FeldArt.Element or FeldArt.ElementListe => Steuerelemente.SuchKombi.Spalte(f.Schluessel, f.Titel, f.Breite, Array.Empty<string>()),
                     _ => new DataGridViewTextBoxColumn(),
@@ -273,7 +279,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 col.Width = f.Breite;
                 // Programmatic: Klick in die Überschrift sortiert temporär (mit Sortierpfeil), die Tabelle sortiert nicht selbst
                 col.SortMode = DataGridViewColumnSortMode.Programmatic;
-                col.ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" && _typ != ElementTyp.Schueler;
+                col.ReadOnly = !f.Editierbar || f.Schluessel == "Kurzname" && _typ != ElementTyp.Schueler || _langnamen.Contains(f.Schluessel);
                 if (f.Schluessel is "Kurzname" or "Langname")
                     col.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 255);
                 col.Tag = f;
@@ -380,7 +386,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             {
                 FeldArt.Bool => f.Get(e) is true,
                 FeldArt.Auswahl => f.Auswahl.ElementAtOrDefault(f.Get(e) is int i ? i : 0),
-                _ => f.Anzeige(e, Ix),
+                _ => f.Anzeige(e, Ix, _langnamen.Contains(f.Schluessel)),
             };
             if (f.Schluessel == "Hintergrund" || (f.Schluessel == "Langname" && e is Fach))
             {
@@ -782,9 +788,43 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _ansichtName = a?.Name ?? "Standard";
         _spalten = a?.Spalten.Where(s => _felder.Any(f => f.Schluessel == s)).ToList() ?? _felder.Where(f => f.Standard).Select(f => f.Schluessel).ToList();
         if (!_spalten.Contains("Kurzname")) _spalten.Insert(0, "Kurzname");
+        _langnamen = a?.Langnamen.ToHashSet() ?? new HashSet<string>();
+        _schrift = a?.Schrift ?? "";
+        SchriftAnwenden(_schrift.Length > 0 ? SchriftAus(_schrift) : null);
         _ansichtGeaendert = false;
         AnsichtBoxFuellen();
         Neuaufbau();
+    }
+
+    /// <summary>Standardformat des Fensters (Spalte „Standard“ in „Formate | Stammdatenformate“), sonst das erste gespeicherte.</summary>
+    internal static string Standardformat(Schuldatei d, string fenster) =>
+        d.Ansichten.FirstOrDefault(a => a.Fenster == fenster && a.Standard)?.Name ?? d.Ansichten.FirstOrDefault(a => a.Fenster == fenster)?.Name ?? "Standard";
+
+    /// <summary>Formate mit „im Menu“ für eine Elementart (für das Stammdaten-Menü).</summary>
+    public static IEnumerable<Ansicht> FormateImMenu(Schuldatei d, ElementTyp typ) => d.Ansichten.Where(a => a.Fenster == $"Stammdaten.{typ}" && a.ImMenu);
+
+    /// <summary>Stammdatenfenster mit einem bestimmten Format öffnen (Menüeintrag eines Formats bzw. „Öffnen“ in „Formate | Stammdatenformate“).</summary>
+    public static StammdatenFenster MitFormatOeffnen(ElementTyp typ, string format)
+    {
+        var f = HauptFenster.Oeffnen($"st:{typ}", () => new StammdatenFenster(typ));
+        f.AnsichtLaden(format);
+        return f;
+    }
+
+    private static Font? SchriftAus(string text)
+    {
+        var t = text.Split(';');
+        if (t.Length < 2 || !float.TryParse(t[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var groesse)) return null;
+        try { return new Font(t[0], groesse); }
+        catch (ArgumentException) { return null; }
+    }
+
+    private void SchriftAnwenden(Font? schrift)
+    {
+        _grid.DefaultCellStyle.Font = schrift;
+        var f = schrift ?? _grid.Font;
+        _grid.RowTemplate.Height = Math.Max(18, f.Height + 6);
+        foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
     }
 
     private void AnsichtBoxFuellen()
@@ -809,6 +849,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     private void AnsichtGewaehlt()
     {
         var t = _ansichtBox.SelectedItem?.ToString() ?? "";
+        var geschuetzt = D.Ansichten.Any(a => a.Fenster == FensterSchluessel && a.Name == _ansichtName && a.Geschuetzt);
+        if (geschuetzt && (t == FormatSpeichern || t == FormatLoeschen)) { Ui.Info($"Das Format \"{_ansichtName}\" ist geschützt (Formate | Stammdatenformate)."); AnsichtBoxFuellen(); return; }
         if (t == FormatSpeichern) AnsichtSpeichern(_ansichtName);
         else if (t == FormatSpeichernAls)
         {
@@ -818,13 +860,24 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         }
         else if (t == FormatBearbeiten)
         {
-            // Ansicht umbenennen (das Standardformat behält seinen Namen)
-            var neu = _ansichtName == "Standard" ? null : AnsichtUmbenennenDialog.Zeigen(this, _ansichtName);
-            if (neu != null && neu != _ansichtName && !D.Ansichten.Any(a => a.Fenster == FensterSchluessel && a.Name == neu))
+            // Format bearbeiten: umbenennen (das Format „Standard“ behält seinen Namen), Langname, „im Menu“, „Standard“
+            var akt = D.Ansichten.FirstOrDefault(a => a.Fenster == FensterSchluessel && a.Name == _ansichtName);
+            var erg = AnsichtUmbenennenDialog.Bearbeiten(this, _ansichtName, akt?.Langname ?? "", akt?.ImMenu == true, akt?.Standard == true, _ansichtName != "Standard");
+            if (erg != null && (erg.Name == _ansichtName || !D.Ansichten.Any(a => a.Fenster == FensterSchluessel && a.Name == erg.Name)))
             {
                 var alt = _ansichtName;
-                Aendern("Format umbenennen", AenderungsArt.Einstellungen, d => { foreach (var a in d.Ansichten.Where(a => a.Fenster == FensterSchluessel && a.Name == alt)) a.Name = neu; });
-                _ansichtName = neu;
+                var spalten = _grid.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.DisplayIndex).Select(c => c.Name).ToList();
+                Aendern("Format bearbeiten", AenderungsArt.Einstellungen, d =>
+                {
+                    var a = d.Ansichten.FirstOrDefault(x => x.Fenster == FensterSchluessel && x.Name == alt);
+                    if (a is null) d.Ansichten.Add(a = new Ansicht { Fenster = FensterSchluessel, Name = alt, Spalten = spalten, Langnamen = _langnamen.ToList(), Schrift = _schrift });
+                    a.Name = erg.Name;
+                    a.Langname = erg.Langname;
+                    a.ImMenu = erg.ImMenu;
+                    if (erg.Standard) foreach (var x in d.Ansichten.Where(x => x.Fenster == FensterSchluessel)) x.Standard = false;
+                    a.Standard = erg.Standard;
+                });
+                _ansichtName = erg.Name;
             }
             AnsichtBoxFuellen();
         }
@@ -849,6 +902,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             var a = d.Ansichten.FirstOrDefault(x => x.Fenster == FensterSchluessel && x.Name == name);
             if (a is null) d.Ansichten.Add(a = new Ansicht { Fenster = FensterSchluessel, Name = name });
             a.Spalten = spalten;
+            a.Langnamen = _langnamen.ToList();
+            a.Schrift = _schrift;
         });
         _ansichtName = name;
         _ansichtGeaendert = false;
@@ -957,6 +1012,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         cm.Items.Add("Sortieren…", Symbole.Get("sortieren"), (_, _) => Sortieren());
         cm.Items.Add("Felder der Ansicht…", Symbole.Get("uebersicht"), (_, _) => FelderDialog());
+        cm.Items.Add("Formate | Stammdatenformate…", null, (_, _) => HauptFenster.Oeffnen<StammdatenformateFenster>("stammformate", () => new StammdatenformateFenster()));
         cm.Items.Add("Spalte ausblenden", null, (_, _) => SpalteAusblenden(_grid.Columns[e.ColumnIndex].Name));
         if (((Feld)_grid.Columns[e.ColumnIndex].Tag!).Art == FeldArt.Farbe || _typ == ElementTyp.Fach)
             cm.Items.Add("Farbe löschen", Symbole.Get("loeschen"), (_, _) => FarbenLoeschen(false));
@@ -982,13 +1038,13 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         // über die Filterzeile: Feldinhalt eintragen bzw. alle Filter aufheben
         _filter.Clear();
-        foreach (var tb in _filterLeiste.Controls.OfType<TextBox>()) tb.Text = "";
+        foreach (var tb in _filterLeiste.Controls.OfType<ComboBox>()) tb.Text = "";
         _filter.Clear();
         if (spalte >= 0)
         {
             if (!_filterLeiste.Visible) FilterUmschalten();
             var name = _grid.Columns[spalte].Name;
-            if (_filterLeiste.Controls[name] is TextBox tb) tb.Text = wert;
+            if (_filterLeiste.Controls[name] is ComboBox tb) tb.Text = wert;
             else _filter[name] = wert;
         }
         FilterAnwenden();
@@ -1002,12 +1058,13 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             _mitInhaltKnopf.Checked = false;
             _spalten = a.Aktiv;
             if (!_spalten.Contains("Kurzname")) _spalten.Insert(0, "Kurzname");
+            if (a.Langnamen != null) _langnamen = a.Langnamen;
             NichtDruckenSetzen(a.NichtDrucken);
             _ansichtGeaendert = true;
             AnsichtBoxFuellen();
             Neuaufbau();
         }
-        var neu = FelderDerAnsichtRaster.Zeigen(this, _felder, _spalten, NichtGedruckt(), Anwenden);
+        var neu = FelderDerAnsichtRaster.Zeigen(this, _felder, _spalten, NichtGedruckt(), Anwenden, _langnamen);
         if (neu != null) Anwenden(neu);
     }
 
@@ -1076,7 +1133,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         if (!_filterLeiste.Visible) _filter.Clear();
         FilterLeisteAufbauen();
         FilterAnwenden();
-        if (_filterLeiste.Visible && _grid.CurrentCell is { } c && _filterLeiste.Controls[_grid.Columns[c.ColumnIndex].Name] is TextBox tb) tb.Focus();
+        if (_filterLeiste.Visible && _grid.CurrentCell is { } c && _filterLeiste.Controls[_grid.Columns[c.ColumnIndex].Name] is ComboBox tb) tb.Focus();
     }
 
     /// <summary>Eingabefelder der Filterzeile (je Spalte eines, mit dem Filtersymbol über den Zeilenköpfen).</summary>
@@ -1084,16 +1141,32 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         if (!_filterLeiste.Visible) return;
         var namen = _grid.Columns.Cast<DataGridViewColumn>().Select(c => c.Name).ToHashSet();
-        foreach (var tb in _filterLeiste.Controls.OfType<TextBox>().Where(t => !namen.Contains(t.Name)).ToList()) { _filterLeiste.Controls.Remove(tb); tb.Dispose(); }
+        foreach (var tb in _filterLeiste.Controls.OfType<ComboBox>().Where(t => !namen.Contains(t.Name)).ToList()) { _filterLeiste.Controls.Remove(tb); tb.Dispose(); }
         if (_filterLeiste.Controls["FilterSymbol"] is null)
             _filterLeiste.Controls.Add(new PictureBox { Name = "FilterSymbol", Image = Symbole.Get("filter", 16), SizeMode = PictureBoxSizeMode.CenterImage, Left = 0, Top = 0, Height = 22 });
         foreach (DataGridViewColumn c in _grid.Columns)
         {
-            if (_filterLeiste.Controls[c.Name] is TextBox) continue;
-            var tb = new TextBox { Name = c.Name, BorderStyle = BorderStyle.FixedSingle, Text = _filter.GetValueOrDefault(c.Name, ""), Font = Ui.Schrift };
+            if (_filterLeiste.Controls[c.Name] is ComboBox) continue;
+            // Combo Box der Filterzeile: Werte der Spalte zur Auswahl; mit gedrückter Strg-Taste gewählte Werte werden UND-verknüpft
+            var tb = new ComboBox { Name = c.Name, DropDownStyle = ComboBoxStyle.DropDown, Text = _filter.GetValueOrDefault(c.Name, ""), Font = Ui.Schrift, FlatStyle = FlatStyle.Flat };
             var name = c.Name;
-            tb.TextChanged += (_, _) => { _filter[name] = tb.Text; FilterAnwenden(); };
-            _tip.SetToolTip(tb, "Filter: Platzhalter ? (ein Zeichen) und * (beliebig viele Zeichen), mehrere Werte mit | (oder)");
+            var vorher = tb.Text;
+            tb.DropDown += (_, _) =>
+            {
+                vorher = tb.Text;
+                tb.Items.Clear();
+                tb.Items.AddRange(FilterWerte(name).Cast<object>().ToArray());
+            };
+            tb.SelectionChangeCommitted += (_, _) =>
+            {
+                if (tb.SelectedItem is not string w) return;
+                var neu = (ModifierKeys & Keys.Control) != 0 && vorher.Trim().Length > 0 ? FilterUnd(vorher, w) : w;
+                BeginInvoke(() => { tb.Text = neu; tb.SelectionStart = neu.Length; vorher = neu; });
+                if ((ModifierKeys & Keys.Control) != 0) BeginInvoke(() => tb.DroppedDown = true);
+            };
+            tb.TextChanged += (_, _) => { _filter[name] = tb.Text; if (!tb.DroppedDown) vorher = tb.Text; FilterAnwenden(); };
+            tb.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { tb.DroppedDown = false; _filter[name] = tb.Text; FilterAnwenden(); e.Handled = e.SuppressKeyPress = true; } };
+            _tip.SetToolTip(tb, "Filter: Platzhalter ? (ein Zeichen) und * (beliebig viele Zeichen), mehrere Werte mit | (oder); Werte mit gedrückter Strg-Taste auswählen bzw. mit & verbinden = UND");
             _filterLeiste.Controls.Add(tb);
         }
         FilterLeisteAnordnen();
@@ -1105,7 +1178,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         if (_filterLeiste.Controls["FilterSymbol"] is Control sym) sym.Width = _grid.RowHeadersVisible ? _grid.RowHeadersWidth : 0;
         foreach (DataGridViewColumn c in _grid.Columns)
         {
-            if (_filterLeiste.Controls[c.Name] is not TextBox tb) continue;
+            if (_filterLeiste.Controls[c.Name] is not ComboBox tb) continue;
             var r = _grid.GetColumnDisplayRectangle(c.Index, false);
             tb.Visible = c.Visible && r.Width > 0;
             if (tb.Visible) tb.SetBounds(r.Left, 0, r.Width, _filterLeiste.Height);
@@ -1130,19 +1203,38 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         }
     }
 
-    /// <summary>Filterregel: Platzhalter ? und *, Alternativen mit |; bei Listen („LANG,EGB“) genügt ein passender Eintrag.</summary>
+    /// <summary>
+    /// Filterregel: Platzhalter ? und *, Alternativen mit | (ODER), mit &amp; verbundene Werte müssen alle passen (UND, z. B. „1a&amp;1b“:
+    /// gemeinsame Einträge); bei Listen („LANG,EGB“) genügt für jeden Teil ein passender Eintrag.
+    /// </summary>
     internal static bool FilterPasst(string wert, string filter)
     {
         foreach (var teil in filter.Split('|'))
         {
-            var t = teil.Trim();
-            if (t.Length == 0) continue;
-            var muster = "^" + System.Text.RegularExpressions.Regex.Escape(t).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
-            var re = new System.Text.RegularExpressions.Regex(muster, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-            if (re.IsMatch(wert) || wert.Split(',').Any(x => re.IsMatch(x.Trim()))) return true;
+            var und = teil.Split('&').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+            if (und.Count == 0) continue;
+            if (und.All(t =>
+            {
+                var muster = "^" + System.Text.RegularExpressions.Regex.Escape(t).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
+                var re = new System.Text.RegularExpressions.Regex(muster, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+                return re.IsMatch(wert) || wert.Split(',').Any(x => re.IsMatch(x.Trim()));
+            })) return true;
         }
         return false;
     }
+
+    /// <summary>Weiteren Wert UND-verknüpft an den Filter anhängen (Strg-Mehrfachauswahl in der Combo Box der Filterzeile).</summary>
+    internal static string FilterUnd(string filter, string wert)
+    {
+        var teile = filter.Split('&').Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+        if (!teile.Contains(wert, StringComparer.OrdinalIgnoreCase)) teile.Add(wert);
+        return string.Join("&", teile);
+    }
+
+    /// <summary>Werte einer Spalte für die Combo Box der Filterzeile (Listen wie „LANG,EGB“ einzeln).</summary>
+    private List<string> FilterWerte(string spalte) => _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Element)
+        .SelectMany(r => (r.Cells[spalte].Value switch { bool b => b ? "x" : "", var v => v?.ToString() ?? "" }).Split(','))
+        .Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.Create(Format.De, true)).ToList();
 
     /// <summary>„Felder mit Inhalt“: vorübergehend alle Spalten mit mindestens einem Eintrag; zweiter Klick stellt den Originalzustand wieder her.</summary>
     private void FelderMitInhalt()
@@ -1179,9 +1271,17 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         if (markiert.Count == 0 && _aktuell != null) markiert.Add(_aktuell);
         if (markiert.Count == 0) return;
         var e0 = markiert[0];
-        var farbe = ElementFarbeDialog.Zeigen(this, markiert.Count == 1 ? e0.Kurzname : $"{markiert.Count} Elemente", e0.Vordergrund, e0.Hintergrund);
-        if (farbe is not { } f) return;
-        if (Aendern(markiert.Count == 1 ? "Farbe geändert" : "Farben geändert", AenderungsArt.Stammdaten, _ => { foreach (var el in markiert) { el.Vordergrund = f.Vorder; el.Hintergrund = f.Hinter; } }))
+        var auto = D.Einstellungen.AutomatischeFarbe.Contains(_typ.ToString());
+        var erg = ElementFarbeDialog.Zeigen(this, markiert.Count == 1 ? e0.Kurzname : $"{markiert.Count} Elemente", e0.Vordergrund, e0.Hintergrund, auto);
+        if (erg is not { } r) return;
+        var f = r.Farbe;
+        if (Aendern(markiert.Count == 1 ? "Farbe geändert" : "Farben geändert", AenderungsArt.Stammdaten, d =>
+        {
+            foreach (var el in markiert) { el.Vordergrund = f.Vorder; el.Hintergrund = f.Hinter; }
+            // Neuen Elementen automatisch eine Farbe zuweisen (je Elementart)
+            d.Einstellungen.AutomatischeFarbe.Remove(_typ.ToString());
+            if (r.Automatisch) d.Einstellungen.AutomatischeFarbe.Add(_typ.ToString());
+        }))
             Neuaufbau();
     }
 
@@ -1190,8 +1290,10 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         using var fd = new FontDialog { Font = _grid.DefaultCellStyle.Font ?? _grid.Font, ShowEffects = false };
         if (fd.ShowDialog(this) != DialogResult.OK) return;
-        _grid.DefaultCellStyle.Font = fd.Font;
-        _grid.RowTemplate.Height = Math.Max(18, fd.Font.Height + 6);
-        foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
+        SchriftAnwenden(fd.Font);
+        // Schriftwahl wird mit dem Format gespeichert (Format geändert: „*“, dann „Format speichern“)
+        _schrift = $"{fd.Font.FontFamily.Name};{fd.Font.Size.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        _ansichtGeaendert = true;
+        AnsichtBoxFuellen();
     }
 }

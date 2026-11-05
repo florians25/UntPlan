@@ -89,7 +89,7 @@ public static partial class Ui
     public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(199, 222, 213) : Color.FromArgb(196, 224, 246);
     public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(229, 239, 233) : Color.FromArgb(223, 239, 248);
     public static Color Titel => Vertretungsmodus ? Color.FromArgb(83, 137, 110) : Color.FromArgb(81, 155, 205);
-    public static Color MdiHintergrund => Vertretungsmodus ? Color.FromArgb(179, 228, 204) : Color.FromArgb(221, 239, 254);
+    public static Color MdiHintergrund => Dialoge.Einstellungsseiten.Hintergrund(Vertretungsmodus, Vertretungsmodus ? Color.FromArgb(179, 228, 204) : Color.FromArgb(221, 239, 254));
     public static Color Kopf => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 243, 251);
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(236, 241, 243);
     public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 236, 226) : Color.FromArgb(212, 233, 250);
@@ -162,8 +162,12 @@ public static partial class Ui
         {
             var kopfSchrift = g.ColumnHeadersDefaultCellStyle.Font ?? g.Font;
             foreach (DataGridViewColumn c in g.Columns)
+            {
                 if (c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
                     c.Width = Math.Max(c.Width, TextRenderer.MeasureText(c.HeaderText, kopfSchrift).Width + 8);
+                // Einstellungen | Anpassen: „Tooltips mit Spaltenbeschreibungen einblenden“
+                if (AppZustand.Einstellungen.SpaltenTooltips && c.ToolTipText.Length == 0 && c.HeaderText.Length > 0) c.ToolTipText = c.HeaderText;
+            }
         };
         g.DefaultCellStyle.SelectionBackColor = BlauHell;
         g.DefaultCellStyle.SelectionForeColor = Color.Black;

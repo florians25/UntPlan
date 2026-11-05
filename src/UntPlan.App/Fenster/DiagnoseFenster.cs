@@ -28,6 +28,10 @@ public sealed class DiagnoseFenster : MdiFenster
     private bool _ignorierteAusblenden;
     private List<DiagnosePunkt> _punkteEingabe = new(), _punktePlan = new();
 
+    /// <summary>Datums-Einstellung unter der Symbolleiste: die Diagnose bezieht sich immer auf die Woche dieses Datums.</summary>
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 104, Left = 4, Top = 3 };
+    private readonly Label _wocheText = new() { Left = 116, Top = 6, AutoSize = true, ForeColor = Color.DimGray };
+
     private static readonly string[] GwFilter = { "Alle", ">= 1", ">= 2", ">= 3", ">= 4", ">= 5" };
     private static readonly string[] AnzFilter = { "Alle", ">= 1" };
 
@@ -46,6 +50,9 @@ public sealed class DiagnoseFenster : MdiFenster
         ts.Items.Add(_filterKnopf);
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Betroffenen Stundenplan anzeigen", "stundenplan", PlanZeigen));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Totaldiagnose", "diagnose", () => HauptFenster.Oeffnen("totaldiag", () => new TotaldiagnoseFenster()), false));
+        ts.Items.Add(Knopf("CCC-Analyse", "lehrer", () => HauptFenster.Oeffnen("ccc", () => new CccFenster()), false));
         foreach (var g in new[] { _eingabe, _plan })
         {
             _filter[g] = (0, 1);
@@ -95,7 +102,12 @@ public sealed class DiagnoseFenster : MdiFenster
         split.Panel2.Controls.Add(_betroffen);
         split.Panel2.Controls.Add(_beschreibung);
         split.Panel2.Controls.Add(_titel);
+        var datumZeile = new Panel { Dock = DockStyle.Top, Height = 28 };
+        _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
+        _datum.ValueChanged += (_, _) => Neuaufbau();
+        datumZeile.Controls.AddRange(new Control[] { _datum, _wocheText });
         Controls.Add(split);
+        Controls.Add(datumZeile);
         Controls.Add(ts);
         Load += (_, _) => split.SplitterDistance = 360;
         Neuaufbau();
@@ -108,10 +120,15 @@ public sealed class DiagnoseFenster : MdiFenster
 
     private void Neuaufbau()
     {
+        var datum = DateOnly.FromDateTime(_datum.Value);
+        var montag = Kalender.Montag(datum);
+        _wocheText.Text = $"Woche {Format.Datum(montag)} – {Format.Datum(montag.AddDays(Math.Max(1, D.Zeitraster.TageProWoche) - 1))}, Schulwoche {Kalender.Schulwoche(D, datum)}";
         using (new Dialoge.WarteCursor())
         {
-            _punkteEingabe = Diagnose.Eingabedaten(D);
-            _punktePlan = Diagnose.Stundenplan(D);
+            // Mehrwochenstundenplan: nur der in dieser Woche gültige Unterricht
+            var woche = Diagnose.FuerWoche(D, datum);
+            _punkteEingabe = Diagnose.Eingabedaten(woche);
+            _punktePlan = Diagnose.Stundenplan(woche);
         }
         AnsichtErneuern();
     }

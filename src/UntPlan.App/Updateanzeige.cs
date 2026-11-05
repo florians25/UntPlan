@@ -16,7 +16,8 @@ internal sealed class Updateanzeige
     public const string Standardquelle = "https://api.github.com/repos/florians25/UntPlan/releases?per_page=30";
     public const string Releaseseite = "https://github.com/florians25/UntPlan/releases/latest";
 
-    private static readonly HttpClient Http = new();
+    /// <summary>HTTP-Zugriff laut Einstellungen | Internet (Proxyserver).</summary>
+    private static readonly HttpClient Http = new(Dialoge.Einstellungsseiten.Handler());
     private readonly ToolStripStatusLabel _label;
     private readonly Control _besitzer;
 
@@ -31,7 +32,8 @@ internal sealed class Updateanzeige
     {
         _besitzer = besitzer;
         var url = Environment.GetEnvironmentVariable("UNTPLAN_UPDATE_URL");
-        var aktiv = Updatepruefung.Schalter(Environment.GetEnvironmentVariable("UNTPLAN_UPDATE_PRUEFEN"), true);
+        // Einstellungen | Internet: „Internetabfrage für Programmupdate“
+        var aktiv = Updatepruefung.Schalter(Environment.GetEnvironmentVariable("UNTPLAN_UPDATE_PRUEFEN"), true) && AppZustand.Einstellungen.UpdateAbfrage;
         Pruefung = new Updatepruefung(Http, typeof(Updateanzeige).Assembly, string.IsNullOrWhiteSpace(url) ? Standardquelle : url, aktiv, "v");
         _label = new ToolStripStatusLabel
         {
@@ -74,7 +76,7 @@ internal sealed class Updateanzeige
     {
         if (!Pruefung.Aktiv)
         {
-            Ui.Info($"Installierte Version: {Version}\n\nDie Prüfung auf Updates ist abgeschaltet (UNTPLAN_UPDATE_PRUEFEN=0).", "Nach Updates suchen");
+            Ui.Info($"Installierte Version: {Version}\n\nDie Prüfung auf Updates ist abgeschaltet (Einstellungen | Internet bzw. UNTPLAN_UPDATE_PRUEFEN=0).", "Nach Updates suchen");
             return;
         }
         Updatestand stand;

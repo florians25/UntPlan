@@ -317,6 +317,12 @@ struct Randblatt<Inhalt: View>: View {
                     .frame(maxWidth: .infinity)
                     .environment(\.randblattUnten, geo.safeAreaInsets.bottom)
                     .frame(height: innenHoehe, alignment: .top)
+                    // Inhalt als geschlossene Einheit: Kopf, Ladebild und Liste übernehmen die Einfahr-Animation nicht für ihre
+                    // eigene Lage (sonst hingen Balken kurz fest bzw. zuckten) – es bewegt sich nur das Blatt als Ganzes
+                    .geometryGroup()
+                    // Die Einfahr-Animation gilt nur dem Blatt (Versatz außen), nie dem Inhalt: was sich im selben Durchlauf
+                    // im Inneren ändert (Umgebung, Ladezustand), springt nicht animiert mit
+                    .transaction(value: sichtbar) { $0.animation = nil }
                     // Oben die runden Ecken; unten darf Inhalt bis an den Bildschirmrand reichen (Suchfeld der Planauswahl
                     // liegt wie im Original im Bereich über dem Home-Indikator)
                     .mask {
@@ -354,7 +360,11 @@ struct Randblatt<Inhalt: View>: View {
             // fällt so nicht in die ersten Bilder der Animation – das Blatt startet ohnehin unsichtbar unter dem Rand
             DispatchQueue.main.async {
                 withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true } completion: {
-                    if !schliesst { bewegt = false }
+                    // Ladebild → Inhalt hart (ohne geerbte Animation)
+                    guard !schliesst else { return }
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) { bewegt = false }
                 }
                 // Ein darunterliegendes Blatt schrumpft mit
                 elternSchrumpfen?(true)

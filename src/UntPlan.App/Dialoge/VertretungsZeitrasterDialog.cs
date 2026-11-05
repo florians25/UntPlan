@@ -47,6 +47,13 @@ public static class VertretungsZeitrasterDialog
         var tabs = new TabControl { Left = 8, Top = oben, Width = breite - 16, Height = f.ClientSize.Height - oben - 48, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         var seite = new TabPage("Vertretung") { BackColor = Ui.Kopf };
         tabs.TabPages.Add(seite);
+        // Klassenzeitraster: Registerkarte „Verplanung“ (Stundenplan) vor „Vertretung“; im Stundenplanmodus aktiv
+        var verplanung = istKlasse ? new KlassenzeitrasterVerplanung(d, f) : null;
+        if (verplanung != null)
+        {
+            tabs.TabPages.Insert(0, verplanung.Seite);
+            tabs.SelectedIndex = AppZustand.Vertretungsmodus ? 1 : 0;
+        }
         f.Controls.Add(tabs);
 
         var eintragung = new GroupBox { Text = "Eintragung:", Left = 10, Top = 6, Width = 170, Height = istKlasse ? 112 : 84 };
@@ -143,7 +150,7 @@ public static class VertretungsZeitrasterDialog
         };
         if (wahl != null)
         {
-            wahl.SelectedIndexChanged += (_, _) => { aktuell = wahl.SelectedItem as Klasse; Fuellen(); };
+            wahl.SelectedIndexChanged += (_, _) => { aktuell = wahl.SelectedItem as Klasse; Fuellen(); verplanung?.Klasse(aktuell); };
             wahl.SelectedItem = wahl.Items.Cast<Klasse>().FirstOrDefault(k => k.Id == klasse!.Id);
         }
         raster.SelectionChanged += (_, _) =>
@@ -165,6 +172,7 @@ public static class VertretungsZeitrasterDialog
             {
                 x.Vertretungseinstellungen.Zeitraster = neuSchule;
                 foreach (var k in x.Klassen) if (bereinigt.TryGetValue(k.Id, out var r)) k.VertretungsZeitraster = r;
+                verplanung?.Uebernehmen(x);
                 foreach (var t in x.Vertretungen.Select(v => v.Datum).Where(t => t >= DateOnly.FromDateTime(DateTime.Today)).Distinct().ToList()) Core.Vertretungsplanung.Vertretungen.Aktualisieren(x, t);
             });
         }

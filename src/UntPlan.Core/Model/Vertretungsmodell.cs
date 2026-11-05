@@ -446,6 +446,13 @@ public sealed class Klausur
     /// <summary>Kollidierender Unterricht der Klassen entfällt.</summary>
     public bool UnterrichtEntfaellt { get; set; } = true;
     public bool Aktiv { get; set; } = true;
+    /// <summary>Statistik-Kennzeichen der Klausur (geht auf die Klausurzeilen der Vertretungsliste über).</summary>
+    public string Statistik { get; set; } = "";
+    /// <summary>
+    /// „Raum ohne Kollision verplanen (erzeugt Raumvertretung)“: Unterricht, der zur Klausurzeit in einem Klausurraum stattfindet,
+    /// verliert den Raum (offene Raumvertretung).
+    /// </summary>
+    public bool RaumVerdraengen { get; set; }
     /// <summary>Aus UntPlanWeb übernommene Prüfung (Kennung der Rückmeldung): nur Lehrkraft und Raum änderbar, keine Verlegung.</summary>
     public string WebId { get; set; } = "";
     /// <summary>
@@ -598,8 +605,25 @@ public sealed class VertretungsEinstellungen
     public Dictionary<string, string> Bezeichnungen { get; set; } = new();
     public Dictionary<string, int> Farben { get; set; } = new();
     public bool MitAktuellemDatumStarten { get; set; } = true;
+    /// <summary>Vertretungsnachrichten (Einstellungen, Zweig „Vertretungsnachrichten“): Vorlage der Nachricht an die Lehrkräfte.</summary>
+    public NachrichtenEinstellungen Nachrichten { get; set; } = new();
 
     public VertretungsRegel Regel(int tag, int stunde) => Zeitraster.TryGetValue(tag * 100 + stunde, out var r) ? r : VertretungsRegel.Vertreten;
+}
+
+/// <summary>
+/// Vorlage der Vertretungsnachrichten an die Lehrkräfte (per E-Mail). Platzhalter: {Name}, {Kurzname}, {Datum}, {Zeilen}, {Anzahl},
+/// in der Zeilenvorlage {Datum}, {Tag}, {Stunde}, {Art}, {Klassen}, {Fach}, {Raum}, {Lehrer}, {Text}.
+/// </summary>
+public sealed class NachrichtenEinstellungen
+{
+    public string Betreff { get; set; } = "Vertretungen am {Datum}";
+    public string Text { get; set; } = "Guten Tag {Name},\n\nfür Sie liegen folgende Vertretungen vor:\n\n{Zeilen}\n\nMit freundlichen Grüßen\nVertretungsplanung";
+    public string Zeile { get; set; } = "{Tag} {Datum}, {Stunde}. Std.: {Art} {Klassen} {Fach} {Raum} {Text}";
+    /// <summary>Abwesende Lehrkräfte erhalten die Änderungen ihres eigenen Unterrichts (Entfälle, Vertretungen) zur Information.</summary>
+    public bool AbwesendeInformieren { get; set; }
+    /// <summary>Auch Entfälle (z. B. Freisetzung) an die betroffene Lehrkraft melden.</summary>
+    public bool EntfaelleMelden { get; set; } = true;
 }
 
 /// <summary>Wertkorrektur eines Lehrers zu einem Datum (Vertretungszähler oder Unterrichtswert).</summary>

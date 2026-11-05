@@ -6,6 +6,15 @@ namespace UntPlan.Core.Vertretungsplanung;
 public sealed record ZaehlZeile(Vertretung? Vertretung, DateOnly Datum, int Stunde, string Code, string Fach, string Klassen, string Grund, string Text,
     decimal Wert, bool Zaehlt, bool Bezahlt, bool Mehrarbeit, string Art);
 
+/// <summary>Bereitschafts-Einsatzzähler „m/n“: genutzte (m) von verplanten (n) Bereitschaften im Zeitraum.</summary>
+public sealed record BereitschaftsEinsatz(int Genutzt, int Verplant)
+{
+    /// <summary>Anzeige „m/n“ (leer ohne verplante Bereitschaften).</summary>
+    public string Text => Verplant == 0 && Genutzt == 0 ? "" : $"{Genutzt}/{Verplant}";
+    /// <summary>Alle verplanten Bereitschaften sind genutzt – Zelle rot.</summary>
+    public bool Erreicht => Verplant > 0 && Genutzt >= Verplant;
+}
+
 public sealed class ZaehlSumme
 {
     public decimal Summe { get; set; }
@@ -124,6 +133,35 @@ public static class Zaehlung
         return new AufsichtsBilanz(paGeplant, paEntfall, paVertr, berVerplant, berEntf, genutzt);
     }
 
+    /// <summary>
+    /// Bereitschafts-Einsatzzähler (Handbuch Kap. 16, Spalten „reg. Ber.“ und „Dep. Ber.“ im Vertretungsvorschlag) je Lehrkraft im
+    /// Zeitraum: verplante Bereitschaftsstunden laut Regelstundenplan (n) und davon genutzte (m) – eine Bereitschaft gilt als genutzt,
+    /// wenn die Lehrkraft zu dieser Zeit eine Vertretung hält. Getrennt nach regulären und Deputats-Bereitschaften (Fach „Bereitschaft im Deputat“).
+    /// </summary>
+    public static Dictionary<int, (BereitschaftsEinsatz Regulaer, BereitschaftsEinsatz Deputat)> BereitschaftsEinsaetze(Schuldatei d, DateOnly von, DateOnly bis)
+    {
+        var ix = DatenIndex.Fuer(d);
+        var reg = new Dictionary<int, (int M, int N)>();
+        var dep = new Dictionary<int, (int M, int N)>();
+        var gehalten = d.Vertretungen.Where(v => v.Datum >= von && v.Datum <= bis && v.VertreterId is int && !v.IstEntfall && v.VertreterId != v.LehrerId &&
+                                                 v.Art is not (VertretungsArt.Pausenaufsicht or VertretungsArt.Vormerkung or VertretungsArt.Veranstaltung or VertretungsArt.Unterricht))
+            .GroupBy(v => v.Datum).ToDictionary(g => g.Key, g => g.Select(v => (v.VertreterId!.Value, v.Stunde)).ToHashSet());
+        foreach (var t in Kalender.Tage(von, bis).Where(t => Kalender.IstUnterrichtstag(d, t)))
+        {
+            var heute = gehalten.GetValueOrDefault(t);
+            foreach (var (lehrer, stunde, imDeputat) in Tagesplan.Regulaer(d, t)
+                         .Where(r => r.LehrerId.HasValue && r.FachId is int f && ix.Faecher.TryGetValue(f, out var fa) && fa.Bereitschaft)
+                         .Select(r => (r.LehrerId!.Value, r.Stunde, ix.Faecher[r.FachId!.Value].BereitschaftImDeputat)).Distinct())
+            {
+                var ziel = imDeputat ? dep : reg;
+                var (m, n) = ziel.GetValueOrDefault(lehrer);
+                ziel[lehrer] = (m + (heute?.Contains((lehrer, stunde)) == true ? 1 : 0), n + 1);
+            }
+        }
+        return reg.Keys.Union(dep.Keys).ToDictionary(l => l, l =>
+            (new BereitschaftsEinsatz(reg.GetValueOrDefault(l).M, reg.GetValueOrDefault(l).N), new BereitschaftsEinsatz(dep.GetValueOrDefault(l).M, dep.GetValueOrDefault(l).N)));
+    }
+
     private static decimal StundenWert(Schuldatei d, Vertretung v)
     {
         if (v.Wert.HasValue) return v.Wert.Value;
@@ -239,7 +277,8 @@ public static class Zaehlung
         res.Zeilen.Sort((a, b) => a.Datum != b.Datum ? a.Datum.CompareTo(b.Datum) : a.Stunde.CompareTo(b.Stunde));
         res.Summe = res.Zeilen.Where(z => z.Zaehlt).Sum(z => z.Wert);
         res.VertretungenNichtZuZaehlen = res.Zeilen.Count(z => z.Wert == 0 && !z.Zaehlt && z.Code is "+V" or "V" or "B" or "+Y" or "+K" or "P" or "VA");
-        res.Bezahlt = res.Zeilen.Count(z => z.Bezahlt);
+        // Spalte „bez.“ (Handbuch Kap. 14.2, Bezahlte Vertretung): gehaltene bezahlte Vertretungen – nicht der eigene Entfall
+        res.Bezahlt = res.Zeilen.Count(z => z.Bezahlt && z.Vertretung is { IstEntfall: false } bv && bv.VertreterId == l.Id);
         res.Mehrarbeit = res.Zeilen.Count(z => z.Mehrarbeit && !z.Bezahlt);
         return res;
     }

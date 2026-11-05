@@ -62,6 +62,15 @@ public sealed class Dokument
     public bool KannRueckgaengig => _undo.Count > 0;
     public bool KannWiederholen => _redo.Count > 0;
     public string? RueckgaengigText => _undo.Last?.Value.Text;
+    /// <summary>Beschreibungen der rückgängig machbaren Änderungen, neueste zuerst (Karteikarte „Historie“ des Planungsdialogs).</summary>
+    public IReadOnlyList<string> Historie => _undo.Reverse().Select(x => x.Text).ToList();
+
+    /// <summary>„Liste löschen“: Die Historie beginnt von Neuem (die bisherigen Schritte können nicht mehr rückgängig gemacht werden).</summary>
+    public void HistorieLoeschen()
+    {
+        _undo.Clear();
+        _redo.Clear();
+    }
 
     public static readonly JsonSerializerOptions JsonOptionen = new()
     {

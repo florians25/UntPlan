@@ -14,7 +14,25 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class VertretungenFenster : MdiFenster, IDruckbar
 {
-    private static readonly string[] Ansichten = { "Klasse - Standard", "Lehrer - Standard", "Druck - Klasse", "Druck - Lehrer", "Pausenaufsichten" };
+    /// <summary>Befehle unten in der Auswahl der Ansicht (wie im Vorbild, fett): Format speichern, Format speichern als…, Bearbeiten, Löschen.</summary>
+    private sealed record AnsichtBefehl(string Text)
+    {
+        public override string ToString() => Text;
+    }
+
+    private static readonly AnsichtBefehl BefehlSpeichern = new("Format speichern"), BefehlSpeichernAls = new("Format speichern als..."),
+        BefehlBearbeiten = new("Bearbeiten"), BefehlLoeschen = new("Löschen");
+
+    /// <summary>Alle Vertretungsformate (mitgelieferte und eigene).</summary>
+    private static List<Vertretungsformat> Formate => AppZustand.Einstellungen.VertretungsformateListe;
+
+    /// <summary>Aktuelles Vertretungsformat.</summary>
+    private Vertretungsformat Fmt => _ansicht.SelectedItem as Vertretungsformat ?? _letztesFormat ?? Vertretungsformate.Finden(Formate, AppZustand.Einstellungen.Vertretungsansicht);
+    private Vertretungsformat? _letztesFormat;
+    /// <summary>Lehreransicht (Element „Vertreter“, Lehrerversion im Druck).</summary>
+    private bool LehrerSicht => Fmt.Art == VertretungsformatArt.Lehrer && !Fmt.NurPausenaufsichten;
+    private bool DruckSicht => Fmt.Druck;
+    private bool PausenSicht => Fmt.NurPausenaufsichten;
 
     private readonly Steuerelemente.BleibendeTabelle _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd dd.MM.yyyy", Width = 118 };
@@ -68,12 +86,18 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Size = new Size(1180, 520);
         Positionieren();
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
-        _ansicht.Items.AddRange(Ansichten);
-        _ansicht.SelectedIndex = Math.Max(0, Array.IndexOf(Ansichten, AppZustand.Einstellungen.Vertretungsansicht));
+        _ansicht.DrawMode = DrawMode.OwnerDrawFixed;
+        _ansicht.DrawItem += AnsichtZeichnen;
+        _ansicht.DropDownWidth = 190;
+        _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, Ui.SchriftFett.Height + 2);
+        AnsichtenFuellen(AppZustand.Einstellungen.Vertretungsansicht);
+        Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
         ElementeFuellen();
 
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Felder der Ansicht", "rollup", FelderDialog));
+        // Handbuch Kap. 13.1.1.3: Sortierkriterien der Ansicht (bleiben für dieses Vertretungsformat gespeichert)
+        ts.Items.Add(Knopf("Sortieren", "sortieren", SortierDialog));
         // Werkzeugleiste wie im Vorbild nur mit Symbolen (Text im Tooltip)
         ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen));
         ts.Items.Add(Knopf("Diagnose – Vertretungs-Diagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis)));
@@ -101,18 +125,31 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Neu berechnen (Absenzen, Veranstaltungen, Klausuren)", "aktualisieren", NeuBerechnen));
         ts.Items.Add(Knopf("Nachrichten zum Tag", "kommentar", () => TagestextDialog.Zeigen(this, AppZustand.Datum)));
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Vertretungsplan (HTML)", "html", () => HtmlAusgabe(DateOnly.FromDateTime(_von.Value), Math.Max(1, (int)(_bis.Value - _von.Value).TotalDays + 1), _ansicht.SelectedIndex is 1 or 3)));
+        ts.Items.Add(Knopf("Vertretungsplan (HTML)", "html", () => HtmlAusgabe(DateOnly.FromDateTime(_von.Value), Math.Max(1, (int)(_bis.Value - _von.Value).TotalDays + 1), LehrerSicht)));
         ts.Items.Add(Knopf("Vertretungsplan drucken (Aushang)", "drucken", () => Drucken(true)));
         ts.Items.Add(Knopf("Liste drucken (Felder mit „drucken“)", "vorschau", ListeDrucken));
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         einst.DropDownItems.Add("Einstellungen Vertretungsfenster (Vertretungsarten anzeigen)…", null, (_, _) => FensterEinstellungen());
         einst.DropDownItems.Add("Standardansicht (Spalten wie im Vorbild)", Symbole.Get("rollup", 16), (_, _) => Standardansicht());
+        // Handbuch Kap. 14.2 (Tipp Spalte „Zählen“): bis zum Schließen des Fensters grün = positiv, rot = negativ gezählt
+        var farbig = new ToolStripMenuItem("Zu zählende farbig")
+        {
+            ToolTipText = "Zeigt farbig, ob eine Vertretung bzw. ein Entfall gezählt wird (grün = pos., rot = neg.). Zum Deaktivieren das Vertretungsfenster schließen und erneut öffnen.",
+        };
+        farbig.Click += (_, _) =>
+        {
+            _zaehlendeFarbig = true;
+            farbig.Checked = true;
+            farbig.Enabled = false;
+            _g.Invalidate();
+        };
+        einst.DropDownItems.Add(farbig);
         einst.DropDownItems.Add("Vertretungsplanung: Farben und Bezeichnungen, Zähler, Vorschlag…", null, (_, _) => VertretungsEinstellungenDialog.Zeigen(this));
         var nurNeu = new ToolStripMenuItem("Seitenlayout: Nur neue Vertretungen drucken") { CheckOnClick = true, Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue, ToolTipText = "Nur Vertretungen drucken, die in dieser Arbeitssitzung angelegt oder geändert wurden (Kennzeichen „Neu“)" };
         nurNeu.CheckedChanged += (_, _) => { AppZustand.Einstellungen.Vertretungsdruck.NurNeue = nurNeu.Checked; AppZustand.Einstellungen.Speichern(); };
         einst.DropDownOpening += (_, _) => nurNeu.Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue;
         einst.DropDownItems.Add(nurNeu);
-        einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, _ansicht.SelectedIndex is 1 or 3));
+        einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, LehrerSicht));
         ts.Items.Add(einst);
 
         // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
@@ -126,8 +163,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             return g;
         }
         _elementGruppe = Gruppe("Klasse(n)", new Control[] { _element }.Concat(Ui.Durchschalter(_element)).ToArray());
-        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen");
-        _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Vertreter" : "Klasse(n)";
+        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen", schloss: true);
+        _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
         filter.Controls.Add(_elementGruppe);
         filter.Controls.Add(Gruppe("Von-Bis", _zeitraum));
         _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
@@ -284,13 +321,26 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Neuaufbau(true);
         };
         _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
+        var ansichtName = new Label { Dock = DockStyle.Top, Height = 22, Padding = new Padding(10, 4, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
-            AppZustand.Einstellungen.Vertretungsansicht = Ansichten[_ansicht.SelectedIndex];
+            if (_laedtAnsicht) return;
+            // Befehle unten in der Liste (Format speichern als…, Bearbeiten, Löschen): ausführen, die Ansicht bleibt
+            if (_ansicht.SelectedItem is AnsichtBefehl befehl)
+            {
+                _laedtAnsicht = true;
+                _ansicht.SelectedItem = _letztesFormat;
+                _laedtAnsicht = false;
+                BeginInvoke(() => AnsichtBefehlAusfuehren(befehl));
+                return;
+            }
+            _letztesFormat = Fmt;
+            AppZustand.Einstellungen.Vertretungsansicht = Fmt.Langname;
             AppZustand.Einstellungen.Speichern();
-            Text = "Vertretungen / " + Ansichten[_ansicht.SelectedIndex].Replace(" - ", " – ");
+            Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
             ElementeFuellen();
-            _elementGruppe.Text = _ansicht.SelectedIndex is 1 or 3 ? "Vertreter" : "Klasse(n)";
+            _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
+            ansichtName.Text = Fmt.Langname;
             if (_inhalt.Checked) _inhalt.Checked = false;
             _behalten.Leeren();
             _sortSpalte = null;
@@ -304,9 +354,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Springen(nr);
         };
 
-        // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle
-        var ansichtName = new Label { Dock = DockStyle.Top, Height = 22, Padding = new Padding(10, 4, 0, 0), BackColor = Ui.Kopf, Text = _ansicht.Text };
-        _ansicht.SelectedIndexChanged += (_, _) => ansichtName.Text = _ansicht.Text;
+        // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle (Label oben beim Auswahlfeld angelegt)
         Controls.Add(_g);
         Controls.Add(ansichtName);
         Controls.Add(filter);
@@ -357,7 +405,77 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     internal static readonly string[] StandardReihenfolge =
         { "Nr", "Art", "Datum", "Tag", "Std", "Zeit", "Klassen", "AKlassen", "Lehrer", "Vertreter", "Raum", "NRaum", "Fach", "NFach", "Von", "Nach", "Text" };
 
-    private string AnsichtName => Ansichten[Math.Max(0, _ansicht.SelectedIndex)];
+    private string AnsichtName => Fmt.Langname;
+
+    // ----------------------------------------------------------------------------------------------
+    // Sortierung (Handbuch Kap. 13.1.1.3)
+    // ----------------------------------------------------------------------------------------------
+
+    /// <summary>Gespeicherte Sortierkriterien der Ansicht (leer = Standard: Datum, Klasse bzw. Lehrer, Stunde).</summary>
+    private List<VertretungsSortierkriterium> Sortierung() =>
+        (AppZustand.Einstellungen.VertretungsSortierung.GetValueOrDefault(AnsichtName) ?? new List<VertretungsSortierkriterium>()).Where(k => _g.Columns.Contains(k.Feld)).ToList();
+
+    /// <summary>
+    /// Dialog „Sortierkriterien“: „Sortieren nach“ und viermal „dann nach“, je Feld (oder „--Keine--“) und Aufsteigend/Absteigend;
+    /// ein weiteres Kriterium ist erst wählbar, wenn das vorige gesetzt ist. Ok, Abbrechen, Übernehmen.
+    /// </summary>
+    private void SortierDialog()
+    {
+        const string keine = "--Keine--";
+        using var dlg = new Form
+        {
+            Text = "Sortierkriterien", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.FixedDialog, StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(360, 520), MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, BackColor = Ui.Kopf,
+        };
+        var felder = Spalten.Select(s => (s.Name, Text: s.Feld)).ToList();
+        var gespeichert = Sortierung();
+        var kombis = new List<ComboBox>();
+        var ab = new List<RadioButton>();
+        for (var i = 0; i < 5; i++)
+        {
+            var grp = new GroupBox { Text = i == 0 ? "Sortieren nach" : "dann nach", Left = 24, Top = 12 + i * 82, Width = 312, Height = 74 };
+            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 10, Top = 20, Width = 290 };
+            cb.Items.Add(keine);
+            foreach (var f in felder) cb.Items.Add(f.Text);
+            var auf = new RadioButton { Text = "Aufsteigend", Left = 10, Top = 46, AutoSize = true, Checked = true };
+            var abw = new RadioButton { Text = "Absteigend", Left = 150, Top = 46, AutoSize = true };
+            var k = i < gespeichert.Count ? gespeichert[i] : null;
+            cb.SelectedIndex = k is null ? 0 : 1 + felder.FindIndex(f => f.Name == k.Feld);
+            if (k?.Absteigend == true) abw.Checked = true;
+            grp.Controls.AddRange(new Control[] { cb, auf, abw });
+            dlg.Controls.Add(grp);
+            kombis.Add(cb);
+            ab.Add(abw);
+        }
+        void Freigeben()
+        {
+            for (var i = 0; i < kombis.Count; i++)
+                kombis[i].Parent!.Enabled = i == 0 || (kombis[i - 1].Parent!.Enabled && kombis[i - 1].SelectedIndex > 0);
+        }
+        foreach (var cb in kombis) cb.SelectedIndexChanged += (_, _) => Freigeben();
+        Freigeben();
+        var ok = new Button { Text = "Ok", Left = 76, Top = 480, Width = 80, Height = 26 };
+        var abbrechen = new Button { Text = "Abbrechen", Left = 164, Top = 480, Width = 80, Height = 26, DialogResult = DialogResult.Cancel };
+        var uebernehmen = new Button { Text = "Übernehmen", Left = 252, Top = 480, Width = 84, Height = 26 };
+        dlg.Controls.AddRange(new Control[] { ok, abbrechen, uebernehmen });
+        dlg.AcceptButton = ok;
+        dlg.CancelButton = abbrechen;
+        void Uebernehmen()
+        {
+            var liste = new List<VertretungsSortierkriterium>();
+            for (var i = 0; i < kombis.Count && kombis[i].Parent!.Enabled && kombis[i].SelectedIndex > 0; i++)
+                liste.Add(new VertretungsSortierkriterium { Feld = felder[kombis[i].SelectedIndex - 1].Name, Absteigend = ab[i].Checked });
+            if (liste.Count == 0) AppZustand.Einstellungen.VertretungsSortierung.Remove(AnsichtName);
+            else AppZustand.Einstellungen.VertretungsSortierung[AnsichtName] = liste;
+            AppZustand.Einstellungen.Speichern();
+            // die gespeicherte Sortierung gilt, bis wieder auf eine Spaltenüberschrift geklickt wird
+            _sortSpalte = null;
+            Neuaufbau(true);
+        }
+        ok.Click += (_, _) => { Uebernehmen(); dlg.DialogResult = DialogResult.OK; };
+        uebernehmen.Click += (_, _) => Uebernehmen();
+        dlg.ShowDialog(this);
+    }
 
     /// <summary>Gespeicherte Felder der Ansicht: Feld → Kennzeichen ("a" aktiv, "d" drucken, "L" Langname); fehlt = Standard.</summary>
     private Dictionary<string, string> FeldEinstellungen()
@@ -482,9 +600,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         using var dlg = new Dialog("Einstellungen – Vertretungen / " + AnsichtName.Replace(" - ", " – "), 380, 560);
         dlg.Controls.Add(new Label { Text = "Diese Vertretungsarten werden angezeigt:", Left = 12, Top = 10, AutoSize = true });
         var liste = new CheckedListBox { Left = 12, Top = 32, Width = 350, Height = 400, CheckOnClick = true, IntegralHeight = false };
-        var arten = Enum.GetValues<VertretungsArt>().OrderBy(a => Vertretungsplan.ArtText(D, a), StringComparer.Create(Format.De, true)).ToList();
+        var arten = Enum.GetValues<VertretungsArt>().OrderBy(a => ArtAnzeige(D, a), StringComparer.Create(Format.De, true)).ToList();
         var aus = AppZustand.Einstellungen.VertretungsArtenAus.GetValueOrDefault(AnsichtName) ?? new List<string>();
-        foreach (var a in arten) liste.Items.Add(Vertretungsplan.ArtText(D, a), !aus.Contains(a.ToString()) && (a != VertretungsArt.Unterricht || AppZustand.Einstellungen.VertretungenUnterrichtZeigen));
+        foreach (var a in arten) liste.Items.Add(ArtAnzeige(D, a), !aus.Contains(a.ToString()) && (a != VertretungsArt.Unterricht || AppZustand.Einstellungen.VertretungenUnterrichtZeigen));
         dlg.Controls.Add(liste);
         dlg.Controls.Add(new Label
         {
@@ -530,8 +648,123 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     public void AnsichtSetzen(string ansicht)
     {
-        var i = Array.IndexOf(Ansichten, ansicht);
-        if (i >= 0) _ansicht.SelectedIndex = i;
+        if (Formate.FirstOrDefault(f => f.Langname == ansicht) is not { } f) return;
+        if (!_ansicht.Items.Contains(f)) AnsichtenFuellen(Fmt.Langname);
+        _ansicht.SelectedItem = f;
+    }
+
+    /// <summary>Selbsttest: Name des aktuellen Vertretungsformats.</summary>
+    internal string AktuellesFormat => Fmt.Langname;
+
+    private bool _laedtAnsicht;
+
+    /// <summary>Auswahl unten rechts: alle Vertretungsformate, darunter (fett) Format speichern, Format speichern als…, Bearbeiten, Löschen.</summary>
+    internal void AnsichtenFuellen(string? waehlen = null)
+    {
+        _laedtAnsicht = true;
+        try
+        {
+            waehlen ??= _letztesFormat?.Langname ?? AppZustand.Einstellungen.Vertretungsansicht;
+            _ansicht.Items.Clear();
+            foreach (var f in Formate) _ansicht.Items.Add(f);
+            _ansicht.Items.AddRange(new object[] { BefehlSpeichern, BefehlSpeichernAls, BefehlBearbeiten, BefehlLoeschen });
+            var neu = Vertretungsformate.Finden(Formate, waehlen);
+            _ansicht.SelectedItem = neu;
+            _letztesFormat = neu;
+        }
+        finally { _laedtAnsicht = false; }
+    }
+
+    /// <summary>Befehle fett und durch eine Linie von den Formaten abgesetzt (wie im Vorbild).</summary>
+    private void AnsichtZeichnen(object? sender, DrawItemEventArgs e)
+    {
+        e.DrawBackground();
+        if (e.Index < 0) return;
+        var item = _ansicht.Items[e.Index];
+        var befehl = item is AnsichtBefehl;
+        var schrift = e.Font ?? Ui.Schrift;
+        using var fett = new Font(schrift, FontStyle.Bold);
+        var text = item is Vertretungsformat f ? f.Langname : Convert.ToString(item) ?? "";
+        // „Löschen“ gilt nur für eigene Formate
+        var grau = ReferenceEquals(item, BefehlLoeschen) && !(_letztesFormat?.Eigen ?? false);
+        var farbe = (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : grau ? SystemColors.GrayText : SystemColors.ControlText;
+        TextRenderer.DrawText(e.Graphics, text, befehl ? fett : schrift, e.Bounds, farbe,
+            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        if (ReferenceEquals(item, BefehlSpeichern) && (e.State & DrawItemState.ComboBoxEdit) == 0) e.Graphics.DrawLine(SystemPens.ControlDark, e.Bounds.Left, e.Bounds.Top, e.Bounds.Right, e.Bounds.Top);
+    }
+
+    private void AnsichtBefehlAusfuehren(AnsichtBefehl b)
+    {
+        if (IsDisposed) return;
+        if (ReferenceEquals(b, BefehlSpeichern))
+        {
+            AppZustand.Einstellungen.Speichern();
+            _status.Text = $"Format „{Fmt.Langname}“ gespeichert.";
+        }
+        else if (ReferenceEquals(b, BefehlSpeichernAls)) FormatSpeichernAls();
+        else if (ReferenceEquals(b, BefehlBearbeiten)) AppZustand.Haupt.VertretungsformateOeffnen();
+        else if (ReferenceEquals(b, BefehlLoeschen))
+        {
+            var f = Fmt;
+            if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
+            if (!Ui.Frage($"Vertretungsformat „{f.Langname}“ löschen?")) return;
+            FormatLoeschen(f);
+        }
+    }
+
+    /// <summary>„Format speichern als…“ (Dialog „Neues Format“: Name, Langname): Kopie des aktuellen Formats mit seinen Feldern der Ansicht.</summary>
+    internal void FormatSpeichernAls()
+    {
+        var r = NeuesFormatDialog.Zeigen(this, "", Fmt.Langname + " 2");
+        if (r is null) return;
+        if (Vertretungsformate.NamePruefen(Formate, r.Value.Name, r.Value.Langname) is { } fehler) { Ui.Info(fehler); return; }
+        var neu = FormatKopieren(Fmt, r.Value.Name, r.Value.Langname);
+        AnsichtSetzen(neu.Langname);
+    }
+
+    /// <summary>Format kopieren samt „Felder der Ansicht“, angezeigten Vertretungsarten und Sortierkriterien.</summary>
+    internal static Vertretungsformat FormatKopieren(Vertretungsformat vorlage, string name, string langname)
+    {
+        var e = AppZustand.Einstellungen;
+        var neu = Vertretungsformate.Kopieren(e.VertretungsformateListe, vorlage, name, langname);
+        e.FormatEinstellungenKopieren(vorlage.Langname, neu.Langname);
+        e.Speichern();
+        AlleAnsichtenAktualisieren();
+        return neu;
+    }
+
+    /// <summary>Eigenes Format löschen (mit seinen gespeicherten Feldern, Vertretungsarten und Sortierkriterien).</summary>
+    internal static void FormatLoeschen(Vertretungsformat f)
+    {
+        var e = AppZustand.Einstellungen;
+        if (!Vertretungsformate.Loeschen(e.VertretungsformateListe, f)) return;
+        e.FormatEinstellungenEntfernen(f.Langname);
+        if (e.Vertretungsansicht == f.Langname) e.Vertretungsansicht = Vertretungsformate.Finden(e.VertretungsformateListe, null).Langname;
+        e.Speichern();
+        AlleAnsichtenAktualisieren();
+    }
+
+    /// <summary>Auswahl der Ansicht in allen offenen Vertretungsfenstern neu füllen (nach Anlegen, Umbenennen, Löschen).</summary>
+    internal static void AlleAnsichtenAktualisieren()
+    {
+        foreach (var vf in AppZustand.Haupt.MdiChildren.OfType<VertretungenFenster>())
+        {
+            var vorher = vf._letztesFormat;
+            var name = vorher is not null && Formate.Contains(vorher) ? vorher.Langname : null;
+            vf.AnsichtenFuellen(name);
+            if (vorher is null || !ReferenceEquals(vf._letztesFormat, vorher)) vf.AnsichtGewechselt();
+        }
+    }
+
+
+    /// <summary>Ansicht nach Löschen des gewählten Formats neu anwenden.</summary>
+    private void AnsichtGewechselt()
+    {
+        var f = Fmt;
+        _laedtAnsicht = true;
+        _ansicht.SelectedItem = null;
+        _laedtAnsicht = false;
+        _ansicht.SelectedItem = f;
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
@@ -564,7 +797,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         if (!_sync || IsDisposed) return;
         _laedt = true;
-        _von.Value = _bis.Value = datum.ToDateTime(TimeOnly.MinValue);
+        // eingefrorener Tages-Abstand (Schloss bei „Von-Bis“) bleibt erhalten
+        _zeitraum.DatumSetzen(datum.ToDateTime(TimeOnly.MinValue));
         _laedt = false;
         ZeitraumGeaendert();
     }
@@ -677,7 +911,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private bool Passt(Vertretung v)
     {
         // Ansicht „Pausenaufsichten“ zeigt nur diese; in den übrigen Ansichten stehen sie wie im Vorbild mit in der Liste
-        if (_ansicht.SelectedIndex == 4 && v.Art != VertretungsArt.Pausenaufsicht) return false;
+        if (PausenSicht && v.Art != VertretungsArt.Pausenaufsicht) return false;
         // gerade bearbeitete Zeile bleibt bis zum Zeilenwechsel sichtbar, auch wenn sie nicht mehr zum Filter passt
         var behalten = _behalten.Enthaelt(v.Id);
         if (_offen.Checked && !v.OffenOderRaumOffen && !behalten) return false;
@@ -689,7 +923,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (Vertretungen.NichtInListe(D, v) && !behalten) return false;
         if (_element.SelectedItem is Eintrag { Id: int id } && !behalten)
         {
-            var treffer = _ansicht.SelectedIndex is 1 or 3
+            var treffer = LehrerSicht
                 ? v.LehrerId == id || v.VertreterId == id
                 : v.NeueKlassenIds.Contains(id) || v.KlassenIds.Contains(id);
             if (!treffer) return false;
@@ -706,7 +940,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private static string? Schluessel(DataGridViewRow r) => r.Tag is Vertretung v ? Schluessel(v) : null;
 
     /// <summary>Filter, unter dem eine bearbeitete Zeile verschwinden könnte (dann bleibt sie bis zum Zeilenwechsel stehen).</summary>
-    private bool FilterAktiv => _offen.Checked || _kollisionen.Checked || _element.SelectedItem is Eintrag { Id: not null } || _ansicht.SelectedIndex is 2 or 3;
+    private bool FilterAktiv => _offen.Checked || _kollisionen.Checked || _element.SelectedItem is Eintrag { Id: not null } || DruckSicht;
 
     /// <summary>
     /// Liste aktualisieren, ohne sie ganz neu zu laden: Werte bestehender Zeilen werden an Ort und Stelle erneuert, neue Zeilen an
@@ -763,11 +997,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Zeilen der Liste: Filter, Veranstaltungen je Tag zusammengefasst, sortiert (Standard oder nach gewählter Spalte).</summary>
     private List<Vertretung> Zeilenliste()
     {
-        var lehrerSicht = _ansicht.SelectedIndex is 1 or 3;
-        var druck = _ansicht.SelectedIndex is 2 or 3;
+        var lehrerSicht = LehrerSicht;
+        var druck = DruckSicht;
         IEnumerable<Vertretung> liste = TauschZusammenfassen(Zusammenfassen(Vertretungen.ImZeitraum(D, Von, Bis).Where(Passt).ToList()));
         if (druck) liste = liste.Where(v => !v.NichtDrucken || _behalten.Enthaelt(v.Id));
-        if (AppZustand.Einstellungen.VertretungenUnterrichtZeigen && _ansicht.SelectedIndex != 4 && !_offen.Checked && !_kollisionen.Checked) liste = liste.Concat(Unterrichtszeilen());
+        if (AppZustand.Einstellungen.VertretungenUnterrichtZeigen && !PausenSicht && !_offen.Checked && !_kollisionen.Checked) liste = liste.Concat(Unterrichtszeilen());
         var zeilen = liste.ToList();
         var vergleich = StringComparer.Create(Format.De, true);
         if (_sortSpalte is { } sp && _g.Columns.Contains(sp))
@@ -782,6 +1016,28 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 _ => _sortAbsteigend ? zeilen.OrderByDescending(v => werte[v], vergleich) : zeilen.OrderBy(v => werte[v], vergleich),
             };
             return sortiert.ThenBy(v => v.Datum).ThenBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
+        }
+        // gespeicherte Sortierkriterien der Ansicht („Sortieren“, Handbuch Kap. 13.1.1.3)
+        if (Sortierung() is { Count: > 0 } kriterien)
+        {
+            var werteJe = new Dictionary<Vertretung, object?[]>(ReferenceEqualityComparer.Instance);
+            foreach (var z in zeilen) werteJe[z] = Werte(z);
+            IOrderedEnumerable<Vertretung>? sortiert = null;
+            foreach (var k in kriterien)
+            {
+                var i = _g.Columns[k.Feld]!.Index;
+                IComparer<Vertretung> vgl = k.Feld switch
+                {
+                    "Nr" => Comparer<Vertretung>.Create((a, b) => a.Id.CompareTo(b.Id)),
+                    "Datum" or "Tag" => Comparer<Vertretung>.Create((a, b) => a.Datum.CompareTo(b.Datum)),
+                    "Std" or "Zeit" => Comparer<Vertretung>.Create((a, b) => a.Stunde.CompareTo(b.Stunde)),
+                    _ => Comparer<Vertretung>.Create((a, b) => vergleich.Compare(werteJe[a][i]?.ToString() ?? "", werteJe[b][i]?.ToString() ?? "")),
+                };
+                sortiert = sortiert is null
+                    ? (k.Absteigend ? zeilen.OrderByDescending(v => v, vgl) : zeilen.OrderBy(v => v, vgl))
+                    : (k.Absteigend ? sortiert.ThenByDescending(v => v, vgl) : sortiert.ThenBy(v => v, vgl));
+            }
+            return sortiert!.ThenBy(v => v.Datum).ThenBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
         }
         var standard = lehrerSicht
             ? zeilen.OrderBy(v => v.Datum).ThenBy(v => Ix.KLehrer(v.VertreterId ?? v.LehrerId), vergleich).ThenBy(v => v.Stunde)
@@ -921,7 +1177,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         string Gleich(Func<Vertretung, int?> wert, ElementTyp typ) => gruppe.Select(wert).Distinct().ToList() is { Count: 1 } l && l[0] is int id ? Ix.K(typ, id) : "";
         var klassen = Liste(ElementTyp.Klasse, gruppe.SelectMany(x => x.KlassenIds));
         var lehrer = Liste(ElementTyp.Lehrer, gruppe.Where(x => x.LehrerId.HasValue).Select(x => x.LehrerId!.Value));
-        Setzen("Art", $"{Vertretungsplan.ArtText(D, v.Art)} ({gruppe.Count})");
+        Setzen("Art", $"{ArtAnzeige(D, v.Art)} ({gruppe.Count})");
         Setzen("AKlassen", klassen);
         Setzen("Klassen", v.Art == VertretungsArt.Freisetzung && klassen.Length > 0 ? $"({klassen})" : klassen);
         Setzen("Lehrer", lehrer);
@@ -1024,7 +1280,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                               !Plan(v.Datum).VonLehrer(vt).Any(e => e.Stunde < v.Stunde && e.Vertretung != v) ? "X" : "";
         var werte = new object?[]
         {
-            v.Id == 0 ? "" : v.Id, Vertretungsplan.ArtText(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
+            v.Id == 0 ? "" : v.Id, ArtAnzeige(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
             // „Fach“ bleibt wie im Vorbild leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
@@ -1054,6 +1310,26 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie im Vorbild türkis).</summary>
     private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
 
+    /// <summary>„Zu zählende farbig“: positiv gezählt (grün) bzw. negativ gezählt (rot).</summary>
+    private static readonly Color ZaehltPositiv = Color.FromArgb(150, 230, 150);
+    private static readonly Color ZaehltNegativ = Color.FromArgb(255, 150, 150);
+
+    /// <summary>
+    /// Einstellung „Zu zählende farbig“ (Handbuch Kap. 14.2): gilt, bis das Vertretungsfenster geschlossen wird – wie im Vorbild wird sie
+    /// durch Schließen und erneutes Öffnen des Fensters wieder deaktiviert.
+    /// </summary>
+    private bool _zaehlendeFarbig;
+
+    /// <summary>
+    /// Bezeichnung der Vertretungsart in Anzeige und Druck des Vertretungsfensters (Handbuch Kap. 7.2: „Vtr. ohne Lehrer“). Die gemeinsamen
+    /// Texte für Aushang, Web und Mobil (<see cref="Vertretungsplan.ArtText(Schuldatei, VertretungsArt)"/>) bleiben unverändert; eine eigene
+    /// Bezeichnung aus „Farben und Bezeichnungen“ gilt auch hier.
+    /// </summary>
+    internal static string ArtAnzeige(Schuldatei d, VertretungsArt a) =>
+        a == VertretungsArt.VertretungOhneLehrer && !(d.Vertretungseinstellungen.Bezeichnungen.TryGetValue(a.ToString(), out var t) && !string.IsNullOrWhiteSpace(t))
+            ? "Vtr. ohne Lehrer"
+            : Vertretungsplan.ArtText(d, a);
+
     /// <summary>Geänderte Felder bei Tausch/Verlegung (Vorbild: magenta, in der markierten Zeile lila).</summary>
     internal static readonly Color VerlegungsFarbe = Color.FromArgb(255, 128, 255);
     internal static readonly Color VerlegungsFarbeMarkiert = Color.FromArgb(212, 166, 223);
@@ -1077,6 +1353,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
         if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
+        // „Zu zählende farbig“ (Handbuch Kap. 14.2, Tipp Spalte „Zählen“): positiv gezählt grün (Vertreter), negativ rot (entfallende Lehrkraft)
+        if (_zaehlendeFarbig && v.Id != 0 && name is "Vertreter" or "Lehrer" or "Zaehler" && _g.Columns.Contains("Zaehler") &&
+            _g.Rows[e.RowIndex].Cells["Zaehler"].Value is string zk && zk.Length > 0)
+        {
+            var positiv = zk.StartsWith('+');
+            if (name == "Zaehler" || (name == "Vertreter") == positiv) e.CellStyle.BackColor = positiv ? ZaehltPositiv : ZaehltNegativ;
+        }
         // offene Vertretung: rotes "???" beim Vertreter bzw. Raum – auch in markierten Zeilen
         var offen = (v.Offen && name == "Vertreter") || (v.RaumOffen && name == "NRaum") ||
                     (name == "Vertreter" && v.Art == VertretungsArt.Veranstaltung && _gruppen.TryGetValue(v.Id, out var vg) && vg.Any(x => x.VeranstaltungOffen));
@@ -1235,7 +1518,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Elementauswahl passend zur Ansicht: Klassen bzw. Lehrer, zuerst „Alle“ (wie im Vorbild).</summary>
     private void ElementeFuellen()
     {
-        var lehrer = _ansicht.SelectedIndex is 1 or 3;
+        var lehrer = LehrerSicht;
         var alt = (_element.SelectedItem as Eintrag)?.Id;
         _laedt = true;
         _element.Items.Clear();
@@ -1273,7 +1556,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (v.Datum < Von || v.Datum > Bis)
         {
             _laedt = true;
-            _von.Value = _bis.Value = v.Datum.ToDateTime(TimeOnly.MinValue);
+            _zeitraum.DatumSetzen(v.Datum.ToDateTime(TimeOnly.MinValue));
             _laedt = false;
             ZeitraumGeaendert();
         }
@@ -1735,6 +2018,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         cm.Items.Add("Sondereinsatz…", Symbole.Get("neu"), (_, _) => SondereinsatzDialog.Neu(this, AppZustand.Datum, liste.FirstOrDefault()?.Stunde ?? 1, liste.FirstOrDefault()?.NeueKlassenIds.ToArray() ?? Array.Empty<int>(), Array.Empty<int>()));
         cm.Items.Add("Nachrichten zum Tag…", Symbole.Get("kommentar"), (_, _) => TagestextDialog.Zeigen(this, AppZustand.Datum));
+        cm.Items.Add("Vertretungsnachrichten…", Symbole.Get("nachricht"), (_, _) => VertretungsnachrichtenDialog.Zeigen(this, Von, Bis));
+        cm.Items.Add(new ToolStripSeparator());
+        // wie im Handbuch (Kap. 13.1.1): sämtliche Vertretungsformate auch über das Kontextmenü
+        cm.Items.Add("Vertretungsformate", Symbole.Get("uebersicht"), (_, _) => AppZustand.Haupt.VertretungsformateOeffnen());
+        cm.Items.Add("Format speichern als...", Symbole.Get("speichern"), (_, _) => FormatSpeichernAls());
         cm.Show(_g, pt);
     }
 
@@ -1755,7 +2043,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Aushang des Vertretungsplans (Klassen- bzw. Lehrerversion je nach Ansicht).</summary>
-    public void Drucken(bool vorschau) => Druck.VertretungsplanDruck.Drucken(this, Von, Bis, _ansicht.SelectedIndex is 1 or 3, vorschau);
+    public void Drucken(bool vorschau) => Druck.VertretungsplanDruck.Drucken(this, Von, Bis, LehrerSicht, vorschau);
 
     /// <summary>
     /// Selbsttest der Bearbeitung unter dem Filter „Offene Vertretungen“: Vertreter eintragen – Zeile bleibt sichtbar und aktuell,

@@ -293,6 +293,17 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     private readonly SplitContainer _split = new() { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, FixedPanel = FixedPanel.Panel2, Panel2Collapsed = true };
     private readonly TabControl _formular = new() { Dock = DockStyle.Fill };
     private readonly Dictionary<string, TextBox> _formFelder = new();
+    /// <summary>Einstellungen: „Eine Woche“ (nur Unterrichte dieser Woche) und „Vererbte Kennzeichen anzeigen“.</summary>
+    private bool _eineWoche;
+    private bool _vererbte = true;
+    private readonly DateTimePicker _woche = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.", Width = 70, Visible = false, Name = "EineWoche" };
+    private readonly NumericUpDown _wocheDreh = new() { Width = 18, Minimum = -1, Maximum = 1, Visible = false };
+
+    /// <summary>Doppelklick auf eine Unterrichtsnummer (1. Spalte): Eingabe in geöffnete Dialoge (Koppeln, Unterrichtsfolgen).</summary>
+    public static event Action<int>? UnterrichtsnummerGewaehlt;
+
+    /// <summary>Gibt es Empfänger für den Doppelklick auf die Unterrichtsnummer?</summary>
+    private static bool NummerWirdErwartet => UnterrichtsnummerGewaehlt != null;
 
     public static void Zeigen(ElementTyp sicht, int? id)
     {
@@ -334,6 +345,9 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Zeitwünsche", "zeitwunsch", () => { if (Aktuell() is { } u) ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, u.U.Id); }));
         ts.Items.Add(Knopf("Schuljahreskalender", "kalender", () => HauptFenster.Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Unterrichtsvergleich", "perioden", Unterrichtsvergleich));
+        ts.Items.Add(Knopf("Unterricht als Kurs übernehmen", "kurs", AlsKursUebernehmen));
         ts.Items.Add(new ToolStripSeparator());
         var layout = new ToolStripSplitButton("Seitenlayout", Symbole.Get("vorschau", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Seitenlayout" };
         layout.ButtonClick += (_, _) => Drucken(true);
@@ -429,12 +443,30 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             CellEndEdit(this, new DataGridViewCellEventArgs(e.ColumnIndex, e.RowIndex));
         };
         _grid.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _grid.EndEdit(); };
+        // Doppelklick auf die Unterrichtsnummer: in den Dialog „Koppeln“ bzw. das Fenster „Unterrichtsfolgen“ übernehmen
+        _grid.CellDoubleClick += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "UNr" || _grid.Rows[e.RowIndex].Tag is not ZeilenTag zt || !NummerWirdErwartet) return;
+            UnterrichtsnummerGewaehlt?.Invoke(zt.U.Id);
+        };
+        // Koppeln per Drag&Drop: Unterricht in der Spalte „Kl,Le“ anfassen und über einen anderen Unterricht ziehen;
+        // eine Kopplungszeile aus der Kopplung herausziehen = entkoppeln
+        _grid.AllowDrop = true;
+        _grid.DragOver += (_, e) =>
+        {
+            if (e.Data?.GetData(DataFormats.Text) is not string t || !t.StartsWith("koppeln:")) return;
+            e.Effect = DragDropEffects.Move;
+        };
+        _grid.DragDrop += KoppelnDrop;
+        _grid.CellMouseClick += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) Kontextmenue(e); };
         _grid.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZelleLeeren(); e.Handled = true; }
             // Zwischenablage (Handbuch 3.3.7): Strg+C / Strg+X / Strg+V kopieren, ausschneiden bzw. fügen markierte Unterrichte ein
             else if (e.Control && !e.Shift && !e.Alt && e.KeyCode is Keys.C or Keys.X && !_grid.IsCurrentCellInEditMode) { UnterrichteKopieren(e.KeyCode == Keys.X); e.Handled = true; }
             else if (e.Control && !e.Shift && !e.Alt && e.KeyCode == Keys.V && !_grid.IsCurrentCellInEditMode && _zwischenablage.Count > 0) { UnterrichteEinfuegen(); e.Handled = true; e.SuppressKeyPress = true; }
+            // Erweitertes Einfügen (mit Stundenplan): Strg+Umschalt+V
+            else if (e.Control && e.Shift && !e.Alt && e.KeyCode == Keys.V && !_grid.IsCurrentCellInEditMode && _zwischenablage.Count > 0) { UnterrichteEinfuegen(true); e.Handled = true; e.SuppressKeyPress = true; }
             else if (e.Alt && e.KeyCode == Keys.Down && _grid.CurrentCell is { } c && _grid.Columns[c.ColumnIndex].Name == "Klassen" && !c.ReadOnly) { e.Handled = true; KlassenAuswahl(c.RowIndex); }
         };
 
@@ -448,6 +480,22 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _unrFeld.Top = (Fussleiste.Hoehe - _unrFeld.Height) / 2;
         _unrFeld.ValueChanged += (_, _) => { if (!_unrLaden) UnterrichtMarkieren((int)_unrFeld.Value); };
         unten.Controls.Add(_unrFeld);
+        // Einstellung „Eine Woche“: Datum der angezeigten Woche neben der U-Nr (Drehknopf blättert wochenweise)
+        _woche.Left = _unrFeld.Right + 16;
+        _woche.Top = (Fussleiste.Hoehe - _woche.Height) / 2;
+        _woche.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
+        _woche.ValueChanged += (_, _) => { if (_eineWoche) Neuaufbau(); };
+        _wocheDreh.Left = _woche.Right + 1;
+        _wocheDreh.Top = _woche.Top;
+        _wocheDreh.ValueChanged += (_, _) =>
+        {
+            if (_wocheDreh.Value == 0) return;
+            var r = (int)_wocheDreh.Value;
+            _wocheDreh.Value = 0;
+            _woche.Value = _woche.Value.AddDays(7 * r);
+        };
+        unten.Controls.Add(_woche);
+        unten.Controls.Add(_wocheDreh);
         _hinweisLeiste.Controls.Add(_hinweis);
         _split.Panel1.Controls.Add(_grid);
         _split.Panel1.Controls.Add(_hinweisLeiste);
@@ -554,6 +602,22 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     private static T ElementPflicht<T>(IEnumerable<T> liste, string t, string art) where T : Element =>
         liste.FirstOrDefault(x => x.Kurzname.Equals(t.Trim(), StringComparison.OrdinalIgnoreCase)) ?? throw new FormatException($"{art} \"{t.Trim()}\" ist nicht vorhanden.");
 
+    /// <summary>Fachfolge beim Unterricht: 1–9 (positiv) bzw. A–E (negativ).</summary>
+    private static string Fachfolge(string t)
+    {
+        var x = t.Trim().ToUpperInvariant();
+        if (x.Length == 0) return "";
+        return x.Length == 1 && (x[0] is >= '1' and <= '9' or >= 'A' and <= 'E') ? x : throw new FormatException("Erlaubte Eingaben sind 1 - 9 für die positive, A - E für die negative Fachfolge.");
+    }
+
+    /// <summary>Klassenkollisions-Kennzeichen: 1–9 bzw. A–H.</summary>
+    private static string Kkk(string t)
+    {
+        var x = t.Trim().ToUpperInvariant();
+        if (x.Length == 0) return "";
+        return x.Length == 1 && (x[0] is >= '1' and <= '9' or >= 'A' and <= 'H') ? x : throw new FormatException("Die gültigen Eingaben sind 1 - 9 und A - H.");
+    }
+
     private void SpaltenDefinieren()
     {
         var ix = () => Ix;
@@ -599,7 +663,39 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             new("Text", "Text", 80, false, true, (u, _) => u.Text, (d, u, z, t) => u.Text = t),
             new("Fix", "Fix (X)", 44, false, true, (u, _) => B(u.Fix), (d, u, z, t) => u.Fix = Wahr(t), "Kennzeichen", Bool: true),
             new("Ignore", "Ignore (i)", 50, false, true, (u, _) => B(u.Ignorieren), (d, u, z, t) => u.Ignorieren = Wahr(t), "Kennzeichen", Bool: true),
-            new("Mehrmals", "(2) Fach auch 2x / Tag", 34, false, false, (u, _) => B(u.MehrmalsProTag), (d, u, z, t) => u.MehrmalsProTag = Wahr(t), "Kennzeichen", true),
+            // Karteikarte „Kennzeichen“ Teil 1 (Handbuch 3.4.4)
+            new("Markiert", "(m) Markiert", 34, false, false, (u, _) => B(u.Markiert), (d, u, z, t) => u.Markiert = Wahr(t), "Kennzeichen", true),
+            new("DoppPause", "(E) Doppelstd. über *-Pausen", 34, false, false, (u, _) => B(u.DoppelstundeUeberPause), (d, u, z, t) => u.DoppelstundeUeberPause = Wahr(t), "Kennzeichen", true),
+            new("Freifach", "(F) Freifach", 34, false, false, (u, _) => B(u.Freifach), (d, u, z, t) => u.Freifach = Wahr(t), "Kennzeichen", true),
+            new("NichtRand", "(G) Nicht in Randstunde", 34, false, false, (u, _) => B(u.NichtInRandstunde), (d, u, z, t) => u.NichtInRandstunde = Wahr(t), "Kennzeichen", true),
+            new("KeinAusweich", "(K) Kein Ausweichraum", 34, false, false, (u, _) => B(u.KeinAusweichraum), (d, u, z, t) => u.KeinAusweichraum = Wahr(t), "Kennzeichen", true),
+            new("KeineAnalyse", "(k) Keine Datenanalyse", 34, false, false, (u, _) => B(u.KeineDatenanalyse), (d, u, z, t) => u.KeineDatenanalyse = Wahr(t), "Kennzeichen", true),
+            new("SelberRaum", "(r) Stunden im selben Raum", 34, false, false, (u, _) => B(u.SelberRaum), (d, u, z, t) => u.SelberRaum = Wahr(t), "Kennzeichen", true),
+            new("LehrerFix", "Lehrerzuordnung fix", 34, true, false, (_, z) => B(z.LehrerFix), (d, u, z, t) => z.LehrerFix = Wahr(t), "Kennzeichen", true),
+            new("ZwVorhanden", "Zeitwünsche vorhanden", 34, false, false, (u, _) => B(!u.Zeitwuensche.Leer), null, "Kennzeichen", true),
+            // Karteikarte „Kennzeichen“ Teil 2 (Handbuch 3.4.5); (D), (2) und (C) schließen einander aus
+            new("BedingtFix", "(B) Bedingt fixieren", 34, false, false, (u, _) => B(u.BedingtFixieren), (d, u, z, t) => u.BedingtFixieren = Wahr(t), "Kennzeichen 2", true),
+            new("DoppEinhalten", "(D) Doppelstunden einhalten", 34, false, false, (u, _) => B(u.DoppelstundenEinhalten),
+                (d, u, z, t) => { u.DoppelstundenEinhalten = Wahr(t); if (u.DoppelstundenEinhalten) { u.MehrmalsProTag = false; u.KeineEinzelstunden = false; } }, "Kennzeichen 2", true),
+            new("KeineEinzel", "(C) Keine Einzelstunden", 34, false, false, (u, _) => B(u.KeineEinzelstunden),
+                (d, u, z, t) => { u.KeineEinzelstunden = Wahr(t); if (u.KeineEinzelstunden) { u.MehrmalsProTag = false; u.DoppelstundenEinhalten = false; } }, "Kennzeichen 2", true),
+            new("RandstundeU", "(R) Randstunde", 34, false, false, (u, _) => B(u.Randstunde), (d, u, z, t) => u.Randstunde = Wahr(t), "Kennzeichen 2", true),
+            new("KlGrSpaeter", "(S) Klassengruppe später planen", 34, false, false, (u, _) => B(u.KlassengruppeSpaeter), (d, u, z, t) => u.KlassengruppeSpaeter = Wahr(t), "Kennzeichen 2", true),
+            new("Mehrmals", "(2) Fach auch 2x / Tag", 34, false, false, (u, _) => B(u.MehrmalsProTag),
+                (d, u, z, t) => { u.MehrmalsProTag = Wahr(t); if (u.MehrmalsProTag) { u.DoppelstundenEinhalten = false; u.KeineEinzelstunden = false; } }, "Kennzeichen 2", true),
+            new("VarLehrer", "(V) Variabler Lehrer", 34, false, false, (u, _) => B(u.VariablerLehrer), (d, u, z, t) => u.VariablerLehrer = Wahr(t), "Kennzeichen 2", true),
+            new("NichtLegende", "(L) Nicht in Legende", 34, false, false, (u, _) => B(u.NichtInLegende), (d, u, z, t) => u.NichtInLegende = Wahr(t), "Kennzeichen 2", true),
+            new("NachmDoppel", "(U) Am Nachmittag nur Doppelstunden", 34, false, false, (u, _) => B(u.NachmittagNurDoppel), (d, u, z, t) => u.NachmittagNurDoppel = Wahr(t), "Kennzeichen 2", true),
+            new("Manuell", "(M) Manuell planen", 34, false, false, (u, _) => B(u.ManuellPlanen), (d, u, z, t) => u.ManuellPlanen = Wahr(t), "Kennzeichen 2", true),
+            new("SelbeZeit", "(s) Immer selbe Zeit", 34, false, false, (u, _) => B(u.ImmerSelbeZeit), (d, u, z, t) => u.ImmerSelbeZeit = Wahr(t), "Kennzeichen 2", true),
+            // Spalte „Kennzeichen“ (Handbuch 3.4.7): alle gesetzten Kennzeichen, vererbte in Klammern (Einstellungen)
+            new("Kennzeichen", "Kennzeichen", 70, false, false, (u, _) => Unterrichtswerkzeuge.KennzeichenAnzeige(ix(), u, _vererbte), null, "Kennzeichen"),
+            // Karteikarte „Stundenplan“ (Handbuch 3.4.3)
+            new("StdImRaum", "Stunden im Raum", 50, false, false, (u, _) => u.StundenImRaum > 0 ? u.StundenImRaum.ToString() : "",
+                (d, u, z, t) => u.StundenImRaum = t.Trim().Length == 0 ? 0 : Math.Max(0, int.Parse(t)), "Stundenplan"),
+            new("FfKlassen", "Fachfolge Klassen", 50, false, false, (u, _) => u.FachfolgeKlassen, (d, u, z, t) => u.FachfolgeKlassen = Fachfolge(t), "Stundenplan"),
+            new("FfLehrer", "Fachfolge Lehrer", 50, false, false, (u, _) => u.FachfolgeLehrer, (d, u, z, t) => u.FachfolgeLehrer = Fachfolge(t), "Stundenplan"),
+            new("KKK", "KlassenKoll. Kz.", 50, false, false, (u, _) => u.Klassenkollision, (d, u, z, t) => u.Klassenkollision = Kkk(t), "Stundenplan"),
             new("KeineVtr", "keine Vertr.", 70, false, false, (u, _) => B(u.KeineVertretung), (d, u, z, t) => u.KeineVertretung = Wahr(t), "Kennzeichen", true),
             new("Band", "Band", 50, false, true, (u, _) => u.Band, (d, u, z, t) => u.Band = t.Trim(), "Kursplanung"),
             new("Kurs", "Kursname", 70, false, false, (u, _) => u.Kursname, (d, u, z, t) => u.Kursname = t.Trim(), "Kursplanung"),
@@ -633,9 +729,15 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private IEnumerable<Unterricht> Unterrichte()
     {
-        if (_sicht == ElementTyp.Unterricht) return D.Unterrichte.OrderBy(u => u.Id);
-        if (_elementId is null) return Enumerable.Empty<Unterricht>();
-        return Ix.UnterrichteVon(_sicht, _elementId.Value).OrderBy(u => u.Id);
+        var liste = _sicht == ElementTyp.Unterricht ? D.Unterrichte.OrderBy(u => u.Id)
+            : _elementId is null ? Enumerable.Empty<Unterricht>() : Ix.UnterrichteVon(_sicht, _elementId.Value).OrderBy(u => u.Id);
+        // Einstellung „Eine Woche“: nur Unterrichte, die in der gewählten Woche stattfinden
+        if (_eineWoche)
+        {
+            var montag = Kalender.Montag(DateOnly.FromDateTime(_woche.Value));
+            return liste.Where(u => Unterrichtswerkzeuge.FindetInWocheStatt(D, u, montag));
+        }
+        return liste;
     }
 
     /// <summary>Platzhalter der Neuanlage-Zeile („+ neu“) am Ende der Liste.</summary>
@@ -944,6 +1046,12 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
 
     private void CellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
     {
+        if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "KlLe" &&
+            _grid.Rows[e.RowIndex].Tag is ZeilenTag kz && (ModifierKeys & (Keys.Control | Keys.Shift)) == 0)
+        {
+            _ziehen = (e.RowIndex, Cursor.Position, $"koppeln:{kz.U.Id}:{kz.Index}");
+            return;
+        }
         // Verplanung aus dem Unterrichtsfenster: Spalte "Nvpl. Std." per Drag & Drop in den Stundenplan ziehen
         if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "Nvpl" &&
             _grid.Rows[e.RowIndex].Tag is ZeilenTag zt && Ix.NichtVerplant(zt.U) > 0)
@@ -981,34 +1089,19 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     /// Einfügen: neue Unterrichte als Kopie; beim Einfügen in eine andere Klasse (Lehrkraft) wird die Ausgangsklasse (-lehrkraft) ersetzt
     /// und der Stammraum der neuen Klasse übernommen.
     /// </summary>
-    private void UnterrichteEinfuegen()
+    /// <param name="erweitert">Erweitertes Einfügen: auch den Stundenplan der kopierten Unterrichte übernehmen (Handbuch 3.3.7).</param>
+    private void UnterrichteEinfuegen(bool erweitert = false)
     {
         var quelle = _zwischenablageQuelle;
         var ziel = _elementId;
         var neue = new List<int>();
-        if (!Aendern("Unterricht einfügen", AenderungsArt.Unterricht, d =>
-        {
-            foreach (var id in _zwischenablage)
-            {
-                var vorlage = d.Unterrichte.FirstOrDefault(u => u.Id == id) ?? _ausgeschnitten.GetValueOrDefault(id);
-                if (vorlage is null) continue;
-                var u = vorlage.Kopie(d.NeueId());
-                if (quelle.Id is int q && ziel is int z && q != z && quelle.Typ == _sicht)
-                    foreach (var zeile in u.Zeilen)
-                    {
-                        if (_sicht == ElementTyp.Klasse && zeile.KlassenIds.Contains(q))
-                        {
-                            zeile.KlassenIds = zeile.KlassenIds.Select(k => k == q ? z : k).Distinct().ToList();
-                            if (d.Klassen.FirstOrDefault(k => k.Id == z)?.StammraumId is int sr) { zeile.StammraumId = sr; zeile.StammraumgruppeId = null; }
-                        }
-                        else if (_sicht == ElementTyp.Lehrer && zeile.LehrerId == q) zeile.LehrerId = z;
-                    }
-                d.Unterrichte.Add(u);
-                neue.Add(u.Id);
-            }
-        })) return;
+        var gleicheSicht = quelle.Typ == _sicht;
+        if (!Aendern(erweitert ? "Erweitertes Einfügen" : "Unterricht einfügen", AenderungsArt.Unterricht, d =>
+            neue = Unterrichtswerkzeuge.ErweitertesEinfuegen(d, _zwischenablage, _sicht, gleicheSicht ? quelle.Id : null, gleicheSicht ? ziel : null, erweitert, _ausgeschnitten))) return;
         Neuaufbau();
-        Hinweis(neue.Count == 0 ? "Nichts eingefügt." : $"Eingefügt: Unterricht {string.Join(", ", neue)} (noch nicht verplant).", neue.Count == 0 ? HinweisArt.Warnung : HinweisArt.Ok, true);
+        var verplant = erweitert ? neue.Sum(id => D.Stundenplan.Count(p => p.UnterrichtId == id)) : 0;
+        Hinweis(neue.Count == 0 ? "Nichts eingefügt." : $"Eingefügt: Unterricht {string.Join(", ", neue)}" + (erweitert ? $" mit {verplant} verplanten Stunden." : " (noch nicht verplant)."),
+            neue.Count == 0 ? HinweisArt.Warnung : HinweisArt.Ok, true);
     }
 
     private void AlleKopplungszeilen()
@@ -1038,35 +1131,25 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (ids.Count == 0) return;
         if (ids.Count == 1)
         {
-            var t = Ui.Eingabe($"U-Nr. {ids[0]} koppeln mit Unterricht (U-Nr., mehrere durch Komma getrennt):", "Koppeln");
-            if (string.IsNullOrWhiteSpace(t)) return;
-            foreach (var teil in t.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                if (!int.TryParse(teil, out var nr) || !D.Unterrichte.Any(u => u.Id == nr)) { Ui.Info($"Unterricht \"{teil}\" ist nicht vorhanden."); return; }
-                if (!ids.Contains(nr)) ids.Add(nr);
-            }
-            if (ids.Count < 2) return;
+            // Dialog „Koppeln“: der aktivierte Unterricht ist eingetragen; weitere per Doppelklick im Unterrichtsfenster,
+            // über <Dazu> (aktivierter Unterricht bzw. eingetragene Nummer)
+            KoppelnDialog.Zeigen(this, ids[0], () => Aktuell()?.U.Id, liste => KoppelnAusfuehren(liste, false));
+            return;
         }
+        KoppelnAusfuehren(ids, true);
+    }
+
+    /// <summary>Koppeln der Unterrichte (erster = Ziel) nach Rückfrage.</summary>
+    private void KoppelnAusfuehren(List<int> ids, bool fragen)
+    {
+        if (ids.Count < 2) return;
         var ziel = ids[0];
         var weitere = ids.Skip(1).ToList();
         var wst = D.Unterrichte.Where(u => ids.Contains(u.Id)).Select(u => u.Wochenstunden).Distinct().ToList();
         var text = $"Sollen die Unterrichte {string.Join(", ", ids)} gekoppelt werden?\n\nDie Kopplungszeilen kommen zum Unterricht {ziel}; verplante Stunden der übrigen Unterrichte werden entplant.";
         if (wst.Count > 1) text += $"\n\nAchtung: unterschiedliche Wochenstunden – die Kopplung übernimmt {D.Unterrichte.First(u => u.Id == ziel).Wochenstunden} Wst.";
-        if (!Ui.Frage(text)) return;
-        if (Aendern("Koppeln", AenderungsArt.Unterricht, d =>
-        {
-            var u = d.Unterrichte.First(x => x.Id == ziel);
-            foreach (var id in weitere)
-            {
-                var w = d.Unterrichte.First(x => x.Id == id);
-                foreach (var z in w.Zeilen)
-                {
-                    u.Zeilen.Add(z.Kopie());
-                    foreach (var p in d.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && !(p.Raeume.Count == 1 && u.Zeilen.Count > 2))) p.Raeume.Add(null);
-                }
-                Stammdaten.UnterrichtLoeschen(d, id);
-            }
-        }))
+        if (fragen && !Ui.Frage(text)) return;
+        if (Aendern("Koppeln", AenderungsArt.Unterricht, d => Unterrichtswerkzeuge.Koppeln(d, ziel, weitere)))
         {
             _aufgeklappt.Add(ziel);
             Neuaufbau();
@@ -1119,10 +1202,15 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     /// <summary>Einstellungen (Handbuch 3.5): Summenzeile anzeigen, Schrift der Rasteransicht.</summary>
     private void EinstellungenDialog()
     {
-        using var d = new Dialog("Einstellungen", 280, 110);
-        var summe = new CheckBox { Text = "Summenzeile anzeigen", Left = 12, Top = 14, AutoSize = true, Checked = _summe.Visible };
+        using var d = new Dialog("Einstellungen", 280, 140);
+        // wie im Handbuch: Eine Woche, Vererbte Kennzeichen anzeigen, Summenzeile anzeigen; Schrift / Ok / Abbrechen
+        var woche = new CheckBox { Text = "Eine Woche", Left = 12, Top = 12, AutoSize = true, Checked = _eineWoche, Name = "EineWoche" };
+        var vererbt = new CheckBox { Text = "Vererbte Kennzeichen anzeigen", Left = 12, Top = 36, AutoSize = true, Checked = _vererbte, Name = "Vererbte" };
+        var summe = new CheckBox { Text = "Summenzeile anzeigen", Left = 12, Top = 60, AutoSize = true, Checked = _summe.Visible, Name = "Summenzeile" };
+        d.Controls.Add(woche);
+        d.Controls.Add(vererbt);
         d.Controls.Add(summe);
-        var schrift = new Button { Text = "Schrift", Left = 12, Top = 74, Width = 72, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+        var schrift = new Button { Text = "Schrift", Left = 12, Top = 104, Width = 72, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
         Font? neueSchrift = null;
         schrift.Click += (_, _) =>
         {
@@ -1133,11 +1221,120 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         d.Ok.Text = "Ok";
         if (d.ShowDialog(this) != DialogResult.OK) return;
         _summe.Visible = summe.Checked;
+        var neuAufbauen = _eineWoche != woche.Checked || _vererbte != vererbt.Checked;
+        _eineWoche = woche.Checked;
+        _vererbte = vererbt.Checked;
+        _woche.Visible = _wocheDreh.Visible = _eineWoche;
+        if (neuAufbauen) { _spaltenStand = ""; Neuaufbau(); }
         if (neueSchrift != null)
         {
             _grid.DefaultCellStyle.Font = neueSchrift;
             _grid.RowTemplate.Height = Math.Max(18, neueSchrift.Height + 6);
             foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
+        }
+    }
+
+    private (int Zeile, Point Start, string Daten)? _ziehen;
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        // Ziehen erst nach einer kleinen Mausbewegung beginnen (ein Klick auf „Kl,Le“ klappt weiterhin auf/zu)
+        _grid.MouseMove += (_, m) =>
+        {
+            if (_ziehen is not { } z || (m.Button & MouseButtons.Left) == 0) { _ziehen = null; return; }
+            var p = Cursor.Position;
+            if (Math.Abs(p.X - z.Start.X) < SystemInformation.DragSize.Width && Math.Abs(p.Y - z.Start.Y) < SystemInformation.DragSize.Height) return;
+            _ziehen = null;
+            _grid.DoDragDrop(z.Daten, DragDropEffects.Move);
+        };
+        _grid.MouseUp += (_, _) => _ziehen = null;
+    }
+
+    /// <summary>
+    /// Drag&amp;Drop in der Spalte „Kl,Le“: Unterricht über einen anderen Unterricht fallen lassen = koppeln (nach Rückfrage);
+    /// eine weitere Kopplungszeile außerhalb ihres Unterrichts fallen lassen = aus der Kopplung lösen (eigener Unterricht).
+    /// </summary>
+    private void KoppelnDrop(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(DataFormats.Text) is not string t || !t.StartsWith("koppeln:")) return;
+        var teile = t.Split(':');
+        if (teile.Length < 3 || !int.TryParse(teile[1], out var quelle) || !int.TryParse(teile[2], out var zeile)) return;
+        var pt = _grid.PointToClient(new Point(e.X, e.Y));
+        var hit = _grid.HitTest(pt.X, pt.Y);
+        var ziel = hit.RowIndex >= 0 && _grid.Rows[hit.RowIndex].Tag is ZeilenTag zt ? zt.U.Id : (int?)null;
+        var qu = D.Unterrichte.FirstOrDefault(u => u.Id == quelle);
+        if (qu is null || ziel == quelle) return;
+        if (zeile > 0 && qu.Zeilen.Count > 1)
+        {
+            // Kopplungszeile aus der Kopplung herausziehen
+            int? neu = null;
+            if (Aendern("Entkoppeln", AenderungsArt.Unterricht, dd =>
+            {
+                var u = dd.Unterrichte.First(x => x.Id == quelle);
+                var n = u.Kopie(dd.NeueId());
+                n.Zeilen = new List<Kopplungszeile> { u.Zeilen[zeile].Kopie() };
+                dd.Unterrichte.Add(n);
+                neu = n.Id;
+                foreach (var p in dd.Perioden.SelectMany(p => p.Plan).Where(p => p.UnterrichtId == u.Id && p.Raeume.Count > zeile && !(p.Raeume.Count == 1 && u.Zeilen.Count > 1))) p.Raeume.RemoveAt(zeile);
+                u.Zeilen.RemoveAt(zeile);
+            }))
+            {
+                Neuaufbau();
+                Hinweis($"Entkoppelt: Kopplungszeile {zeile + 1} von U-Nr. {quelle} ist jetzt Unterricht {neu} (noch nicht verplant).", HinweisArt.Ok, true);
+            }
+            return;
+        }
+        if (ziel is not int zid) return;
+        var zu = D.Unterrichte.First(u => u.Id == zid);
+        if (!Ui.Frage($"Wollen Sie folgende Unterrichte koppeln?\n\n{zid}, {Ix.UnterrichtText(zu)}\n{quelle}, {Ix.UnterrichtText(qu)}", "Warnung")) return;
+        if (Aendern("Koppeln", AenderungsArt.Unterricht, dd => Unterrichtswerkzeuge.Koppeln(dd, zid, new[] { quelle })))
+        {
+            _aufgeklappt.Add(zid);
+            Neuaufbau();
+            Hinweis($"Unterrichte gekoppelt: U-Nr. {zid} hat jetzt {D.Unterrichte.First(u => u.Id == zid).Zeilen.Count} Kopplungszeilen.", HinweisArt.Ok, true, zid);
+        }
+    }
+
+    private void Kontextmenue(DataGridViewCellMouseEventArgs e)
+    {
+        if (e.ColumnIndex >= 0 && !_grid[e.ColumnIndex, e.RowIndex].Selected) _grid.CurrentCell = _grid[Math.Max(0, e.ColumnIndex), e.RowIndex];
+        var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        cm.Items.Add("Ausschneiden (Strg+X)", null, (_, _) => UnterrichteKopieren(true));
+        cm.Items.Add("Kopieren (Strg+C)", null, (_, _) => UnterrichteKopieren(false));
+        var einf = cm.Items.Add("Einfügen (Strg+V)", null, (_, _) => UnterrichteEinfuegen());
+        var erw = cm.Items.Add("Erweitertes Einfügen (Strg+Umschalt+V)", null, (_, _) => UnterrichteEinfuegen(true));
+        einf.Enabled = erw.Enabled = _zwischenablage.Count > 0;
+        cm.Items.Add(new ToolStripSeparator());
+        cm.Items.Add("Koppeln…", Symbole.Get("plus"), (_, _) => Koppeln());
+        cm.Items.Add("Erweitertes Entkoppeln…", Symbole.Get("minus"), (_, _) => ErweitertesEntkoppeln());
+        cm.Items.Add("Unterricht als Kurs übernehmen", null, (_, _) => AlsKursUebernehmen());
+        cm.Items.Add("Unterrichtsfolgen…", null, (_, _) => HauptFenster.Oeffnen<UnterrichtsfolgenFenster>("ufolgen", () => new UnterrichtsfolgenFenster()));
+        cm.Show(_grid, _grid.PointToClient(Cursor.Position));
+    }
+
+    /// <summary>Unterrichtsvergleich: Unterrichte in mehreren Perioden vergleichen (Handbuch 3.5).</summary>
+    private void Unterrichtsvergleich()
+    {
+        if (D.Perioden.Count < 2) { Hinweis("Für den Unterrichtsvergleich werden mindestens zwei Perioden benötigt (Modul Mehrwochenstundenplan / Perioden).", HinweisArt.Warnung, true); return; }
+        UnterrichtsvergleichDialog.Zeigen(this, Unterrichte().Select(u => u.Id).ToHashSet());
+    }
+
+    /// <summary>Unterricht als Kurs übernehmen (Kursplanung): Kursname vergeben und Schüler der Klassen eintragen.</summary>
+    private void AlsKursUebernehmen()
+    {
+        var ids = _grid.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<ZeilenTag>().Select(t => t.U.Id).Distinct().ToList();
+        if (ids.Count == 0 && Aktuell() is { } a) ids.Add(a.U.Id);
+        if (ids.Count == 0) return;
+        var schueler = 0;
+        if (Aendern("Unterricht als Kurs übernehmen", AenderungsArt.Unterricht, d =>
+        {
+            foreach (var id in ids) if (d.Unterrichte.FirstOrDefault(u => u.Id == id) is { } u) schueler += Unterrichtswerkzeuge.AlsKursUebernehmen(d, u);
+        }))
+        {
+            Neuaufbau();
+            var namen = string.Join(", ", ids.Select(id => D.Unterrichte.FirstOrDefault(u => u.Id == id)?.Kursname).Where(n => !string.IsNullOrEmpty(n)));
+            Hinweis($"Als Kurs übernommen: {namen}" + (schueler > 0 ? $" – {schueler} Kurswahl(en) eingetragen." : "."), HinweisArt.Ok, true);
         }
     }
 
@@ -1441,7 +1638,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     private void FormularAufbauen()
     {
         // Karteikarten in der Reihenfolge des Handbuchs: Unterricht, Stundenplan, Kennzeichen, Werte, Kopplungszeile (danach weitere)
-        var reihenfolge = new[] { "Unterricht", "Stundenplan", "Kennzeichen", "Werte", "Kopplungszeile" };
+        var reihenfolge = new[] { "Unterricht", "Stundenplan", "Kennzeichen", "Kennzeichen 2", "Werte", "Kopplungszeile" };
         foreach (var gruppe in _spalten.Where(s => s.Set != null).GroupBy(s => s.Zeile ? "Kopplungszeile" : s.Karte)
                      .OrderBy(g => Array.IndexOf(reihenfolge, g.Key) is var i && i >= 0 ? i : reihenfolge.Length))
         {

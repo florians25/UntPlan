@@ -24,6 +24,8 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
+        // Druck-Details der Übersichtspläne (Anzahl Zeilen / Spalten pro Blatt, Zwischenüberschriften)
+        ts.Items.Add(Knopf("Einstellungen (Druck)", "einstellungen", () => { using var f = Druck.UebersichtDruck.DetailsForm(Druck.UebersichtDruck.Details(_typ)); f.ShowDialog(this); }));
         ts.Items.Add(new ToolStripLabel(typ == ElementTyp.Raum ? "Raumverlegung: Stunde per Drag & Drop in eine andere Raumzeile ziehen." : "Stunde per Drag & Drop innerhalb der Zeile verschieben."));
         _raster = new Raster(this) { Dock = DockStyle.Fill };
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
@@ -36,18 +38,8 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
 
     protected override void Aktualisieren(AenderungsArt art) => _raster.Invalidate();
 
-    public void Drucken(bool vorschau)
-    {
-        var doc = new System.Drawing.Printing.PrintDocument { DocumentName = Text };
-        doc.DefaultPageSettings.Landscape = true;
-        doc.PrintPage += (sender, e) =>
-        {
-            var bereich = ListenDruck.Seitenbereich(sender, e);
-            e.Graphics!.DrawString(Text + " – " + D.Einstellungen.Schulname, Ui.SchriftGross, Brushes.Black, bereich.Left, bereich.Top - 25);
-            _raster.Zeichnen(e.Graphics!, bereich);
-        };
-        ListenDruck.Ausgeben(this, doc, vorschau);
-    }
+    /// <summary>Druck mit Seitenaufteilung laut Druck-Details (Zeilen / Spalten pro Blatt, Stundenplan-Blöcke, Zwischenüberschriften).</summary>
+    public void Drucken(bool vorschau) => Druck.UebersichtDruck.Drucken(this, _typ, Text, vorschau);
 
     private sealed class Raster : Control
     {

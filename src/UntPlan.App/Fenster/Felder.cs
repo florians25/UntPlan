@@ -28,15 +28,24 @@ public sealed class Feld
 
     public bool Editierbar => Set != null && Art != FeldArt.NurLesen;
 
-    public string Anzeige(Element e, DatenIndex ix)
+    /// <summary>Kann wahlweise mit Kurz- oder Langname angezeigt werden („Anzeige von“ im Dialog „Felder der Ansicht“).</summary>
+    public bool HatLangname => Art is FeldArt.Element or FeldArt.ElementListe;
+
+    public string Anzeige(Element e, DatenIndex ix) => Anzeige(e, ix, false);
+
+    /// <summary>Anzeigetext; <paramref name="langname"/>: Elementverweise mit dem Langnamen statt dem Kurznamen.</summary>
+    public string Anzeige(Element e, DatenIndex ix, bool langname)
     {
         var v = Get(e);
+        string L(int id) => ix.Element(RefTyp, id) is { } el && el.Langname.Length > 0 ? el.Langname : ix.K(RefTyp, id);
         return v switch
         {
             null => "",
             bool b => b ? "X" : "",
             Bereich r => r.ToString(),
             decimal m => m == 0 ? "" : Format.Zahl(m),
+            int i when Art == FeldArt.Element && langname => L(i),
+            IEnumerable<int> l when langname => string.Join(",", l.Select(L)),
             int i when Art == FeldArt.Element => ix.K(RefTyp, i),
             int i when Art == FeldArt.Auswahl => Auswahl.ElementAtOrDefault(i) ?? i.ToString(),
             int i when Art == FeldArt.Farbe => i == 0 ? "" : $"#{i & 0xFFFFFF:X6}",
@@ -121,6 +130,7 @@ public static class Felder
                 l.Add(F("Ausweichraum", "Ausweichraum", FeldArt.Element, e => ((Raum)e).AusweichraumId, (e, v) => ((Raum)e).AusweichraumId = (int?)v, "Raum", true, 80, ElementTyp.Raum));
                 l.Add(F("Raumgewicht", "Raumgew.", FeldArt.Auswahl, e => ((Raum)e).Raumgewicht, (e, v) => ((Raum)e).Raumgewicht = (int)v!, "Raum", true, 70,
                     auswahl: Enumerable.Range(0, 5).Select(i => $"{i} {Raum.GewichtText(i)}").ToArray()));
+                l.Add(T("Disloz", "Disloz.", e => ((Raum)e).Dislozierung, (e, v) => ((Raum)e).Dislozierung = DislozierungPruefen((string)v!), "Raum", breite: 50, formular: "Dislozierung"));
                 l.Add(F("Kapazitaet", "Kapaz.", FeldArt.Ganzzahl, e => ((Raum)e).Kapazitaet, (e, v) => ((Raum)e).Kapazitaet = (int)v!, "Raum", true, 50, formular: "Kapazität"));
                 l.Add(F("Gang", "Gänge", FeldArt.Element, e => ((Raum)e).GangId, (e, v) => ((Raum)e).GangId = (int?)v, "Raum", true, 55, ElementTyp.Gang));
                 l.Add(T("Stockwerk", "Stockwerk", e => ((Raum)e).Stockwerk, (e, v) => ((Raum)e).Stockwerk = (string)v!, "Raum"));
@@ -140,6 +150,8 @@ public static class Felder
                 l.Add(F("Klassenlehrer", "Klassenlehrer", FeldArt.ElementListe, e => ((Klasse)e).KlassenlehrerIds, (e, v) => ((Klasse)e).KlassenlehrerIds = (List<int>)v!, "Klasse", true, 90, ElementTyp.Lehrer));
                 l.Add(T("Jahrgang", "Jahrgangsstufe", e => ((Klasse)e).Jahrgang, (e, v) => ((Klasse)e).Jahrgang = (string)v!, "Klasse"));
                 l.Add(T("Stufe", "Stufe", e => ((Klasse)e).Stufe, (e, v) => ((Klasse)e).Stufe = (string)v!, "Klasse"));
+                l.Add(T("Stundentafel", "Stundentafel", e => ((Klasse)e).Stundentafel, (e, v) => ((Klasse)e).Stundentafel = (string)v!, "Klasse"));
+                l.Add(T("Vorjahresname", "Vorjahresname", e => ((Klasse)e).Vorjahresname, (e, v) => ((Klasse)e).Vorjahresname = (string)v!, "Klasse", breite: 80));
                 l.Add(F("Raum", "Raum", FeldArt.Element, e => ((Klasse)e).StammraumId, (e, v) => ((Klasse)e).StammraumId = (int?)v, "Stundenplan", true, 50, ElementTyp.Raum, formular: "Stammraum (Kurzname)"));
                 l.Add(T("Klassengruppe", "Klassen-Gruppe", e => ((Klasse)e).Klassengruppe, (e, v) => ((Klasse)e).Klassengruppe = (string)v!, "Stundenplan"));
                 l.Add(F("Mittagspause", "Mitt-pause", FeldArt.Bereich, e => ((Klasse)e).Mittagspause, (e, v) => ((Klasse)e).Mittagspause = (Bereich)v!, "Stundenplan", true, 65, formular: "Mittagspause min-max"));
@@ -147,6 +159,14 @@ public static class Felder
                 l.Add(F("HauptfaecherProTag", "Hauptf./Tag", FeldArt.Ganzzahl, e => ((Klasse)e).HauptfaecherProTag, (e, v) => ((Klasse)e).HauptfaecherProTag = (int)v!, "Stundenplan", true, 70, formular: "max.Hauptfächer/Tag"));
                 l.Add(F("HauptfaecherFolge", "Hauptf.Folge", FeldArt.Ganzzahl, e => ((Klasse)e).HauptfaecherFolge, (e, v) => ((Klasse)e).HauptfaecherFolge = (int)v!, "Stundenplan", true, 75, formular: "max. Hauptfach-Folge"));
                 l.Add(F("MaxNachmittage", "max. Nachm.", FeldArt.Ganzzahl, e => ((Klasse)e).MaxNachmittage, (e, v) => ((Klasse)e).MaxNachmittage = (int)v!, "Stundenplan", false, 70, formular: "max. Nachmittage"));
+                l.Add(F("MaxVerschieden", "max.versch.Unt./Tag", FeldArt.Ganzzahl, e => ((Klasse)e).MaxVerschiedeneProTag, (e, v) => ((Klasse)e).MaxVerschiedeneProTag = (int)v!, "Stundenplan", false, 80, formular: "max. verschiedene Unt./Tag"));
+                l.Add(F("Hauptklasse", "Hauptklasse", FeldArt.Element, e => ((Klasse)e).HauptklasseId, (e, v) => ((Klasse)e).HauptklasseId = (int?)v, "Stundenplan", false, 70, ElementTyp.Klasse));
+                l.Add(F("KlHohlZul", "(P) Hohlstunden zulässig", FeldArt.Bool, e => ((Klasse)e).HohlstundenZulaessig, (e, v) => ((Klasse)e).HohlstundenZulaessig = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("KlTageNichtFolge", "(F) Unterr.Tage nicht in Folge", FeldArt.Bool, e => ((Klasse)e).TageNichtInFolge, (e, v) => ((Klasse)e).TageNichtInFolge = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("KlZweiTage", "(2) 2 Tage hintereinander", FeldArt.Bool, e => ((Klasse)e).ZweiTageHintereinander, (e, v) => ((Klasse)e).ZweiTageHintereinander = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("KlHalbtag", "(H) 1 Halbtag/Tag belegen", FeldArt.Bool, e => ((Klasse)e).EinHalbtag, (e, v) => ((Klasse)e).EinHalbtag = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("KlBelegung", "(Y) Belegung beibehalten", FeldArt.Bool, e => ((Klasse)e).BelegungBeibehalten, (e, v) => ((Klasse)e).BelegungBeibehalten = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("KlKennzeichen", "Kennzeichen", FeldArt.NurLesen, e => ((Klasse)e).Kennzeichen, null, "Kennzeichen", false, 70));
                 break;
             case ElementTyp.Lehrer:
                 l.AddRange(Gemeinsam("Nachname"));
@@ -154,17 +174,34 @@ public static class Felder
                 l.Add(T("Vorname", "Vorname", e => ((Lehrer)e).Vorname, (e, v) => ((Lehrer)e).Vorname = (string)v!, "Lehrer", breite: 90));
                 l.Add(T("Personalnummer", "Pers.-Nr.", e => ((Lehrer)e).Personalnummer, (e, v) => ((Lehrer)e).Personalnummer = (string)v!, "Lehrer", formular: "Personal-Nummer"));
                 l.Add(T("Status", "Status", e => ((Lehrer)e).Status, (e, v) => ((Lehrer)e).Status = (string)v!, "Lehrer"));
+                l.Add(F("StatusNeuAb", "Datum ab Status neu", FeldArt.Datum, e => ((Lehrer)e).StatusNeuAb, (e, v) => ((Lehrer)e).StatusNeuAb = (DateOnly?)v, "Lehrer", false, 80));
+                l.Add(T("StatusNeu", "Neuer Status", e => ((Lehrer)e).StatusNeu, (e, v) => ((Lehrer)e).StatusNeu = (string)v!, "Lehrer"));
                 l.Add(T("Email", "E-Mail", e => ((Lehrer)e).Email, (e, v) => ((Lehrer)e).Email = (string)v!, "Lehrer", false, 150, formular: "e-mail Adresse"));
                 l.Add(T("Telefon", "Telefon", e => ((Lehrer)e).Telefon, (e, v) => ((Lehrer)e).Telefon = (string)v!, "Lehrer", formular: "Telefonnummer"));
                 l.Add(F("Geburtsdatum", "Geburtsdatum", FeldArt.Datum, e => ((Lehrer)e).Geburtsdatum, (e, v) => ((Lehrer)e).Geburtsdatum = (DateOnly?)v, "Lehrer", false, 80));
                 l.Add(F("Eintritt", "Eintrittsdatum", FeldArt.Datum, e => ((Lehrer)e).Eintritt, (e, v) => ((Lehrer)e).Eintritt = (DateOnly?)v, "Lehrer", false, 80));
                 l.Add(F("Austritt", "Austrittsdatum", FeldArt.Datum, e => ((Lehrer)e).Austritt, (e, v) => ((Lehrer)e).Austritt = (DateOnly?)v, "Lehrer", false, 80));
                 l.Add(T("Geschlecht", "Geschlecht", e => ((Lehrer)e).Geschlecht, (e, v) => ((Lehrer)e).Geschlecht = (string)v!, "Lehrer"));
+                l.Add(F("Stundensatz", "Stundensatz", FeldArt.Dezimal, e => ((Lehrer)e).Stundensatz, (e, v) => ((Lehrer)e).Stundensatz = (decimal)v!, "Lehrer", false, 70));
+                l.Add(T("Zusatztext1", "Zusatztext 1", e => ((Lehrer)e).Zusatztext1, (e, v) => ((Lehrer)e).Zusatztext1 = (string)v!, "Lehrer", breite: 90));
+                l.Add(T("Zusatztext2", "Zusatztext 2", e => ((Lehrer)e).Zusatztext2, (e, v) => ((Lehrer)e).Zusatztext2 = (string)v!, "Lehrer", breite: 90));
                 l.Add(F("Raum", "Raum", FeldArt.Element, e => ((Lehrer)e).StammraumId, (e, v) => ((Lehrer)e).StammraumId = (int?)v, "Stundenplan", true, 50, ElementTyp.Raum, formular: "Stammraum (Kurzname)"));
                 l.Add(F("Mittagspause", "Mitt-pause", FeldArt.Bereich, e => ((Lehrer)e).Mittagspause, (e, v) => ((Lehrer)e).Mittagspause = (Bereich)v!, "Stundenplan", true, 65, formular: "Mittagspause min-max"));
                 l.Add(F("StundenProTag", "Std./Tag", FeldArt.Bereich, e => ((Lehrer)e).StundenProTag, (e, v) => ((Lehrer)e).StundenProTag = (Bereich)v!, "Stundenplan", true, 60, formular: "Stunden je Tag min-max"));
                 l.Add(F("Hohlstunden", "HohlStd. soll", FeldArt.Bereich, e => ((Lehrer)e).Hohlstunden, (e, v) => ((Lehrer)e).Hohlstunden = (Bereich)v!, "Stundenplan", true, 75, formular: "Hohlstunden min-max"));
                 l.Add(F("MaxNachmittage", "max. Nachm.", FeldArt.Ganzzahl, e => ((Lehrer)e).MaxNachmittage, (e, v) => ((Lehrer)e).MaxNachmittage = (int)v!, "Stundenplan", false, 70, formular: "max. Nachmittage"));
+                l.Add(F("MaxFolge", "Max.Std.Folge", FeldArt.Ganzzahl, e => ((Lehrer)e).MaxStundenFolge, (e, v) => ((Lehrer)e).MaxStundenFolge = Math.Max(0, (int)v!), "Stundenplan", false, 70, formular: "Maximale Stundenzahl in Folge"));
+                l.Add(F("TagesrandPause", "Tagesrand-Pause", FeldArt.Ganzzahl, e => ((Lehrer)e).TagesrandPause, (e, v) => ((Lehrer)e).TagesrandPause = Math.Max(0, (int)v!), "Stundenplan", false, 80));
+                l.Add(T("OptKz", "Lehrer Opt.Kz.", e => ((Lehrer)e).OptimierungsKz, (e, v) => ((Lehrer)e).OptimierungsKz = OptimierungsKzPruefen((string)v!), "Stundenplan", breite: 60, formular: "Lehrer Optimierungs-Kz."));
+                l.Add(F("Verweildauer", "Max. Verweildauer", FeldArt.Ganzzahl, e => ((Lehrer)e).MaxVerweildauer, (e, v) => ((Lehrer)e).MaxVerweildauer = Math.Max(0, (int)v!), "Stundenplan", false, 80));
+                l.Add(F("LeHalbtag", "(H) 1 Halbtag/Tag belegen", FeldArt.Bool, e => ((Lehrer)e).EinHalbtag, (e, v) => ((Lehrer)e).EinHalbtag = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeBelegung", "(Y) Belegung beibehalten", FeldArt.Bool, e => ((Lehrer)e).BelegungBeibehalten, (e, v) => ((Lehrer)e).BelegungBeibehalten = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeErsteLetzte", "(R) Nicht in 1. UND letzter Std.", FeldArt.Bool, e => ((Lehrer)e).NichtErsteUndLetzte, (e, v) => ((Lehrer)e).NichtErsteUndLetzte = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeWichtigA", "keine Hohlstunden (A)", FeldArt.Bool, e => ((Lehrer)e).WichtigHohlstunden, (e, v) => ((Lehrer)e).WichtigHohlstunden = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeWichtigB", "Mittagspause (B)", FeldArt.Bool, e => ((Lehrer)e).WichtigMittagspause, (e, v) => ((Lehrer)e).WichtigMittagspause = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeWichtigC", "Max. Stunden je Tag (C)", FeldArt.Bool, e => ((Lehrer)e).WichtigStundenProTag, (e, v) => ((Lehrer)e).WichtigStundenProTag = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeWichtigD", "Max. Stunden-Folge (D)", FeldArt.Bool, e => ((Lehrer)e).WichtigStundenFolge, (e, v) => ((Lehrer)e).WichtigStundenFolge = (bool)v!, "Kennzeichen", breite: 40));
+                l.Add(F("LeKennzeichen", "Kennzeichen", FeldArt.NurLesen, e => ((Lehrer)e).Kennzeichen, null, "Kennzeichen", false, 70));
                 l.Add(F("Wochensoll", "Wochensoll", FeldArt.Dezimal, e => ((Lehrer)e).Wochensoll, (e, v) => ((Lehrer)e).Wochensoll = (decimal)v!, "Werte", true, 70));
                 l.Add(T("Ermaessigungen", "Ermäßigungen", e => string.Join("; ", ((Lehrer)e).Ermaessigungen.Select(x => $"{x.Grund}:{Format.Zahl(x.Wert)}")),
                     (e, v) => ((Lehrer)e).Ermaessigungen = ErmaessigungenParsen((string)v!), "Werte", false, 140));
@@ -198,14 +235,27 @@ public static class Felder
             case ElementTyp.Fach:
                 l.AddRange(Gemeinsam());
                 l.Add(T("Fachgruppe", "Fachgruppe", e => ((Fach)e).Fachgruppe, (e, v) => ((Fach)e).Fachgruppe = (string)v!, "Fach"));
-                l.Add(F("Hauptfach", "Hauptfach", FeldArt.Bool, e => ((Fach)e).Hauptfach, (e, v) => ((Fach)e).Hauptfach = (bool)v!, "Fach", true, 60, formular: "(H) Hauptfach"));
-                l.Add(F("Randstunde", "(R) Randstunden", FeldArt.Bool, e => ((Fach)e).Randstunde, (e, v) => ((Fach)e).Randstunde = (bool)v!, "Fach"));
-                l.Add(F("Mehrmals", "(2) auch mehrmals am Tag", FeldArt.Bool, e => ((Fach)e).MehrmalsProTag, (e, v) => ((Fach)e).MehrmalsProTag = (bool)v!, "Fach"));
-                l.Add(F("KeinePausenaufsicht", "(P) keine Pausenaufs. davor/danach", FeldArt.Bool, e => ((Fach)e).KeinePausenaufsicht, (e, v) => ((Fach)e).KeinePausenaufsicht = (bool)v!, "Fach"));
+                l.Add(T("FachArt", "Art", e => ((Fach)e).Art, (e, v) => ((Fach)e).Art = (string)v!, "Fach"));
+                // Karteikarte „Kennzeichen“ (Handbuch 2.4.5.2)
+                l.Add(F("Hauptfach", "Hauptfach", FeldArt.Bool, e => ((Fach)e).Hauptfach, (e, v) => ((Fach)e).Hauptfach = (bool)v!, "Kennzeichen", true, 60, formular: "(H) Hauptfach"));
+                l.Add(F("Randstunde", "(R) Randstunden", FeldArt.Bool, e => ((Fach)e).Randstunde, (e, v) => ((Fach)e).Randstunde = (bool)v!, "Kennzeichen", formular: "(R) Randstunden(fach)"));
+                l.Add(F("Freifach", "(F) Freifach", FeldArt.Bool, e => ((Fach)e).Freifach, (e, v) => ((Fach)e).Freifach = (bool)v!, "Kennzeichen"));
+                l.Add(F("Mehrmals", "(2) auch mehrmals am Tag", FeldArt.Bool, e => ((Fach)e).MehrmalsProTag, (e, v) => { ((Fach)e).MehrmalsProTag = (bool)v!; if ((bool)v!) ((Fach)e).DoppelstundenEinhalten = false; }, "Kennzeichen"));
+                l.Add(F("NichtRand", "(G) nicht in Randstunden", FeldArt.Bool, e => ((Fach)e).NichtInRandstunden, (e, v) => { ((Fach)e).NichtInRandstunden = (bool)v!; if ((bool)v!) ((Fach)e).DoppelstundenEinhalten = false; }, "Kennzeichen"));
+                l.Add(F("DoppEinhalten", "(D) Doppelstunden einhalten", FeldArt.Bool, e => ((Fach)e).DoppelstundenEinhalten,
+                    (e, v) => { ((Fach)e).DoppelstundenEinhalten = (bool)v!; if ((bool)v!) { ((Fach)e).MehrmalsProTag = false; ((Fach)e).NichtInRandstunden = false; } }, "Kennzeichen"));
+                l.Add(F("DoppPause", "(E) Doppelstunde über *-Pausen", FeldArt.Bool, e => ((Fach)e).DoppelstundeUeberPause, (e, v) => ((Fach)e).DoppelstundeUeberPause = (bool)v!, "Kennzeichen"));
+                l.Add(F("KeinePausenaufsicht", "(P) keine Pausenaufs. davor/danach", FeldArt.Bool, e => ((Fach)e).KeinePausenaufsicht, (e, v) => ((Fach)e).KeinePausenaufsicht = (bool)v!, "Kennzeichen"));
+                l.Add(F("Sprechstunde", "(S) Sprechstunde", FeldArt.Bool, e => ((Fach)e).Sprechstunde, (e, v) => ((Fach)e).Sprechstunde = (bool)v!, "Kennzeichen"));
+                l.Add(F("FaKennzeichen", "Kennzeichen", FeldArt.NurLesen, e => ((Fach)e).Kennzeichen, null, "Kennzeichen", false, 70));
                 l.Add(F("Fachraum", "Fachraum", FeldArt.Element, e => ((Fach)e).FachraumId, (e, v) => ((Fach)e).FachraumId = (int?)v, "Stundenplan", true, 70, ElementTyp.Raum, formular: "Fachraum (Kurzname)"));
                 l.Add(F("Fachraumgruppe", "Raumgruppe", FeldArt.Element, e => ((Fach)e).FachraumgruppeId, (e, v) => ((Fach)e).FachraumgruppeId = (int?)v, "Stundenplan", false, 70, ElementTyp.Raumgruppe));
                 l.Add(F("Doppelstunden", "Dopp.Std.", FeldArt.Bereich, e => ((Fach)e).Doppelstunden, (e, v) => ((Fach)e).Doppelstunden = (Bereich)v!, "Stundenplan", true, 60, formular: "Doppelstunden (min-max)"));
                 l.Add(F("KeinNachmittag", "(N) kein Nachm.", FeldArt.Bool, e => ((Fach)e).KeinNachmittag, (e, v) => ((Fach)e).KeinNachmittag = (bool)v!, "Stundenplan"));
+                l.Add(F("NachmStd", "Nachm.Std.", FeldArt.Bereich, e => ((Fach)e).Nachmittagsstunden, (e, v) => ((Fach)e).Nachmittagsstunden = (Bereich)v!, "Stundenplan", false, 65, formular: "Nachmittagsstunden (min-max)"));
+                l.Add(F("WochenStd", "Wochenstd.", FeldArt.Bereich, e => ((Fach)e).WochenstundenBereich, (e, v) => ((Fach)e).WochenstundenBereich = (Bereich)v!, "Stundenplan", false, 65, formular: "Wochenstunden (min-max)"));
+                l.Add(T("FachfolgeLe", "Fachfolge Lehrer", e => ((Fach)e).FachfolgeLehrer, (e, v) => ((Fach)e).FachfolgeLehrer = FachfolgePruefen((string)v!), "Stundenplan", breite: 60));
+                l.Add(T("FachfolgeKl", "Fachfolge Klassen", e => ((Fach)e).FachfolgeKlassen, (e, v) => ((Fach)e).FachfolgeKlassen = FachfolgePruefen((string)v!), "Stundenplan", breite: 60));
                 l.Add(F("WerteFaktor", "Werte-Faktor", FeldArt.Dezimal, e => ((Fach)e).WerteFaktor, (e, v) => ((Fach)e).WerteFaktor = (decimal)v!, "Werte"));
                 l.Add(F("Bereitschaft", "(B) Bereitschaft", FeldArt.Bool, e => ((Fach)e).Bereitschaft, (e, v) => ((Fach)e).Bereitschaft = (bool)v!, "Vertr."));
                 l.Add(F("BereitschaftImDeputat", "Bereitsch. im Deputat", FeldArt.Bool, e => ((Fach)e).BereitschaftImDeputat, (e, v) => ((Fach)e).BereitschaftImDeputat = (bool)v!, "Vertr."));
@@ -247,6 +297,30 @@ public static class Felder
                 break;
         }
         return l;
+    }
+
+    /// <summary>Disloz.: 1–9 (mit Zeitstaffelung) bzw. A–E (ohne Zeitstaffelung).</summary>
+    internal static string DislozierungPruefen(string s)
+    {
+        if (s.Trim().Length == 0) return "";
+        var n = Raum.DislozierungNormal(s);
+        return n.Length > 0 ? n : throw new FormatException("Erlaubt sind die Werte 1 bis 9 (mit Zeitstaffelung) und A bis E (ohne Zeitstaffelung).");
+    }
+
+    /// <summary>Lehrer Optimierungs-Kz.: Ziffern 1–9 oder Buchstaben A–Z.</summary>
+    internal static string OptimierungsKzPruefen(string s)
+    {
+        var t = s.Trim().ToUpperInvariant();
+        if (t.Length == 0) return "";
+        return t.Length == 1 && (t[0] is >= '1' and <= '9' or >= 'A' and <= 'Z') ? t : throw new FormatException("Erlaubte Eingaben sind die Ziffern 1 bis 9 und die Buchstaben A-Z.");
+    }
+
+    /// <summary>Fachfolge: 1–9 (positive Fachfolge) bzw. A–F (negative Fachfolge).</summary>
+    internal static string FachfolgePruefen(string s)
+    {
+        var t = s.Trim().ToUpperInvariant();
+        if (t.Length == 0) return "";
+        return t.Length == 1 && (t[0] is >= '1' and <= '9' or >= 'A' and <= 'F') ? t : throw new FormatException("Erlaubt sind 1-9 (Folgestunden) und A-F (keine Folgestunden).");
     }
 
     private static List<Ermaessigung> ErmaessigungenParsen(string s) =>

@@ -91,18 +91,82 @@ public static class VertretungsplanDruck
     /// <summary>Druck bzw. Windows-Seitenansicht mit den aktuellen Einstellungen.</summary>
     public static void Ausgeben(IWin32Window owner, DateOnly von, DateOnly bis, bool lehrerVersion, bool vorschau)
     {
-        var e = AppZustand.Einstellungen.Vertretungsdruck;
         AppZustand.Einstellungen.Speichern();
+        var doc = DruckDokument(von, bis, lehrerVersion, "");
+        if (doc is null) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
+        ListenDruck.Ausgeben(owner, doc, vorschau);
+    }
+
+    /// <summary>Druckdokument des Vertretungsplans (null, wenn der Zeitraum keinen Unterrichtstag enthält).</summary>
+    private static PrintDocument? DruckDokument(DateOnly von, DateOnly bis, bool lehrerVersion, string zusatz)
+    {
+        var e = AppZustand.Einstellungen.Vertretungsdruck;
         var tage = Tage(von, bis, lehrerVersion, e);
-        if (tage.Count == 0) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
+        if (tage.Count == 0) return null;
         var d = AppZustand.D;
-        var doc = new PrintDocument { DocumentName = $"{d.Einstellungen.Vertretungsplantitel} {Format.Datum(von)}" };
+        var doc = new PrintDocument { DocumentName = $"{d.Einstellungen.Vertretungsplantitel} {zusatz} {Format.Datum(von)}".Replace("  ", " ") };
         doc.DefaultPageSettings.Landscape = e.Querformat;
-        doc.DefaultPageSettings.Margins = new Margins(55, 45, 45, 45);
+        doc.DefaultPageSettings.Margins = new Margins(Math.Clamp(e.RandLinks, 10, 300), Math.Clamp(e.RandRechts, 10, 300), 45, 45);
         var seiten = new Seiten(tage, lehrerVersion, e);
         doc.BeginPrint += (_, _) => seiten.Zuruecksetzen();
         doc.PrintPage += (s, pe) => pe.HasMorePages = seiten.Zeichnen(pe.Graphics!, ListenDruck.Seitenbereich(s, pe));
-        ListenDruck.Ausgeben(owner, doc, vorschau);
+        return doc;
+    }
+
+    /// <summary>
+    /// Schnelldruck der Tageslisten (Handbuch Kap. 13.3): alle Vertretungsformate mit dem Kennzeichen „Tagesliste“ für das Datum des
+    /// Kalenders – mit einem Druckerdialog für alle Listen bzw. (Einstellung „Tageslisten als PDF“) als PDF-Dateien in einen Ordner.
+    /// </summary>
+    public static void Tageslisten(IWin32Window owner, DateOnly datum, IReadOnlyList<Vertretungsformat> listen)
+    {
+        var einst = AppZustand.Einstellungen;
+        if (listen.Count == 0)
+        {
+            Ui.Info("Kein Vertretungsformat hat das Kennzeichen „Tagesliste“.\nSetzen Sie es im Fenster „Formate / Vertretung“ (Vertretungsformate) in der Spalte „Tagesliste“.", "Tageslisten");
+            return;
+        }
+        if (!Kalender.IstUnterrichtstag(AppZustand.D, datum)) { Ui.Info($"{Format.Datum(datum)} ist kein Unterrichtstag."); return; }
+        einst.Speichern();
+        try
+        {
+            if (einst.TageslistenPdf)
+            {
+                var ordner = einst.TageslistenPdfOrdner.Length > 0 && Directory.Exists(einst.TageslistenPdfOrdner) ? einst.TageslistenPdfOrdner : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                var dateien = new List<string>();
+                foreach (var f in listen)
+                {
+                    string? eigener = null;
+                    if (einst.TageslistenEigeneDateinamen)
+                    {
+                        eigener = Ui.Eingabe($"Dateiname der Tagesliste „{f.Langname}“:", "Tageslisten", Path.GetFileNameWithoutExtension(Vertretungsformate.PdfDateiname(f, datum)));
+                        if (eigener is null) continue;
+                    }
+                    var doc = DruckDokument(datum, datum, f.Art == VertretungsformatArt.Lehrer, f.Langname);
+                    if (doc is null) continue;
+                    doc.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+                    if (!doc.PrinterSettings.IsValid) { Ui.Info("Für die PDF-Ausgabe wird der Drucker „Microsoft Print to PDF“ benötigt."); return; }
+                    var pfad = Path.Combine(ordner, Vertretungsformate.PdfDateiname(f, datum, eigener));
+                    doc.PrinterSettings.PrintToFile = true;
+                    doc.PrinterSettings.PrintFileName = pfad;
+                    doc.PrintController = new StandardPrintController();
+                    doc.Print();
+                    dateien.Add(pfad);
+                }
+                if (dateien.Count > 0) Ui.Info($"{dateien.Count} Tagesliste(n) als PDF gespeichert:\n" + string.Join("\n", dateien), "Tageslisten");
+                return;
+            }
+            using var pd = new PrintDialog { UseEXDialog = true };
+            if (pd.ShowDialog(owner) != DialogResult.OK) return;
+            foreach (var f in listen)
+            {
+                var doc = DruckDokument(datum, datum, f.Art == VertretungsformatArt.Lehrer, f.Langname);
+                if (doc is null) continue;
+                doc.PrinterSettings = (PrinterSettings)pd.PrinterSettings.Clone();
+                doc.Print();
+            }
+        }
+        catch (InvalidPrinterException) { Ui.Info("Es ist kein Drucker installiert. Unter Windows steht z. B. \"Microsoft Print to PDF\" zur Verfügung."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { Ui.Fehler(ex); }
     }
 
     private static List<Tag> Tage(DateOnly von, DateOnly bis, bool lehrer, Vertretungsdruck e)
@@ -127,6 +191,7 @@ public static class VertretungsplanDruck
         var res = new List<Bitmap>();
         spalten = new();
         titel = RectangleF.Empty;
+        Geometrie = default;
         var mehr = tage.Count > 0;
         while (mehr && res.Count < 50)
         {
@@ -134,12 +199,26 @@ public static class VertretungsplanDruck
             using var g = Graphics.FromImage(bmp);
             g.Clear(Color.White);
             g.PageUnit = GraphicsUnit.Display;
-            mehr = seiten.Zeichnen(g, new Rectangle(55, 45, bmp.Width - 100, bmp.Height - 90));
-            if (res.Count == 0) { spalten = seiten.Spaltenkoepfe.ToList(); titel = seiten.Titelbereich; }
+            var links = Math.Clamp(e.RandLinks, 10, 300);
+            var rechts = Math.Clamp(e.RandRechts, 10, 300);
+            var bereich = new Rectangle(links, 45, Math.Max(100, bmp.Width - links - rechts), bmp.Height - 90);
+            mehr = seiten.Zeichnen(g, bereich);
+            if (res.Count == 0)
+            {
+                spalten = seiten.Spaltenkoepfe.ToList();
+                titel = seiten.Titelbereich;
+                Geometrie = new Seitengeometrie(bereich, seiten.Spaltengrenzen.ToArray(), seiten.ErsteZeile);
+            }
             res.Add(bmp);
         }
         return res;
     }
+
+    /// <summary>Lage von Druckbereich, Spaltengrenzen und erster Tabellenzeile der ersten Vorschauseite (Ziehen mit der Maus im Seitenlayout).</summary>
+    internal readonly record struct Seitengeometrie(Rectangle Bereich, float[] Spaltengrenzen, RectangleF ErsteZeile);
+
+    /// <summary>Geometrie der zuletzt berechneten Vorschau (siehe <see cref="Seitengeometrie"/>).</summary>
+    internal static Seitengeometrie Geometrie { get; private set; }
 
     /// <summary>Zeilen eines Tages nach dem Seitenlayout (für Selbsttest und Vorschau).</summary>
     internal static List<Zeile> ZeilenAm(DateOnly datum, bool lehrer) => TagDaten(AppZustand.D, datum, lehrer, AppZustand.Einstellungen.Vertretungsdruck).Zeilen;
@@ -160,6 +239,14 @@ public static class VertretungsplanDruck
         /// <summary>Lage der Listenüberschrift der zuletzt gezeichneten Seite.</summary>
         public RectangleF Titelbereich { get; private set; }
 
+        /// <summary>x-Lage der Spaltengrenzen (links des ersten bis rechts des letzten Feldes) der zuletzt gezeichneten Seite.</summary>
+        public float[] Spaltengrenzen { get; private set; } = Array.Empty<float>();
+
+        /// <summary>Erste Tabellenzeile der zuletzt gezeichneten Seite (blaue Linie „Zeilenhöhe“ im Seitenlayout).</summary>
+        public RectangleF ErsteZeile { get; private set; }
+
+        private int _seiteGesamt;
+
         public Seiten(List<Tag> tage, bool lehrer, Vertretungsdruck e)
         {
             _tage = tage; _lehrer = lehrer; _e = e;
@@ -170,13 +257,16 @@ public static class VertretungsplanDruck
                 foreach (var x in liste) if (x.Kurzname.Length > 0 && x.Langname.Length > 0) res.TryAdd(x.Kurzname, x.Langname);
                 return res;
             }
-            _langLehrer = Lang(d.Lehrer);
+            // Lehrkräfte: Drucknamen laut Berichts-Einstellungen (z. B. „Titel Langname Vorname“)
+            var berichte = AppZustand.Einstellungen.Berichte;
+            _langLehrer = new Dictionary<string, string>();
+            foreach (var l in d.Lehrer) if (l.Kurzname.Length > 0 && berichte.Druckname(l) is { Length: > 0 } dn) _langLehrer.TryAdd(l.Kurzname, dn);
             _langKlassen = Lang(d.Klassen);
             _langFaecher = Lang(d.Faecher);
             _langRaeume = Lang(d.Raeume);
         }
 
-        public void Zuruecksetzen() { _tagNr = 0; _zeileNr = 0; _tagAnfang = true; }
+        public void Zuruecksetzen() { _tagNr = 0; _zeileNr = 0; _tagAnfang = true; _seiteGesamt = 0; }
 
         /// <summary>Kurznamen einer Aufzählung („1a,1b“) durch Langnamen ersetzen (unbekannte bleiben).</summary>
         private static string Langnamen(string text, Dictionary<string, string> lang)
@@ -240,24 +330,10 @@ public static class VertretungsplanDruck
             using var tagestextSchrift = new Font(schrift, Math.Max(5f, (e.Schriftgroesse + 1) * Math.Clamp(e.TagestexteGroesse, 25, 400) / 100f));
             var tag = tage[_tagNr];
             var y = (float)r.Top;
+            _seiteGesamt++;
 
-            // Kopf: Schule | Schuljahr | Programm – Adresse | Druckzeitpunkt
-            var schule = d.Einstellungen.Schulname.ToUpperInvariant();
-            var hk = kopfFett.GetHeight(g);
-            g.DrawString(schule, kopfFett, Brushes.Black, r.Left, y);
-            var sj = $"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
-            var sjBreite = g.MeasureString(sj, kopfNormal).Width;
-            var sjX = Math.Max(r.Left + r.Width / 2f - sjBreite / 2, r.Left + g.MeasureString(schule, kopfFett).Width + 24);
-            g.DrawString(sj, kopfNormal, Brushes.Black, sjX, y + 1);
-            using (var rechts = new StringFormat { Alignment = StringAlignment.Far })
-            {
-                g.DrawString($"UntPlan {DateTime.Now.Year}", kopfFett, Brushes.Black, new RectangleF(r.Left, y, r.Width, hk), rechts);
-                y += hk + 2;
-                g.DrawString(d.Einstellungen.Adresse, kopfNormal, Brushes.Black, r.Left, y);
-                g.DrawString(DateTime.Now.ToString("d.M.yyyy  HH:mm"), kopfNormal, Brushes.Black, new RectangleF(r.Left, y, r.Width, hk), rechts);
-            }
-            y += kopfNormal.GetHeight(g) + 1;
-            g.DrawLine(Pens.Black, r.Left, y, r.Right, y);
+            // Kopf laut Berichts-Einstellungen: Überschrift (zwei Zeilen) | Schuljahr | Programm und Druckzeitpunkt
+            y += Berichtskopf.Zeichnen(g, r, kopfFett, kopfNormal);
             y += 16;
 
             // Titel (Listenüberschrift)
@@ -268,7 +344,8 @@ public static class VertretungsplanDruck
             Titelbereich = new RectangleF(r.Left, y, g.MeasureString(titelZeile, titel).Width, titel.GetHeight(g));
             y += titel.GetHeight(g) + 14;
 
-            var zh = normal.GetHeight(g) + 5;
+            var zh = normal.GetHeight(g) + Math.Clamp(e.ZeilenAbstand, 0, 60);
+            ErsteZeile = RectangleF.Empty;
             if (_tagAnfang)
             {
                 // Tagestexte (Global: Schriftgröße in %, Ausdruck mit Rahmen)
@@ -308,6 +385,7 @@ public static class VertretungsplanDruck
             var xs = new float[felder.Count + 1];
             xs[0] = r.Left;
             for (var i = 0; i < felder.Count; i++) xs[i + 1] = xs[i] + Math.Max(0.02f, felder[i].Anteil) / summe * r.Width;
+            Spaltengrenzen = xs.ToArray();
             var koepfe = felder.Select(f => Ueberschrift(f, lehrerVersion)).ToArray();
             float kopfH;
             if (e.UeberschriftSchnitt == 0)
@@ -380,6 +458,7 @@ public static class VertretungsplanDruck
                     g.DrawLine(Pens.Black, r.Left, y, r.Right, y);
                 }
                 if (y + hoehe > r.Bottom && !ersteAufSeite) break;
+                if (ErsteZeile == RectangleF.Empty) ErsteZeile = new RectangleF(r.Left, y, r.Width, hoehe);
                 for (var i = 0; i < felder.Count; i++)
                 {
                     var key = felder[i].Schluessel;
@@ -411,8 +490,7 @@ public static class VertretungsplanDruck
                 g.DrawLine(Pens.Black, r.Left, tabelleOben, r.Right, tabelleOben);
             }
             using (var fuss = new Font(schrift, Math.Max(7f, e.Schriftgroesse - 3)))
-            using (var rechts = new StringFormat { Alignment = StringAlignment.Far })
-                g.DrawString($"Seite {_tagNr + 1}/{tage.Count}", fuss, Brushes.DimGray, new RectangleF(r.Left, r.Bottom + 8, r.Width, 20), rechts);
+                Berichtskopf.FussZeichnen(g, r, fuss, tag.Datum, _seiteGesamt, Math.Max(_seiteGesamt, tage.Count));
 
             if (_zeileNr >= tag.Zeilen.Count)
             {
