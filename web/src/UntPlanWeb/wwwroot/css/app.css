@@ -1949,3 +1949,18 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .sd-detail-titel { margin-bottom: .8rem; color: #5b6670; }
 .sd-schalter .sd-detail-titel { margin-bottom: 0; }
 .sd-notiz { min-height: 68px; border-color: #c9ced4; border-radius: 4px; }
+
+/* Seitenleiste nach Vorlage nachgemessen (Bild bei 125 %, Fenster 797 px hoch): Logo 46 px ab 14/16, Name und Schule ab 76 px,
+   Schuljahr-Pille ab 76 px (oben 78, 32 px hoch), erster Menüpunkt ab 126 px, Punkte 50 px hoch, Schrift 16,2 px;
+   Benutzer: Bild 38 px ab 20 px, Name ab 78 px; Abmelden: Symbol ab 27 px, Text ab 78 px */
+.u-marke { padding: 16px 14px 0 14px; gap: 16px; }
+.u-marke .logo { width: 46px; height: 46px; margin-top: 0; }
+.u-marke span { padding-top: 0; margin-top: -9px; }
+.u-marke small { line-height: 1.3; }
+.u-leiste:not(.mit-unter) .u-jahrzeile { padding: 8px 0 16px 76px; min-height: 0; }
+.u-leiste:not(.mit-unter) .u-jahr { padding-top: 4.2px; padding-bottom: 4.2px; }
+.u-nav-punkt { font-size: 16.2px; }
+.u-benutzer { padding-left: 20px; gap: 20px; }
+.u-benutzer .u-avatar { width: 38px; height: 38px; }
+.u-abmelden { padding-left: 27px; gap: 27px; }
+.u-abmelden .u-sym { width: 24px; height: 24px; }
