@@ -21,6 +21,11 @@ public sealed class ZeitwuenscheFenster : MdiFenster
     private bool _malen;
     private Zeitwuensche? _arbeitskopie;
     private bool _laden;
+    /// <summary>Unterricht (Handbuch 3.4.1): 0 = Zeitwünsche des Unterrichts, 1 = aller Elemente, 2 = aller Elemente ohne Räume.</summary>
+    private int _unterrichtAnsicht;
+    private readonly FlowLayoutPanel _unterrichtOptionen = new() { Dock = DockStyle.Top, Height = 24, Visible = false, Padding = new Padding(4, 2, 0, 0) };
+    private readonly DataGridView _elementeTag = new() { Dock = DockStyle.Fill, Visible = false, Name = "ElementeTag" };
+    private int _detailTag;
 
     public static ZeitwuenscheFenster Zeigen(ElementTyp typ, int? id)
     {
@@ -66,6 +71,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         }
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Alle Zeitwünsche löschen", "loeschen", () => Uebernehmen(new Zeitwuensche(), "Zeitwünsche gelöscht")));
+        ts.Items.Add(Knopf("Serienänderung", "kopieren", Serienaenderung));
         ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => { if (_id.HasValue && _typ != ElementTyp.Unterricht) StundenplanFenster.Neu(_typ, _id, false); }));
         _laden = true;
         typBox.SelectedIndex = 1;
@@ -94,10 +100,30 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         _unbestimmt.DataError += (_, e) => e.ThrowException = false;
         _unbestimmt.CurrentCellDirtyStateChanged += (_, _) => Steuerelemente.SuchKombi.SofortUebernehmen(_unbestimmt, kontrollkaestchen: false);
 
+        // Unterricht: Anzeige wählen (des Unterrichts / aller Elemente / aller Elemente ohne Räume); unten die Elemente des gewählten Tages
+        foreach (var (text, i) in new[] { ("Zeitwünsche des Unterrichts", 0), ("Zeitwünsche aller Elemente", 1), ("Zeitwünsche aller Elemente ohne Räume", 2) })
+        {
+            var rb = new RadioButton { Text = text, AutoSize = true, Checked = i == 0, Margin = new Padding(0, 0, 12, 0) };
+            var modus = i;
+            rb.CheckedChanged += (_, _) => { if (rb.Checked) { _unterrichtAnsicht = modus; Neuaufbau(); } };
+            _unterrichtOptionen.Controls.Add(rb);
+        }
+        Ui.RasterGestalten(_elementeTag, false);
+        _elementeTag.RowHeadersVisible = false;
+        _elementeTag.AllowUserToAddRows = false;
+        _elementeTag.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _elementeTag.CellDoubleClick += (_, e) =>
+        {
+            // direkter Sprung zum Zeitwunsch des jeweiligen Elements
+            if (e.RowIndex >= 0 && _elementeTag.Rows[e.RowIndex].Tag is (ElementTyp t, int id)) Setzen(t, id);
+        };
+        _grid.CellClick += (_, e) => { if (e.RowIndex >= 0 && _typ == ElementTyp.Unterricht && _unterrichtAnsicht > 0) { _detailTag = e.RowIndex; ElementeDesTages(); } };
         var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, FixedPanel = FixedPanel.Panel2 };
         split.Panel1.Controls.Add(_grid);
         split.Panel1.Controls.Add(new Label { Text = "Halten Sie die linke Maustaste gedrückt und überstreichen Sie die gewünschten Stunden. Klick auf \"Tage\"/\"Vorm.\"/\"Nachm.\" setzt den ganzen (Halb-)Tag.", Dock = DockStyle.Bottom, Height = 18, ForeColor = Color.DimGray, Font = Ui.SchriftKlein });
+        split.Panel1.Controls.Add(_unterrichtOptionen);
         split.Panel1.Controls.Add(_name);
+        split.Panel2.Controls.Add(_elementeTag);
         split.Panel2.Controls.Add(_unbestimmt);
         split.Panel2.Controls.Add(new Label { Text = "Zusätzliche, unbestimmte Zeitwünsche", Dock = DockStyle.Top, Height = 20, Padding = new Padding(4, 3, 0, 0) });
         Controls.Add(split);
@@ -201,6 +227,11 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         foreach (var t in new[] { "Tage", "Vorm.", "Nachm." })
             _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = t, Width = 48, SortMode = DataGridViewColumnSortMode.NotSortable, DefaultCellStyle = { BackColor = Color.FromArgb(245, 245, 245) } });
         var zw = Aktuell();
+        var gesamt = _typ == ElementTyp.Unterricht && _unterrichtAnsicht > 0;
+        _unterrichtOptionen.Visible = _typ == ElementTyp.Unterricht;
+        _elementeTag.Visible = gesamt;
+        _unbestimmt.Visible = !gesamt;
+        if (gesamt) zw = Zusammenschau();
         for (var t = 0; t < zr.TageProWoche; t++)
         {
             var r = _grid.Rows.Add();
@@ -208,6 +239,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
             _grid.Rows[r].Height = 24;
             for (var s = 1; s <= zr.StundenProTag; s++) ZelleSetzen(r, s - 1, zw?.Get(t, s) ?? 0, zr.Verfuegbar(t, s));
         }
+        if (gesamt) ElementeDesTages();
         _unbestimmt.Rows.Clear();
         _unbestimmt.Enabled = Unbestimmte() != null;
         foreach (var u in Unbestimmte() ?? new())
@@ -222,19 +254,89 @@ public sealed class ZeitwuenscheFenster : MdiFenster
         cell.Style.ForeColor = Math.Abs(w) >= 2 ? Color.White : Color.Black;
     }
 
+    /// <summary>Am Unterricht beteiligte Elemente (für die Zusammenschau „Zeitwünsche aller Elemente“).</summary>
+    private List<(string Art, ElementTyp Typ, Element E)> Beteiligte()
+    {
+        var u = D.Unterrichte.FirstOrDefault(x => x.Id == _id);
+        var l = new List<(string, ElementTyp, Element)>();
+        if (u is null) return l;
+        foreach (var id in u.LehrerIds) if (D.Lehrer.FirstOrDefault(x => x.Id == id) is { } e) l.Add(("Lehrer", ElementTyp.Lehrer, e));
+        foreach (var id in u.KlassenIds) if (D.Klassen.FirstOrDefault(x => x.Id == id) is { } e) l.Add(("Klasse(n)", ElementTyp.Klasse, e));
+        foreach (var id in u.Zeilen.Select(z => z.FachId).Distinct()) if (D.Faecher.FirstOrDefault(x => x.Id == id) is { } e) l.Add(("Fächer", ElementTyp.Fach, e));
+        if (_unterrichtAnsicht == 1)
+            foreach (var id in u.Zeilen.SelectMany(z => new[] { z.FachraumId, z.StammraumId }).Where(x => x.HasValue).Distinct())
+                if (D.Raeume.FirstOrDefault(x => x.Id == id) is { } e) l.Add(("Räume", ElementTyp.Raum, e));
+        return l;
+    }
+
+    /// <summary>Zusammenschau: je Stunde der ungünstigste Wunsch (Sperrungen zuerst) aus Unterricht und beteiligten Elementen.</summary>
+    private Zeitwuensche Zusammenschau()
+    {
+        var zr = D.Zeitraster;
+        var quellen = Beteiligte().Select(b => b.E.Zeitwuensche).Append(Aktuell() ?? new Zeitwuensche()).ToList();
+        var z = new Zeitwuensche();
+        for (var t = 0; t < zr.TageProWoche; t++)
+            for (var s = 1; s <= zr.StundenProTag; s++)
+            {
+                var werte = quellen.Select(q => q.Get(t, s)).ToList();
+                z.Set(t, s, werte.Any(w => w < 0) ? werte.Min() : werte.Max());
+            }
+        return z;
+    }
+
+    /// <summary>Unterer Teil der Zusammenschau: die Zeitwünsche aller beteiligten Elemente am gewählten Tag (Doppelklick öffnet das Element).</summary>
+    private void ElementeDesTages()
+    {
+        var zr = D.Zeitraster;
+        _elementeTag.Columns.Clear();
+        _elementeTag.Rows.Clear();
+        _elementeTag.Columns.Add("Art", Planungsdienst.Tagname(D, Math.Clamp(_detailTag, 0, zr.TageProWoche - 1), true));
+        _elementeTag.Columns.Add("Name", "");
+        _elementeTag.Columns[0].Width = 70;
+        _elementeTag.Columns[1].Width = 60;
+        for (var s = 1; s <= zr.StundenProTag; s++) _elementeTag.Columns.Add("S" + s, zr.StundenLabel(s));
+        foreach (DataGridViewColumn c in _elementeTag.Columns) { c.SortMode = DataGridViewColumnSortMode.NotSortable; if (c.Index > 1) c.Width = 30; }
+        var tag = Math.Clamp(_detailTag, 0, zr.TageProWoche - 1);
+        void Zeile(string art, string name, Zeitwuensche zw, object? tagObj)
+        {
+            var r = _elementeTag.Rows.Add();
+            var row = _elementeTag.Rows[r];
+            row.Tag = tagObj;
+            row.Cells[0].Value = art;
+            row.Cells[1].Value = name;
+            for (var s = 1; s <= zr.StundenProTag; s++)
+            {
+                var w = zw.Get(tag, s);
+                row.Cells[s + 1].Value = w == 0 ? "" : (w > 0 ? "+" : "") + w;
+                row.Cells[s + 1].Style.BackColor = zr.Verfuegbar(tag, s) ? Ui.ZeitwunschFarbe(w) : Color.FromArgb(200, 200, 200);
+            }
+        }
+        string? letzte = null;
+        foreach (var (art, typ, e) in Beteiligte())
+        {
+            Zeile(art == letzte ? "" : art, e.Kurzname, e.Zeitwuensche, (typ, e.Id));
+            letzte = art;
+        }
+        if (_id is int uid) Zeile("Unterricht", uid.ToString(), Aktuell() ?? new Zeitwuensche(), null);
+    }
+
     private void Malen(int zeile, int spalte)
     {
         if (_arbeitskopie is null) return;
+        // Zusammenschau aller Elemente: nur Anzeige
+        if (_typ == ElementTyp.Unterricht && _unterrichtAnsicht > 0) return;
         var zr = D.Zeitraster;
         var tag = zeile;
         IEnumerable<int> stunden = spalte < zr.StundenProTag ? new[] { spalte + 1 }
             : spalte == zr.StundenProTag ? Enumerable.Range(1, zr.StundenProTag)
             : spalte == zr.StundenProTag + 1 ? Enumerable.Range(1, zr.LetzteVormittagsstunde)
             : Enumerable.Range(zr.LetzteVormittagsstunde + 1, Math.Max(0, zr.StundenProTag - zr.LetzteVormittagsstunde));
+        // ein Zeitwunsch eines Unterrichts kann nicht mit +3 belegt werden (dann besser manuell verplanen und fixieren)
+        var wert = _typ == ElementTyp.Unterricht ? Math.Min(_wert, 2) : _wert;
         foreach (var s in stunden)
         {
-            _arbeitskopie.Set(tag, s, _wert);
-            ZelleSetzen(zeile, s - 1, _wert, zr.Verfuegbar(tag, s));
+            _arbeitskopie.Set(tag, s, wert);
+            ZelleSetzen(zeile, s - 1, wert, zr.Verfuegbar(tag, s));
         }
     }
 
@@ -242,6 +344,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
     {
         if (!_malen) return;
         _malen = false;
+        if (_typ == ElementTyp.Unterricht && _unterrichtAnsicht > 0) { _arbeitskopie = null; return; }
         if (_arbeitskopie != null) Uebernehmen(_arbeitskopie, "Zeitwünsche geändert");
         _arbeitskopie = null;
     }
@@ -257,6 +360,29 @@ public sealed class ZeitwuenscheFenster : MdiFenster
             else d.AlleElemente(typ).First(e => e.Id == id).Zeitwuensche = neu.Kopie();
         });
         Neuaufbau();
+    }
+
+    /// <summary>
+    /// Vorbild „Serienänderung“: die Zeitwünsche (bestimmte und unbestimmte) des aktuellen Elements auf beliebige andere Elemente
+    /// kopieren – mit leeren Zeitwünschen auch zum Löschen bei vielen Elementen.
+    /// </summary>
+    private void Serienaenderung()
+    {
+        if (_id is null || _typ == ElementTyp.Unterricht || Aktuell() is not { } quelle) return;
+        var id = _id.Value;
+        var typ = _typ;
+        if (Druck.ElementAuswahlDialog.Zeigen(this, typ, Array.Empty<int>()) is not { Count: > 0 } ziele) return;
+        var unbestimmt = (Unbestimmte() ?? new()).Select(u => new UnbestimmterZeitwunsch { Bereich = u.Bereich, Anzahl = u.Anzahl, Wunsch = u.Wunsch }).ToList();
+        var kopie = quelle.Kopie();
+        Aendern($"Serienänderung Zeitwünsche ({ziele.Count})", AenderungsArt.Stammdaten, d =>
+        {
+            foreach (var e in d.AlleElemente(typ).Where(e => ziele.Contains(e.Id) && e.Id != id))
+            {
+                e.Zeitwuensche = kopie.Kopie();
+                e.UnbestimmteZeitwuensche = unbestimmt.Select(u => new UnbestimmterZeitwunsch { Bereich = u.Bereich, Anzahl = u.Anzahl, Wunsch = u.Wunsch }).ToList();
+            }
+        });
+        AppZustand.Haupt.StatusMelden($"Zeitwünsche auf {ziele.Count(z => z != id)} Element(e) übertragen.");
     }
 
     private void UnbestimmteSpeichern()

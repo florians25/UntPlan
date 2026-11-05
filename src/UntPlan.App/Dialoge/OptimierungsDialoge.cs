@@ -20,11 +20,15 @@ public sealed class GewichtungDialog : Dialog
         foreach (var r in Gewichtung.Alle) _werte.TryAdd(r.Schluessel, r.Standard);
         foreach (var k in Gewichtung.Karteikarten) _karten.Items.Add(k);
         _karten.Items.Add("Gewichtungs-Verteilung");
-        _karten.Items.Add("Analyse");
+        _karten.Items.Add($"Analyse ({AnalyseAnzahl()})");
         _karten.SelectedIndexChanged += (_, _) => Anzeigen();
         Controls.Add(_karten);
         Controls.Add(_inhalt);
-        _uebernehmen.Location = new Point(Ok.Left - 96, Ok.Top);
+        // Schaltflächen wie im Handbuch: Ok, Abbrechen, Übernehmen
+        _uebernehmen.Location = Abbrechen.Location;
+        Abbrechen.Location = Ok.Location;
+        Ok.Location = new Point(Ok.Left - 96, Ok.Top);
+        Ok.Text = "Ok";
         _uebernehmen.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         Controls.Add(_uebernehmen);
         var standard = new Button { Text = "Voreinstellung", Left = 8, Top = Ok.Top, Width = 110, Height = 26 };
@@ -51,7 +55,7 @@ public sealed class GewichtungDialog : Dialog
             _inhalt.Controls.Add(chart);
             return;
         }
-        if (karte == "Analyse")
+        if (karte.StartsWith("Analyse"))
         {
             var g = new DataGridView { Dock = DockStyle.Fill };
             Ui.RasterGestalten(g, false);
@@ -77,15 +81,16 @@ public sealed class GewichtungDialog : Dialog
             _inhalt.Controls.Add(g);
             return;
         }
-        var y = 8;
-        _inhalt.Controls.Add(new Label { Text = "unwichtig", Left = 330, Top = y, Width = 60, ForeColor = Color.DimGray });
-        _inhalt.Controls.Add(new Label { Text = "extrem wichtig", Left = 450, Top = y, Width = 90, ForeColor = Color.DimGray });
+        // wie im Handbuch: Regler links (Überschrift „unwichtig … extrem wichtig“), Text des Parameters rechts daneben
+        var y = 4;
+        _inhalt.Controls.Add(new Label { Text = "unwichtig", Left = 4, Top = y, Width = 70, ForeColor = Color.DimGray });
+        _inhalt.Controls.Add(new Label { Text = "extrem wichtig", Left = 84, Top = y, Width = 100, ForeColor = Color.DimGray });
         y += 18;
         foreach (var r in Gewichtung.Alle.Where(r => r.Karteikarte == karte))
         {
-            _inhalt.Controls.Add(new Label { Text = r.Text, Left = 4, Top = y + 6, Width = 320, Height = 34, AutoSize = false });
-            var tb = new TrackBar { Minimum = 0, Maximum = 5, Value = _werte[r.Schluessel], Left = 326, Top = y, Width = 200, TickStyle = TickStyle.BottomRight, LargeChange = 1 };
-            var wert = new Label { Text = _werte[r.Schluessel].ToString(), Left = 530, Top = y + 6, Width = 20, Font = Ui.SchriftFett };
+            var tb = new TrackBar { Minimum = 0, Maximum = 5, Value = _werte[r.Schluessel], Left = 4, Top = y, Width = 130, TickStyle = TickStyle.TopLeft, LargeChange = 1 };
+            var wert = new Label { Text = _werte[r.Schluessel].ToString(), Left = 138, Top = y + 8, Width = 16, Font = Ui.SchriftFett };
+            _inhalt.Controls.Add(new Label { Text = r.Text, Left = 160, Top = y + 8, Width = 390, Height = 34, AutoSize = false });
             var key = r.Schluessel;
             tb.ValueChanged += (_, _) => { _werte[key] = tb.Value; wert.Text = tb.Value.ToString(); };
             _inhalt.Controls.Add(tb);
@@ -98,6 +103,9 @@ public sealed class GewichtungDialog : Dialog
             Left = 4, Top = y + 10, Width = 540, Height = 40, ForeColor = Color.DimGray,
         });
     }
+
+    /// <summary>Anzahl der Gewichtungsparameter, auf die die Analyse hinweist (Gewicht 5).</summary>
+    private int AnalyseAnzahl() => _werte.Count(x => x.Value >= 5);
 
     private sealed class VerteilungsDiagramm : Control
     {
@@ -178,57 +186,85 @@ public sealed class OptimierungDialog : Dialog
     public OptimierungDialog() : base("Steuerdaten zur Optimierung", 560, 420)
     {
         var o = _letzte;
-        var grp = new GroupBox { Text = "Ablauf der Optimierung", Left = 10, Top = 10, Width = 260, Height = 170 };
+        // Aufbau wie im Handbuch (4.3.1): links „Ablauf der Optimierung“ und „Lehrer-Zuordnung bei Optimierung“,
+        // rechts oben Ok / Abbrechen, darunter Prozentsatz, Ähnlichkeit und die Kennzeichen
+        var grp = new GroupBox { Text = "Ablauf der Optimierung", Left = 10, Top = 6, Width = 260, Height = 160 };
         foreach (Strategie s in Enum.GetValues<Strategie>()) _strategie.Items.Add(StrategieInfo.Name(s));
         _strategie.SelectedIndex = (int)o.Strategie;
-        grp.Controls.Add(new Label { Text = "Optimierungs-Strategie (A, B, …)", Left = 12, Top = 22, Width = 230 });
-        _strategie.SetBounds(12, 40, 230, 23);
+        grp.Controls.Add(new Label { Text = "Optimierungs-Strategie (A, B, ...)", Left = 12, Top = 22, Width = 230 });
+        _strategie.SetBounds(12, 42, 236, 23);
         grp.Controls.Add(_strategie);
         _plaene.Value = Math.Clamp(o.AnzahlPlaene, 1, 20);
         _schritte.Value = Math.Clamp(o.Schritte, 1, 9);
-        _plaene.SetBounds(12, 76, 50, 23);
-        _schritte.SetBounds(12, 106, 50, 23);
+        _plaene.SetBounds(12, 80, 44, 23);
+        _schritte.SetBounds(12, 120, 44, 23);
         grp.Controls.Add(_plaene);
         grp.Controls.Add(_schritte);
-        grp.Controls.Add(new Label { Text = "Je Serie der Opt.: Anzahl Pläne (1-20)", Left = 68, Top = 79, Width = 190 });
-        grp.Controls.Add(new Label { Text = "Optimierungsschritte je Plan (1-9)", Left = 68, Top = 109, Width = 190 });
+        grp.Controls.Add(new Label { Text = "Je Serie der Opt.: Anzahl Pläne(1-20)", Left = 64, Top = 78, Width = 186, Height = 32 });
+        grp.Controls.Add(new Label { Text = "Optimierungsschritte je Plan (1-9)", Left = 64, Top = 123, Width = 186 });
         Controls.Add(grp);
 
-        var lz = new GroupBox { Text = "Lehrer-Zuordnung", Left = 10, Top = 188, Width = 260, Height = 70 };
-        _zuordnen.SetBounds(12, 22, 240, 40);
+        var lz = new GroupBox { Text = "Lehrer-Zuordnung bei Optimierung", Left = 10, Top = 176, Width = 260, Height = 76 };
+        _zuordnen.SetBounds(12, 22, 240, 44);
         _zuordnen.AutoSize = false;
         lz.Controls.Add(_zuordnen);
         Controls.Add(lz);
 
+        Ok.Text = "Ok";
+        Ok.Anchor = Abbrechen.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        Ok.Location = new Point(290, 12);
+        Abbrechen.Location = new Point(386, 12);
+
         var x = 290;
-        var y = 14;
+        var y = 50;
+        _start.Value = Math.Clamp(o.StartProzent, 5, 100);
+        _start.SetBounds(x, y, 46, 23);
+        Controls.Add(_start);
+        Controls.Add(new Label { Text = "% der Klassenstunden zu verplanen (blank=100%)", Left = x + 52, Top = y, Width = 210, Height = 32 });
+        y += 38;
         _aehnlich.Value = Math.Clamp(o.Aehnlichkeit, 0, 4);
-        _aehnlich.SetBounds(x, y, 50, 23);
+        _aehnlich.SetBounds(x, y, 46, 23);
         Controls.Add(_aehnlich);
-        Controls.Add(new Label { Text = "Ähnlichkeit zu Vorplan (0-4, 0 = nicht ähnlich, 4 = sehr ähnlich)", Left = x + 56, Top = y, Width = 200, Height = 32 });
-        y += 40;
-        foreach (var c in new[] { _bedingt, _freieTage, _doppel, _nurNv })
+        Controls.Add(new Label { Text = "Ähnlichkeit zu Vorplan (0-4, 0=nicht ähnlich, 4=sehr ähnlich)", Left = x + 52, Top = y, Width = 210, Height = 32 });
+        y += 38;
+        foreach (var c in new[] { _bedingt, _freieTage })
         {
             c.Left = x;
             c.Top = y;
             Controls.Add(c);
             y += 26;
         }
+        Controls.Add(new Label { Text = "Für Strategie D:", Left = x, Top = y + 2, AutoSize = true });
+        y += 22;
+        _erhoehung.Value = Math.Clamp(o.ErhoehungProzent, 5, 100);
+        _erhoehung.SetBounds(x, y, 46, 23);
+        var erhText = new Label { Text = "Erhöhungs-Prozentsatz", Left = x + 52, Top = y + 3, AutoSize = true };
+        Controls.Add(_erhoehung);
+        Controls.Add(erhText);
+        y += 32;
+        var dg = new GroupBox { Text = "Doppelstunden", Left = x, Top = y, Width = 258, Height = 48 };
+        _doppel.SetBounds(10, 20, 240, 22);
+        _doppel.AutoSize = false;
+        dg.Controls.Add(_doppel);
+        Controls.Add(dg);
+        y += 56;
+        _nurNv.Left = x;
+        _nurNv.Top = y;
+        Controls.Add(_nurNv);
         _bedingt.Checked = o.BedingtFixieren;
         _freieTage.Checked = o.NurGewuenschteFreieTage;
         _doppel.Checked = o.DoppelstundenBesonders;
         _nurNv.Checked = o.NurNichtVerplante;
-        var cd = new GroupBox { Text = "Für Strategie C und D", Left = x, Top = y + 6, Width = 250, Height = 82 };
-        _start.Value = Math.Clamp(o.StartProzent, 5, 100);
-        _erhoehung.Value = Math.Clamp(o.ErhoehungProzent, 5, 100);
-        _start.SetBounds(12, 22, 50, 23);
-        _erhoehung.SetBounds(12, 50, 50, 23);
-        cd.Controls.AddRange(new Control[] { _start, _erhoehung, new Label { Text = "Start-Prozentsatz", Left = 68, Top = 25, AutoSize = true }, new Label { Text = "Erhöhungs-Prozentsatz", Left = 68, Top = 53, AutoSize = true } });
-        Controls.Add(cd);
-        Controls.Add(new Label { Left = 12, Top = 270, Width = 520, Height = 60, ForeColor = Color.DarkRed,
-            Text = "Prüfen Sie vor den ersten Optimierungsläufen Ihre Eingabedaten mit der Diagnose.\n" +
+        Controls.Add(new Label { Left = 12, Top = 262, Width = 260, Height = 120, ForeColor = Color.DarkRed,
+            Text = "Prüfen Sie vor den ersten Optimierungsläufen Ihre Eingabedaten mit der Diagnose.\n\n" +
                    "Fixierte Stunden bleiben immer stehen. \"Plan bedingt fixieren\" verlegt vorhandene Stunden nur, wenn es nicht anders geht." });
-        void Umschalten() { cd.Enabled = _strategie.SelectedIndex is 2 or 3; _aehnlich.Enabled = !_bedingt.Checked; }
+        void Umschalten()
+        {
+            var prozent = _strategie.SelectedIndex is 2 or 3;
+            _start.Enabled = prozent;
+            _erhoehung.Enabled = erhText.Enabled = _strategie.SelectedIndex == 3;
+            _aehnlich.Enabled = !_bedingt.Checked;
+        }
         _strategie.SelectedIndexChanged += (_, _) => Umschalten();
         _bedingt.CheckedChanged += (_, _) => Umschalten();
         Umschalten();

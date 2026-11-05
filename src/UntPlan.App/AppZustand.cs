@@ -244,6 +244,8 @@ public sealed class Benutzereinstellungen
     /// <summary>Dialog „Raum zuordnen / löschen“: Auto-resize beim Öffnen deaktivieren (gemerkte Größe verwenden).</summary>
     public bool RaumDialogAutoResizeAus { get; set; }
     public Size RaumDialogGroesse { get; set; }
+    /// <summary>Fenster Kalender: Detailbereich (Tagestexte, Kalendertag) ausgeklappt.</summary>
+    public bool KalenderDetailOffen { get; set; } = true;
     /// <summary>Absenzfenster: Veranstaltungen zur Information mit anzeigen.</summary>
     public bool AbsenzenVeranstaltungenZeigen { get; set; }
     /// <summary>Vertretungsfenster „Felder der Ansicht“ je Ansicht: Feld → "a" (aktiv), "d" (drucken), "L" (Langname).</summary>
@@ -333,6 +335,42 @@ public sealed class Vertretungsdruck
     public bool KeinEntfallBeiErsatz { get; set; }
     // Abwesend
     public bool LehrerMitAbsenzgrund { get; set; }
+    // Absenzkopf, Spalte „Vertretung“: betroffene (vertretende) Lehrer, Klassen und Räume
+    public bool VertretungLehrer { get; set; }
+    public bool VertretungKlassen { get; set; }
+    public bool VertretungRaeume { get; set; }
+    // Symbolleiste des Seitenlayouts
+    /// <summary>Tabelleninhalt fett drucken.</summary>
+    public bool TabelleFett { get; set; }
+    /// <summary>Lange Texte in den Zellen umbrechen (Zeilenhöhe wächst).</summary>
+    public bool Zeilenumbruch { get; set; }
+    /// <summary>Langnamen statt Kurznamen der Stammdaten drucken.</summary>
+    public bool Langname { get; set; }
+    /// <summary>Schriftschnitt der Überschriftszeile: 0 waagrecht, 1 schräg, 2 senkrecht.</summary>
+    public int UeberschriftSchnitt { get; set; }
+    // Sortierkriterien (Sortierkriterium 1 = Gruppierung)
+    public bool SortierungAbsteigend { get; set; }
+    public string Sortierung2 { get; set; } = "Stunde";
+    public bool Sortierung2Absteigend { get; set; }
+    /// <summary>Überschriftsfelder der Elementüberschrift (Feldart, Größe in %).</summary>
+    public List<UeberschriftsFeld> UeberschriftsFelder { get; set; } = new() { new() { Feld = "Kurzname", Groesse = 200 }, new() { Feld = "Langname", Groesse = 150 } };
+    // Global
+    public int AbsenzkopfGroesse { get; set; } = 100;
+    public bool AbsenzkopfRahmen { get; set; } = true;
+    public bool AbsenzkopfNichtVeranstaltungen { get; set; } = true;
+    public bool AbsenzkopfLangLehrer { get; set; }
+    public bool AbsenzkopfLangKlassen { get; set; }
+    public bool AbsenzkopfLangRaeume { get; set; }
+    public int TagestexteGroesse { get; set; } = 100;
+    public bool TagestexteRahmen { get; set; }
+}
+
+/// <summary>Feld der Elementüberschrift im Seitenlayout („Überschriftsfelder“).</summary>
+public sealed class UeberschriftsFeld
+{
+    /// <summary>"Kurzname", "Langname" oder "" (kein Feld).</summary>
+    public string Feld { get; set; } = "";
+    public int Groesse { get; set; } = 100;
 }
 
 /// <summary>Feld (Spalte) im Seitenlayout eines Ausdrucks.</summary>

@@ -38,6 +38,9 @@ public enum FormatZeitraum { Kalenderwoche, GanzesSchuljahr, EinTag }
 /// <summary>Art des Namens in der Stundenplan-Stunde.</summary>
 public enum NamensArt { Kurzname, Langname, Druckname }
 
+/// <summary>Art der Zeilenbeschriftung (Vorbild „Zeilenbeschriftung Stunden - Überschrift“, Art der Überschrift).</summary>
+public enum ZeilenBeschriftung { Nummer, ZeitUndNummer, Zeit, Bezeichnung }
+
 /// <summary>Gestaltung eines Feldbereichs (Überschrift, besetzte bzw. freie Stunden).</summary>
 public sealed class FeldGestaltung
 {
@@ -160,6 +163,69 @@ public sealed class StundenplanFormat
     public bool HtmlIndexLangnamen { get; set; }
     public bool HauptklassenGetrennt { get; set; }
     public bool Pausenbezeichnung { get; set; } = true;
+    /// <summary>Vorbild Layout 2 „Bandmodus“ (Manuelles Planen): Stunden eines Bandes werden gemeinsam verschoben.</summary>
+    public bool Bandmodus { get; set; } = true;
+    /// <summary>Vorbild Layout 2 „Für Lupe / Legende Alias verwenden“.</summary>
+    public bool LupeLegendeAlias { get; set; } = true;
+    /// <summary>Vorbild Layout 2, Geänderte Stunden: „Entfälle und Platzhalter nicht anzeigen“ (nur bei „Entfälle durchstreichen“ aus).</summary>
+    public bool EntfaelleNichtAnzeigen { get; set; }
+    /// <summary>Vorbild Layout 2, Geänderte Stunden: Rot, Fett, Kursiv, Mit ! hervorheben, Unterstreichen.</summary>
+    public bool GeaendertRot { get; set; } = true;
+    public bool GeaendertFett { get; set; }
+    public bool GeaendertKursiv { get; set; }
+    public bool GeaendertAusrufezeichen { get; set; }
+    public bool GeaendertUnterstreichen { get; set; }
+
+    // ---- Allgemein: Schrift, Schriftgröße in %, Kurzname ----
+    /// <summary>Kurzname des Formats wie im Vorbild („Kla1“), leer = automatisch.</summary>
+    public string Kurzname { get; set; } = "";
+    /// <summary>Vorbild „Formate / Stundenpläne“, Spalte „Standard“: dieses Format öffnet sich standardmäßig für die Planart.</summary>
+    public bool Standard { get; set; }
+    /// <summary>Vorbild „Formate / Stundenpläne“, Spalte „im Menü“: das Format erscheint zusätzlich im Menü.</summary>
+    public bool ImMenue { get; set; }
+    /// <summary>Schriftart der Stunden (leer = Programmschrift).</summary>
+    public string Schriftart { get; set; } = "";
+    public int LupeSchriftProzent { get; set; } = 100;
+    public int LegendeSchriftProzent { get; set; } = 100;
+    public int UeberschriftSchriftProzent { get; set; } = 100;
+    /// <summary>In der Stundenlupe ausgeblendete Spalten (interne Spaltennamen).</summary>
+    public List<string> LupeAusgeblendet { get; set; } = new();
+
+    // ---- Spaltenbeschriftung (Wochentage - Überschrift) ----
+    public bool SpaltenFett { get; set; } = true;
+    public bool SpaltenKursiv { get; set; }
+    public bool SpaltenUnterstrichen { get; set; }
+    public int SpaltenSchriftProzent { get; set; } = 100;
+    /// <summary>„Tag + Datum für Wochenplan“.</summary>
+    public bool SpaltenTagUndDatum { get; set; }
+    /// <summary>„Datum mit Jahreszahl“.</summary>
+    public bool SpaltenDatumMitJahr { get; set; }
+    /// <summary>„Stellen je Wochentag maximal (1-20)“, 0 = automatisch nach Spaltenbreite.</summary>
+    public int SpaltenStellen { get; set; }
+
+    // ---- Zeilenbeschriftung (Stunden - Überschrift) ----
+    /// <summary>Art der Überschrift, wenn Uhrzeiten angezeigt werden (<see cref="ZeitenAnzeigen"/>); sonst nur die Nummer.</summary>
+    public ZeilenBeschriftung ZeilenArt { get; set; } = ZeilenBeschriftung.ZeitUndNummer;
+    /// <summary>Stunden-Zeit: nur Beginn-Zeit (statt Beginn- + End-Zeit).</summary>
+    public bool ZeilenNurBeginn { get; set; }
+    public bool ZeilenFett { get; set; } = true;
+    public bool ZeilenKursiv { get; set; }
+    public bool ZeilenUnterstrichen { get; set; }
+    public int ZeilenSchriftProzent { get; set; } = 100;
+
+    /// <summary>Wirksame Art der Zeilenbeschriftung.</summary>
+    public ZeilenBeschriftung ZeilenArtWirksam => ZeitenAnzeigen ? ZeilenArt : ZeilenBeschriftung.Nummer;
+
+    /// <summary>Uhrzeit einer Stunde laut Zeilenbeschriftung („8:00-8:45“ bzw. nur „8:00“).</summary>
+    public string ZeilenZeit(Stundenzeit z) => ZeilenNurBeginn ? $"{z.Beginn:H\\:mm}" : $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}";
+
+    /// <summary>Spaltenüberschrift eines Tages laut Spaltenbeschriftung (Stellen, Tag + Datum).</summary>
+    public string SpaltenText(string tagname, DateOnly? datum)
+    {
+        var t = SpaltenStellen > 0 && tagname.Length > SpaltenStellen ? tagname[..SpaltenStellen] : tagname;
+        if (SpaltenTagUndDatum && datum is DateOnly d) t += " " + d.ToString(SpaltenDatumMitJahr ? "dd.MM.yyyy" : "dd.MM.");
+        return t;
+    }
 
     // ---- HTML ----
     public bool HtmlMitFarben { get; set; } = true;

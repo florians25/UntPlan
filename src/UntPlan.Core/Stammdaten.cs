@@ -132,7 +132,7 @@ public static class Stammdaten
                 d.Schueler.RemoveAll(x => x.Id == id);
                 break;
         }
-        d.Kommentare.RemoveAll(k => k.ElementTyp == e.Typ && k.ElementId == id);
+        d.Kommentare.RemoveAll(k => k.Bezug.Length == 0 && k.ElementTyp == e.Typ && k.ElementId == id);
     }
 
     public static void UnterrichtLoeschen(Schuldatei d, int unterrichtId)

@@ -350,6 +350,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Optimierung", "optimierung", () => OptimierungDialog.Starten(this), true));
         g.Eintraege.Add(E("Alle Stunden entplanen", "loeschen", AlleEntplanen));
         g.Eintraege.Add(E("Unterrichtszeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, null)));
+        g.Eintraege.Add(E("Fixierter/Ignorierter Unterricht", "fixieren", () => Oeffnen<FixierterUnterrichtFenster>("fixiert", () => new FixierterUnterrichtFenster()), hinweis: "Alle fixierten bzw. ignorierten Unterrichte mit der Ebene der Fixierung; Fixierungen lösen"));
         g.Eintraege.Add(E("Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this)));
 
         var plaene = _ribbon.Seite("Stundenpläne");
@@ -362,6 +363,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Klassenplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true)));
         g.Eintraege.Add(E("Lehrerplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, true)));
         g.Eintraege.Add(E("Raumplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Raum, null, true)));
+        g.Eintraege.Add(E("Stundenplanformate", "einstellungen", () => Oeffnen<StundenplanformateFenster>("formate", () => new StundenplanformateFenster()), hinweis: "Formate | Stundenpläne: Name, Langname, Standard, im Menü"));
         g = Gruppe(plaene, "Übersichtspläne");
         g.Eintraege.Add(E("Klassen Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Klasse).Show(), true));
         g.Eintraege.Add(E("Lehrer Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Lehrer).Show(), true));
@@ -686,14 +688,18 @@ public sealed partial class HauptFenster : Form
             case Keys.Control | Keys.Y when ActiveMdiChild?.ActiveControl is not TextBoxBase:
                 AppZustand.Doc.Wiederholen();
                 return true;
+            // Vertretungsmodus wie im Handbuch (Kap. 4.3 Datum): Strg+T heute, Strg+M kommender, Strg+G vergangener Schultag
+            case Keys.Control | Keys.T when AppZustand.Vertretungsmodus:
+                AppZustand.DatumSetzen(DateOnly.FromDateTime(DateTime.Today));
+                _ribbon.Invalidate();
+                return true;
             case Keys.Control | Keys.T:
                 VertretungsFensterOeffnen("vertr");
                 return true;
-            case Keys.Control | Keys.M when AppZustand.Vertretungsmodus:
-                VertretungsFensterOeffnen("abw");
-                return true;
-            case Keys.Control | Keys.G when AppZustand.Vertretungsmodus:
-                VertretungsFensterOeffnen("vorschlag");
+            case Keys.Control | Keys.M when AppZustand.Vertretungsmodus && ActiveMdiChild?.ActiveControl is not TextBoxBase:
+            case Keys.Control | Keys.G when AppZustand.Vertretungsmodus && ActiveMdiChild?.ActiveControl is not TextBoxBase:
+                AppZustand.DatumSetzen(Kalender.NaechsterUnterrichtstag(AppZustand.D, AppZustand.Datum, (keyData & Keys.KeyCode) == Keys.G ? -1 : 1));
+                _ribbon.Invalidate();
                 return true;
             case Keys.F1 when ActiveMdiChild is null:
                 HilfeFenster.Zeigen("");

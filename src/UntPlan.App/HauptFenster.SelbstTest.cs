@@ -463,7 +463,9 @@ public sealed partial class HauptFenster
             if (AppZustand.D.Unterrichte.Count != anzahl + 1) throw new InvalidOperationException("Kein neuer Unterricht angelegt.");
             var neu = AppZustand.D.Unterrichte.OrderBy(u => u.Id).Last();
             var pos = f.SelbsttestPosition;
-            if (pos.Unterricht != neu.Id || pos.Spalte != "Lehrer") throw new InvalidOperationException($"Eingabeposition nach dem Anlegen: U{pos.Unterricht}/{pos.Spalte} statt U{neu.Id}/Lehrer.");
+            // Spaltenfolge wie im Handbuch (Lehrer, Fach, Klasse(n)): Enter geht zur nächsten Spalte des neuen Unterrichts
+            if (pos.Unterricht != neu.Id || pos.Spalte == "Fach") throw new InvalidOperationException($"Eingabeposition nach dem Anlegen: U{pos.Unterricht}/{pos.Spalte} statt nächster Spalte von U{neu.Id}.");
+            f.SelbsttestWaehlen(neu.Id, "Lehrer");
             if (!f.SelbsttestEingabe(lehrer.Kurzname.ToLowerInvariant())) throw new InvalidOperationException("Lehrer wurde nicht übernommen: " + f.HinweisText);
             Warten(300);
             neu = AppZustand.D.Unterrichte.First(u => u.Id == neu.Id);

@@ -160,6 +160,11 @@ public sealed class Kommentar
     public ElementTyp ElementTyp { get; set; }
     public int ElementId { get; set; }
     public string Feld { get; set; } = "";
+    /// <summary>
+    /// Bezug auf einen Eintrag ohne Stammdatenelement (z. B. „Absenz:17“, „Veranstaltung:3“) – leer bei Kommentaren zu Stammdaten
+    /// (dann gelten <see cref="ElementTyp"/> und <see cref="ElementId"/>).
+    /// </summary>
+    public string Bezug { get; set; } = "";
     /// <summary>Kategorie 1–8 (Farbe frei definierbar).</summary>
     public int Kategorie { get; set; } = 1;
     public string Text { get; set; } = "";

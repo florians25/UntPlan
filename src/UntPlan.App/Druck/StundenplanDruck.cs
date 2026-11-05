@@ -42,6 +42,9 @@ public static class StundenplanDruck
     private static int SeiteZeichnen(Graphics g, Rectangle r, ElementTyp typ, List<int> ids, int i, int proSeite, StundenplanFormat format, DateOnly? woche, int seite, int seiten)
     {
         var teil = ids.Skip(i).Take(proSeite).ToList();
+        // Schriftgrößen in % aus den Stundenplan-Einstellungen (Allgemein): Überschrift und Kopp.-Legende
+        Druck.StundenplanFormular.Optionen.UeberschriftProzent = format.UeberschriftSchriftProzent;
+        Druck.StundenplanFormular.Optionen.LegendeProzent = format.LegendeSchriftProzent;
         Druck.StundenplanFormular.Seite(g, r, typ, teil, !format.Gross, seite, seiten);
         return i + teil.Count;
     }
@@ -82,7 +85,7 @@ public static class DruckauswahlDialog
         d.Controls.Add(btn);
         d.Controls.Add(lbl);
         ElementTyp Typ() => typBox.SelectedIndex switch { 1 => ElementTyp.Lehrer, 2 => ElementTyp.Raum, 3 => ElementTyp.Fach, _ => ElementTyp.Klasse };
-        void Alle() { auswahl = Stammdaten.Sortiert(AppZustand.D, Typ()).Select(e => e.Id).ToList(); lbl.Text = $"{Ui.TypName(Typ(), true)}: {auswahl.Count}/{auswahl.Count}"; }
+        void Alle() { auswahl = Stammdaten.Sortiert(AppZustand.D, Typ()).Where(e => !e.NichtDrucken).Select(e => e.Id).ToList(); lbl.Text = $"{Ui.TypName(Typ(), true)}: {auswahl.Count}/{auswahl.Count}"; }
         typBox.SelectedIndexChanged += (_, _) => Alle();
         btn.Click += (_, _) =>
         {

@@ -22,7 +22,7 @@ public static class Textverlauf
     /// <summary>Spaltenüberschriften von Freitextspalten mit Verlauf.</summary>
     private static readonly HashSet<string> TextSpalten = new(StringComparer.CurrentCultureIgnoreCase)
     {
-        "Text", "Text 2", "Text2", "Bemerkung", "Bemerkungen", "Beschr.", "Beschreibung", "Notiz", "Kommentar", "Vertretungs-Text", "Vertretungstext",
+        "Text", "Tagestext", "Text 2", "Text2", "Vertr.-Text-2", "Bemerkung", "Bemerkungen", "Beschr.", "Beschreibung", "Notiz", "Kommentar", "Vertretungs-Text", "Vertretungstext",
     };
 
     /// <summary>Beschriftungen eigenständiger Textfelder mit Verlauf (Dialogzeilen „Text:“, „Bemerkung:“ …).</summary>

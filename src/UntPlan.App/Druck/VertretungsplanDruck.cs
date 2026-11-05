@@ -115,13 +115,18 @@ public static class VertretungsplanDruck
     public static List<Bitmap> Bilder(DateOnly von, DateOnly bis, bool lehrerVersion) => Bilder(von, bis, lehrerVersion, out _);
 
     /// <summary>Seiten als Bilder; liefert zusätzlich die Lage der Spaltenköpfe der ersten Seite (für die Stifte im Seitenlayout).</summary>
-    internal static List<Bitmap> Bilder(DateOnly von, DateOnly bis, bool lehrerVersion, out List<(string Schluessel, RectangleF Kopf)> spalten)
+    internal static List<Bitmap> Bilder(DateOnly von, DateOnly bis, bool lehrerVersion, out List<(string Schluessel, RectangleF Kopf)> spalten) =>
+        Bilder(von, bis, lehrerVersion, out spalten, out _);
+
+    /// <summary>Seiten als Bilder; zusätzlich die Lage der Listenüberschrift der ersten Seite (Stift „Listenüberschrift“).</summary>
+    internal static List<Bitmap> Bilder(DateOnly von, DateOnly bis, bool lehrerVersion, out List<(string Schluessel, RectangleF Kopf)> spalten, out RectangleF titel)
     {
         var e = AppZustand.Einstellungen.Vertretungsdruck;
         var tage = Tage(von, bis, lehrerVersion, e);
         var seiten = new Seiten(tage, lehrerVersion, e);
         var res = new List<Bitmap>();
         spalten = new();
+        titel = RectangleF.Empty;
         var mehr = tage.Count > 0;
         while (mehr && res.Count < 50)
         {
@@ -130,7 +135,7 @@ public static class VertretungsplanDruck
             g.Clear(Color.White);
             g.PageUnit = GraphicsUnit.Display;
             mehr = seiten.Zeichnen(g, new Rectangle(55, 45, bmp.Width - 100, bmp.Height - 90));
-            if (res.Count == 0) spalten = seiten.Spaltenkoepfe.ToList();
+            if (res.Count == 0) { spalten = seiten.Spaltenkoepfe.ToList(); titel = seiten.Titelbereich; }
             res.Add(bmp);
         }
         return res;
@@ -147,13 +152,70 @@ public static class VertretungsplanDruck
         private readonly Vertretungsdruck _e;
         private int _tagNr, _zeileNr;
         private bool _tagAnfang = true;
+        private readonly Dictionary<string, string> _langLehrer, _langKlassen, _langFaecher, _langRaeume;
 
         /// <summary>Lage der Spaltenköpfe der zuletzt gezeichneten Seite.</summary>
         public List<(string Schluessel, RectangleF Kopf)> Spaltenkoepfe { get; } = new();
 
-        public Seiten(List<Tag> tage, bool lehrer, Vertretungsdruck e) { _tage = tage; _lehrer = lehrer; _e = e; }
+        /// <summary>Lage der Listenüberschrift der zuletzt gezeichneten Seite.</summary>
+        public RectangleF Titelbereich { get; private set; }
+
+        public Seiten(List<Tag> tage, bool lehrer, Vertretungsdruck e)
+        {
+            _tage = tage; _lehrer = lehrer; _e = e;
+            var d = AppZustand.D;
+            static Dictionary<string, string> Lang(IEnumerable<Element> liste)
+            {
+                var res = new Dictionary<string, string>();
+                foreach (var x in liste) if (x.Kurzname.Length > 0 && x.Langname.Length > 0) res.TryAdd(x.Kurzname, x.Langname);
+                return res;
+            }
+            _langLehrer = Lang(d.Lehrer);
+            _langKlassen = Lang(d.Klassen);
+            _langFaecher = Lang(d.Faecher);
+            _langRaeume = Lang(d.Raeume);
+        }
 
         public void Zuruecksetzen() { _tagNr = 0; _zeileNr = 0; _tagAnfang = true; }
+
+        /// <summary>Kurznamen einer Aufzählung („1a,1b“) durch Langnamen ersetzen (unbekannte bleiben).</summary>
+        private static string Langnamen(string text, Dictionary<string, string> lang)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            var teile = text.Split(',').Select(t => t.Trim()).ToList();
+            if (teile.Count == 1)
+            {
+                // „Ma G1“ (Fach mit Schülergruppe): nur das erste Wort ersetzen
+                var i = text.IndexOf(' ');
+                var kopf = i > 0 ? text[..i] : text;
+                return lang.TryGetValue(kopf, out var l) ? l + (i > 0 ? text[i..] : "") : text;
+            }
+            return string.Join(", ", teile.Select(t => lang.TryGetValue(t, out var l) ? l : t));
+        }
+
+        private Dictionary<string, string>? LangFuer(string schluessel) => schluessel switch
+        {
+            "Element" => _lehrer ? _langLehrer : _langKlassen,
+            "Partner" => _lehrer ? _langKlassen : _langLehrer,
+            "Abwesend" => _langLehrer,
+            "Fach" or "StattFach" => _langFaecher,
+            "Raum" or "StattRaum" => _langRaeume,
+            _ => null,
+        };
+
+        /// <summary>Gedruckter Wert eines Feldes (Symbolleiste „Wechsel Kurzname / Langname“).</summary>
+        private string Anzeige(Zeile z, string schluessel)
+        {
+            var w = Wert(z, schluessel);
+            return _e.Langname && LangFuer(schluessel) is { } lang ? Langnamen(w, lang) : w;
+        }
+
+        /// <summary>Langname zum Gruppenwert (Elementüberschrift).</summary>
+        private string GruppeLang(string gruppe)
+        {
+            var schluessel = _e.Gruppierung switch { "Vertreter" => "Partner", "Stunde" or "Fach" or "Raum" or "Art" or "Abwesend" or "VtrNr" => _e.Gruppierung, _ => "Element" };
+            return LangFuer(schluessel) is { } lang ? Langnamen(gruppe, lang) : gruppe;
+        }
 
         /// <summary>Zeichnet die nächste Seite; liefert true, wenn weitere Seiten folgen.</summary>
         public bool Zeichnen(Graphics g, Rectangle r)
@@ -165,13 +227,17 @@ public static class VertretungsplanDruck
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
             HintergrundZeichnen(g, r, e);
             var schrift = SchriftartPruefen(e.Schriftart);
-            using var normal = new Font(schrift, e.Schriftgroesse);
+            using var normal = new Font(schrift, e.Schriftgroesse, e.TabelleFett ? FontStyle.Bold : FontStyle.Regular);
             using var fett = new Font(schrift, e.Schriftgroesse, FontStyle.Bold);
-            using var durch = new Font(schrift, e.Schriftgroesse, FontStyle.Strikeout | FontStyle.Italic);
+            using var durch = new Font(schrift, e.Schriftgroesse, (e.TabelleFett ? FontStyle.Bold : FontStyle.Regular) | FontStyle.Strikeout | FontStyle.Italic);
             using var kopfFett = new Font(schrift, e.Schriftgroesse + 2, FontStyle.Bold);
+            using var spaltenKopf = new Font(schrift, e.Schriftgroesse);
             using var unterstrichen = new Font(schrift, e.Schriftgroesse, FontStyle.Bold | FontStyle.Underline);
             using var kopfNormal = new Font(schrift, e.Schriftgroesse + 1);
             using var titel = new Font(schrift, e.Schriftgroesse + 8, FontStyle.Bold);
+            using var absenzSchrift = new Font(schrift, Math.Max(5f, (e.Schriftgroesse + 1) * Math.Clamp(e.AbsenzkopfGroesse, 25, 400) / 100f));
+            using var absenzFett = new Font(absenzSchrift, FontStyle.Bold);
+            using var tagestextSchrift = new Font(schrift, Math.Max(5f, (e.Schriftgroesse + 1) * Math.Clamp(e.TagestexteGroesse, 25, 400) / 100f));
             var tag = tage[_tagNr];
             var y = (float)r.Top;
 
@@ -194,29 +260,43 @@ public static class VertretungsplanDruck
             g.DrawLine(Pens.Black, r.Left, y, r.Right, y);
             y += 16;
 
-            // Titel
+            // Titel (Listenüberschrift)
             var wochentag = Planungsdienst.TageLang[((int)tag.Datum.DayOfWeek + 6) % 7];
             var titelText = e.Ueberschrift.Length > 0 ? e.Ueberschrift : $"{d.Einstellungen.Vertretungsplantitel} {(lehrerVersion ? "Lehrer" : "Klassen")}";
-            g.DrawString($"{titelText} am:  {tag.Datum:d.M.} / {wochentag}{(_tagAnfang ? "" : "  (Fortsetzung)")}", titel, Brushes.Black, r.Left, y);
+            var titelZeile = $"{titelText} am:  {tag.Datum:d.M.} / {wochentag}{(_tagAnfang ? "" : "  (Fortsetzung)")}";
+            g.DrawString(titelZeile, titel, Brushes.Black, r.Left, y);
+            Titelbereich = new RectangleF(r.Left, y, g.MeasureString(titelZeile, titel).Width, titel.GetHeight(g));
             y += titel.GetHeight(g) + 14;
 
             var zh = normal.GetHeight(g) + 5;
             if (_tagAnfang)
             {
+                // Tagestexte (Global: Schriftgröße in %, Ausdruck mit Rahmen)
                 foreach (var n in tag.Nachrichten)
                 {
-                    var h = g.MeasureString(n, kopfNormal, r.Width - 8).Height + 8;
+                    var h = g.MeasureString(n, tagestextSchrift, r.Width - 8).Height + 8;
                     using (var grau = new SolidBrush(Color.FromArgb(236, 236, 236))) g.FillRectangle(grau, r.Left, y, r.Width, h);
-                    g.DrawString(n, kopfNormal, Brushes.Black, new RectangleF(r.Left + 4, y + 4, r.Width - 8, h));
+                    if (e.TagestexteRahmen) g.DrawRectangle(Pens.Black, r.Left, y, r.Width, h);
+                    g.DrawString(n, tagestextSchrift, Brushes.Black, new RectangleF(r.Left + 4, y + 4, r.Width - 8, h));
                     y += h + 6;
                 }
-                foreach (var (kTitel, kText) in tag.Kaesten)
+                // Absenzkopf: „Abwesende Lehrer:  …“ je Zeile, Beschriftungen in einer Spalte, optional mit Rahmen
+                if (tag.Kaesten.Count > 0)
                 {
-                    var text = $"{kTitel}:  {kText}";
-                    var h = g.MeasureString(text, kopfNormal, r.Width - 16).Height + 10;
-                    g.DrawRectangle(Pens.Black, r.Left, y, r.Width, h);
-                    g.DrawString(text, kopfNormal, Brushes.Black, new RectangleF(r.Left + 8, y + 6, r.Width - 16, h));
-                    y += h + 6;
+                    var labelBreite = tag.Kaesten.Max(k => g.MeasureString(k.Titel + ":", absenzFett).Width) + 10;
+                    var textBreite = Math.Max(40, r.Width - 16 - labelBreite);
+                    var oben = y;
+                    y += 5;
+                    foreach (var (kTitel, kText) in tag.Kaesten)
+                    {
+                        var h = g.MeasureString(kText, absenzSchrift, (int)textBreite).Height;
+                        g.DrawString(kTitel + ":", absenzFett, Brushes.Black, r.Left + 8, y);
+                        g.DrawString(kText, absenzSchrift, Brushes.Black, new RectangleF(r.Left + 8 + labelBreite, y, textBreite, h + 2));
+                        y += h + 2;
+                    }
+                    y += 4;
+                    if (e.AbsenzkopfRahmen) g.DrawRectangle(Pens.Black, r.Left, oben, r.Width, y - oben);
+                    y += 6;
                 }
                 y += 14;
             }
@@ -229,7 +309,15 @@ public static class VertretungsplanDruck
             xs[0] = r.Left;
             for (var i = 0; i < felder.Count; i++) xs[i + 1] = xs[i] + Math.Max(0.02f, felder[i].Anteil) / summe * r.Width;
             var koepfe = felder.Select(f => Ueberschrift(f, lehrerVersion)).ToArray();
-            var kopfH = Math.Max(zh, koepfe.Select((k, i) => g.MeasureString(k, normal, (int)Math.Max(10, xs[i + 1] - xs[i])).Height).DefaultIfEmpty(zh).Max()) + 6;
+            float kopfH;
+            if (e.UeberschriftSchnitt == 0)
+                kopfH = Math.Max(zh, koepfe.Select((k, i) => g.MeasureString(k, spaltenKopf, (int)Math.Max(10, xs[i + 1] - xs[i])).Height).DefaultIfEmpty(zh).Max()) + 6;
+            else
+            {
+                // gedrehte Überschriften: Höhe nach der längsten Beschriftung
+                var laengste = koepfe.Select(k => g.MeasureString(k.Replace('\n', ' '), spaltenKopf).Width).DefaultIfEmpty(0).Max();
+                kopfH = e.UeberschriftSchnitt == 2 ? laengste + 10 : laengste * 0.72f + zh;
+            }
             var tabelleOben = y;
             using (var grau = new SolidBrush(Color.FromArgb(236, 236, 236))) g.FillRectangle(grau, r.Left, y, r.Width, kopfH);
             using var unten = new StringFormat { LineAlignment = StringAlignment.Far, Trimming = StringTrimming.EllipsisCharacter };
@@ -237,7 +325,26 @@ public static class VertretungsplanDruck
             for (var i = 0; i < koepfe.Length; i++)
             {
                 var kopf = new RectangleF(xs[i] + 1, y, xs[i + 1] - xs[i] - 2, kopfH - 2);
-                g.DrawString(koepfe[i], i == 0 ? unterstrichen : normal, Brushes.Black, kopf, unten);
+                var kf = i == 0 ? unterstrichen : spaltenKopf;
+                if (e.UeberschriftSchnitt == 0) g.DrawString(koepfe[i], kf, Brushes.Black, kopf, unten);
+                else
+                {
+                    var zustand = g.Save();
+                    var text = koepfe[i].Replace('\n', ' ');
+                    var th = kf.GetHeight(g);
+                    if (e.UeberschriftSchnitt == 2)
+                    {
+                        g.TranslateTransform(kopf.Left + (kopf.Width - th) / 2, kopf.Bottom - 3);
+                        g.RotateTransform(-90);
+                    }
+                    else
+                    {
+                        g.TranslateTransform(kopf.Left + 2, kopf.Bottom - th * 0.8f);
+                        g.RotateTransform(-45);
+                    }
+                    g.DrawString(text, kf, Brushes.Black, 0, 0);
+                    g.Restore(zustand);
+                }
                 Spaltenkoepfe.Add((felder[i].Schluessel, kopf));
             }
             y += kopfH;
@@ -249,6 +356,7 @@ public static class VertretungsplanDruck
                 _zeileNr = 0;
             }
             using var keinUmbruch = new StringFormat { FormatFlags = StringFormatFlags.NoWrap, Trimming = StringTrimming.EllipsisCharacter, LineAlignment = StringAlignment.Center };
+            using var umbruch = new StringFormat { Trimming = StringTrimming.EllipsisWord, LineAlignment = StringAlignment.Near };
             using var linieDuenn = new Pen(Color.FromArgb(205, 205, 205));
             var ersteAufSeite = true;
             while (_zeileNr < tag.Zeilen.Count && y + zh <= r.Bottom)
@@ -257,32 +365,40 @@ public static class VertretungsplanDruck
                 var gruppenAnfang = _zeileNr == 0 || Gruppe(tag.Zeilen[_zeileNr - 1]) != Gruppe(z);
                 // Gliederung: eine Seite je Element (neue Seite am Gruppenanfang, außer ganz oben)
                 if (e.EineSeiteJeElement && gruppenAnfang && !ersteAufSeite) break;
+                var werte = felder.Select(f => Anzeige(z, f.Schluessel)).ToArray();
+                // Zeilenumbruch: Zeile so hoch wie der längste umbrochene Text
+                var hoehe = zh;
+                if (e.Zeilenumbruch)
+                    for (var i = 0; i < felder.Count; i++)
+                        hoehe = Math.Max(hoehe, g.MeasureString(werte[i], normal, (int)Math.Max(10, xs[i + 1] - xs[i] - 2)).Height + 4);
                 if (e.UeberschriftJeElement && gruppenAnfang)
                 {
-                    var uh = e.ElementueberschriftKomprimiert ? zh : zh + 6;
-                    if (y + uh + zh > r.Bottom) break;
-                    g.DrawString(Gruppe(z), kopfFett, Brushes.Black, new RectangleF(r.Left + 2, y + (uh - zh) / 2, r.Width, zh + 2), keinUmbruch);
+                    var uh = UeberschriftZeichnen(g, r, y, Gruppe(z), fett, true);
+                    if (y + uh + hoehe > r.Bottom && !ersteAufSeite) break;
+                    UeberschriftZeichnen(g, r, y, Gruppe(z), fett, false);
                     y += uh;
                     g.DrawLine(Pens.Black, r.Left, y, r.Right, y);
                 }
+                if (y + hoehe > r.Bottom && !ersteAufSeite) break;
                 for (var i = 0; i < felder.Count; i++)
                 {
                     var key = felder[i].Schluessel;
-                    var wert = Wert(z, key);
+                    var wert = werte[i];
                     // Elementspalte nur in der ersten Zeile der Gruppe (und oben auf jeder Seite, wenn eingestellt)
                     if (key == "Element" && !gruppenAnfang && !(ersteAufSeite && e.ErsteBeschriftungJedeSeite)) wert = "";
                     var gestrichen = key == "Abwesend" && z.Durchgestrichen;
                     var f = key == "Element" ? fett : gestrichen ? durch : normal;
-                    g.DrawString(wert, f, Brushes.Black, new RectangleF(xs[i] + 1, y, xs[i + 1] - xs[i] - 2, zh), keinUmbruch);
+                    g.DrawString(wert, f, Brushes.Black, new RectangleF(xs[i] + 1, y + (e.Zeilenumbruch ? 2 : 0), xs[i + 1] - xs[i] - 2, hoehe), e.Zeilenumbruch ? umbruch : keinUmbruch);
                     if (gestrichen && wert.Length > 0)
                     {
                         // Durchstreichen selbst zeichnen (nicht jede Schriftart unterstützt es)
                         var w = Math.Min(g.MeasureString(wert, f).Width, xs[i + 1] - xs[i] - 2);
+                        var my = e.Zeilenumbruch ? y + zh / 2 : y + hoehe / 2;
                         using var strich = new Pen(Color.Black, 1.4f);
-                        g.DrawLine(strich, xs[i] + 3, y + zh / 2 + 1, xs[i] + w - 1, y + zh / 2 - 1);
+                        g.DrawLine(strich, xs[i] + 3, my + 1, xs[i] + w - 1, my - 1);
                     }
                 }
-                y += zh;
+                y += hoehe;
                 var gruppenEnde = _zeileNr + 1 >= tag.Zeilen.Count || Gruppe(tag.Zeilen[_zeileNr + 1]) != Gruppe(z);
                 g.DrawLine(gruppenEnde ? Pens.Black : linieDuenn, r.Left, y, r.Right, y);
                 _zeileNr++;
@@ -309,11 +425,52 @@ public static class VertretungsplanDruck
 
             string Gruppe(Zeile x) => e.Gruppierung switch
             {
-                "Stunde" => x.Stunde,
                 "Vertreter" => x.Partner,
-                "Fach" => x.Fach,
+                "Stunde" or "Fach" or "Raum" or "Art" or "Abwesend" or "VtrNr" => Wert(x, e.Gruppierung),
                 _ => x.Element,
             };
+        }
+
+        /// <summary>
+        /// Elementüberschrift aus den Überschriftsfeldern (Feldart und Größe in %) – komprimiert einzeilig in Tabellenschrift.
+        /// Liefert die Höhe; mit <paramref name="nurMessen"/> wird nichts gezeichnet.
+        /// </summary>
+        private float UeberschriftZeichnen(Graphics g, Rectangle r, float y, string gruppe, Font fett, bool nurMessen)
+        {
+            var e = _e;
+            var teile = (e.UeberschriftsFelder.Count == 0 ? new List<UeberschriftsFeld> { new() { Feld = "Kurzname", Groesse = 200 } } : e.UeberschriftsFelder)
+                .Where(f => f.Feld is "Kurzname" or "Langname")
+                .Select(f => (Text: f.Feld == "Langname" ? GruppeLang(gruppe) : gruppe, f.Groesse)).ToList();
+            if (teile.Count == 0) teile.Add((gruppe, 100));
+            if (e.ElementueberschriftKomprimiert)
+            {
+                var zh = fett.GetHeight(g) + 5;
+                if (!nurMessen)
+                {
+                    using var grau = new SolidBrush(Color.FromArgb(244, 244, 244));
+                    g.FillRectangle(grau, r.Left, y, r.Width, zh);
+                    g.DrawString(string.Join("  ", teile.Select(t => t.Text).Distinct()), fett, Brushes.Black, r.Left + 2, y + 2);
+                }
+                return zh;
+            }
+            var schriften = teile.Select(t => new Font(fett.FontFamily, Math.Max(5f, fett.Size * Math.Clamp(t.Groesse, 25, 400) / 100f))).ToList();
+            try
+            {
+                var hoehe = schriften.Max(s => s.GetHeight(g));
+                if (!nurMessen)
+                {
+                    var x = (float)r.Left + 2;
+                    for (var i = 0; i < teile.Count; i++)
+                    {
+                        if (i > 0 && teile[i].Text == teile[i - 1].Text) continue;
+                        var sh = schriften[i].GetHeight(g);
+                        g.DrawString(teile[i].Text, schriften[i], Brushes.Black, x, y + 4 + hoehe - sh);
+                        x += g.MeasureString(teile[i].Text, schriften[i]).Width + 8;
+                    }
+                }
+                return hoehe + 10;
+            }
+            finally { foreach (var s in schriften) s.Dispose(); }
         }
     }
 
@@ -348,12 +505,33 @@ public static class VertretungsplanDruck
         return auswahl.Any(a => !ausser.Contains(a));
     }
 
+    /// <summary>Sortierschlüssel des Seitenlayouts (Gruppierung bzw. Sortierkriterien) mit Anzeigenamen je Version.</summary>
+    public static (string Schluessel, string Text)[] Sortierfelder(bool lehrer) => new[]
+    {
+        ("Element", lehrer ? "Lehrer und Vertreter" : "Klasse(n)"), ("Stunde", "Std."), ("Vertreter", lehrer ? "Klasse(n)" : "Vertreter"),
+        ("Fach", "Fach"), ("Raum", "Raum"), ("Art", "Art"), ("Abwesend", "(Lehrer)"), ("VtrNr", "Vtr-Nr."),
+    };
+
+    private static IOrderedEnumerable<Zeile> Sortieren(IEnumerable<Zeile> zeilen, string schluessel, bool absteigend, IOrderedEnumerable<Zeile>? bisher)
+    {
+        var cmp = StringComparer.Create(Format.De, true);
+        if (schluessel is "Stunde" or "VtrNr")
+        {
+            // Pausenaufsicht „3/4“ steht zwischen der 3. und 4. Stunde
+            Func<Zeile, double> zahl = schluessel == "Stunde"
+                ? z => z.StundeZahl ?? (int.TryParse(z.Stunde.Split('/')[0], out var p) && z.Stunde.Contains('/') ? p + 0.5 : double.MaxValue)
+                : z => int.TryParse(z.VtrNr, out var n) ? n : double.MaxValue;
+            return bisher is null ? (absteigend ? zeilen.OrderByDescending(zahl) : zeilen.OrderBy(zahl)) : absteigend ? bisher.ThenByDescending(zahl) : bisher.ThenBy(zahl);
+        }
+        Func<Zeile, string> text = schluessel == "Vertreter" ? z => z.Partner : z => Wert(z, schluessel);
+        return bisher is null ? (absteigend ? zeilen.OrderByDescending(text, cmp) : zeilen.OrderBy(text, cmp)) : absteigend ? bisher.ThenByDescending(text, cmp) : bisher.ThenBy(text, cmp);
+    }
+
     internal static string SchriftartPruefen(string name) =>
         FontFamily.Families.Any(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) ? name : "Segoe UI";
 
     private static Tag TagDaten(Schuldatei d, DateOnly datum, bool lehrer, Vertretungsdruck e)
     {
-        var ix = new DatenIndex(d);
         var plan = Vertretungsplan.Zeilen(d, datum);
         var vertretungen = d.Vertretungen.Where(v => v.Datum == datum).ToDictionary(v => v.Id);
         // Seitenlayout „Nur neue Vertretungen“: in dieser Arbeitssitzung angelegt oder geändert
@@ -401,14 +579,11 @@ public static class VertretungsplanDruck
             foreach (var name in alle.Where(n => (auswahl.Count == 0 || auswahl.Contains(n)) && !zeilen.Any(z => z.Element.Split(',').Contains(n) || AlleTrifft(z.Element, new[] { n }))))
                 zeilen.Add(new Zeile(name, "", null, "", "", false, "", "", "", "", "keine Vertretung", "", ""));
         }
-        var cmp = StringComparer.Create(Format.De, true);
-        IOrderedEnumerable<Zeile> sortiert = e.Gruppierung switch
-        {
-            "Stunde" => zeilen.OrderBy(z => z.StundeZahl ?? int.MaxValue).ThenBy(z => z.Element, cmp),
-            "Vertreter" => zeilen.OrderBy(z => z.Partner, cmp).ThenBy(z => z.StundeZahl ?? 0),
-            "Fach" => zeilen.OrderBy(z => z.Fach, cmp).ThenBy(z => z.StundeZahl ?? 0),
-            _ => zeilen.OrderBy(z => z.Element, cmp).ThenBy(z => z.StundeZahl ?? 0),
-        };
+        // Sortierkriterien: 1 = Gruppierung, 2 = „dann nach“ (je auf- oder absteigend), danach Element und Stunde
+        var sortiert = Sortieren(zeilen, e.Gruppierung, e.SortierungAbsteigend, null);
+        if (e.Sortierung2.Length > 0) sortiert = Sortieren(zeilen, e.Sortierung2, e.Sortierung2Absteigend, sortiert);
+        sortiert = Sortieren(zeilen, "Element", false, sortiert);
+        sortiert = Sortieren(zeilen, "Stunde", false, sortiert);
         var liste = sortiert.ToList();
         if (e.BlockvertretungenZusammenfassen)
             liste = Druckaufbereitung.Zusammenfassen(liste, z => z.StundeZahl,
@@ -418,16 +593,33 @@ public static class VertretungsplanDruck
         var nachrichten = e.Nachrichten
             ? d.Tagestexte.Where(t => t.GiltAm(datum) && (lehrer || !t.FuerLehrer)).Select(t => t.Text).Where(t => !string.IsNullOrWhiteSpace(t)).ToList()
             : new List<string>();
+        // Absenzkopf: Spalte „Absenz“ (abwesende Lehrer, Klassen, blockierte Räume) und Spalte „Vertretung“ (betroffene Elemente)
         var kaesten = new List<(string, string)>();
-        string Stunden(Abwesenheit a) => $"({a.StundeVon}-{Math.Min(a.StundeBis, d.Zeitraster.StundenProTag)})";
+        string Stunden(int von, int bis) => $"({von}-{Math.Min(bis, d.Zeitraster.StundenProTag)})";
         string Grund(Abwesenheit a) => e.LehrerMitAbsenzgrund && a.GrundId is int gid && d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == gid) is { } gr ? $" {gr.Kurzname}" : "";
-        var abw = d.Abwesenheiten.Where(a => datum >= a.Von && datum <= a.Bis).ToList();
+        string Name(Element? x, bool lang) => x is null ? "" : lang && x.Langname.Length > 0 ? x.Langname : x.Kurzname;
+        // Absenzgründe mit „N. in Abs.kopf“ werden nicht gedruckt
+        var abw = d.Abwesenheiten.Where(a => datum >= a.Von && datum <= a.Bis
+            && !(a.GrundId is int g && d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == g)?.NichtImAbsenzkopf == true)).ToList();
+        var veranst = e.AbsenzkopfNichtVeranstaltungen ? new List<Veranstaltung>() : d.Veranstaltungen.Where(v => datum >= v.Von && datum <= v.Bis).ToList();
         if (e.BlockierteRaeume && abw.Where(a => a.Art == AbwesenheitsArt.Raum).ToList() is { Count: > 0 } raeume)
-            kaesten.Add(("Blockierte Räume", string.Join(", ", raeume.Select(a => $"{ix.KRaum(a.ElementId)} {Stunden(a)}"))));
-        if (e.AbwesendeKlassen && abw.Where(a => a.Art == AbwesenheitsArt.Klasse).ToList() is { Count: > 0 } klassen)
-            kaesten.Add(("Abwesende Klassen", string.Join(", ", klassen.Select(a => $"{ix.KKlassen(new[] { a.ElementId })} {Stunden(a)}"))));
-        if (lehrer && e.AbwesendeLehrer && abw.Where(a => a.Art == AbwesenheitsArt.Lehrer).ToList() is { Count: > 0 } lehrerAbw)
-            kaesten.Add(("Abwesende Lehrer", string.Join(", ", lehrerAbw.Select(a => $"{ix.KLehrer(a.ElementId)} {Stunden(a)}{Grund(a)}"))));
+            kaesten.Add(("Blockierte Räume", string.Join(", ", raeume.Select(a => $"{Name(d.Raeume.FirstOrDefault(x => x.Id == a.ElementId), e.AbsenzkopfLangRaeume)} {Stunden(a.StundeVon, a.StundeBis)}"))));
+        var klassenTexte = abw.Where(a => a.Art == AbwesenheitsArt.Klasse).Select(a => $"{Name(d.Klassen.FirstOrDefault(x => x.Id == a.ElementId), e.AbsenzkopfLangKlassen)} {Stunden(a.StundeVon, a.StundeBis)}")
+            .Concat(veranst.SelectMany(v => v.KlassenIds.Select(k => $"{Name(d.Klassen.FirstOrDefault(x => x.Id == k), e.AbsenzkopfLangKlassen)} {Stunden(v.StundeVon, v.StundeBis)}"))).Distinct().ToList();
+        if (e.AbwesendeKlassen && klassenTexte.Count > 0) kaesten.Add(("Abwesende Klassen", string.Join(", ", klassenTexte)));
+        var lehrerTexte = abw.Where(a => a.Art == AbwesenheitsArt.Lehrer).Select(a => $"{Name(d.Lehrer.FirstOrDefault(x => x.Id == a.ElementId), e.AbsenzkopfLangLehrer)} {Stunden(a.StundeVon, a.StundeBis)}{Grund(a)}")
+            .Concat(veranst.SelectMany(v => v.LehrerIds.Select(l => $"{Name(d.Lehrer.FirstOrDefault(x => x.Id == l), e.AbsenzkopfLangLehrer)} {Stunden(v.StundeVon, v.StundeBis)}"))).Distinct().ToList();
+        if (lehrer && e.AbwesendeLehrer && lehrerTexte.Count > 0) kaesten.Add(("Abwesende Lehrer", string.Join(", ", lehrerTexte)));
+        // Spalte „Vertretung“: wer bzw. was von Vertretungen betroffen ist
+        static IEnumerable<string> Teile(string s) => s.Split(',').Select(x => x.Trim()).Where(x => x.Length > 0 && x is not ("---" or "+" or "+++" or "???" or "~"));
+        string Lang(IEnumerable<string> namen, IEnumerable<Element> stamm, bool lang) =>
+            string.Join(", ", namen.Distinct().Select(n => lang && stamm.FirstOrDefault(x => x.Kurzname == n) is { Langname.Length: > 0 } el ? el.Langname : n));
+        if (e.VertretungLehrer && plan.SelectMany(z => Teile(z.Vertreter)).ToList() is { Count: > 0 } betrL)
+            kaesten.Add(("Betroffene Lehrer", Lang(betrL, d.Lehrer, e.AbsenzkopfLangLehrer)));
+        if (e.VertretungKlassen && plan.SelectMany(z => Teile(z.Klassen)).ToList() is { Count: > 0 } betrK)
+            kaesten.Add(("Betroffene Klassen", Lang(betrK, d.Klassen, e.AbsenzkopfLangKlassen)));
+        if (e.VertretungRaeume && plan.SelectMany(z => Teile(z.NeuerRaum.Length > 0 ? z.NeuerRaum : z.Raum)).ToList() is { Count: > 0 } betrR)
+            kaesten.Add(("Betroffene Räume", Lang(betrR, d.Raeume, e.AbsenzkopfLangRaeume)));
         return new Tag(datum, nachrichten, kaesten, liste);
     }
 }

@@ -325,34 +325,64 @@ public static class SondereinsatzDialog
         {
             if (e.Alt && e.KeyCode == Keys.Down && g.CurrentCell is { } c && Mehrfach(c.ColumnIndex)) { e.Handled = true; MehrfachZeigen(c.RowIndex, c.ColumnIndex); }
         };
-        bKl.Click += (_, _) =>        bKl.Click += (_, _) =>
+        bKl.Click += (_, _) =>
         {
             var i = Zeile();
-            var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassen des Sondereinsatzes", Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value));
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Klasse, Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value), Array.Empty<int>());
             if (w != null) { g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "K"); }
         };
         bLe.Click += (_, _) =>
         {
             var i = Zeile();
-            var w = AuswahlDialog.Mehrere(f, ElementTyp.Lehrer, "Lehrer des Sondereinsatzes", Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value));
-            if (w != null) { g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname)); Uebertragen(i, "L"); }
+            var kl = Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Lehrer, Ids(ElementTyp.Lehrer, g.Rows[i].Cells["L"].Value), kl);
+            if (w is null) return;
+            // Klassenlehrer-Unterricht (wie im Handbuch): mehrere Klassen und deren Klassenlehrer gewählt – jeder Klassenlehrer wird seiner
+            // Klasse zugeordnet (je Klasse eine Zeile, Raum = Stammraum der Klasse)
+            var gewaehlt = w.Select(x => x.Id).ToHashSet();
+            var klassenObj = kl.Select(k => d.Klassen.FirstOrDefault(x => x.Id == k)).OfType<Klasse>().ToList();
+            var zuordnung = klassenObj.Select(k => (Klasse: k, Lehrer: k.KlassenlehrerIds.Where(gewaehlt.Contains).ToList())).ToList();
+            if (klassenObj.Count > 1 && zuordnung.All(z => z.Lehrer.Count > 0) && gewaehlt.All(l => zuordnung.Any(z => z.Lehrer.Contains(l))))
+            {
+                var kopf = g.Rows[i];
+                if (IstKind(kopf)) kopf = (DataGridViewRow)kopf.Tag!;
+                syncAktiv = true;
+                var zeilen = new List<DataGridViewRow> { kopf };
+                try
+                {
+                    foreach (var k in Kinder(kopf)) g.Rows.Remove(k);
+                    var pos = kopf.Index + 1;
+                    for (var n = 1; n < zuordnung.Count; n++)
+                    {
+                        g.Rows.Insert(pos, kopf.Cells["D"].Value, kopf.Cells["SV"].Value, kopf.Cells["SB"].Value, "", "", kopf.Cells["F"].Value ?? "", "", kopf.Cells["G"].Value, kopf.Cells["T"].Value);
+                        zeilen.Add(g.Rows[pos]);
+                        pos++;
+                    }
+                    for (var n = 0; n < zuordnung.Count; n++)
+                    {
+                        var (klasse, kls) = zuordnung[n];
+                        zeilen[n].Cells["K"].Value = klasse.Kurzname;
+                        zeilen[n].Cells["L"].Value = string.Join(",", kls.Select(ix.KLehrer));
+                        zeilen[n].Cells["R"].Value = klasse.StammraumId is int sr ? ix.KRaum(sr) : "";
+                    }
+                }
+                finally { syncAktiv = false; }
+                foreach (var z in zeilen) KinderAufbauen(z);
+                return;
+            }
+            g.Rows[i].Cells["L"].Value = string.Join(",", w.Select(x => x.Kurzname));
+            Uebertragen(i, "L");
         };
         bKk.Click += (_, _) =>
         {
-            // Klassenkonferenz: alle Lehrer, die die gewählten Klassen unterrichten
+            // Klassenkonferenz: Klasse wählen – alle Lehrkräfte, die in dieser Klasse unterrichten, werden übernommen
             var i = Zeile();
             var kl = Ids(ElementTyp.Klasse, g.Rows[i].Cells["K"].Value);
-            if (kl.Count == 0)
-            {
-                var w = AuswahlDialog.Mehrere(f, ElementTyp.Klasse, "Klassenkonferenz für Klasse(n)", Array.Empty<int>());
-                if (w is null || w.Count == 0) return;
-                kl = w.Select(x => x.Id).ToList();
-                g.Rows[i].Cells["K"].Value = string.Join(",", w.Select(x => x.Kurzname));
-            }
-            var lehrerIds = d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.KlassenIds.Intersect(kl).Any() && z.LehrerId.HasValue).Select(z => z.LehrerId!.Value)
-                .Concat(d.Klassen.Where(k => kl.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct();
-            g.Rows[i].Cells["L"].Value = string.Join(",", lehrerIds.Select(ix.KLehrer).OrderBy(x => x));
-            if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(kl);
+            var w = SondereinsatzAuswahl.Klassenkonferenz(f, kl.Count > 0 ? kl[0] : null);
+            if (w is null) return;
+            g.Rows[i].Cells["K"].Value = ix.KKlassen(new[] { w.Value.Klasse });
+            g.Rows[i].Cells["L"].Value = string.Join(",", w.Value.Lehrer.Select(ix.KLehrer));
+            if (string.IsNullOrWhiteSpace(g.Rows[i].Cells["T"].Value?.ToString())) g.Rows[i].Cells["T"].Value = "Klassenkonferenz " + ix.KKlassen(new[] { w.Value.Klasse });
             Uebertragen(i, "K"); Uebertragen(i, "L"); Uebertragen(i, "T");
         };
         if (klassen.Length > 0 || lehrer.Length > 0)
@@ -437,6 +467,124 @@ public static class SondereinsatzDialog
     }
 }
 
+/// <summary>
+/// Auswahldialoge des Fensters „Sondereinsätze“ wie im Handbuch: „Auswahl“ (Kurzname, Langname, bei Lehrern Klasse(n); Mehrfachauswahl mit
+/// Strg; Filter Lehrer / Klassenlehrer / Lehrer im Unterricht; Alle, Inverse, Markierte) und „Klassenkonferenz“.
+/// </summary>
+public static class SondereinsatzAuswahl
+{
+    /// <summary>Lehrkräfte, die in den Klassen unterrichten (Unterrichte und Klassenlehrer).</summary>
+    public static List<int> LehrerDerKlassen(Schuldatei d, IReadOnlyCollection<int> klassen) =>
+        d.Unterrichte.SelectMany(u => u.Zeilen).Where(z => z.KlassenIds.Intersect(klassen).Any() && z.LehrerId.HasValue).Select(z => z.LehrerId!.Value)
+            .Concat(d.Klassen.Where(k => klassen.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds)).Distinct().ToList();
+
+    /// <param name="rot">Elemente, die rot angezeigt werden (z. B. zu diesem Zeitpunkt im Unterricht bzw. besetzt).</param>
+    public static List<Element>? Waehlen(IWin32Window owner, ElementTyp typ, IReadOnlyCollection<int> vorauswahl, IReadOnlyCollection<int> klassen, Func<int, bool>? rot = null)
+    {
+        var d = AppZustand.D;
+        var lehrer = typ == ElementTyp.Lehrer;
+        using var f = new Dialog("Auswahl", lehrer ? 300 : 280, 420);
+        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        f.Ok.Text = "Ok";
+        var g = new DataGridView { Left = 6, Top = 6, Width = f.ClientSize.Width - 12, Height = lehrer ? 290 : 322, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(g, false);
+        g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        g.MultiSelect = true;
+        g.RowHeadersVisible = false;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
+        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
+        string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
+        if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 70;
+        foreach (var e in Stammdaten.Sortiert(d, typ).Where(x => !x.Ignorieren))
+        {
+            var i = lehrer ? g.Rows.Add(e.Kurzname, e is Lehrer l ? l.VollerName : e.Langname, KlassenVon(e)) : g.Rows.Add(e.Kurzname, e.Langname);
+            g.Rows[i].Tag = e;
+            if (rot?.Invoke(e.Id) == true) g.Rows[i].DefaultCellStyle.ForeColor = Color.Red;
+        }
+        var vor = vorauswahl.ToHashSet();
+        f.Shown += (_, _) =>
+        {
+            g.ClearSelection();
+            foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
+        };
+        f.Controls.Add(g);
+        var y = g.Bottom + 6;
+        if (lehrer)
+        {
+            // Filter: Lehrer / Klassenlehrer (Klassen) / Lehrer im Unterricht (Klassen)
+            var kText = AppZustand.Doc.Index.KKlassen(klassenAlle);
+            f.Controls.Add(new Label { Text = "Filter", Left = 8, Top = y + 4, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 64, Top = y, Width = f.ClientSize.Width - 72, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            filter.Items.AddRange(new object[] { "Lehrer", $"Klassenlehrer ({kText})", $"Lehrer im Unterricht ({kText})" });
+            filter.SelectedIndex = 0;
+            var kls = d.Klassen.Where(k => klassenAlle.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
+            var imUnterricht = LehrerDerKlassen(d, klassenAlle).ToHashSet();
+            filter.SelectedIndexChanged += (_, _) =>
+            {
+                g.CurrentCell = null;
+                foreach (DataGridViewRow r in g.Rows)
+                {
+                    var id = ((Element)r.Tag!).Id;
+                    r.Visible = filter.SelectedIndex switch { 1 => kls.Contains(id), 2 => imUnterricht.Contains(id), _ => true };
+                    if (!r.Visible) r.Selected = false;
+                }
+            };
+            f.Controls.Add(filter);
+            y += 30;
+        }
+        var nurMarkierte = false;
+        void Knopf(string text, int x, Action a)
+        {
+            var b = new Button { Text = text, Left = x, Top = y, Width = 80, Height = 24, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            b.Click += (_, _) => a();
+            f.Controls.Add(b);
+        }
+        Knopf("Alle", 8, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
+        Knopf("Inverse", 94, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
+        Knopf("Markierte", 180, () =>
+        {
+            nurMarkierte = !nurMarkierte;
+            g.CurrentCell = null;
+            foreach (DataGridViewRow r in g.Rows) r.Visible = !nurMarkierte || r.Selected;
+        });
+        if (f.ShowDialog(owner) != DialogResult.OK) return null;
+        return g.Rows.Cast<DataGridViewRow>().Where(r => r.Selected).Select(r => (Element)r.Tag!).ToList();
+    }
+
+    /// <summary>„Klassenkonferenz“: Für welche Klasse? – zeigt sofort die Lehrkräfte, die in dieser Klasse unterrichten.</summary>
+    public static (int Klasse, List<int> Lehrer)? Klassenkonferenz(IWin32Window owner, int? klasse)
+    {
+        var d = AppZustand.D;
+        using var f = new Dialog("Klassenkonferenz", 280, 400);
+        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        f.Ok.Text = "Ok";
+        f.Controls.Add(new Label { Text = "Für welche Klasse soll die Klassenkonferenz angelegt werden?", Left = 8, Top = 6, Width = 264, Height = 32 });
+        var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 8, Top = 40, Width = 150 };
+        var klassen = Stammdaten.Sortiert(d.Klassen).Where(k => !k.Ignorieren).ToList();
+        foreach (var k in klassen) cb.Items.Add(k.Kurzname);
+        var g = new DataGridView { Left = 8, Top = 70, Width = 264, Height = 280, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(g, false);
+        g.RowHeadersVisible = false;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
+        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        var lehrer = new List<int>();
+        cb.SelectedIndexChanged += (_, _) =>
+        {
+            g.Rows.Clear();
+            if (cb.SelectedIndex < 0) return;
+            var ids = LehrerDerKlassen(d, new[] { klassen[cb.SelectedIndex].Id }).ToHashSet();
+            var liste = Stammdaten.Sortiert(d.Lehrer).Where(l => ids.Contains(l.Id)).ToList();
+            lehrer = liste.Select(l => l.Id).ToList();
+            foreach (var l in liste) g.Rows.Add(l.Kurzname, l.Langname);
+        };
+        cb.SelectedIndex = klasse is int kid ? Math.Max(0, klassen.FindIndex(k => k.Id == kid)) : klassen.Count > 0 ? 0 : -1;
+        f.Controls.AddRange(new Control[] { cb, g });
+        if (f.ShowDialog(owner) != DialogResult.OK || cb.SelectedIndex < 0) return null;
+        return (klassen[cb.SelectedIndex].Id, lehrer);
+    }
+}
+
 /// <summary>Klausur anlegen bzw. bearbeiten.</summary>
 public static class KlausurDialog
 {
@@ -447,7 +595,7 @@ public static class KlausurDialog
             Datum = datum, StundeVon = stunde, StundeBis = stunde, KlassenIds = e?.KlassenIds.ToList() ?? new(), LehrerIds = e?.LehrerIds.ToList() ?? new(),
             RaumIds = e?.RaumIds.ToList() ?? new(), UnterrichtId = e?.Unterricht?.Id, Name = e is null ? "Klausur" : $"Klausur {AppZustand.Doc.Index.KFach(e.FachId)}".Trim(),
         };
-        if (!Zeigen(owner, k)) return;
+        if (!Zeigen(owner, k, true)) return;
         try
         {
             AppZustand.Doc.Aendern("Klausur anlegen", AenderungsArt.Vertretung, d =>
@@ -460,24 +608,111 @@ public static class KlausurDialog
         catch (Exception ex) { Ui.Fehler(ex); }
     }
 
-    public static bool Zeigen(IWin32Window owner, Klausur k)
+    public static bool Zeigen(IWin32Window owner, Klausur k) => Zeigen(owner, k, false);
+
+    /// <summary>
+    /// „Neue Klausur“ wie im Handbuch: links Name und Text, rechts Datum, Stunde von und Stunde bis; darunter die Reiter „Kurse“
+    /// (Unterricht, Klassen) und „Lehrer/Räume“ mit den Schaltflächen Lehrer, Lehrer aus Kurs, Räume und Raum aus Kurs – in den
+    /// Auswahllisten sind zum Zeitpunkt der Klausur unterrichtende Lehrer bzw. besetzte Räume rot.
+    /// </summary>
+    public static bool Zeigen(IWin32Window owner, Klausur k, bool neu)
     {
-        using var f = new Dialog("Klausur", 470, 340);
-        var y = 14;
-        var name = Ui.Zeile(f, "Name:", new TextBox { Text = k.Name }, ref y, 140, 290);
-        var dat = Ui.Zeile(f, "Datum:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "ddd, dd.MM.yyyy", Value = k.Datum.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 150);
-        var von = Ui.Zeile(f, "Stunde von:", ElementListe.Stunde(k.StundeVon), ref y, 140, 56);
+        var d = AppZustand.D;
+        var ix = AppZustand.Doc.Index;
+        using var f = new Dialog(neu ? "Neue Klausur" : "Klausur", 620, 380);
+        f.Ok.Text = "Ok";
+        var name = new TextBox { Text = k.Name, Left = 10, Top = 12, Width = 280 };
+        var tx = new TextBox { Text = k.Text, Left = 10, Top = 40, Width = 280 };
+        Steuerelemente.Textverlauf.Anbinden(tx, "Klausur:Text");
+        f.Controls.AddRange(new Control[] { name, new Label { Text = "Name", Left = 298, Top = 15, AutoSize = true }, tx, new Label { Text = "Text", Left = 298, Top = 43, AutoSize = true } });
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 380, Top = 12, Width = 120 };
+        var von = ElementListe.Stunde(k.StundeVon);
+        von.SetBounds(380, 40, 120, 23);
         var bis = ElementListe.Stunde(k.StundeBis);
-        bis.Left = von.Right + 40;
-        bis.Top = von.Top;
-        f.Controls.Add(new Label { Text = "bis", Left = von.Right + 10, Top = von.Top + 3, AutoSize = true });
-        f.Controls.Add(bis);
-        var kl = Ui.Zeile(f, "Klasse(n):", new ElementWahl(ElementTyp.Klasse, k.KlassenIds), ref y, 140, 290);
-        var le = Ui.Zeile(f, "Aufsicht (Lehrer):", new ElementWahl(ElementTyp.Lehrer, k.LehrerIds), ref y, 140, 290);
-        var ra = Ui.Zeile(f, "Räume:", new ElementWahl(ElementTyp.Raum, k.RaumIds), ref y, 140, 290);
-        var ent = Ui.Zeile(f, "", new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, AutoSize = true }, ref y, 140);
-        var akt = Ui.Zeile(f, "", new CheckBox { Text = "Aktiv", Checked = k.Aktiv, AutoSize = true }, ref y, 140);
-        var tx = Ui.Zeile(f, "Text:", new TextBox { Text = k.Text }, ref y, 140, 290);
+        bis.SetBounds(380, 68, 120, 23);
+        f.Controls.AddRange(new Control[]
+        {
+            dat, new Label { Text = "Datum", Left = 506, Top = 15, AutoSize = true }, von, new Label { Text = "Stunde von", Left = 506, Top = 43, AutoSize = true },
+            bis, new Label { Text = "Stunde bis", Left = 506, Top = 71, AutoSize = true },
+        });
+        von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; };
+        bis.ValueChanged += (_, _) => { if (bis.Value < von.Value) von.Value = bis.Value; };
+
+        var tabs = new TabControl { Left = 10, Top = 104, Width = 420, Height = 178 };
+        var kurse = new TabPage("Kurse");
+        var lr = new TabPage("Lehrer/Räume");
+        tabs.TabPages.AddRange(new[] { kurse, lr });
+        f.Controls.Add(tabs);
+        // Reiter „Kurse“: der Unterricht, aus dem die Klausur entstand, und die Klassen
+        var u = k.UnterrichtId is int uid ? d.Unterrichte.FirstOrDefault(x => x.Id == uid) : null;
+        var kg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 70 };
+        Ui.RasterGestalten(kg, false);
+        kg.RowHeadersVisible = false;
+        foreach (var (n, h, w) in new[] { ("U", "Unterricht", 70), ("Fa", "Fa.", 60), ("Le", "Le.", 90), ("St", "Studenten", 90) }) kg.Columns[kg.Columns.Add(n, h)].Width = w;
+        if (u != null) kg.Rows.Add(u.Id, string.Join(",", u.FachIds.Select(x => ix.KFach(x))), string.Join(",", u.LehrerIds.Select(ix.KLehrer)), "");
+        kurse.Controls.Add(kg);
+        kurse.Controls.Add(new Label { Text = "Klasse(n):", Left = 4, Top = 86, AutoSize = true });
+        var kl = new ElementWahl(ElementTyp.Klasse, k.KlassenIds) { Left = 80, Top = 82, Width = 324 };
+        kurse.Controls.Add(kl);
+        var ent = new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, Left = 4, Top = 114, AutoSize = true };
+        kurse.Controls.Add(ent);
+        // Reiter „Lehrer/Räume“: Aufsicht und Räume
+        var lehrer = k.LehrerIds.ToList();
+        var raeume = k.RaumIds.ToList();
+        var lg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 140 };
+        Ui.RasterGestalten(lg, false);
+        lg.RowHeadersVisible = false;
+        lg.Columns[lg.Columns.Add("L", "Lehrer")].Width = 190;
+        lg.Columns[lg.Columns.Add("R", "Räume")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        void LehrerRaeume()
+        {
+            lg.Rows.Clear();
+            for (var i = 0; i < Math.Max(1, Math.Max(lehrer.Count, raeume.Count)); i++)
+                lg.Rows.Add(i < lehrer.Count ? ix.KLehrer(lehrer[i]) : "", i < raeume.Count ? ix.KRaum(raeume[i]) : "");
+        }
+        LehrerRaeume();
+        lr.Controls.Add(lg);
+        var akt = new CheckBox { Text = "Aktiv", Checked = k.Aktiv, Left = 14, Top = 290, AutoSize = true };
+        f.Controls.Add(akt);
+
+        // belegt zum Zeitpunkt der Klausur (rot in den Auswahllisten)
+        HashSet<int> Belegt(bool raum)
+        {
+            var tp = Tagesplan.Berechnen(d, DateOnly.FromDateTime(dat.Value));
+            var res = new HashSet<int>();
+            for (var s = (int)von.Value; s <= (int)Math.Max(von.Value, bis.Value); s++)
+                foreach (var e in tp.Stunde(s).Where(e => e.Findetstatt)) res.UnionWith(raum ? e.RaumIds : e.LehrerIds);
+            return res;
+        }
+        Button Knopf(string text, int y, Action a)
+        {
+            var b = new Button { Text = text, Left = 446, Top = y, Width = 160, Height = 26 };
+            b.Click += (_, _) => { a(); tabs.SelectedTab = lr; LehrerRaeume(); };
+            f.Controls.Add(b);
+            return b;
+        }
+        var bL = Knopf("Lehrer", 126, () =>
+        {
+            var belegt = Belegt(false);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Lehrer, lehrer, kl.Ids, belegt.Contains);
+            if (w != null) lehrer = w.Select(x => x.Id).ToList();
+        });
+        var bLk = Knopf("Lehrer aus Kurs", 156, () => { if (u != null) lehrer = u.LehrerIds.ToList(); });
+        var bR = Knopf("Räume", 192, () =>
+        {
+            var belegt = Belegt(true);
+            var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Raum, raeume, Array.Empty<int>(), belegt.Contains);
+            if (w != null) raeume = w.Select(x => x.Id).ToList();
+        });
+        var bRk = Knopf("Raum aus Kurs", 222, () =>
+        {
+            if (u is null) return;
+            var tp = Tagesplan.Berechnen(d, DateOnly.FromDateTime(dat.Value));
+            var r = tp.Stunde((int)von.Value).Where(e => (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == u.Id).SelectMany(e => e.RaumIds).Distinct().ToList();
+            if (r.Count == 0) r = u.Zeilen.Select(z => z.StammraumId ?? z.FachraumId).OfType<int>().Distinct().ToList();
+            raeume = r;
+        });
+        bLk.Enabled = bRk.Enabled = u != null;
         if (k.Importiert)
         {
             // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
@@ -487,19 +722,23 @@ public static class KlausurDialog
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
         if (k.Importiert)
         {
-            k.LehrerIds = le.Ids;
-            k.RaumIds = ra.Ids;
+            k.LehrerIds = lehrer;
+            k.RaumIds = raeume;
             k.Aktiv = akt.Checked;
             return true;
         }
         k.Name = name.Text;
         k.Datum = DateOnly.FromDateTime(dat.Value);
+        var alteSpanne = k.StundeBis - k.StundeVon;
         k.StundeVon = (int)von.Value;
         k.StundeBis = (int)Math.Max(von.Value, bis.Value);
         k.KlassenIds = kl.Ids;
-        k.LehrerIds = le.Ids;
-        k.RaumIds = ra.Ids;
+        k.LehrerIds = lehrer;
+        k.RaumIds = raeume;
         k.UnterrichtEntfaellt = ent.Checked;
+        // wie im Handbuch: umfasst eine neue Klausur mehr Stunden als die gewählte, wird gefragt, ob kollidierender Unterricht entfällt
+        if (neu && k.StundeBis - k.StundeVon > alteSpanne)
+            k.UnterrichtEntfaellt = Ui.Frage("Sollen eventuell kollidierende Unterrichte aufgrund der Klausur entfallen?");
         k.Aktiv = akt.Checked;
         k.Text = tx.Text;
         return true;
@@ -626,13 +865,15 @@ public static class TagestextDialog
         Ui.RasterGestalten(g, true);
         g.AllowUserToAddRows = true;
         g.AllowUserToDeleteRows = true;
-        var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "für", Width = 90, FlatStyle = FlatStyle.Flat };
+        // Spalten wie im Handbuch: Art | Elemente | gültig bis [Tage] | Tagestext | Webportal
+        var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 90, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         g.Columns.Add(art);
-        g.Columns[g.Columns.Add("E", "Klassen/Lehrer")].Width = 110;
-        g.Columns[g.Columns.Add("T", "Text")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        g.Columns[g.Columns.Add("G", "Tage")].Width = 45;
-        g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Portal", Width = 50 });
+        g.Columns[g.Columns.Add("E", "Elemente")].Width = 110;
+        g.Columns[g.Columns.Add("T", "Tagestext")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        g.Columns[g.Columns.Add("G", "gültig bis [Tage]")].Width = 90;
+        g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Webportal", Width = 64 });
+        g.Columns["G"]!.DisplayIndex = 2;
         var ix = AppZustand.Doc.Index;
         foreach (var t in d.Tagestexte.Where(t => t.Datum == datum))
         {
@@ -670,28 +911,47 @@ public static class TagestextDialog
     }
 }
 
-/// <summary>Einstellungen der Vertretungsplanung: Vertretungszeitraster, Zähler, Vorschlag, Allgemein, Bezeichnungen und Farben.</summary>
+/// <summary>
+/// Einstellungen der Vertretungsplanung wie im Handbuch (Dialog „Einstellungen“, Zweig „Vertretungsplanung“): links der Baum mit
+/// Vtr-Zähler, Sonstiges, Farben und Bezeichnungen sowie Vertretungszeitraster und Vertretungsvorschlag, rechts die gewählte Seite.
+/// </summary>
 public static class VertretungsEinstellungenDialog
 {
     private static readonly string[] RegelText = { "", "E", "EVA" };
 
-    public static bool Zeigen(IWin32Window owner, int seite = 0)
+    /// <summary>Seiten im Baum (Reihenfolge wie im Handbuch, danach die zusätzlichen Seiten).</summary>
+    private static readonly string[] Reihenfolge = { "Vtr-Zähler", "Sonstiges", "Farben und Bezeichnungen", "Vertretungszeitraster", "Vertretungsvorschlag" };
+
+    /// <param name="seite">0 = Vertretungszeitraster, 1 = Vtr-Zähler, 2 = Vertretungsvorschlag; ohne Angabe die erste Seite (Vtr-Zähler).</param>
+    public static bool Zeigen(IWin32Window owner, int seite = -1)
     {
         var d = AppZustand.D;
         var e = System.Text.Json.JsonSerializer.Deserialize<VertretungsEinstellungen>(System.Text.Json.JsonSerializer.Serialize(d.Vertretungseinstellungen))!;
         var klassenRaster = d.Klassen.ToDictionary(k => k.Id, k => new Dictionary<int, VertretungsRegel>(k.VertretungsZeitraster));
-        using var f = new Dialog("Einstellungen Vertretungsplanung", 680, 520);
-        var tabs = new TabControl { Left = 8, Top = 8, Width = 664, Height = 462 };
-        f.Controls.Add(tabs);
+        using var f = new Dialog("Einstellungen", 856, 470);
+        f.Ok.Text = "Ok";
+        var baum = new TreeView { Left = 8, Top = 8, Width = 192, Height = 410, HideSelection = false, ShowLines = true };
+        var host = new Panel { Left = 206, Top = 8, Width = 642, Height = 410, BackColor = Color.FromArgb(232, 240, 228) };
+        f.Controls.Add(baum);
+        f.Controls.Add(host);
+        f.Controls.Add(new Label { Text = "Kursiv = lokal gespeicherte Einstellungen (.ini Dateien)", Left = 8, Top = 438, AutoSize = true, Font = new Font(Ui.Schrift, FontStyle.Italic) });
+        var seiten = new Dictionary<string, Panel>();
+        Panel Seite(string name)
+        {
+            var p = new Panel { Dock = DockStyle.Fill, Visible = false, AutoScroll = true, BackColor = host.BackColor, Name = name };
+            seiten[name] = p;
+            host.Controls.Add(p);
+            return p;
+        }
 
         // --- Vertretungszeitraster ---------------------------------------------------------------
-        var tz = new TabPage("Vertretungszeitraster");
+        var tz = Seite("Vertretungszeitraster");
         var klasse = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 110, Top = 10, Width = 200 };
         klasse.Items.Add("(gesamte Schule)");
         foreach (var k in Stammdaten.Sortiert(d.Klassen)) klasse.Items.Add(k);
         klasse.Format += (_, ev) => ev.Value = ev.ListItem is Klasse k ? k.Kurzname : ev.ListItem?.ToString();
         klasse.SelectedIndex = 0;
-        var raster = new DataGridView { Left = 10, Top = 42, Width = 636, Height = 300 };
+        var raster = new DataGridView { Left = 10, Top = 42, Width = 620, Height = 300 };
         Ui.RasterGestalten(raster, false);
         raster.SelectionMode = DataGridViewSelectionMode.CellSelect;
         raster.Columns[raster.Columns.Add("S", "Std.")].Width = 50;
@@ -730,36 +990,70 @@ public static class VertretungsEinstellungenDialog
         tz.Controls.Add(new Label
         {
             Text = "Klick wechselt: leer = vertreten · E = Unterricht entfällt bei Absenz des Lehrers · EVA = eigenverantwortliches Arbeiten.\nEin Klassenzeitraster hat Vorrang vor dem Zeitraster der Schule.",
-            Left = 10, Top = 350, Width = 636, Height = 40, ForeColor = Color.DimGray,
+            Left = 10, Top = 350, Width = 620, Height = 40, ForeColor = Color.DimGray,
         });
         RasterFuellen();
-        tabs.TabPages.Add(tz);
 
-        // --- Vertretungszähler -------------------------------------------------------------------
-        var tzae = new TabPage("Vertretungszähler");
+        // --- Vtr-Zähler (wie im Handbuch: Was zählen, Zeitraum, Wie zählen, Nicht zählen, Statt-Vertretungen und Klausuren) ------
+        var tzae = Seite("Vtr-Zähler");
         var z = e.Zaehler;
+        GroupBox Gruppe(string text, int x, int y0, int w, int h)
+        {
+            var g = new GroupBox { Text = text, Left = x, Top = y0, Width = w, Height = h };
+            tzae.Controls.Add(g);
+            return g;
+        }
+        CheckBox Haken(Control g, string text, bool an, int y0) { var c = new CheckBox { Text = text, Checked = an, Left = 10, Top = y0, AutoSize = true }; g.Controls.Add(c); return c; }
+        RadioButton Option(Control g, string text, bool an, int y0) { var r = new RadioButton { Text = text, Checked = an, Left = 10, Top = y0, AutoSize = true }; g.Controls.Add(r); return r; }
+        var gWas = Gruppe("Was zählen", 8, 6, 290, 150);
+        var c1 = Haken(gWas, "Vertretungen", z.VertretungenZaehlen, 20);
+        var c2 = Haken(gWas, "Sondereins.", z.SondereinsaetzeZaehlen, 41);
+        var c3 = Haken(gWas, "Entfälle", z.EntfaelleZaehlen, 62);
+        var c4 = Haken(gWas, "Freisetzungen", z.FreisetzungenZaehlen, 83);
+        var c6 = Haken(gWas, "Betreuungen halb zählen", z.BetreuungenHalb, 104);
+        var c5 = Haken(gWas, "Pausenaufsichten", z.PausenaufsichtenZaehlen, 125);
+        var gZeit = Gruppe("Zeitraum", 310, 6, 300, 150);
+        var halbjahr = z.Zeitraum == ZaehlZeitraum.Halbjahr;
+        var rTag = Option(gZeit, "Tag", z.Zeitraum == ZaehlZeitraum.Tag, 18);
+        var rWoche = Option(gZeit, "Woche", z.Zeitraum == ZaehlZeitraum.Woche, 38);
+        var rMonat = Option(gZeit, "Monat", z.Zeitraum == ZaehlZeitraum.Monat, 58);
+        var rJahr = Option(gZeit, "Jahr", z.Zeitraum == ZaehlZeitraum.Schuljahr, 78);
+        var rZeitraum = Option(gZeit, "Zeitraum", z.Zeitraum is ZaehlZeitraum.Benutzerdefiniert or ZaehlZeitraum.Halbjahr, 98);
+        // ein früher gewähltes Halbjahr erscheint als selbst gewählter Zeitraum (bleibt erhalten, solange die Daten nicht geändert werden)
+        var (hjVon, hjBis) = halbjahr ? Zaehlung.Zeitraum(d, AppZustand.Datum) : (z.ZeitraumVon ?? AppZustand.Datum, z.ZeitraumBis ?? AppZustand.Datum);
+        var zVon = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 122, Width = 110, Value = hjVon.ToDateTime(TimeOnly.MinValue) };
+        var zBis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 130, Top = 122, Width = 110, Value = hjBis.ToDateTime(TimeOnly.MinValue) };
+        gZeit.Controls.AddRange(new Control[] { zVon, zBis });
+        void ZeitraumFreigeben() => zVon.Enabled = zBis.Enabled = rZeitraum.Checked;
+        rZeitraum.CheckedChanged += (_, _) => ZeitraumFreigeben();
+        ZeitraumFreigeben();
+        var gWie = Gruppe("Wie zählen", 8, 162, 290, 110);
+        var wAnzahl = Option(gWie, "Anzahl", z.WieZaehlen == ZaehlArt.Anzahl, 20);
+        var wWerte = Option(gWie, "Werte", z.WieZaehlen == ZaehlArt.Werte, 41);
+        var wHhMm = Option(gWie, "Stunden (HH:MM)", z.WieZaehlen == ZaehlArt.StundenHhMm, 62);
+        var wReal = Option(gWie, "Realstunden", z.WieZaehlen == ZaehlArt.Realstunden, 83);
+        var gNicht = Gruppe("Nicht zählen", 310, 162, 300, 70);
+        var kn = new TextBox { Text = z.NichtZaehlenKennzeichen, Left = 10, Top = 20, Width = 34 };
+        gNicht.Controls.Add(kn);
+        gNicht.Controls.Add(new Label { Text = "Statistik-Kennzeichen", Left = 52, Top = 23, AutoSize = true });
+        var bezahltAlt = z.BezahltKennzeichen.Length > 0 && z.BezahltKennzeichen == z.NichtZaehlenKennzeichen;
+        var kb = Haken(gNicht, "bezahlte Vertretungen", bezahltAlt, 44);
+        kb.Left = 52;
+        var tip = new ToolTip();
+        tip.SetToolTip(kb, $"Vertretungen mit diesem Statistik-Kennzeichen gelten als bezahlt (Vertretungsvorschlag, Vertretungsabrechnung)." +
+                           (z.BezahltKennzeichen.Length > 0 && !bezahltAlt ? $"\nKennzeichen für bezahlte Vertretungen bisher: „{z.BezahltKennzeichen}“." : ""));
+        void BezahltFreigeben() => kb.Enabled = kn.Text.Trim().Length > 0;
+        kn.TextChanged += (_, _) => BezahltFreigeben();
+        BezahltFreigeben();
+        var gStatt = Gruppe("Statt-Vertretungen und Klausuren", 310, 238, 300, 64);
+        var c8 = Haken(gStatt, "Statt-Vertretungen nicht zählen", z.StattVertretungNeutral, 18);
+        var c9 = Haken(gStatt, "Klausuren neutral zählen", z.KlausurenNeutral, 39);
+        var c7 = new CheckBox { Text = "Entfallszählung nur für Absenzen mit Absenzgrund", Checked = z.EntfallNurMitGrund, Left = 14, Top = 312, AutoSize = true };
+        tzae.Controls.Add(c7);
         var y = 12;
-        var c1 = Ui.Zeile(tzae, "", new CheckBox { Text = "Vertretungen zählen (+)", Checked = z.VertretungenZaehlen, AutoSize = true }, ref y, 10);
-        var c2 = Ui.Zeile(tzae, "", new CheckBox { Text = "Sondereinsätze zählen (+)", Checked = z.SondereinsaetzeZaehlen, AutoSize = true }, ref y, 10);
-        var c3 = Ui.Zeile(tzae, "", new CheckBox { Text = "Entfälle zählen (–)", Checked = z.EntfaelleZaehlen, AutoSize = true }, ref y, 10);
-        var c4 = Ui.Zeile(tzae, "", new CheckBox { Text = "Freisetzungen zählen (–)", Checked = z.FreisetzungenZaehlen, AutoSize = true }, ref y, 10);
-        var c5 = Ui.Zeile(tzae, "", new CheckBox { Text = "Pausenaufsicht-Vertretungen zählen", Checked = z.PausenaufsichtenZaehlen, AutoSize = true }, ref y, 10);
-        var c6 = Ui.Zeile(tzae, "", new CheckBox { Text = "Betreuungen zählen halb", Checked = z.BetreuungenHalb, AutoSize = true }, ref y, 10);
-        var c7 = Ui.Zeile(tzae, "", new CheckBox { Text = "Entfälle nur zählen, wenn der Absenzgrund \"Entfall zählen\" gesetzt ist", Checked = z.EntfallNurMitGrund, AutoSize = true }, ref y, 10);
-        var c8 = Ui.Zeile(tzae, "", new CheckBox { Text = "Statt-Vertretungen neutral (zählen nicht)", Checked = z.StattVertretungNeutral, AutoSize = true }, ref y, 10);
-        var c9 = Ui.Zeile(tzae, "", new CheckBox { Text = "Klausuraufsichten neutral", Checked = z.KlausurenNeutral, AutoSize = true }, ref y, 10);
-        var zr = Ui.Zeile(tzae, "Durchrechnungszeitraum:", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 200, 160);
-        zr.Items.AddRange(new object[] { "Woche", "Monat", "Halbjahr", "Schuljahr", "benutzerdefiniert" });
-        zr.SelectedIndex = (int)z.Zeitraum;
-        var wz = Ui.Zeile(tzae, "Wie zählen:", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 200, 160);
-        wz.Items.AddRange(new object[] { "Anzahl der Stunden", "Werte (Faktor des Unterrichts)" });
-        wz.SelectedIndex = (int)z.WieZaehlen;
-        var kn = Ui.Zeile(tzae, "Kennzeichen \"nicht zählen\":", new TextBox { Text = z.NichtZaehlenKennzeichen }, ref y, 200, 60);
-        var kb = Ui.Zeile(tzae, "Kennzeichen \"bezahlt\":", new TextBox { Text = z.BezahltKennzeichen }, ref y, 200, 60);
-        tabs.TabPages.Add(tzae);
 
         // --- Vertretungsvorschlag ----------------------------------------------------------------
-        var tv = new TabPage("Vertretungsvorschlag");
+        var tv = Seite("Vertretungsvorschlag");
         var vo = e.Vorschlag;
         y = 12;
         NumericUpDown Zahl(string text, int wert, int max = 99) => Ui.Zeile(tv, text, new NumericUpDown { Minimum = 0, Maximum = max, Value = Math.Clamp(wert, 0, max) }, ref y, 300, 70);
@@ -789,10 +1083,9 @@ public static class VertretungsEinstellungenDialog
         vz.Items.AddRange(new object[] { "gemäß Vertretungszeitraster", "aus Randstunden", "alle Verlegungen" });
         vz.SelectedIndex = (int)vo.Vorziehungen;
         tv.Controls.AddRange(new Control[] { cGes, cTeil, cRg, cSp, cWo, new Label { Text = "Vorziehungen:", Left = 400, Top = 158, AutoSize = true }, vz });
-        tabs.TabPages.Add(tv);
 
-        // --- Allgemein ---------------------------------------------------------------------------
-        var ta = new TabPage("Allgemein");
+        // --- Sonstiges ---------------------------------------------------------------------------
+        var ta = Seite("Sonstiges");
         y = 12;
         var eva = Ui.Zeile(ta, "Raum für EVA:", ElementListe.Combo(ElementTyp.Raum, e.EvaRaumId), ref y, 260, 200);
         var lrp = Ui.Zeile(ta, "", new CheckBox { Text = "Lehrer-Raum-Prinzip (Raum des Vertreters verwenden)", Checked = e.LehrerRaumPrinzip, AutoSize = true }, ref y, 10);
@@ -803,13 +1096,12 @@ public static class VertretungsEinstellungenDialog
         ta.Controls.Add(new Label
         {
             Text = "NRW: Mehrarbeit ist vergütungsfähig, wenn im Kalendermonat mehr als die Mehrarbeitsgrenze (bei Teilzeit anteilig)\ngeleistet wurde – dann sind alle Stunden vergütungsfähig. Minderstunden (Entfall/Freisetzung) werden verrechnet.",
-            Left = 10, Top = y + 10, Width = 636, Height = 40, ForeColor = Color.DimGray,
+            Left = 10, Top = y + 10, Width = 620, Height = 40, ForeColor = Color.DimGray,
         });
-        tabs.TabPages.Add(ta);
 
-        // --- Bezeichnungen und Farben ------------------------------------------------------------
-        var tb = new TabPage("Farben und Bezeichnungen");
-        var bg = new DataGridView { Left = 10, Top = 10, Width = 636, Height = 410 };
+        // --- Farben und Bezeichnungen ------------------------------------------------------------
+        var tb = Seite("Farben und Bezeichnungen");
+        var bg = new DataGridView { Left = 10, Top = 10, Width = 620, Height = 390 };
         Ui.RasterGestalten(bg, true);
         bg.Columns[bg.Columns.Add("A", "Vertretungsart")].ReadOnly = true;
         bg.Columns[0].Width = 180;
@@ -840,8 +1132,19 @@ public static class VertretungsEinstellungenDialog
             }
         };
         tb.Controls.Add(bg);
-        tabs.TabPages.Add(tb);
-        tabs.SelectedIndex = Math.Clamp(seite, 0, tabs.TabPages.Count - 1);
+
+        // Baum wie im Handbuch: Vertretungsplanung mit den Unterseiten
+        var wurzel = baum.Nodes.Add("Vertretungsplanung");
+        foreach (var name in Reihenfolge) wurzel.Nodes.Add(name, name);
+        wurzel.Expand();
+        baum.AfterSelect += (_, ev) =>
+        {
+            var name = ev.Node?.Parent is null ? Reihenfolge[0] : ev.Node.Text;
+            foreach (var (n, p) in seiten) p.Visible = n == name;
+        };
+        baum.BeforeCollapse += (_, ev) => ev.Cancel = true;
+        var start = seite switch { 0 => "Vertretungszeitraster", 2 => "Vertretungsvorschlag", _ => "Vtr-Zähler" };
+        baum.SelectedNode = wurzel.Nodes[start];
 
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
         z.VertretungenZaehlen = c1.Checked;
@@ -853,10 +1156,24 @@ public static class VertretungsEinstellungenDialog
         z.EntfallNurMitGrund = c7.Checked;
         z.StattVertretungNeutral = c8.Checked;
         z.KlausurenNeutral = c9.Checked;
-        z.Zeitraum = (ZaehlZeitraum)zr.SelectedIndex;
-        z.WieZaehlen = (ZaehlArt)wz.SelectedIndex;
-        z.NichtZaehlenKennzeichen = kn.Text.Trim();
-        z.BezahltKennzeichen = kb.Text.Trim();
+        var von = DateOnly.FromDateTime(zVon.Value);
+        var bis = DateOnly.FromDateTime(zBis.Value);
+        if (rTag.Checked) z.Zeitraum = ZaehlZeitraum.Tag;
+        else if (rWoche.Checked) z.Zeitraum = ZaehlZeitraum.Woche;
+        else if (rMonat.Checked) z.Zeitraum = ZaehlZeitraum.Monat;
+        else if (rJahr.Checked) z.Zeitraum = ZaehlZeitraum.Schuljahr;
+        else if (!(halbjahr && von == hjVon && bis == hjBis))
+        {
+            z.Zeitraum = ZaehlZeitraum.Benutzerdefiniert;
+            z.ZeitraumVon = von <= bis ? von : bis;
+            z.ZeitraumBis = von <= bis ? bis : von;
+        }
+        z.WieZaehlen = wWerte.Checked ? ZaehlArt.Werte : wHhMm.Checked ? ZaehlArt.StundenHhMm : wReal.Checked ? ZaehlArt.Realstunden : ZaehlArt.Anzahl;
+        var kennz = kn.Text.Trim();
+        z.NichtZaehlenKennzeichen = kennz;
+        // ein Kennzeichen wie im Handbuch: „bezahlte Vertretungen“ macht es zugleich zum Kennzeichen bezahlter Vertretungen
+        if (kb.Checked && kennz.Length > 0) z.BezahltKennzeichen = kennz;
+        else if (bezahltAlt || kennz.Length > 0 && z.BezahltKennzeichen == kennz) z.BezahltKennzeichen = "";
         vo.Freisetzung = (int)nFrei.Value;
         vo.Bereitschaft = (int)nBer.Value;
         vo.HatKlasse = (int)nKl.Value;
