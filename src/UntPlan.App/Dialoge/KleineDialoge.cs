@@ -90,10 +90,10 @@ public static class KurznameDialog
 
 public static class KommentarDialog
 {
-    public static (int Kategorie, string Text)? Neu(IWin32Window owner, string titel)
+    public static (int Kategorie, string Text)? Neu(IWin32Window owner, string titel, string text = "", int kategorie = 0)
     {
         using var d = new Dialog(titel, 480, 260);
-        var t = new TextBox { Multiline = true, Left = 10, Top = 10, Width = 460, Height = 170, ScrollBars = ScrollBars.Vertical };
+        var t = new TextBox { Multiline = true, Left = 10, Top = 10, Width = 460, Height = 170, ScrollBars = ScrollBars.Vertical, Text = text };
         var kat = new ComboBox { Left = 10, Top = 192, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed, Font = Ui.ListenSchrift, ItemHeight = 18 };
         foreach (var k in AppZustand.D.KommentarKategorien) kat.Items.Add(k);
         kat.DrawItem += (_, e) =>
@@ -105,10 +105,10 @@ public static class KommentarDialog
             e.Graphics.FillRectangle(b, e.Bounds.X + 2, e.Bounds.Y + 2, 14, e.Bounds.Height - 4);
             Ui.ListenText(e.Graphics, k.Name, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 20, e.Bounds.Y, e.Bounds.Width - 21, e.Bounds.Height), e.ForeColor);
         };
-        kat.SelectedIndex = 0;
+        if (kat.Items.Count > 0) kat.SelectedIndex = Math.Max(0, AppZustand.D.KommentarKategorien.FindIndex(k => k.Nr == kategorie));
         d.Controls.Add(t);
         d.Controls.Add(kat);
-        return d.ShowDialog(owner) == DialogResult.OK && t.Text.Trim().Length > 0 ? (((KommentarKategorie)kat.SelectedItem!).Nr, t.Text.Trim()) : null;
+        return d.ShowDialog(owner) == DialogResult.OK && t.Text.Trim().Length > 0 ? ((kat.SelectedItem as KommentarKategorie)?.Nr ?? 1, t.Text.Trim()) : null;
     }
 }
 

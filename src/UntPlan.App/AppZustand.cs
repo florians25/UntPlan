@@ -244,6 +244,8 @@ public sealed class Benutzereinstellungen
     /// <summary>Dialog „Raum zuordnen / löschen“: Auto-resize beim Öffnen deaktivieren (gemerkte Größe verwenden).</summary>
     public bool RaumDialogAutoResizeAus { get; set; }
     public Size RaumDialogGroesse { get; set; }
+    /// <summary>Fenster Kalender: Detailbereich (Tagestexte, Kalendertag) ausgeklappt.</summary>
+    public bool KalenderDetailOffen { get; set; } = true;
     /// <summary>Absenzfenster: Veranstaltungen zur Information mit anzeigen.</summary>
     public bool AbsenzenVeranstaltungenZeigen { get; set; }
     /// <summary>Vertretungsfenster „Felder der Ansicht“ je Ansicht: Feld → "a" (aktiv), "d" (drucken), "L" (Langname).</summary>

@@ -198,11 +198,12 @@ public static class Felder
                 break;
             case ElementTyp.Abwesenheitsgrund:
                 l.AddRange(Gemeinsam().Take(3));
+                // Spalten wie im Vorbild (Handbuch Vertretungsplanung Kap. 3.12.1): Entf zählen, FS n.zählen, N. in Abs.kopf, Statistik
+                l.Add(F("EntfallZaehlen", "Entf zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("FreisetzungNichtZaehlen", "FS n.zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemein", true));
+                l.Add(F("NichtImAbsenzkopf", "N. in Abs.kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemein", true));
                 l.Add(F("Statistikrelevant", "Statistik", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Statistikrelevant, (e, v) => ((Abwesenheitsgrund)e).Statistikrelevant = (bool)v!, "Allgemein", true));
-                l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemein", true));
-                l.Add(F("EntfallZaehlen", "Entfall zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemein", true));
-                l.Add(F("FreisetzungNichtZaehlen", "Freisetzung nicht zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemein", true));
-                l.Add(F("NichtImAbsenzkopf", "nicht im Kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemein"));
+                l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemein"));
                 l.Add(F("Hintergrund", "Farbe", FeldArt.Farbe, e => e.Hintergrund, (e, v) => e.Hintergrund = (int)v!, "Allgemein", false, 50));
                 break;
             case ElementTyp.Schueler:

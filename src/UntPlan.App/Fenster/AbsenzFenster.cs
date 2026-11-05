@@ -36,6 +36,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
     /// <summary>Fensterverknüpfung: in einem anderen Fenster gewähltes Element – seine Absenzen werden markiert.</summary>
     private (ElementTyp Typ, int Id)? _markiert;
     private bool _zuMarkierungSpringen;
+    private readonly Steuerelemente.ZellKommentare _kommentare;
+    /// <summary>Mit Strg+C gemerkte Absenzen (Strg+V fügt sie am eingestellten Tag ein).</summary>
+    private static List<Abwesenheit> _zwischenablage = new();
 
     public AbwesenheitenFenster()
     {
@@ -54,17 +57,14 @@ public sealed class AbwesenheitenFenster : MdiFenster
             Text = "Absenzen / " + (Art switch { AbwesenheitsArt.Lehrer => "Lehrer", AbwesenheitsArt.Klasse => "Klasse", _ => "Raum" });
             Neuaufbau();
         };
+        // Symbolleiste wie im Vorbild (Handbuch Kap. 5.1, Bereich 1): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht,
+        // Einstellungen, Absenz splitten – dazu die eigenen Funktionen (Bearbeiten, Kopieren auf andere Elemente, Veranstaltungen)
         var ts = Werkzeugleiste();
         ts.Items.Add(VerknuepfenKnopf());
-        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Neue Absenz (Dialog)", "neu", Neu));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
-        ts.Items.Add(Knopf("Absenz teilen", "tausch", Teilen));
-        ts.Items.Add(Knopf("Absenz kopieren (andere Elemente)", "kopieren", Kopieren));
-        ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
+        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position)));
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         _vaZeigen.Checked = AppZustand.Einstellungen.AbsenzenVeranstaltungenZeigen;
         _vaZeigen.CheckedChanged += (_, _) =>
@@ -76,6 +76,11 @@ public sealed class AbwesenheitenFenster : MdiFenster
         };
         einst.DropDownItems.Add(_vaZeigen);
         ts.Items.Add(einst);
+        ts.Items.Add(Knopf("Absenz splitten", "tausch", Teilen));
+        ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
+        ts.Items.Add(Knopf("Absenz kopieren (andere Elemente)", "kopieren", Kopieren));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
 
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
@@ -136,16 +141,17 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (e.KeyCode == Keys.Enter && _entwurf != null && e.Modifiers == Keys.Control) { EntwurfSofortUebernehmen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.Control) { Loeschen(); e.Handled = true; }
             if (e.KeyCode == Keys.Insert) Neu();
+            // wie im Vorbild (Kap. 5.2 Absenzen kopieren): Strg+C merkt die markierten Absenzen, Strg+V fügt sie am eingestellten Tag ein
+            if (e.KeyCode == Keys.C && e.Modifiers == Keys.Control) { AbsenzenMerken(); e.Handled = true; }
+            if (e.KeyCode == Keys.V && e.Modifiers == Keys.Control) { AbsenzenEinfuegen(); e.Handled = true; }
         };
-        var cm = new ContextMenuStrip { Font = Ui.Schrift };
-        cm.Items.Add("Neue Absenz…", Symbole.Get("neu"), (_, _) => Neu());
-        cm.Items.Add("Bearbeiten…", Symbole.Get("einstellungen"), (_, _) => Bearbeiten());
-        cm.Items.Add("Absenz teilen…", Symbole.Get("tausch"), (_, _) => Teilen());
-        cm.Items.Add("Absenz kopieren…", null, (_, _) => Kopieren());
-        cm.Items.Add("Absenzen zusammenfassen", null, (_, _) => Zusammenfassen());
-        cm.Items.Add(new ToolStripSeparator());
-        cm.Items.Add("Löschen", Symbole.Get("loeschen"), (_, _) => Loeschen());
-        _g.ContextMenuStrip = cm;
+        _kommentare = Steuerelemente.ZellKommentare.Aktivieren(_g, r => r.Tag is Abwesenheit a ? ("Absenz:" + a.Id, "Absenz Nr. " + a.Id) : null);
+        _g.CellMouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (!_g.IsCurrentCellInEditMode && !_g[e.ColumnIndex, e.RowIndex].Selected) _g.CurrentCell = _g[e.ColumnIndex, e.RowIndex];
+            Kontextmenue(e.RowIndex, e.ColumnIndex).Show(_g, _g.PointToClient(Cursor.Position));
+        };
 
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Absenzen");
@@ -561,8 +567,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
     {
         EntwurfSofortUebernehmen();
         if (_g.CurrentRow?.Tag is not Abwesenheit alt) return;
-        if (alt.Von == alt.Bis) { Ui.Info("Eine eintägige Absenz kann nicht geteilt werden."); return; }
-        var text = Ui.Eingabe($"Absenz {Format.Datum(alt.Von)} – {Format.Datum(alt.Bis)} teilen: zweiter Teil beginnt am (TT.MM.JJJJ):", "Absenz teilen", Format.Datum(alt.Von.AddDays(1)));
+        if (alt.Von == alt.Bis) { Ui.Info("Eine eintägige Absenz kann nicht gesplittet werden."); return; }
+        var text = Ui.Eingabe($"Absenz {Format.Datum(alt.Von)} – {Format.Datum(alt.Bis)} splitten: zweiter Teil beginnt am (TT.MM.JJJJ):", "Absenz splitten", Format.Datum(alt.Von.AddDays(1)));
         if (text is null || !DateOnly.TryParse(text, Format.De, out var ab) || ab <= alt.Von || ab > alt.Bis) return;
         var a = Kopie(alt);
         a.Bis = ab.AddDays(-1);
@@ -571,7 +577,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         b.Id = 0;
         b.Von = ab;
         b.StundeVon = 1;
-        Speichern(new[] { a, b }, new[] { alt }, "Absenz teilen");
+        Speichern(new[] { a, b }, new[] { alt }, "Absenz splitten");
     }
 
     private void Kopieren()
@@ -595,8 +601,109 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Speichern(new[] { a }, m.ToArray(), "Absenzen zusammenfassen");
     }
 
+    /// <summary>
+    /// Kontextmenü wie im Vorbild (Handbuch Kap. 4.5): Felder der Ansicht, Spaltenbreite anpassen, Alle Spalten anpassen, Alle Spalten an
+    /// Inhalt anpassen, Zeilenumbruch, Kommentar erstellen/bearbeiten/löschen, Kommentar Übersichtsfenster – davor die Bearbeitungsfunktionen.
+    /// </summary>
+    private ContextMenuStrip Kontextmenue(int zeile, int spalte)
+    {
+        var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        cm.Closed += (_, _) => BeginInvoke(cm.Dispose);
+        cm.Items.Add("Neue Absenz…", Symbole.Get("neu"), (_, _) => Neu());
+        cm.Items.Add("Bearbeiten…", Symbole.Get("einstellungen"), (_, _) => Bearbeiten());
+        cm.Items.Add("Absenz splitten…", Symbole.Get("tausch"), (_, _) => Teilen());
+        cm.Items.Add("Absenz kopieren…", null, (_, _) => Kopieren());
+        cm.Items.Add("Absenzen zusammenfassen", null, (_, _) => Zusammenfassen());
+        cm.Items.Add("Löschen", Symbole.Get("loeschen"), (_, _) => Loeschen());
+        cm.Items.Add(new ToolStripSeparator());
+        cm.Items.Add("Felder der Ansicht", null, (_, _) => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position));
+        var col = _g.Columns[spalte];
+        cm.Items.Add("Spaltenbreite anpassen", null, (_, _) => col.Width = Math.Max(col.MinimumWidth, col.GetPreferredWidth(DataGridViewAutoSizeColumnMode.AllCells, true)));
+        cm.Items.Add(new ToolStripMenuItem("Alle Spalten anpassen", null, (_, _) => SpaltenAnpassen(DataGridViewAutoSizeColumnMode.AllCells)) { ShortcutKeyDisplayString = "Strg+E" });
+        cm.Items.Add(new ToolStripMenuItem("Alle Spalten an Inhalt anpassen", null, (_, _) => SpaltenAnpassen(DataGridViewAutoSizeColumnMode.AllCellsExceptHeader)) { ShortcutKeyDisplayString = "Strg+F" });
+        var umbruch = new ToolStripMenuItem("Zeilenumbruch") { Checked = _g.DefaultCellStyle.WrapMode == DataGridViewTriState.True };
+        umbruch.Click += (_, _) =>
+        {
+            _g.DefaultCellStyle.WrapMode = umbruch.Checked ? DataGridViewTriState.False : DataGridViewTriState.True;
+            _g.AutoSizeRowsMode = umbruch.Checked ? DataGridViewAutoSizeRowsMode.None : DataGridViewAutoSizeRowsMode.DisplayedCells;
+        };
+        cm.Items.Add(umbruch);
+        cm.Items.Add(new ToolStripSeparator());
+        cm.Items.AddRange(_kommentare.MenueEintraege(zeile, spalte).ToArray());
+        return cm;
+    }
+
+    private void SpaltenAnpassen(DataGridViewAutoSizeColumnMode modus)
+    {
+        foreach (var c in _g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible && c.AutoSizeMode != DataGridViewAutoSizeColumnMode.Fill))
+            c.Width = Math.Max(Math.Max(c.MinimumWidth, 24), c.GetPreferredWidth(modus, true));
+    }
+
+    private void AbsenzenMerken()
+    {
+        EntwurfSofortUebernehmen();
+        var m = Markierte();
+        if (m.Count > 0) _zwischenablage = m.Select(Kopie).ToList();
+    }
+
+    /// <summary>Gemerkte Absenzen am eingestellten Tag einfügen (Dauer und Stunden bleiben erhalten).</summary>
+    private void AbsenzenEinfuegen()
+    {
+        EntwurfSofortUebernehmen();
+        if (_zwischenablage.Count == 0) return;
+        var start = _zwischenablage.Min(a => a.Von);
+        var versatz = Von.DayNumber - start.DayNumber;
+        var neu = _zwischenablage.Select(a =>
+        {
+            var k = Kopie(a);
+            k.Id = 0;
+            k.Von = a.Von.AddDays(versatz);
+            k.Bis = a.Bis.AddDays(versatz);
+            k.Erstellt = DateTime.Now;
+            k.Benutzer = AppZustand.Benutzer;
+            return k;
+        }).ToArray();
+        Speichern(neu, Array.Empty<Abwesenheit>(), "Absenz einfügen");
+    }
+
+    /// <summary>
+    /// Wie im Vorbild (Kap. 5.2 Zusammenfassen von Absenzen): schließt eine einzelne neue bzw. geänderte Absenz zeitlich direkt an eine
+    /// andere Absenz desselben Elements mit demselben Absenzgrund an, wird gefragt, ob beide zusammengefasst werden sollen.
+    /// </summary>
+    private Abwesenheit? Anschluss(Abwesenheit a, IReadOnlyList<Abwesenheit> alt)
+    {
+        var letzte = LetzteStunde;
+        bool Folgt(Abwesenheit frueher, Abwesenheit spaeter) =>
+            frueher.StundeBis >= letzte && spaeter.StundeVon <= 1 && frueher.Bis < spaeter.Von &&
+            (frueher.Bis.AddDays(1) == spaeter.Von || Kalender.NaechsterUnterrichtstag(D, frueher.Bis) == spaeter.Von);
+        return D.Abwesenheiten.FirstOrDefault(b => b.Id != a.Id && !alt.Any(y => y.Id == b.Id) && b.Art == a.Art && b.ElementId == a.ElementId && b.GrundId == a.GrundId
+            && (Folgt(b, a) || Folgt(a, b)));
+    }
+
     private void Speichern(IReadOnlyList<Abwesenheit> neu, IReadOnlyList<Abwesenheit> alt, string text)
     {
+        if (neu.Count == 1 && Anschluss(neu[0], alt) is { } andere)
+        {
+            var na = neu[0];
+            var typ = TypVon(na.Art);
+            var name = Ix.K(typ, na.ElementId);
+            var lang = D.AlleElemente(typ).FirstOrDefault(x => x.Id == na.ElementId) switch { Lehrer l => l.VollerName, { } el => el.Langname, _ => "" };
+            string Zeile(Abwesenheit x, string nr) => $"Absenz {nr}:  {x.Von:d.M.} / {Planungsdienst.TageKurz[((int)x.Von.DayOfWeek + 6) % 7]}";
+            if (Ui.Frage($"{name} - {lang}\n{Zeile(na, na.Id == 0 ? "neu" : na.Id.ToString())}\nkann zusammengefasst werden mit\n{Zeile(andere, andere.Id.ToString())}\n\nSollen diese Absenzen zusammengefasst werden?", "UntPlan - Frage", this))
+            {
+                var frueher = na.Von <= andere.Von ? na : andere;
+                var spaeter = frueher == na ? andere : na;
+                var z = Kopie(andere);
+                z.Von = frueher.Von;
+                z.StundeVon = frueher.StundeVon;
+                z.Bis = spaeter.Bis;
+                z.StundeBis = spaeter.StundeBis;
+                if (z.Text.Length == 0) z.Text = na.Text;
+                neu = new[] { z };
+                alt = alt.Append(andere).ToList();
+                text = "Absenzen zusammenfassen";
+            }
+        }
         // Hinweis: eingeplante Vertreter, die durch die neue Absenz abwesend werden
         var betroffen = neu.SelectMany(a => Vertretungen.BetroffeneVertreter(D, a)).Distinct().ToList();
         List<Abwesenheit> gespeichert = new();

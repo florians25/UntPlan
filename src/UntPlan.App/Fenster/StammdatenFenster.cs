@@ -59,6 +59,12 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             ts.Items.Add(Knopf("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(_typ, _aktuell?.Id)));
             if (typ != ElementTyp.Raum) ts.Items.Add(Knopf("Unterricht", "unterricht", () => UnterrichtFenster.Zeigen(_typ, _aktuell?.Id)));
             ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => StundenplanFenster.Neu(_typ, _aktuell?.Id, false)));
+            // Absenzeingabe im Schuljahreskalender (Handbuch Vertretungsplanung Kap. 5.3)
+            if (typ != ElementTyp.Fach)
+                ts.Items.Add(Knopf("Schuljahreskalender – Absenzen", "kalender", () => { if (_aktuell is { } el) AbsenzKalenderDialog.Zeigen(this, _typ, el.Id); }));
+            // Klassenzeitraster der Vertretungsplanung (Vertretung / Entfall / Eigenverantwortliches Arbeiten je Stunde)
+            if (typ == ElementTyp.Klasse)
+                ts.Items.Add(Knopf("Klassenzeitraster", "zeitraster", () => { if ((_aktuell as Klasse ?? D.Klassen.FirstOrDefault()) is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }));
         }
         if (typ == ElementTyp.Fach)
         {

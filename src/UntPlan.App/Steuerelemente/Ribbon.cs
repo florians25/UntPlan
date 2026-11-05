@@ -17,6 +17,8 @@ public sealed class RibbonEintrag
     public Func<bool>? Gedrueckt { get; init; }
     /// <summary>Datumsfeld mit Pfeilen (Planungsdatum).</summary>
     public bool IstDatum { get; init; }
+    /// <summary>Großer Knopf mit Pfeil, der statt eines Menüs den Monatskalender aufklappt (Kalender im Vertretungsmodus).</summary>
+    public bool PfeilKalender { get; init; }
     internal Rectangle Bounds;
     internal Rectangle PfeilBounds;
 }
@@ -122,14 +124,27 @@ public sealed class Ribbon : Control
             var y = TabHoehe + 3;
             var spaltenBreite = 0;
             var zeile = 0;
-            foreach (var e in gr.Eintraege)
+            for (var i = 0; i < gr.Eintraege.Count; i++)
             {
+                var e = gr.Eintraege[i];
+                if (e.IstDatum && i > 0 && gr.Eintraege[i - 1] is { Gross: true } ueber && zeile == 0)
+                {
+                    // wie im Vorbild: Datumsfeld unter dem großen Kalenderknopf (der Knopf wird etwas niedriger)
+                    var bx = ueber.Bounds.X;
+                    var w = Math.Max(136, ueber.Bounds.Width);
+                    ueber.Bounds = new Rectangle(bx, y, w, Inhalt - 28);
+                    if (ueber.PfeilBounds != Rectangle.Empty) ueber.PfeilBounds = new Rectangle(bx, y + Inhalt - 42, w, 14);
+                    e.Bounds = new Rectangle(bx, y + Inhalt - 26, w, 22);
+                    e.PfeilBounds = Rectangle.Empty;
+                    x = bx + w + 2;
+                    continue;
+                }
                 if (e.Gross)
                 {
                     if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                     var w = Math.Max(44, (int)g.MeasureString(e.Text, Font).Width + 10);
                     e.Bounds = new Rectangle(x, y, w, Inhalt - 22);
-                    e.PfeilBounds = e.Menue != null ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
+                    e.PfeilBounds = e.Menue != null || e.PfeilKalender ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
                     x += w + 2;
                 }
                 else
@@ -217,7 +232,7 @@ public sealed class Ribbon : Control
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, Color.Transparent);
                     var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 38, it.Bounds.Width, 30);
                     TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                    if (it.Menue != null) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
+                    if (it.Menue != null || it.PfeilKalender) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
                 }
                 else
                 {
@@ -256,12 +271,19 @@ public sealed class Ribbon : Control
         var d = AppZustand.D;
         if (DatumLinks(it).Contains(p)) { AppZustand.DatumSetzen(Core.Kalender.NaechsterUnterrichtstag(d, AppZustand.Datum, -1)); Invalidate(); return; }
         if (DatumRechts(it).Contains(p)) { AppZustand.DatumSetzen(Core.Kalender.NaechsterUnterrichtstag(d, AppZustand.Datum)); Invalidate(); return; }
-        var kal = new MonthCalendar { MaxSelectionCount = 1, SelectionStart = AppZustand.Datum.ToDateTime(TimeOnly.MinValue), ShowToday = true };
+        KalenderAufklappen(new Point(it.Bounds.X, it.Bounds.Bottom));
+    }
+
+    /// <summary>Monatskalender aufklappen (unten „Heute: …“ stellt das Planungsdatum auf den aktuellen Tag).</summary>
+    private void KalenderAufklappen(Point p)
+    {
+        var kal = new MonthCalendar { MaxSelectionCount = 1, SelectionStart = AppZustand.Datum.ToDateTime(TimeOnly.MinValue), ShowToday = true, ShowTodayCircle = true };
         var host = new ToolStripControlHost(kal) { Margin = Padding.Empty, Padding = Padding.Empty };
         var dd = new ToolStripDropDown { Padding = Padding.Empty };
         dd.Items.Add(host);
         kal.DateSelected += (_, e) => { AppZustand.DatumSetzen(DateOnly.FromDateTime(e.Start)); dd.Close(); Invalidate(); };
-        dd.Show(this, new Point(it.Bounds.X, it.Bounds.Bottom));
+        dd.Closed += (_, _) => BeginInvoke(dd.Dispose);
+        dd.Show(this, p);
     }
 
     private static void DreieckUnten(Graphics g, int x, int y, Color c)
@@ -309,6 +331,7 @@ public sealed class Ribbon : Control
         var it = Sichtbare().FirstOrDefault(x => x.Bounds.Contains(e.Location));
         if (it is null || !(it.Aktiviert?.Invoke() ?? true)) return;
         if (it.IstDatum) { DatumWaehlen(it, e.Location); return; }
+        if (it.PfeilKalender && it.PfeilBounds.Contains(e.Location)) { KalenderAufklappen(new Point(it.Bounds.X, it.Bounds.Bottom)); return; }
         var pfeil = it.Menue != null && (it.Klick is null || it.PfeilBounds.Contains(e.Location));
         if (pfeil) MenueZeigen(it.Menue!, new Point(it.Bounds.X, it.Bounds.Bottom));
         else it.Klick?.Invoke();
