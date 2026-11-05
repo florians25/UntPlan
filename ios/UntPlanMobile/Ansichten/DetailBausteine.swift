@@ -317,6 +317,9 @@ struct Randblatt<Inhalt: View>: View {
                     .frame(maxWidth: .infinity)
                     .environment(\.randblattUnten, geo.safeAreaInsets.bottom)
                     .frame(height: innenHoehe, alignment: .top)
+                    // Inhalt als geschlossene Einheit: Kopf, Ladebild und Liste übernehmen die Einfahr-Animation nicht für ihre
+                    // eigene Lage (sonst hingen Balken kurz fest bzw. zuckten) – es bewegt sich nur das Blatt als Ganzes
+                    .geometryGroup()
                     // Oben die runden Ecken; unten darf Inhalt bis an den Bildschirmrand reichen (Suchfeld der Planauswahl
                     // liegt wie im Original im Bereich über dem Home-Indikator)
                     .mask {
