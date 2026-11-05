@@ -128,7 +128,9 @@ public static class Optimierer
                 ergebnisse[i] = e;
                 fertig?.Invoke(e);
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { /* angehalten: Plan verwerfen */ }
+            // angehalten bzw. abgebrochen: Plan verwerfen – ein Abbruch wird nach der Schleife einheitlich gemeldet
+            // (sonst verpackt Parallel.For die Ausnahme des verknüpften Tokens in eine AggregateException)
+            catch (OperationCanceledException) { }
         });
         ct.ThrowIfCancellationRequested();
         return ergebnisse.Where(e => e != null).Select(e => e!).OrderBy(e => e.Kennzahlen.Bewertung).ToList();
