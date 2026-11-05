@@ -345,6 +345,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Lehrer", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Lehrer", () => new UnterrichtFenster(ElementTyp.Lehrer)), true));
         g.Eintraege.Add(E("Fächer", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Fach", () => new UnterrichtFenster(ElementTyp.Fach))));
         g.Eintraege.Add(E("Alle Unterrichte", "unterricht", () => Oeffnen<UnterrichtFenster>("u:Alle", () => new UnterrichtFenster(ElementTyp.Unterricht))));
+        g.Eintraege.Add(E("Stammdatenformate", "einstellungen", () => Oeffnen<StammdatenformateFenster>("stammformate", () => new StammdatenformateFenster())));
         g = Gruppe(eingabe, "Zeit");
         g.Eintraege.Add(E("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Lehrer, null), true));
         g.Eintraege.Add(E("Zeitraster", "zeitraster", () => new ZeitrasterDialog().ShowDialog(this)));
@@ -361,6 +362,9 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Planen", "planen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), true, hinweis: "Stundenplan öffnen und Stunden per Drag & Drop verplanen"));
         g.Eintraege.Add(E("Tauschvorschläge", "tausch", () => StundenplanFenster.AktivesOderNeu()?.TauschvorschlaegeZeigen(), true));
         g.Eintraege.Add(E("Raum zuordnen", "raumzuordnen", () => StundenplanFenster.AktivesOderNeu()?.RaumZuordnen(), true));
+        // Handbuch S. 120: Planung | Planungsdialog bzw. Planungs-Stundenplan
+        g.Eintraege.Add(E("Planungsdialog", "planen", () => PlanungsdialogFenster.Zeigen(), hinweis: "Stecktafel mit Klassen, Lehrern und Räumen, Tauschketten, Lupe"));
+        g.Eintraege.Add(E("Planungs-Stundenplan", "stundenplan", () => PlanungsdialogFenster.PlanungsStundenplan()));
         g = Gruppe(planung, "Stundenpläne");
         g.Eintraege.Add(E("Klassen", "klassen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false)));
         g.Eintraege.Add(E("Lehrer", "lehrer", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, false)));
@@ -369,6 +373,11 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Diagnose", "diagnose", () => Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster()), true));
         g.Eintraege.Add(E("Gewichtung", "gewichtung", () => new GewichtungDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Optimierung", "optimierung", () => OptimierungDialog.Starten(this), true));
+        g.Eintraege.Add(E("Optimierte Pläne", "optimierung", () => OptimierungDialog.OptimiertePlaene(this), hinweis: "Pläne der letzten Optimierung dieser Sitzung"));
+        g.Eintraege.Add(E("Totaldiagnose", "diagnose", () => Oeffnen<TotaldiagnoseFenster>("totaldiag", () => new TotaldiagnoseFenster())));
+        g.Eintraege.Add(E("CCC-Analyse", "diagnose", () => Oeffnen<CccFenster>("ccc", () => new CccFenster())));
+        g.Eintraege.Add(E("Lehrerteams", "lehrer", () => Lehrerteamliste.Zeigen(this, false)));
+        g.Eintraege.Add(E("Unterrichtsfolgen", "unterricht", () => Oeffnen<UnterrichtsfolgenFenster>("ufolgen", () => new UnterrichtsfolgenFenster())));
         g.Eintraege.Add(E("Alle Stunden entplanen", "loeschen", AlleEntplanen));
         g.Eintraege.Add(E("Unterrichtszeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, null)));
         g.Eintraege.Add(E("Fixierter/Ignorierter Unterricht", "fixieren", () => Oeffnen<FixierterUnterrichtFenster>("fixiert", () => new FixierterUnterrichtFenster()), hinweis: "Alle fixierten bzw. ignorierten Unterrichte mit der Ebene der Fixierung; Fixierungen lösen"));
