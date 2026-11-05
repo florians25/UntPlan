@@ -148,9 +148,9 @@ public sealed partial class EinstellungenDialog
         Farbe("Vtr-Modus", 40, () => e.HintergrundVtr, v => e.HintergrundVtr = v, Color.FromArgb(179, 228, 204));
         var sl = Gruppe("Symbolleisten", 4, 232, 270, 40);
         Kb(sl, "Symbolleisten abtrennbar", 16, false, null);
-        _seite.Controls.Add(new NumericUpDown { Left = 8, Top = 280, Width = 50, Value = 80, Minimum = 40, Maximum = 300, Enabled = false });
+        _seite.Controls.Add(new NumericUpDown { Left = 8, Top = 280, Width = 50, Minimum = 40, Maximum = 300, Value = 80, Enabled = false });
         _seite.Controls.Add(new Label { Text = "Breite der Elementcombobox (Stammdaten, Unterricht)", Left = 64, Top = 280, Width = 210, Height = 30, Font = Kursiv });
-        _seite.Controls.Add(new NumericUpDown { Left = 8, Top = 314, Width = 50, Value = 120, Minimum = 40, Maximum = 300, Enabled = false });
+        _seite.Controls.Add(new NumericUpDown { Left = 8, Top = 314, Width = 50, Minimum = 40, Maximum = 300, Value = 120, Enabled = false });
         _seite.Controls.Add(new Label { Text = "Breite der Abteilungscombobox", Left = 64, Top = 316, Width = 210, Font = Kursiv });
 
         var ein = Gruppe("Eingabe", 282, 0, 270, 136);
