@@ -13,9 +13,26 @@ namespace UntPlan.App.Druck;
 /// Fußnoten (Lehrkraft, Fach, Raum, Klassen) und die Fächerlegende, ganz unten Periode und Seitenzahl.
 /// Im kompakten Format (zwei Pläne je Seite) entfallen Liste und Legenden.
 /// </summary>
+/// <summary>
+/// Druckoptionen aus dem Seitenlayout der Stundenpläne (Vorbild: Unterricht, Kopplungslegende (Fußnoten), Abkürzungen,
+/// Element-Text, Schriftgrößen in % für Überschrift und Kopp.-Legende).
+/// </summary>
+public sealed class StundenplanDruckOptionen
+{
+    public bool Unterricht { get; set; } = true;
+    public bool Kopplungslegende { get; set; } = true;
+    public bool Abkuerzungen { get; set; } = true;
+    public bool ElementText { get; set; }
+    public int UeberschriftProzent { get; set; } = 100;
+    public int LegendeProzent { get; set; } = 100;
+}
+
 internal static class StundenplanFormular
 {
     private const string Schrift = "Arial";
+
+    /// <summary>Optionen des aktuellen Drucks (vom Seitenlayout bzw. aus dem Format gesetzt).</summary>
+    internal static StundenplanDruckOptionen Optionen { get; set; } = new();
     private static readonly CultureInfo De = CultureInfo.GetCultureInfo("de-DE");
 
     /// <summary>Eine Druckseite mit einem (oder im kompakten Format mehreren) Plänen.</summary>
@@ -78,14 +95,22 @@ internal static class StundenplanFormular
     private static void Plan(Graphics g, Rectangle r, Schuldatei d, DatenIndex ix, ElementTyp typ, int id, bool kompakt)
     {
         var el = ix.Element(typ, id);
-        using var fName = new Font(Schrift, kompakt ? 15f : 18f);
-        using var fLang = new Font(Schrift, kompakt ? 11f : 13f);
+        var ueb = Math.Clamp(Optionen.UeberschriftProzent, 50, 300) / 100f;
+        using var fName = new Font(Schrift, (kompakt ? 15f : 18f) * ueb);
+        using var fLang = new Font(Schrift, (kompakt ? 11f : 13f) * ueb);
         var kurz = el?.Kurzname ?? "";
         var lang = el is Lehrer l ? l.VollerName : el?.Langname ?? "";
         g.DrawString(kurz, fName, Brushes.Black, r.Left - 3, r.Top);
         var kb = g.MeasureString(kurz, fName);
         if (lang.Length > 0 && lang != kurz) g.DrawString(lang, fLang, Brushes.Black, r.Left + kb.Width + 2, r.Top + kb.Height - g.MeasureString(lang, fLang).Height - 2);
         var top = r.Top + (int)kb.Height + 4;
+        // Seitenlayout „Element-Text“: Text und Beschreibung des Elements unter der Überschrift
+        if (Optionen.ElementText && el is not null && string.Join("  ", new[] { el.Text, el.Beschreibung }.Where(t => !string.IsNullOrWhiteSpace(t))) is { Length: > 0 } et)
+        {
+            using var fText = new Font(Schrift, 9f);
+            g.DrawString(et, fText, Brushes.Black, r.Left, top - 2);
+            top += (int)fText.GetHeight(g) + 2;
+        }
 
         var fussnoten = new List<Fussnote>();
         var faecher = new SortedSet<int>(Comparer<int>.Create((a, b) => string.Compare(ix.KFach(a), ix.KFach(b), StringComparison.CurrentCultureIgnoreCase) is var c && c != 0 ? c : a.CompareTo(b)));
@@ -94,11 +119,13 @@ internal static class StundenplanFormular
             Raster(g, new Rectangle(r.Left, top, r.Width, r.Bottom - top - 4), d, ix, typ, id, fussnoten, faecher, true);
             return;
         }
-        var legende = 150;
-        var rasterBreite = (int)(r.Width * .485);
+        var mitLegende = Optionen.Kopplungslegende || Optionen.Abkuerzungen;
+        var legende = mitLegende ? 150 : 0;
+        var rasterBreite = Optionen.Unterricht ? (int)(r.Width * .485) : r.Width;
         Raster(g, new Rectangle(r.Left, top, rasterBreite, r.Bottom - top - legende - 10), d, ix, typ, id, fussnoten, faecher, false);
-        Liste(g, new Rectangle(r.Left + rasterBreite + 16, top + 18, r.Width - rasterBreite - 16, r.Bottom - top - legende - 28), ix, typ, id, faecher);
-        Legenden(g, new Rectangle(r.Left, r.Bottom - legende, r.Width, legende - 4), ix, fussnoten, faecher);
+        if (Optionen.Unterricht) Liste(g, new Rectangle(r.Left + rasterBreite + 16, top + 18, r.Width - rasterBreite - 16, r.Bottom - top - legende - 28), ix, typ, id, faecher);
+        else foreach (var u in ix.UnterrichteVon(typ, id)) foreach (var z in u.Zeilen) if (z.FachId is int fa) faecher.Add(fa);
+        if (mitLegende) Legenden(g, new Rectangle(r.Left, r.Bottom - legende, r.Width, legende - 4), ix, fussnoten, faecher);
     }
 
     /// <summary>Teile eines Unterrichts in einer Planstunde, die das Element betreffen.</summary>
@@ -373,19 +400,21 @@ internal static class StundenplanFormular
 
     private static void Legenden(Graphics g, Rectangle r, DatenIndex ix, List<Fussnote> fussnoten, ISet<int> faecher)
     {
-        using var kopf = new Font(Schrift, 8.5f);
-        using var f = new Font(Schrift, 8.5f);
-        using var fett = new Font(Schrift, 8.5f, FontStyle.Bold);
+        var gr = 8.5f * Math.Clamp(Optionen.LegendeProzent, 50, 300) / 100f;
+        using var kopf = new Font(Schrift, gr);
+        using var f = new Font(Schrift, gr);
+        using var fett = new Font(Schrift, gr, FontStyle.Bold);
         using var grau = new SolidBrush(Color.FromArgb(232, 232, 232));
         using var stift = new Pen(Color.Black, .75f);
         var zeileH = f.GetHeight(g) + 1;
         var x = (float)r.Left;
-        var breiteNote = r.Width * .25f;
+        // nur Abkürzungen: Fächerlegende über die ganze Breite; nur Kopplungslegende: Fußnoten über die ganze Breite
+        var breiteNote = !Optionen.Abkuerzungen ? r.Width * .5f : !Optionen.Kopplungslegende ? 0 : r.Width * .25f;
 
         // Fußnoten in zwei Spalten
         var noteZeilen = fussnoten.SelectMany(n => n.Zeilen.Select((z, i) => (Nr: i == 0 ? $"{n.Nr})" : "", z.Text, z.Klassen))).ToList();
         var proSpalte = Math.Max(1, (int)((r.Height - zeileH - 4) / zeileH));
-        for (var sp = 0; sp < 2; sp++)
+        for (var sp = 0; sp < 2 && Optionen.Kopplungslegende; sp++)
         {
             var sx = x + sp * breiteNote;
             if (sp == 0 || noteZeilen.Count > proSpalte)
@@ -406,6 +435,7 @@ internal static class StundenplanFormular
         }
 
         // Fächerlegende (Kurzname, Langname) in zwei Spaltenpaaren
+        if (!Optionen.Abkuerzungen) return;
         var fx = x + 2 * breiteNote;
         var fb = r.Right - fx;
         var liste = faecher.Select(id => ix.Faecher.GetValueOrDefault(id)).Where(fa => fa != null).ToList();

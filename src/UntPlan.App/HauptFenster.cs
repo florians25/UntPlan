@@ -363,6 +363,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Klassenplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, true)));
         g.Eintraege.Add(E("Lehrerplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Lehrer, null, true)));
         g.Eintraege.Add(E("Raumplan groß", "stundenplan", () => StundenplanFenster.Neu(ElementTyp.Raum, null, true)));
+        g.Eintraege.Add(E("Stundenplanformate", "einstellungen", () => Oeffnen<StundenplanformateFenster>("formate", () => new StundenplanformateFenster()), hinweis: "Formate | Stundenpläne: Name, Langname, Standard, im Menü"));
         g = Gruppe(plaene, "Übersichtspläne");
         g.Eintraege.Add(E("Klassen Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Klasse).Show(), true));
         g.Eintraege.Add(E("Lehrer Übersicht", "uebersicht", () => new UebersichtFenster(ElementTyp.Lehrer).Show(), true));

@@ -4,136 +4,164 @@ using UntPlan.Core.Model;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Fenster „Fixierter/Ignorierter Unterricht“ (Handbuch 3.4.8): alle fixierten bzw. ignorierten Unterrichte mit der Ebene, auf der fixiert
-/// bzw. ignoriert wurde (Unterricht, Stunde, Element). Eine Fixierung wird gelöst, indem man die verantwortliche Zelle anklickt und
-/// „Löschen“ betätigt.
+/// Vorbild „Fixierter/Ignorierter Unterricht“: Karteikarten „Fixiert (n%)“ und „Ignoriert (n%)“ mit allen Unterrichten, die (von der
+/// Optimierung) nicht verschoben bzw. nicht berücksichtigt werden; die Spalten zeigen, welche Ebene bzw. welches Stammdaten-Element
+/// das verursacht (Unterricht, Gruppe, Klasse, Lehrer, Raum, StammRaum, Fach, Stunde). „Löschen“ hebt die Fixierung des markierten
+/// Feldes auf; Spalten über das Kontextmenü der Überschriftszeile ein-/ausblenden (Standard: Spalten mit mindestens einem Eintrag).
 /// </summary>
 public sealed class FixierterUnterrichtFenster : MdiFenster
 {
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
-    private readonly DataGridView _fixiert = new() { Dock = DockStyle.Fill, Name = "Fixiert" };
-    private readonly DataGridView _ignoriert = new() { Dock = DockStyle.Fill, Name = "Ignoriert" };
-    private const string Haken = "✔";
+    private readonly TabControl _reiter = new() { Dock = DockStyle.Top, Height = 22 };
+    private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
+    private readonly HashSet<string> _ausgeblendet = new();
+    private readonly HashSet<string> _eingeblendet = new();
+
+    private static readonly (string Name, string Text)[] Ebenen =
+    {
+        ("UF", "Unterricht"), ("GF", "Gruppe"), ("KF", "Klasse"), ("LF", "Lehrer"), ("RF", "Raum"), ("SF", "StammRaum"), ("FF", "Fach"), ("STF", "Stunde"),
+    };
 
     public FixierterUnterrichtFenster()
     {
         Text = "Fixierter/Ignorierter Unterricht";
         HilfeThema = "Unterricht";
         Icon = SymbolIcon("fixieren");
-        Size = new Size(560, 320);
+        Size = new Size(760, 420);
         Positionieren();
         var ts = Werkzeugleiste();
-        ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        ts.Items.Add(Knopf("Normalform anzeigen", "normalform", () =>
+        ts.Items.Add(Knopf("Löschen\nLöscht den markierten Bereich.", "loeschen", Loeschen));
+        ts.Items.Add(Knopf("Unterricht", "unterricht", () =>
         {
-            var g = _tabs.SelectedIndex == 0 ? _fixiert : _ignoriert;
-            g.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
-            Width = Math.Max(420, g.Columns.Cast<DataGridViewColumn>().Sum(c => c.Width) + 40);
+            if (_g.CurrentRow?.Tag is int u) UnterrichtFenster.Zeigen(ElementTyp.Unterricht, null);
         }));
-        foreach (var (g, art) in new[] { (_fixiert, "fix."), (_ignoriert, "ign.") })
+        _reiter.TabPages.Add(new TabPage("Fixiert"));
+        _reiter.TabPages.Add(new TabPage("Ignoriert"));
+        _reiter.SelectedIndexChanged += (_, _) => Neuaufbau();
+        Ui.RasterGestalten(_g, false);
+        _g.ReadOnly = true;
+        _g.RowHeadersVisible = false;
+        _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        _g.AllowUserToAddRows = false;
+        _g.CellPainting += (_, e) =>
         {
-            Ui.RasterGestalten(g, false);
-            g.RowHeadersVisible = false;
-            g.AllowUserToAddRows = false;
-            g.SelectionMode = DataGridViewSelectionMode.CellSelect;
-            g.MultiSelect = false;
-            g.Columns.Add("UNr", "U-Nr");
-            g.Columns.Add("Lehrer", "Lehrer");
-            g.Columns.Add("Fach", "Fach");
-            g.Columns.Add("Klassen", "Klasse(n)");
-            g.Columns.Add("Unterricht", "Unterricht " + art);
-            if (g == _fixiert) g.Columns.Add("Stunde", "Stunde fix.");
-            g.Columns.Add("Element", "Element " + art);
-            g.Columns["UNr"]!.Width = 50;
-            g.Columns["Klassen"]!.Width = 110;
-            g.Columns["Unterricht"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            if (g == _fixiert) g.Columns["Stunde"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            g.CellFormatting += (_, e) => { if (e.Value as string == Haken) e.CellStyle!.ForeColor = Color.FromArgb(40, 160, 60); };
-        }
-        _tabs.TabPages.Add(new TabPage("Fixiert") { Controls = { _fixiert } });
-        _tabs.TabPages.Add(new TabPage("Ignoriert") { Controls = { _ignoriert } });
-        Controls.Add(_tabs);
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Value as string != "✔" || e.Graphics is null) return;
+            Ui.ZellHaken(e, Color.ForestGreen, 2.2f);
+        };
+        _g.ColumnHeaderMouseClick += (_, e) => { if (e.Button == MouseButtons.Right) KopfMenue(); };
+        _g.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete) { Loeschen(); e.Handled = true; } };
+        Controls.Add(_g);
+        Controls.Add(_reiter);
         Controls.Add(ts);
         Neuaufbau();
     }
 
-    protected override void Aktualisieren(AenderungsArt art)
-    {
-        if (art != AenderungsArt.Vertretung) Neuaufbau();
-    }
+    protected override bool EigeneAenderungenAnzeigen => true;
+    protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
 
-    private static IEnumerable<Element> Elemente(Unterricht u, DatenIndex ix, Schuldatei d) =>
-        u.KlassenIds.Select(id => (Element?)d.Klassen.FirstOrDefault(k => k.Id == id))
-            .Concat(u.LehrerIds.Select(id => (Element?)d.Lehrer.FirstOrDefault(l => l.Id == id)))
-            .Concat(u.Zeilen.Select(z => z.FachId).Distinct().Select(id => (Element?)d.Faecher.FirstOrDefault(f => f.Id == id)))
-            .Concat(u.Zeilen.SelectMany(z => new[] { z.FachraumId, z.StammraumId }).Where(x => x.HasValue).Distinct().Select(id => (Element?)d.Raeume.FirstOrDefault(r => r.Id == id)))
-            .OfType<Element>();
+    private bool Ignoriert => _reiter.SelectedIndex == 1;
+
+    /// <summary>Ursachen (je Spalte) einer Fixierung bzw. eines Ignorierens für einen Unterricht.</summary>
+    private Dictionary<string, string> Ursachen(Unterricht u, bool ignoriert)
+    {
+        var ix = Ix;
+        var r = new Dictionary<string, string>();
+        bool Wert(Element? e) => e is not null && (ignoriert ? e.Ignorieren : e.Fix);
+        string Namen(IEnumerable<Element?> el) => string.Join(",", el.Where(Wert).Select(e => e!.Kurzname).Distinct());
+        if (ignoriert ? u.Ignorieren : u.Fix) r["UF"] = "✔";
+        var gruppen = u.Zeilen.Select(z => z.UGruppeId ?? u.UGruppeId).Append(u.UGruppeId).Where(g => g.HasValue).Select(g => D.UGruppen.FirstOrDefault(x => x.Id == g)).Where(g => g is not null && (ignoriert ? g.Ignorieren : g.Fix)).Select(g => g!.Kurzname).Distinct().ToList();
+        if (gruppen.Count > 0) r["GF"] = string.Join(",", gruppen);
+        var k = Namen(u.KlassenIds.Select(id => (Element?)ix.Element(ElementTyp.Klasse, id)));
+        if (k.Length > 0) r["KF"] = k;
+        var l = Namen(u.LehrerIds.Select(id => (Element?)ix.Element(ElementTyp.Lehrer, id)));
+        if (l.Length > 0) r["LF"] = l;
+        var raeume = D.Stundenplan.Where(p => p.UnterrichtId == u.Id).SelectMany(p => p.Raeume).Where(x => x.HasValue).Select(x => (Element?)ix.Element(ElementTyp.Raum, x!.Value))
+            .Concat(u.Zeilen.Select(z => z.FachraumId).Where(x => x.HasValue).Select(x => (Element?)ix.Element(ElementTyp.Raum, x!.Value)));
+        var rf = Namen(raeume);
+        if (rf.Length > 0) r["RF"] = rf;
+        var sf = Namen(u.Zeilen.Select(z => z.StammraumId).Where(x => x.HasValue).Select(x => (Element?)ix.Element(ElementTyp.Raum, x!.Value)));
+        if (sf.Length > 0) r["SF"] = sf;
+        var ff = Namen(u.Zeilen.Select(z => z.FachId).Where(x => x.HasValue).Select(x => (Element?)ix.Element(ElementTyp.Fach, x!.Value)));
+        if (ff.Length > 0) r["FF"] = ff;
+        if (!ignoriert && D.Stundenplan.Any(p => p.UnterrichtId == u.Id && p.Fixiert)) r["STF"] = "✔";
+        return r;
+    }
 
     private void Neuaufbau()
     {
-        _fixiert.Rows.Clear();
-        _ignoriert.Rows.Clear();
-        var alle = D.Unterrichte.Count;
-        int nFix = 0, nIgn = 0;
-        foreach (var u in D.Unterrichte.OrderBy(x => x.Id))
+        if (IsDisposed) return;
+        var ign = Ignoriert;
+        var zeilen = D.Unterrichte.Select(u => (U: u, R: Ursachen(u, ign))).Where(x => x.R.Count > 0).OrderBy(x => x.U.Id).ToList();
+        // Prozentangaben in den Karteireitern wie im Vorbild „Fixiert (36%)“
+        var alle = Math.Max(1, D.Unterrichte.Count);
+        _reiter.TabPages[0].Text = $"Fixiert ({D.Unterrichte.Count(u => Ursachen(u, false).Count > 0) * 100 / alle}%)";
+        _reiter.TabPages[1].Text = $"Ignoriert ({D.Unterrichte.Count(u => Ursachen(u, true).Count > 0) * 100 / alle}%)";
+        var pos = (_g.CurrentCell?.RowIndex ?? -1, _g.CurrentCell?.ColumnIndex ?? 0);
+        _g.Columns.Clear();
+        _g.Rows.Clear();
+        foreach (var (n, t, w) in new[] { ("U", "U-Nr", 44), ("L", "Lehrer", 60), ("F", "Fach", 52), ("K", "Klasse(n)", 90) })
+            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _g.Columns["U"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        foreach (var (n, t) in Ebenen)
         {
-            var stundeFix = D.Stundenplan.Any(p => p.UnterrichtId == u.Id && p.Fixiert);
-            var elFix = Elemente(u, Ix, D).Where(e => e.Fix).Select(e => e.Kurzname).Distinct().ToList();
-            var elIgn = Elemente(u, Ix, D).Where(e => e.Ignorieren).Select(e => e.Kurzname).Distinct().ToList();
-            var z = u.Zeilen.FirstOrDefault();
-            if (u.Fix || stundeFix || elFix.Count > 0)
-            {
-                nFix++;
-                var r = _fixiert.Rows.Add(u.Id, Ix.KLehrer(z?.LehrerId), Ix.KFach(z?.FachId), Ix.KKlassen(u.KlassenIds.ToList()), u.Fix ? Haken : "", stundeFix ? Haken : "", string.Join(",", elFix));
-                _fixiert.Rows[r].Tag = u;
-            }
-            if (u.Ignorieren || elIgn.Count > 0)
-            {
-                nIgn++;
-                var r = _ignoriert.Rows.Add(u.Id, Ix.KLehrer(z?.LehrerId), Ix.KFach(z?.FachId), Ix.KKlassen(u.KlassenIds.ToList()), u.Ignorieren ? Haken : "", string.Join(",", elIgn));
-                _ignoriert.Rows[r].Tag = u;
-            }
+            if (ign && n == "STF") continue;
+            var c = new DataGridViewTextBoxColumn { Name = n, HeaderText = t + (ign ? " ign." : " fix."), Width = 84, SortMode = DataGridViewColumnSortMode.NotSortable };
+            // Standard: nur Spalten mit mindestens einem Eintrag
+            c.Visible = _eingeblendet.Contains(n) || !_ausgeblendet.Contains(n) && zeilen.Any(z => z.R.ContainsKey(n));
+            _g.Columns.Add(c);
         }
-        string Prozent(int n) => alle == 0 ? "0%" : $"{Math.Round(100.0 * n / alle):0}%";
-        _tabs.TabPages[0].Text = $"Fixiert ({Prozent(nFix)})";
-        _tabs.TabPages[1].Text = $"Ignoriert ({Prozent(nIgn)})";
+        foreach (var (u, r) in zeilen)
+        {
+            var werte = new List<object?> { u.Id, Ix.KLehrer(u.Zeilen.FirstOrDefault()?.LehrerId), Ix.KFach(u.Zeilen.FirstOrDefault()?.FachId), Ix.KKlassen(u.KlassenIds) };
+            werte.AddRange(Ebenen.Where(e => !(ign && e.Name == "STF")).Select(e => (object?)r.GetValueOrDefault(e.Name, "")));
+            var i = _g.Rows.Add(werte.ToArray());
+            _g.Rows[i].Tag = u.Id;
+            _g.Rows[i].Cells["U"].Style.BackColor = Ui.Erste;
+        }
+        if (pos.Item1 >= 0 && pos.Item1 < _g.Rows.Count && pos.Item2 < _g.Columns.Count && _g.Columns[pos.Item2].Visible) _g.CurrentCell = _g.Rows[pos.Item1].Cells[pos.Item2];
     }
 
-    /// <summary>Fixierung bzw. Ignorieren der angeklickten (verantwortlichen) Zelle aufheben.</summary>
+    private void KopfMenue()
+    {
+        var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        foreach (DataGridViewColumn c in _g.Columns)
+        {
+            var spalte = c;
+            var it = new ToolStripMenuItem(c.HeaderText) { Checked = c.Visible, CheckOnClick = true };
+            it.Click += (_, _) =>
+            {
+                spalte.Visible = it.Checked;
+                if (it.Checked) { _eingeblendet.Add(spalte.Name); _ausgeblendet.Remove(spalte.Name); }
+                else { _ausgeblendet.Add(spalte.Name); _eingeblendet.Remove(spalte.Name); }
+            };
+            cm.Items.Add(it);
+        }
+        cm.Show(Cursor.Position);
+    }
+
+    /// <summary>„Löschen“: Fixierung (bzw. Ignorieren) des markierten Feldes aufheben – beim Unterricht, der Gruppe, den Elementen oder den Stunden.</summary>
     private void Loeschen()
     {
-        var g = _tabs.SelectedIndex == 0 ? _fixiert : _ignoriert;
-        if (g.CurrentCell is not { } c || g.Rows[c.RowIndex].Tag is not Unterricht u || (c.Value?.ToString() ?? "").Length == 0)
+        if (_g.CurrentCell is not { } zelle || _g.Rows[zelle.RowIndex].Tag is not int uid) return;
+        var spalte = _g.Columns[zelle.ColumnIndex].Name;
+        var text = zelle.Value as string ?? "";
+        if (text.Length == 0) return;
+        var ign = Ignoriert;
+        var namen = text.Split(',').Select(x => x.Trim()).ToHashSet();
+        void Element(Element e) { if (ign) e.Ignorieren = false; else e.Fix = false; }
+        Aendern(ign ? "Ignorieren aufheben" : "Fixierung löschen", spalte is "STF" ? AenderungsArt.Stundenplan : spalte is "UF" ? AenderungsArt.Unterricht : AenderungsArt.Stammdaten, d =>
         {
-            Ui.Info("Bitte die Zelle anklicken, die für die Fixierung verantwortlich ist (Unterricht, Stunde oder Element).");
-            return;
-        }
-        var spalte = g.Columns[c.ColumnIndex].Name;
-        var ignorieren = g == _ignoriert;
-        switch (spalte)
-        {
-            case "Unterricht":
-                Aendern(ignorieren ? "Ignorieren aufheben" : "Fixierung lösen", AenderungsArt.Unterricht, d =>
-                {
-                    var x = d.Unterrichte.First(y => y.Id == u.Id);
-                    if (ignorieren) x.Ignorieren = false; else x.Fix = false;
-                });
-                break;
-            case "Stunde":
-                Aendern("Fixierung lösen", AenderungsArt.Stundenplan, d => { foreach (var p in d.Stundenplan.Where(p => p.UnterrichtId == u.Id)) p.Fixiert = false; });
-                break;
-            case "Element":
-                var namen = (c.Value?.ToString() ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
-                if (!Ui.Frage($"{(ignorieren ? "Ignorieren" : "Fixierung")} bei den Stammdaten von {string.Join(", ", namen)} aufheben? Das betrifft alle Unterrichte dieser Elemente.")) return;
-                Aendern(ignorieren ? "Ignorieren aufheben" : "Fixierung lösen", AenderungsArt.Stammdaten, d =>
-                {
-                    foreach (var e in Elemente(d.Unterrichte.First(y => y.Id == u.Id), Ix, d).Where(e => namen.Contains(e.Kurzname)))
-                        if (ignorieren) e.Ignorieren = false; else e.Fix = false;
-                });
-                break;
-            default:
-                return;
-        }
+            var u = d.Unterrichte.First(x => x.Id == uid);
+            switch (spalte)
+            {
+                case "UF": if (ign) u.Ignorieren = false; else u.Fix = false; break;
+                case "GF": foreach (var g in d.UGruppen.Where(g => namen.Contains(g.Kurzname))) { if (ign) g.Ignorieren = false; else g.Fix = false; } break;
+                case "KF": foreach (var e in d.Klassen.Where(e => namen.Contains(e.Kurzname))) Element(e); break;
+                case "LF": foreach (var e in d.Lehrer.Where(e => namen.Contains(e.Kurzname))) Element(e); break;
+                case "RF" or "SF": foreach (var e in d.Raeume.Where(e => namen.Contains(e.Kurzname))) Element(e); break;
+                case "FF": foreach (var e in d.Faecher.Where(e => namen.Contains(e.Kurzname))) Element(e); break;
+                case "STF": foreach (var p in d.Stundenplan.Where(p => p.UnterrichtId == uid)) p.Fixiert = false; break;
+            }
+        });
         Neuaufbau();
     }
 }

@@ -498,14 +498,30 @@ public static partial class Ui
 /// </summary>
 internal static class Schriftcache
 {
-    private static readonly Dictionary<(int, FontStyle), Font> Schriften = new();
+    private static readonly Dictionary<(int, FontStyle, string), Font> Schriften = new();
+
+    /// <summary>Schriftart des gerade gezeichneten Stundenplans (Stundenplan-Einstellungen | Allgemein | Schrift), leer = Segoe UI.</summary>
+    [ThreadStatic] private static string? _familie;
+
+    /// <summary>Schriftart für die Dauer des Zeichnens setzen (using-Block).</summary>
+    public static IDisposable Familie(string? name)
+    {
+        var alt = _familie;
+        _familie = string.IsNullOrWhiteSpace(name) ? null : name;
+        return new Zuruecksetzen(() => _familie = alt);
+    }
+
+    private sealed class Zuruecksetzen(Action a) : IDisposable
+    {
+        public void Dispose() => a();
+    }
 
     public static Font Holen(float groesse, FontStyle stil = FontStyle.Regular)
     {
-        var key = ((int)Math.Round(Math.Max(1f, groesse) * 4), stil);
+        var key = ((int)Math.Round(Math.Max(1f, groesse) * 4), stil, _familie ?? "Segoe UI");
         lock (Schriften)
         {
-            if (!Schriften.TryGetValue(key, out var f)) Schriften[key] = f = new Font("Segoe UI", key.Item1 / 4f, stil);
+            if (!Schriften.TryGetValue(key, out var f)) Schriften[key] = f = new Font(key.Item3, key.Item1 / 4f, stil);
             return f;
         }
     }

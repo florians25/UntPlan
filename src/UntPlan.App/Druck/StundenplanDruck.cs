@@ -42,6 +42,9 @@ public static class StundenplanDruck
     private static int SeiteZeichnen(Graphics g, Rectangle r, ElementTyp typ, List<int> ids, int i, int proSeite, StundenplanFormat format, DateOnly? woche, int seite, int seiten)
     {
         var teil = ids.Skip(i).Take(proSeite).ToList();
+        // Schriftgrößen in % aus den Stundenplan-Einstellungen (Allgemein): Überschrift und Kopp.-Legende
+        Druck.StundenplanFormular.Optionen.UeberschriftProzent = format.UeberschriftSchriftProzent;
+        Druck.StundenplanFormular.Optionen.LegendeProzent = format.LegendeSchriftProzent;
         Druck.StundenplanFormular.Seite(g, r, typ, teil, !format.Gross, seite, seiten);
         return i + teil.Count;
     }

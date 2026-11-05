@@ -12,7 +12,7 @@ namespace UntPlan.App.Dialoge;
 public sealed class ZeitrasterDialog : Dialog
 {
     private readonly Zeitraster _z;
-    private readonly DataGridView _grid = new() { Left = 10, Top = 112, Width = 760, Height = 220 };
+    private readonly DataGridView _grid = new() { Left = 10, Top = 144, Width = 760, Height = 190 };
     private readonly DataGridView _pausen = new() { Left = 10, Top = 100, Width = 520, Height = 200 };
     private readonly NumericUpDown _tage = new() { Minimum = 1, Maximum = 7 };
     private readonly NumericUpDown _stunden = new() { Minimum = 1, Maximum = 16 };
@@ -27,7 +27,7 @@ public sealed class ZeitrasterDialog : Dialog
     {
         _z = Dokument.Klonen(AppZustand.D).Zeitraster;
         var tabs = new TabControl { Left = 6, Top = 6, Width = 788, Height = 386 };
-        var allg = new TabPage("Allgemein");
+        var allg = new TabPage("Allgemeines");
         var y = 10;
         _tage.Value = _z.TageProWoche;
         _stunden.Value = _z.StundenProTag;
@@ -35,15 +35,21 @@ public sealed class ZeitrasterDialog : Dialog
         _erster.SelectedIndex = _z.ErsterSchultag;
         _nummer.Value = _z.ErsteStundennummer;
         _grenze.Value = Math.Clamp(_z.LetzteVormittagsstunde, 1, 16);
-        Ui.Zeile(allg, "Anzahl Tage (1-7)", _tage, ref y, 220, 60);
-        Ui.Zeile(allg, "Maximale Stundenzahl pro Tag (1-16)", _stunden, ref y, 220, 60);
-        var y2 = 10;
-        allg.Controls.Add(new Label { Text = "Erster Schultag der Woche", Left = 330, Top = y2 + 3, Width = 170 });
-        _erster.Left = 500; _erster.Top = y2; _erster.Width = 110; allg.Controls.Add(_erster);
-        y2 += 26;
-        allg.Controls.Add(new Label { Text = "Stundennummer der ersten Stunde", Left = 330, Top = y2 + 3, Width = 170 });
-        _nummer.Left = 500; _nummer.Top = y2; _nummer.Width = 50; allg.Controls.Add(_nummer);
-        Ui.Zeile(allg, "Letzte Vormittagsstunde", _grenze, ref y, 220, 60);
+        // Vorbild: Eingabefeld links, Beschriftung rechts daneben
+        void Feld(Control c, string text, int breite)
+        {
+            c.Left = 10;
+            c.Top = y;
+            c.Width = breite;
+            allg.Controls.Add(c);
+            allg.Controls.Add(new Label { Text = text, Left = 10 + breite + 10, Top = y + 3, AutoSize = true });
+            y += 26;
+        }
+        Feld(_tage, "Anzahl Tage (1-7)", 50);
+        Feld(_stunden, "Maximale Stundenzahl je Tag (1-16)", 50);
+        Feld(_erster, "Erster Schultag der Woche", 110);
+        Feld(_nummer, "Stundennummer der ersten Stunde des Tages (0 oder 1)", 50);
+        Feld(_grenze, "Letzte Vormittagsstunde", 50);
         var grp = new GroupBox { Text = "Eintragung", Left = 640, Top = 4, Width = 130, Height = 100 };
         var bVorm = new Button { Text = "Vormittag", Left = 10, Top = 18, Width = 108 };
         var bLeer = new Button { Text = "leer", Left = 10, Top = 44, Width = 108 };
@@ -173,21 +179,29 @@ public sealed class EinstellungenDialog : Dialog
     public EinstellungenDialog(string start = "Allgemein") : base("Einstellungen", 766, 460)
     {
         _e = Dokument.Klonen(AppZustand.D).Einstellungen;
+        // Vorbild: Schuldaten (Allgemeines, Überblick, Werte), Diverses (Sichern, Stundenplan), Vertretungsplanung
         var schuldaten = _baum.Nodes.Add("Schuldaten");
-        schuldaten.Nodes.Add("Allgemein");
+        schuldaten.Nodes.Add("Allgemeines");
+        schuldaten.Nodes.Add("Überblick");
         schuldaten.Nodes.Add("Werte");
+        var diverses = _baum.Nodes.Add("Diverses");
+        diverses.Nodes.Add("Sichern");
+        diverses.Nodes.Add("Stundenplan");
         _baum.Nodes.Add("Vertretungsplanung");
-        _baum.Nodes.Add("Diverses");
         _baum.ExpandAll();
         _seiten["Allgemein"] = SeiteAllgemein;
+        _seiten["Allgemeines"] = SeiteAllgemein;
         _seiten["Schuldaten"] = SeiteAllgemein;
+        _seiten["Überblick"] = SeiteUeberblick;
         _seiten["Werte"] = SeiteWerte;
         _seiten["Vertretungsplanung"] = SeiteVertretung;
         _seiten["Diverses"] = SeiteDiverses;
+        _seiten["Sichern"] = SeiteDiverses;
+        _seiten["Stundenplan"] = SeiteStundenplan;
         _baum.AfterSelect += (_, e) => { _seite.Controls.Clear(); if (_seiten.TryGetValue(e.Node!.Text, out var a)) a(); };
         Controls.Add(_baum);
         Controls.Add(_seite);
-        _baum.SelectedNode = _baum.Nodes.Find(start, true).FirstOrDefault() ?? FindeKnoten(start) ?? schuldaten.Nodes[0];
+        _baum.SelectedNode = _baum.Nodes.Find(start, true).FirstOrDefault() ?? FindeKnoten(start == "Allgemein" ? "Allgemeines" : start) ?? schuldaten.Nodes[0];
         Ok.Click += (_, _) =>
         {
             if (_e.SchuljahrBis <= _e.SchuljahrVon) { Ui.Fehler(new InvalidOperationException("Das Schuljahresende muss nach dem Beginn liegen.")); DialogResult = DialogResult.None; return; }
@@ -206,36 +220,81 @@ public sealed class EinstellungenDialog : Dialog
         return null;
     }
 
+    /// <summary>
+    /// Vorbild „Schuldaten | Allgemeines“: links die Gruppen „Schulbezeichnung“ und „Schuljahr“ (Von, Bis, Wochenperiodizität,
+    /// 1.Schulwoche (A,B..)), rechts Land, Region, Schulnummer und Schulart mit der Beschriftung rechts neben dem Feld.
+    /// </summary>
     private void SeiteAllgemein()
     {
-        var y = 8;
-        var name = Ui.Zeile(_seite, "Schulbezeichnung", new TextBox { Text = _e.Schulname }, ref y, 160, 330);
+        var bez = new GroupBox { Text = "Schulbezeichnung", Left = 8, Top = 4, Width = 270, Height = 104 };
+        var name = new TextBox { Text = _e.Schulname, Left = 10, Top = 20, Width = 250, PlaceholderText = "Schulname" };
+        var name2 = new TextBox { Text = _e.Schulname2, Left = 10, Top = 46, Width = 250, PlaceholderText = "Zusatz / Ort" };
+        var adr = new TextBox { Text = _e.Adresse, Left = 10, Top = 72, Width = 250, PlaceholderText = "Adresse" };
         name.TextChanged += (_, _) => _e.Schulname = name.Text;
-        var name2 = Ui.Zeile(_seite, "Zusatz / Ort", new TextBox { Text = _e.Schulname2 }, ref y, 160, 330);
         name2.TextChanged += (_, _) => _e.Schulname2 = name2.Text;
-        var adr = Ui.Zeile(_seite, "Adresse", new TextBox { Text = _e.Adresse }, ref y, 160, 330);
         adr.TextChanged += (_, _) => _e.Adresse = adr.Text;
-        var nr = Ui.Zeile(_seite, "Schulnummer (NRW, 6-stellig)", new TextBox { Text = _e.Schulnummer }, ref y, 160, 100);
-        nr.TextChanged += (_, _) => _e.Schulnummer = nr.Text;
-        var land = Ui.Zeile(_seite, "Land", new ComboBox { Text = _e.Land, DropDownStyle = ComboBoxStyle.DropDown }, ref y, 160, 160);
+        bez.Controls.AddRange(new Control[] { name, name2, adr });
+        var jahr = new GroupBox { Text = "Schuljahr", Left = 8, Top = 114, Width = 270, Height = 126 };
+        jahr.Controls.Add(new Label { Text = "Von", Left = 10, Top = 18, Width = 60 });
+        jahr.Controls.Add(new Label { Text = "Bis", Left = 140, Top = 18, Width = 60 });
+        var von = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 36, Width = 120, Value = _e.SchuljahrVon.ToDateTime(TimeOnly.MinValue) };
+        var bis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 140, Top = 36, Width = 120, Value = _e.SchuljahrBis.ToDateTime(TimeOnly.MinValue) };
+        von.ValueChanged += (_, _) => _e.SchuljahrVon = DateOnly.FromDateTime(von.Value);
+        bis.ValueChanged += (_, _) => _e.SchuljahrBis = DateOnly.FromDateTime(bis.Value);
+        var per = new NumericUpDown { Left = 10, Top = 66, Width = 46, Minimum = 1, Maximum = 4, Value = Math.Clamp(_e.Wochenperiodizitaet, 1, 4) };
+        var woche = new ComboBox { Left = 10, Top = 94, Width = 46, DropDownStyle = ComboBoxStyle.DropDownList };
+        void Wochen()
+        {
+            woche.Items.Clear();
+            for (var i = 0; i < Math.Max(1, _e.Wochenperiodizitaet); i++) woche.Items.Add(((char)('A' + i)).ToString());
+            woche.SelectedItem = woche.Items.Contains(_e.ErsteSchulwoche) ? _e.ErsteSchulwoche : woche.Items[0];
+            woche.Enabled = _e.Wochenperiodizitaet > 1;
+        }
+        Wochen();
+        per.ValueChanged += (_, _) => { _e.Wochenperiodizitaet = (int)per.Value; Wochen(); };
+        woche.SelectedIndexChanged += (_, _) => _e.ErsteSchulwoche = woche.SelectedItem as string ?? "A";
+        jahr.Controls.AddRange(new Control[] { von, bis, per, new Label { Text = "Wochenperiodizität", Left = 62, Top = 69, AutoSize = true },
+            woche, new Label { Text = "1.Schulwoche (A,B..)", Left = 62, Top = 97, AutoSize = true } });
+        _seite.Controls.AddRange(new Control[] { bez, jahr });
+        _seite.Controls.Add(new Label { Text = "Die Sommerferien sollen im Schuljahr nicht enthalten sein.", Left = 8, Top = 246, Width = 270, Height = 30, ForeColor = Color.DimGray });
+
+        var y = 10;
+        T Rechts<T>(string text, T c, int breite) where T : Control
+        {
+            c.Left = 292;
+            c.Top = y;
+            c.Width = breite;
+            _seite.Controls.Add(c);
+            _seite.Controls.Add(new Label { Text = text, Left = 292 + breite + 8, Top = y + 3, AutoSize = true });
+            y += 30;
+            return c;
+        }
+        var land = Rechts("Land", new ComboBox { Text = _e.Land, DropDownStyle = ComboBoxStyle.DropDown }, 150);
         land.Items.AddRange(new object[] { "Deutschland", "Österreich", "Schweiz" });
         land.TextChanged += (_, _) => _e.Land = land.Text;
-        var region = Ui.Zeile(_seite, "Region / Bundesland", new ComboBox { Text = _e.Region, DropDownStyle = ComboBoxStyle.DropDown }, ref y, 160, 220);
+        var region = Rechts("Region", new ComboBox { Text = _e.Region, DropDownStyle = ComboBoxStyle.DropDown }, 150);
         region.Items.Add("Nordrhein-Westfalen");
         region.TextChanged += (_, _) => _e.Region = region.Text;
-        var form = Ui.Zeile(_seite, "Schulform", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 160, 220);
+        var nr = Rechts("Schulnummer", new TextBox { Text = _e.Schulnummer }, 150);
+        nr.TextChanged += (_, _) => _e.Schulnummer = nr.Text;
+        var form = Rechts("Schulart", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, 150);
         foreach (var (k, v) in Nrw.Schulformen) form.Items.Add($"{k} – {v}");
+        form.DropDownWidth = 260;
         form.SelectedIndex = Math.Max(0, Nrw.Schulformen.Keys.ToList().IndexOf(_e.Schulform));
         form.SelectedIndexChanged += (_, _) => _e.Schulform = Nrw.Schulformen.Keys.ElementAt(form.SelectedIndex);
-        y += 8;
-        _seite.Controls.Add(new Label { Text = "Schuljahr (die Sommerferien sollen im Schuljahr nicht enthalten sein)", Left = 12, Top = y, Width = 500, Font = Ui.SchriftFett });
-        y += 22;
-        var von = Ui.Zeile(_seite, "von", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = _e.SchuljahrVon.ToDateTime(TimeOnly.MinValue) }, ref y, 160, 120);
-        von.ValueChanged += (_, _) => _e.SchuljahrVon = DateOnly.FromDateTime(von.Value);
-        var bis = Ui.Zeile(_seite, "bis", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = _e.SchuljahrBis.ToDateTime(TimeOnly.MinValue) }, ref y, 160, 120);
-        bis.ValueChanged += (_, _) => _e.SchuljahrBis = DateOnly.FromDateTime(bis.Value);
-        var per = Ui.Zeile(_seite, "Wochenperiodizität (1 = jede Woche, 2 = A/B)", new NumericUpDown { Minimum = 1, Maximum = 4, Value = Math.Clamp(_e.Wochenperiodizitaet, 1, 4) }, ref y, 260, 50);
-        per.ValueChanged += (_, _) => _e.Wochenperiodizitaet = (int)per.Value;
+    }
+
+    /// <summary>Vorbild „Schuldaten | Überblick“: Anzahl der Klassen, Lehrer, Räume, Fächer und Unterrichte.</summary>
+    private void SeiteUeberblick()
+    {
+        var d = AppZustand.D;
+        var y = 10;
+        foreach (var (text, zahl) in new[] { ("Klassen", d.Klassen.Count), ("Lehrer", d.Lehrer.Count), ("Räume", d.Raeume.Count), ("Fächer", d.Faecher.Count), ("Unterrichte", d.Unterrichte.Count) })
+        {
+            _seite.Controls.Add(new Label { Text = text, Left = 12, Top = y, Width = 120 });
+            _seite.Controls.Add(new Label { Text = zahl.ToString(), Left = 140, Top = y, Width = 60, TextAlign = ContentAlignment.TopRight });
+            y += 24;
+        }
     }
 
     private void SeiteWerte()
@@ -272,19 +331,26 @@ public sealed class EinstellungenDialog : Dialog
         }
     }
 
+    /// <summary>Vorbild „Diverses | Sichern“: automatische Sicherung, Datei öffnen bei Programmstart.</summary>
     private void SeiteDiverses()
     {
         var y = 8;
-        var b = Ui.Zeile(_seite, "Startbildschirm beim Start", new CheckBox { Checked = AppZustand.Einstellungen.BegruessungZeigen }, ref y, 260);
-        b.CheckedChanged += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = b.Checked; AppZustand.Einstellungen.Speichern(); };
-        var ld = Ui.Zeile(_seite, "Zuletzt geöffnete Datei beim Start laden", new CheckBox { Checked = AppZustand.Einstellungen.LetzteDateiLaden }, ref y, 260);
-        ld.CheckedChanged += (_, _) => { AppZustand.Einstellungen.LetzteDateiLaden = ld.Checked; AppZustand.Einstellungen.Speichern(); };
-        var s = Ui.Zeile(_seite, "Stundenpläne synchronisieren (Voreinstellung)", new CheckBox { Checked = AppZustand.Einstellungen.StundenplanSynchronisieren }, ref y, 260);
-        s.CheckedChanged += (_, _) => { AppZustand.Einstellungen.StundenplanSynchronisieren = s.Checked; AppZustand.Einstellungen.Speichern(); };
-        var a = Ui.Zeile(_seite, "Automatisch speichern alle … Minuten (0 = aus)", new NumericUpDown { Minimum = 0, Maximum = 120, Value = Math.Clamp(AppZustand.Einstellungen.AutoSpeichernMinuten, 0, 120) }, ref y, 260, 60);
+        var a = Ui.Zeile(_seite, "Automatische Sicherung alle … Minuten (0 = aus)", new NumericUpDown { Minimum = 0, Maximum = 120, Value = Math.Clamp(AppZustand.Einstellungen.AutoSpeichernMinuten, 0, 120) }, ref y, 280, 60);
         a.ValueChanged += (_, _) => { AppZustand.Einstellungen.AutoSpeichernMinuten = (int)a.Value; AppZustand.Einstellungen.Speichern(); AppZustand.Haupt.AutoSpeichernEinstellen(); };
-        var m = Ui.Zeile(_seite, "Beim Start den zuletzt benutzten Modus öffnen", new CheckBox { Checked = AppZustand.Einstellungen.ModusMerken }, ref y, 260);
+        var ld = Ui.Zeile(_seite, "Datei öffnen bei Programmstart", new CheckBox { Checked = AppZustand.Einstellungen.LetzteDateiLaden }, ref y, 280);
+        ld.CheckedChanged += (_, _) => { AppZustand.Einstellungen.LetzteDateiLaden = ld.Checked; AppZustand.Einstellungen.Speichern(); };
+        var b = Ui.Zeile(_seite, "Startbildschirm beim Start", new CheckBox { Checked = AppZustand.Einstellungen.BegruessungZeigen }, ref y, 280);
+        b.CheckedChanged += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = b.Checked; AppZustand.Einstellungen.Speichern(); };
+        var m = Ui.Zeile(_seite, "Beim Start den zuletzt benutzten Modus öffnen", new CheckBox { Checked = AppZustand.Einstellungen.ModusMerken }, ref y, 280);
         m.CheckedChanged += (_, _) => { AppZustand.Einstellungen.ModusMerken = m.Checked; AppZustand.Einstellungen.Speichern(); };
+    }
+
+    /// <summary>Vorbild „Diverses | Stundenplan“: Einstellungen der Stundenplanfenster.</summary>
+    private void SeiteStundenplan()
+    {
+        var y = 8;
+        var s = Ui.Zeile(_seite, "Stundenpläne synchronisieren (Voreinstellung)", new CheckBox { Checked = AppZustand.Einstellungen.StundenplanSynchronisieren }, ref y, 280);
+        s.CheckedChanged += (_, _) => { AppZustand.Einstellungen.StundenplanSynchronisieren = s.Checked; AppZustand.Einstellungen.Speichern(); };
     }
 }
 

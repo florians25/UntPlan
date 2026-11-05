@@ -51,26 +51,69 @@ public static class StundenplanEinstellungenDialog
         var stundeEinstellungen = (f.FelderHorizontalZentrieren, f.FelderVertikalZentrieren, f.BeginnEndzeit, f.NamensArt, f.AliasVerwenden, f.LehrerUndVertreter);
 
         // ---------------- Allgemein ----------------
+        // Vorbild: Gruppe „Ansicht: Kla1 - Klasse 1“ mit Format, Schrift, Spaltenbeschriftung, Zeilenbeschriftung, Stundenplan-Stunde
+        // und „Schriftgröße in %:“ (Stundenlupe, Kopp.-Legende, Überschrift); darunter die weiteren Einstellungen des Formats
         var allg = new TabPage("Allgemein");
-        var y = 10;
-        var name = Ui.Zeile(allg, "Formatname", new TextBox { Text = f.Name }, ref y, 170, 200);
-        var schrift = Ui.Zeile(allg, "Schriftgröße", new NumericUpDown { Minimum = 6, Maximum = 20, Value = Math.Clamp(f.Schriftgroesse, 6, 20) }, ref y, 170, 70);
-        var farbe = Ui.Zeile(allg, "Farbe nach", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 170, 120);
+        var ansicht = new GroupBox { Text = $"Ansicht: {(f.Kurzname.Length > 0 ? f.Kurzname + " - " : "")}{f.Name}", Left = 6, Top = 4, Width = 336, Height = 196 };
+        Label Knopfzeile(string knopf, string text, int yy, out Button k)
+        {
+            k = new Button { Text = knopf, Left = 8, Top = yy, Width = 112, Height = 26 };
+            var l = new Label { Text = text, Left = 126, Top = yy, Width = 204, Height = 34 };
+            ansicht.Controls.AddRange(new Control[] { k, l });
+            return l;
+        }
+        var grundform = f.Grundform;
+        var schriftart = f.Schriftart;
+        var formatText = Knopfzeile("Format", StundenplanFormat.GrundformText(grundform), 20, out var grundKnopf);
+        var schriftText = Knopfzeile("Schrift", "", 56, out var schriftKnopf);
+        Knopfzeile("Spaltenbeschriftung", "Wochentage - Überschrift", 92, out var spaltenKnopf);
+        Knopfzeile("Zeilenbeschriftung", "Stunden - Überschrift", 128, out var zeilenKnopf);
+        Knopfzeile("Stundenplan-Stunde", "Inhalt (Felder) einer Unterrichtsstunde", 164, out var stundeKnopf);
+        allg.Controls.Add(ansicht);
+        var prozente = new GroupBox { Text = "Schriftgröße in %:", Left = 348, Top = 4, Width = 196, Height = 100 };
+        NumericUpDown Prozent(string text, int wert, int yy)
+        {
+            prozente.Controls.Add(new Label { Text = text, Left = 8, Top = yy + 3, Width = 100 });
+            var n = new NumericUpDown { Left = 112, Top = yy, Width = 58, Minimum = 50, Maximum = 300, Value = Math.Clamp(wert, 50, 300) };
+            prozente.Controls.Add(n);
+            return n;
+        }
+        var lupeProzent = Prozent("Stundenlupe:", f.LupeSchriftProzent, 20);
+        var legendeProzent = Prozent("Kopp.-Legende:", f.LegendeSchriftProzent, 46);
+        var ueberProzent = Prozent("Überschrift:", f.UeberschriftSchriftProzent, 72);
+        allg.Controls.Add(prozente);
+        var weitere = new GroupBox { Text = "Weitere Einstellungen", Left = 6, Top = 204, Width = 538, Height = 200 };
+        var y = 18;
+        var name = Ui.Zeile(weitere, "Langname", new TextBox { Text = f.Name }, ref y, 110, 140);
+        var kurzname = Ui.Zeile(weitere, "Name", new TextBox { Text = f.Kurzname, PlaceholderText = "automatisch" }, ref y, 110, 140);
+        var farbe = Ui.Zeile(weitere, "Farbe nach", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, ref y, 110, 140);
         farbe.Items.AddRange(new object[] { "Fach", "Lehrer", "Klasse", "Raum", "keine" });
         farbe.SelectedIndex = (int)f.Farbe;
-        var lang = Ui.Zeile(allg, "Langnamen anzeigen", new CheckBox { Checked = f.Langname }, ref y);
-        var zeiten = Ui.Zeile(allg, "Uhrzeiten anzeigen", new CheckBox { Checked = f.ZeitenAnzeigen }, ref y);
-        var einzel = Ui.Zeile(allg, "Einzelstunden (nicht zusammenfassen)", new CheckBox { Checked = f.Einzelstunden }, ref y, 220);
-        var pausen = Ui.Zeile(allg, "Pausen anzeigen", new CheckBox { Checked = f.PausenAnzeigen }, ref y, 220);
-        var klein = Ui.Zeile(allg, "Kleiner Stundenplan (nur Fachkürzel)", new CheckBox { Checked = f.Klein }, ref y, 220);
-        var breite = Ui.Zeile(allg, "Zellenbreite (0 = automatisch)", new NumericUpDown { Minimum = 0, Maximum = 400, Value = Math.Clamp(f.ZellenBreite, 0, 400) }, ref y, 220, 60);
-        var hoehe = Ui.Zeile(allg, "Zellenhöhe (0 = automatisch)", new NumericUpDown { Minimum = 0, Maximum = 200, Value = Math.Clamp(f.ZellenHoehe, 0, 200) }, ref y, 220, 60);
-        var lupe = Ui.Zeile(allg, "Stundenplanlupe anzeigen", new CheckBox { Checked = f.StundenplanlupeAnzeigen }, ref y, 220);
-        var std = Ui.Zeile(allg, "Stpl-Stunde: Standardformat", new CheckBox { Checked = f.Standardformat }, ref y, 220);
-        var grundform = f.Grundform;
-        var stundeKnopf = new Button { Text = "Stundenplan-Stunde…", Left = 12, Top = y + 6, Width = 170, Height = 26 };
-        var grundKnopf = new Button { Text = "Grundform…", Left = 190, Top = y + 6, Width = 120, Height = 26 };
-        allg.Controls.AddRange(new Control[] { stundeKnopf, grundKnopf });
+        var breite = Ui.Zeile(weitere, "Zellenbreite", new NumericUpDown { Minimum = 0, Maximum = 400, Value = Math.Clamp(f.ZellenBreite, 0, 400) }, ref y, 110, 60);
+        var hoehe = Ui.Zeile(weitere, "Zellenhöhe", new NumericUpDown { Minimum = 0, Maximum = 200, Value = Math.Clamp(f.ZellenHoehe, 0, 200) }, ref y, 110, 60);
+        weitere.Controls.Add(new Label { Text = "(0 = automatisch)", Left = 190, Top = y - 46, AutoSize = true, ForeColor = Color.DimGray });
+        var schrift = new NumericUpDown { Minimum = 6, Maximum = 20, Value = Math.Clamp(f.Schriftgroesse, 6, 20), Visible = false };
+        weitere.Controls.Add(schrift);
+        var wy = 18;
+        CheckBox W(string text, bool wert)
+        {
+            var c = new CheckBox { Text = text, Left = 290, Top = wy, Width = 240, Height = 20, Checked = wert };
+            weitere.Controls.Add(c);
+            wy += 22;
+            return c;
+        }
+        var lang = W("Langnamen anzeigen", f.Langname);
+        var zeiten = W("Uhrzeiten anzeigen", f.ZeitenAnzeigen);
+        var einzel = W("Einzelstunden (nicht zusammenfassen)", f.Einzelstunden);
+        var pausen = W("Pausen anzeigen", f.PausenAnzeigen);
+        var klein = W("Kleiner Stundenplan (nur Fachkürzel)", f.Klein);
+        var lupe = W("Stundenplanlupe anzeigen", f.StundenplanlupeAnzeigen);
+        var std = W("Stpl-Stunde: Standardformat", f.Standardformat);
+        var spaltenWerte = SpaltenBeschriftungWerte.Aus(f);
+        var zeilenArt = f.ZeilenArt;
+        var zeilenWerte = ZeilenBeschriftungWerte.Aus(f);
+        void SchriftAnzeigen() => schriftText.Text = $"{(schriftart.Length > 0 ? schriftart : Ui.Schrift.FontFamily.Name)} {schrift.Value:0.0}";
+        SchriftAnzeigen();
 
         // ---------------- Auswahl (Bereich) ----------------
         var bereich = new TabPage("Auswahl (Bereich)");
@@ -90,7 +133,7 @@ public static class StundenplanEinstellungenDialog
         var ende = new TextBox { Left = 90, Top = 42, Width = 60, Text = dd.Zeitraster.Zeit(dd.Zeitraster.StundenProTag)?.Ende.ToString("H.mm") ?? "", Enabled = f.MinutModus };
         var ganzerTag = new CheckBox { Text = "Ganzen Tag zeigen", Left = 10, Top = 64, Width = 150, Checked = f.GanzenTagZeigen, Enabled = f.MinutModus };
         minutAn.CheckedChanged += (_, _) => beginn.Enabled = ende.Enabled = ganzerTag.Enabled = minutAn.Checked;
-        minut.Controls.AddRange(new Control[] { minutAn, new Label { Text = "Beginn:", Left = 124, Top = 20, Width = 50 }, beginn, ende, ganzerTag });
+        minut.Controls.AddRange(new Control[] { minutAn, new Label { Text = "Beginn:", Left = 124, Top = 20, Width = 50 }, new Label { Text = "Ende:", Left = 176, Top = 20, Width = 40 }, beginn, ende, ganzerTag });
         wochen.Controls.AddRange(new Control[] { vonStd, bisStd, vonWs, bisWs, minut });
         bereich.Controls.Add(wochen);
         var datum = new GroupBox { Text = "Datum", Left = 8, Top = 116, Width = 530, Height = 120 };
@@ -104,8 +147,9 @@ public static class StundenplanEinstellungenDialog
         var infoVon = new Label { Left = 10, Top = 50, Width = 130, Height = 60 };
         var infoBis = new Label { Left = 150, Top = 50, Width = 130, Height = 60 };
         var kw = new RadioButton { Text = "Kalenderwoche", Left = 300, Top = 20, Width = 150, Checked = f.Zeitraum == FormatZeitraum.Kalenderwoche };
-        var sj = new RadioButton { Text = "Ganzes Schuljahr", Left = 300, Top = 42, Width = 150, Checked = f.Zeitraum == FormatZeitraum.GanzesSchuljahr };
-        var einTag = new RadioButton { Text = "1 Tag", Left = 300, Top = 64, Width = 150, Checked = f.Zeitraum == FormatZeitraum.EinTag };
+        // Vorbild: Kalenderwoche, 1 Tag, Ganze Periode
+        var einTag = new RadioButton { Text = "1 Tag", Left = 300, Top = 42, Width = 150, Checked = f.Zeitraum == FormatZeitraum.EinTag };
+        var sj = new RadioButton { Text = "Ganze Periode", Left = 300, Top = 64, Width = 150, Checked = f.Zeitraum == FormatZeitraum.GanzesSchuljahr };
         string Info(DateTime t)
         {
             var dt = DateOnly.FromDateTime(t);
@@ -118,8 +162,8 @@ public static class StundenplanEinstellungenDialog
         sj.CheckedChanged += (_, _) =>
         {
             if (!sj.Checked) return;
-            dVon.Value = dd.Einstellungen.SchuljahrVon.ToDateTime(TimeOnly.MinValue);
-            dBis.Value = dd.Einstellungen.SchuljahrBis.ToDateTime(TimeOnly.MinValue);
+            dVon.Value = dd.AktivePeriode.Von.ToDateTime(TimeOnly.MinValue);
+            dBis.Value = (dd.AktivePeriode.Bis ?? dd.Einstellungen.SchuljahrBis).ToDateTime(TimeOnly.MinValue);
         };
         kw.CheckedChanged += (_, _) =>
         {
@@ -157,12 +201,19 @@ public static class StundenplanEinstellungenDialog
         var gBesetzt = Bereichsgruppe("Besetzte Stunden", 184, f.BesetzteStunden);
         var gFrei = Bereichsgruppe("Freie Stunden", 360, f.FreieStunden);
         layout1.Controls.Add(gestaltung);
-        var ly = 166;
-        var linieVor = Ui.Zeile(layout1, "Linie vor folgenden Stunden:", new TextBox { Name = "LinieVor", Text = f.LinieVor }, ref ly, 190, 150);
-        var doppel = Ui.Zeile(layout1, "Doppelstrich vor Stunden:", new TextBox { Name = "DoppelstrichVor", Text = f.DoppelstrichVor }, ref ly, 190, 150);
-        var dick = Ui.Zeile(layout1, "Dicker Strich vor Stunden:", new TextBox { Name = "DickerStrichVor", Text = f.DickerStrichVor }, ref ly, 190, 150);
-        var trennVn = new CheckBox { Text = "Trennstrich Vorm. / Nachm.", Left = 360, Top = 168, Width = 190, Checked = f.TrennstrichVormNachm };
-        var trennTage = new CheckBox { Name = "TrennstrichTage", Text = "Trennstrich zwischen Tagen", Left = 360, Top = 192, Width = 190, Checked = f.TrennstrichTage };
+        // Vorbild: Beschriftung jeweils über dem Eingabefeld
+        TextBox Linie(string text, string nameFeld, string wert, int yy)
+        {
+            layout1.Controls.Add(new Label { Text = text, Left = 10, Top = yy, Width = 200 });
+            var t = new TextBox { Name = nameFeld, Text = wert, Left = 10, Top = yy + 18, Width = 170 };
+            layout1.Controls.Add(t);
+            return t;
+        }
+        var linieVor = Linie("Linie vor folgenden Stunden:", "LinieVor", f.LinieVor, 164);
+        var doppel = Linie("Doppelstrich vor Stunden:", "DoppelstrichVor", f.DoppelstrichVor, 208);
+        var dick = Linie("Dicker Strich vor Stunden:", "DickerStrichVor", f.DickerStrichVor, 252);
+        var trennVn = new CheckBox { Text = "Trennstrich Vorm. / Nachm.", Left = 220, Top = 180, Width = 200, Height = 20, Checked = f.TrennstrichVormNachm };
+        var trennTage = new CheckBox { Name = "TrennstrichTage", Text = "Trennstrich zwischen Tagen", Left = 220, Top = 200, Width = 200, Height = 20, Checked = f.TrennstrichTage };
         layout1.Controls.AddRange(new Control[] { trennVn, trennTage });
 
         // ---------------- Layout 2 ----------------
@@ -184,33 +235,47 @@ public static class StundenplanEinstellungenDialog
         var kolTrennen = K(gStunde, "Stunden bei Kollision trennen", f.KollisionTrennen, ref sy);
         var sortieren = K(gStunde, "Stundenfelder sortieren", f.StundenfelderSortieren, ref sy);
         var verbinden = K(gStunde, "Stunden versch. Elemente verbinden", f.ElementeVerbinden, ref sy);
-        var gVertr = new GroupBox { Text = "Vertretungsplanung", Left = 8, Top = 194, Width = 262, Height = 176 };
-        var vy = 18;
+        // Vorbild: Vertretungsplanung mit eingerückten Absenz-Optionen und eigenem Rahmen „Geänderte Stunden“
+        var gVertr = new GroupBox { Text = "Vertretungsplanung", Left = 8, Top = 194, Width = 262, Height = 214 };
+        var vy = 16;
         var absenzen = K(gVertr, "Absenzen anzeigen", f.AbsenzenAnzeigen, ref vy);
         var keinGrund = K(gVertr, "Kein Absenzgrund", f.KeinAbsenzgrund, ref vy, 26, 220);
         var nurTag = K(gVertr, "Nur Tagesabsenzen", f.NurTagesabsenzen, ref vy, 26, 220);
         var nurVertr = K(gVertr, "Nur Vertretungsstunden", f.NurVertretungsstunden, ref vy);
-        gVertr.Controls.Add(new Label { Text = "Geänderte Stunden", Left = 10, Top = vy + 2, Width = 200, ForeColor = Color.DimGray });
-        vy += 20;
-        var durchstreichen = K(gVertr, "Entfälle durchstreichen", f.EntfaelleDurchstreichen, ref vy);
-        var mitVertr = K(gVertr, "Vertretungen anzeigen", f.MitVertretungen, ref vy);
-        var gManuell = new GroupBox { Text = "Manuelles Planen", Left = 280, Top = 4, Width = 262, Height = 82 };
+        var gGeaendert = new GroupBox { Text = "Geänderte Stunden", Left = 8, Top = vy, Width = 246, Height = 214 - vy - 6 };
+        var gy = 16;
+        var durchstreichen = K(gGeaendert, "Entfälle durchstreichen", f.EntfaelleDurchstreichen, ref gy, 6, 236);
+        var nichtAnzeigen = K(gGeaendert, "Entfälle und Platzhalter nicht anzeigen", f.EntfaelleNichtAnzeigen, ref gy, 22, 222);
+        nichtAnzeigen.Enabled = !durchstreichen.Checked;
+        durchstreichen.CheckedChanged += (_, _) => nichtAnzeigen.Enabled = !durchstreichen.Checked;
+        var rot = K(gGeaendert, "Rot", f.GeaendertRot, ref gy, 6, 110);
+        gy -= 20;
+        var mitVertr = K(gGeaendert, "Vertretungen anzeigen", f.MitVertretungen, ref gy, 122, 120);
+        var fett = K(gGeaendert, "Fett", f.GeaendertFett, ref gy, 6, 236);
+        var kursiv = K(gGeaendert, "Kursiv", f.GeaendertKursiv, ref gy, 6, 236);
+        var ausrufe = K(gGeaendert, "Mit ! hervorheben", f.GeaendertAusrufezeichen, ref gy, 6, 236);
+        var unterstreichen = K(gGeaendert, "Unterstreichen", f.GeaendertUnterstreichen, ref gy, 6, 236);
+        gVertr.Controls.Add(gGeaendert);
+        var gManuell = new GroupBox { Text = "Manuelles Planen", Left = 280, Top = 4, Width = 262, Height = 102 };
         var my = 18;
         var ddMehrere = K(gManuell, "DragDrop: mehrere Unterrichte", f.DragDropMehrereUnterrichte, ref my);
         var ddFarben = K(gManuell, "DragDrop: Farben laut Zeitwünsche", f.DragDropZeitwunschFarben, ref my);
         var ddTausch = K(gManuell, "DragDrop: Tauschketten berechnen", f.DragDropTauschketten, ref my);
-        var gDruck = new GroupBox { Text = "Druck", Left = 280, Top = 90, Width = 262, Height = 102 };
+        var bandmodus = K(gManuell, "Bandmodus", f.Bandmodus, ref my);
+        var gDruck = new GroupBox { Text = "Druck", Left = 280, Top = 108, Width = 262, Height = 102 };
         var dy = 18;
         var leerZ = K(gDruck, "Leere Zeilen nicht drucken", f.LeereZeilenNichtDrucken, ref dy);
         var leerS = K(gDruck, "Leere Spalte nicht drucken", f.LeereSpalteNichtDrucken, ref dy);
         var sw = K(gDruck, "Schwarz-Weiß-Druck", f.SchwarzWeissDruck, ref dy);
         var eineUeb = K(gDruck, "1 Überschrift je Blatt", f.EineUeberschriftJeBlatt, ref dy);
-        var oy = 200;
+        var oy = 216;
         var autosize = K(layout2, "Autosize für Lupe", f.AutosizeLupe, ref oy, 284);
         var htmlLang = K(layout2, "Html-Indexseite mit Langnamen", f.HtmlIndexLangnamen, ref oy, 284);
         var minutAnzeige = K(layout2, "Stpl-Anzeige im Minut-Modus", f.MinutModus, ref oy, 284);
         var hauptKl = K(layout2, "Hauptklassen getrennt anzeigen", f.HauptklassenGetrennt, ref oy, 284);
         var pausenBez = K(layout2, "Pausenbezeichnung", f.Pausenbezeichnung, ref oy, 284);
+        oy += 30;
+        var aliasLupe = K(layout2, "Für Lupe / Legende Alias verwenden", f.LupeLegendeAlias, ref oy, 284);
         layout2.Controls.AddRange(new Control[] { gStunde, gVertr, gManuell, gDruck });
         // „Doppelstunden wie Einzelstunden“ und „Einzelstunden“ (Allgemein) sind dieselbe Einstellung
         dsEinzel.CheckedChanged += (_, _) => { if (einzel.Checked != dsEinzel.Checked) einzel.Checked = dsEinzel.Checked; };
@@ -249,7 +314,24 @@ public static class StundenplanEinstellungenDialog
         void Schreiben(StundenplanFormat z)
         {
             z.Name = name.Text;
+            z.Kurzname = kurzname.Text.Trim();
             z.Grundform = grundform;
+            z.Schriftart = schriftart;
+            z.LupeSchriftProzent = (int)lupeProzent.Value;
+            z.LegendeSchriftProzent = (int)legendeProzent.Value;
+            z.UeberschriftSchriftProzent = (int)ueberProzent.Value;
+            spaltenWerte.In(z);
+            z.ZeilenArt = zeilenArt;
+            (z.ZeilenNurBeginn, z.ZeilenFett, z.ZeilenKursiv, z.ZeilenUnterstrichen, z.ZeilenSchriftProzent) =
+                (zeilenWerte.NurBeginn, zeilenWerte.Fett, zeilenWerte.Kursiv, zeilenWerte.Unterstrichen, zeilenWerte.Prozent);
+            z.Bandmodus = bandmodus.Checked;
+            z.LupeLegendeAlias = aliasLupe.Checked;
+            z.EntfaelleNichtAnzeigen = nichtAnzeigen.Checked;
+            z.GeaendertRot = rot.Checked;
+            z.GeaendertFett = fett.Checked;
+            z.GeaendertKursiv = kursiv.Checked;
+            z.GeaendertAusrufezeichen = ausrufe.Checked;
+            z.GeaendertUnterstreichen = unterstreichen.Checked;
             z.Schriftgroesse = (int)schrift.Value;
             z.Farbe = (FarbeNach)Math.Max(0, farbe.SelectedIndex);
             z.Langname = lang.Checked;
@@ -371,8 +453,48 @@ public static class StundenplanEinstellungenDialog
         {
             if (StundenplanGrundformDialog.Zeigen(d, grundform) is not { } g) return;
             grundform = g;
+            formatText.Text = StundenplanFormat.GrundformText(g);
             Vorschau();
         };
+        schriftKnopf.Click += (_, _) =>
+        {
+            using var fd = new FontDialog { ShowEffects = false, AllowVerticalFonts = false, MinSize = 6, MaxSize = 20, FontMustExist = true };
+            try { fd.Font = new Font(schriftart.Length > 0 ? schriftart : Ui.Schrift.FontFamily.Name, (float)schrift.Value); } catch (ArgumentException) { }
+            if (fd.ShowDialog(d) != DialogResult.OK) return;
+            schriftart = fd.Font.FontFamily.Name;
+            schrift.Value = Math.Clamp((decimal)Math.Round(fd.Font.SizeInPoints), schrift.Minimum, schrift.Maximum);
+            SchriftAnzeigen();
+            Vorschau();
+        };
+        spaltenKnopf.Click += (_, _) =>
+        {
+            void Setzen(SpaltenBeschriftungWerte w) { spaltenWerte = w; Vorschau(); }
+            if (BeschriftungDialoge.Spalten(d, spaltenWerte, Setzen) is { } neu) Setzen(neu);
+        };
+        zeilenKnopf.Click += (_, _) =>
+        {
+            void Setzen(ZeilenBeschriftungWerte w)
+            {
+                zeilenWerte = w;
+                if (w.Art != ZeilenBeschriftung.Nummer) zeilenArt = w.Art;
+                zeiten.Checked = w.Art != ZeilenBeschriftung.Nummer;
+                Vorschau();
+            }
+            if (BeschriftungDialoge.Zeilen(d, zeilenWerte with { Art = zeiten.Checked ? zeilenArt : ZeilenBeschriftung.Nummer }, Setzen) is { } neu) Setzen(neu);
+        };
+        // Vorbild: Ok, Abbrechen, Übernehmen
+        d.Ok.Text = "Ok";
+        var uebernehmenKnopf = new Button { Text = "Übernehmen", Width = 88, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Right, Location = new Point(d.ClientSize.Width - 96, d.ClientSize.Height - 36) };
+        d.Ok.Left -= 92;
+        d.Abbrechen.Left -= 92;
+        uebernehmenKnopf.Click += (_, _) =>
+        {
+            if (sofort is null) return;
+            var stand = System.Text.Json.JsonSerializer.Deserialize<StundenplanFormat>(System.Text.Json.JsonSerializer.Serialize(f))!;
+            Schreiben(stand);
+            sofort(stand);
+        };
+        d.Controls.Add(uebernehmenKnopf);
         Vorschau();
         uebernehmen = () => Schreiben(f);
         return d;
