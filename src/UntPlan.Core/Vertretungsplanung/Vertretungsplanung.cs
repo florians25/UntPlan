@@ -1274,7 +1274,13 @@ public sealed record Betreuungskandidat(Lehrer Lehrer, string Klassen, string Fa
 /// <param name="Entfallen">Der Unterricht der Lehrkraft entfällt bzw. ist offen (rot durchgestrichen).</param>
 /// <param name="Ziel">Die Stunde der Vertretung (gestrichelt markiert).</param>
 /// <param name="Hintergrund">Fachfarbe (ARGB, 0 = keine).</param>
-public sealed record StundenplanZelle(int Stunde, string Text, bool Entfallen, bool Ziel, int Hintergrund = 0, int Vordergrund = 0);
+public sealed record StundenplanZelle(int Stunde, string Text, bool Entfallen, bool Ziel, int Hintergrund = 0, int Vordergrund = 0)
+{
+    /// <summary>Klasse(n) der Stunde (Anzeige „Klasse(n)“ per Rechtsklick in der Spalte „Stundenplan“).</summary>
+    public string Klassen { get; init; } = "";
+    /// <summary>Raum der Stunde (Anzeige „Raum“ per Rechtsklick in der Spalte „Stundenplan“).</summary>
+    public string Raum { get; init; } = "";
+}
 
 public sealed record Raumkandidat(Raum Raum, bool Ausweichraum, bool AusweichStammraum, string? BesetztDurch, string Raumgruppen, string Gang, int KapazitaetDifferenz);
 
@@ -1413,7 +1419,7 @@ public static class VertretungsVorschlag
                 k.Kriterien.Add("Dislozierung");
                 if (!dislozierungenIgnorieren) k.Punkte += 30;
             }
-            if (merker > e.NichtAnzeigenWennMerkerGroesser && !alleAnzeigen) continue;
+            if ((merker > e.NichtAnzeigenWennMerkerGroesser || k.Zaehler > e.NichtAnzeigenWennZaehlerGroesser) && !alleAnzeigen) continue;
             k.Rot = merker > e.RotWennMerkerGroesser || k.Zaehler > e.RotWennZaehlerGroesser || l.Sperrvermerk >= 9;
             res.Add(k);
         }
@@ -1498,7 +1504,11 @@ public static class VertretungsVorschlag
             var liste = aktiv.Count > 0 ? aktiv : entfallen;
             var text = string.Join(" ", liste.Select(e => ix.KFach(e.FachId) is { Length: > 0 } f ? f : ix.KKlassen(e.KlassenIds)).Where(t => t.Length > 0).Distinct());
             var fach = liste.Select(e => e.FachId).FirstOrDefault(f => f.HasValue) is int fid ? ix.Faecher.GetValueOrDefault(fid) : null;
-            res.Add(new StundenplanZelle(s, text, aktiv.Count == 0 && entfallen.Count > 0, zielStunden.Contains(s), fach?.Hintergrund ?? 0, fach?.Vordergrund ?? 0));
+            res.Add(new StundenplanZelle(s, text, aktiv.Count == 0 && entfallen.Count > 0, zielStunden.Contains(s), fach?.Hintergrund ?? 0, fach?.Vordergrund ?? 0)
+            {
+                Klassen = ix.KKlassen(liste.SelectMany(e => e.KlassenIds).Distinct()),
+                Raum = string.Join(",", liste.SelectMany(e => e.RaumIds).Distinct().Select(ix.KRaum).Where(t => t.Length > 0)),
+            });
         }
         return res;
     }
@@ -1613,18 +1623,20 @@ public static class VertretungsVorschlag
     }
 
     /// <summary>Vorziehungsvorschlag: Unterricht der Klasse aus späteren Stunden (dieselbe und nächste Woche), der in die offene Stunde gezogen werden kann.</summary>
-    public static List<Vorziehung> Vorziehungen(Schuldatei d, Vertretung v, VorziehungsModus? modus = null)
+    /// <param name="nurSpaeteren">„Nur späteren Unterricht“ (null = laut Einstellungen).</param>
+    public static List<Vorziehung> Vorziehungen(Schuldatei d, Vertretung v, VorziehungsModus? modus = null, bool? nurSpaeteren = null)
     {
         var res = new List<Vorziehung>();
         if (v.KlassenIds.Count == 0) return res;
         var e = d.Vertretungseinstellungen.Vorschlag;
         var m = modus ?? e.Vorziehungen;
+        var nurSpaeter = nurSpaeteren ?? e.NurSpaeterenUnterricht;
         var ix = DatenIndex.Fuer(d);
         var tpZiel = Tagesplan.Berechnen(d, v.Datum);
         // Klasse muss in der Stunde sonst frei sein
         if (tpZiel.Stunde(v.Stunde).Any(x => x.Findetstatt && x.Vertretung != v && x.KlassenIds.Intersect(v.KlassenIds).Any())) return res;
         var ende = e.NurDieselbeWoche ? Kalender.Montag(v.Datum).AddDays(6) : Kalender.Montag(v.Datum).AddDays(13);
-        var start = e.NurSpaeterenUnterricht ? v.Datum : Kalender.Montag(v.Datum);
+        var start = nurSpaeter ? v.Datum : Kalender.Montag(v.Datum);
         foreach (var t in Kalender.Tage(start, ende).Where(t => Kalender.IstUnterrichtstag(d, t)))
         {
             var tp = t == v.Datum ? tpZiel : Tagesplan.Berechnen(d, t);
@@ -1632,7 +1644,7 @@ public static class VertretungsVorschlag
             foreach (var c in tp.Eintraege.Where(x => x.Status == TagesStatus.Regulaer && x.Regel != null && x.KlassenIds.Count > 0 && v.KlassenIds.All(x.KlassenIds.Contains)))
             {
                 if (t == v.Datum && c.Stunde == v.Stunde) continue;
-                if ((t < v.Datum || (t == v.Datum && c.Stunde < v.Stunde)) && e.NurSpaeterenUnterricht) continue;
+                if ((t < v.Datum || (t == v.Datum && c.Stunde < v.Stunde)) && nurSpaeter) continue;
                 if (c.Regel!.Planstunde.Fixiert) continue;
                 if (Vertretungen.IstBereitschaftsfach(d, c.FachId)) continue;
                 if (c.Unterricht!.Id == v.UnterrichtId) continue;

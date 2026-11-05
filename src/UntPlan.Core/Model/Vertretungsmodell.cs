@@ -539,6 +539,8 @@ public sealed class VorschlagEinstellungen
     public int RotWennMerkerGroesser { get; set; } = 8;
     public int NichtAnzeigenWennMerkerGroesser { get; set; } = 9;
     public int RotWennZaehlerGroesser { get; set; } = 10;
+    /// <summary>Lehrkräfte mit einem größeren Zähler nicht anzeigen („Nicht anzeigen, wenn größer – Zähler“).</summary>
+    public int NichtAnzeigenWennZaehlerGroesser { get; set; } = 99;
     public bool GesperrteNichtAnzeigen { get; set; } = true;
     public bool Langname { get; set; }
     public bool KlasseAuchFuerKlassenteil { get; set; } = true;
@@ -546,6 +548,14 @@ public sealed class VorschlagEinstellungen
     public VorziehungsModus Vorziehungen { get; set; } = VorziehungsModus.GemaessVertretungszeitraster;
     public bool NurSpaeterenUnterricht { get; set; }
     public bool NurDieselbeWoche { get; set; }
+    /// <summary>Fenster Vertretungsvorschlag bleibt hinter anderen Fenstern, bis es angeklickt oder neu aufgerufen wird.</summary>
+    public bool FensterImHintergrund { get; set; }
+    /// <summary>Höhe des Vorziehungsbereichs automatisch an die Anzahl der Vorziehungen anpassen.</summary>
+    public bool VorziehungenHoeheAutomatisch { get; set; } = true;
+    /// <summary>Höhe des Vorziehungsbereichs in Pixeln (bei automatischer Anpassung die Obergrenze).</summary>
+    public int VorziehungenFensterhoehe { get; set; } = 250;
+    /// <summary>Schrift der Tabellen im Vertretungsvorschlag („Name;Größe“, leer = Standard).</summary>
+    public string Schrift { get; set; } = "";
 }
 
 public enum VorziehungsModus

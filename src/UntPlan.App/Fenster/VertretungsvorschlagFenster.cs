@@ -11,8 +11,11 @@ namespace UntPlan.App.Fenster;
 /// Vertretungsvorschlag wie im Vorbild: folgt der markierten Vertretung. Aufklappbarer Kopf „30.8. Mo-1 Se/Mu/05D“, aufklappbare
 /// Optionen (Stundenblock, Dislozierungen ignorieren, Dauervertretung) mit den Anzahlen der Reiter, Reiter
 /// Vertretungsvorschläge / Betreuungen / Räume und unten aufklappbar die Vorziehungen.
-/// Spalten wie im Vorbild: Name, Stundenplan (drei Stunden, die Vertretungsstunde gestrichelt markiert), Merker zur Stunde,
-/// Vertr., Entfall, Zähler, Zeitwunsch, Jahressaldo, Kennzeichen, reg. Bereitschaft, Dep. (Werte mit drei Nachkommastellen).
+/// Spalten wie im Vorbild: Name, Stundenplan (drei Stunden, die Vertretungsstunde gestrichelt markiert; Rechtsklick wählt Fach,
+/// Klasse(n) oder Raum), Merker zur Stunde, Vertr., Entfall, Zähler, Zeitwunsch, Jahres-Zähler, Kennzeichen, reg. Bereitschaft, Dep.
+/// (Werte mit drei Nachkommastellen), Fach (Buchsymbol), Klasse (Schülersymbol, Klassenlehrer grün), Unt./Tag, Vorwoche, Statistik,
+/// Sperrvermerk; ausgeblendet bez., Betreuungen, Benachrichtigen. Spalten ein-/ausblenden und umsortieren per Rechtsklick bzw.
+/// Ziehen an der Spaltenüberschrift (Tabellenformate). Vorziehungen mit Auswahl „Art“ und „Nur späteren Unterricht“.
 /// </summary>
 public sealed class VertretungsvorschlagFenster : MdiFenster
 {
@@ -20,7 +23,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static readonly Color ZaehlerGelb = Color.FromArgb(252, 252, 129);
     private static readonly Color ZaehlerRot = Color.FromArgb(255, 128, 128);
     private static readonly Color MerkerRot = Color.FromArgb(255, 55, 55);
-    private static readonly Color Bereitschaftsgruen = Color.FromArgb(200, 235, 200);
+    private static readonly Color Hohlstundengruen = Color.FromArgb(150, 240, 150);
+    private static readonly Color Klassenlehrergruen = Color.FromArgb(150, 240, 150);
     private static readonly Color KopfLinie = Color.FromArgb(105, 105, 105);
     private static readonly string[] Stundenplanspalten = { "S1", "S2", "S3" };
 
@@ -40,7 +44,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly DataGridView _betreuung = new() { Dock = DockStyle.Fill, Name = "Betreuung", Visible = false };
     private readonly Steuerelemente.RaumListe _raeume = new("vorschlag", new[] { "Rm", "Kap", "AR", "SR", "B", "RG" }) { Dock = DockStyle.Fill, Visible = false };
     private readonly Klappleiste _vorzLeiste = new(true) { Dock = DockStyle.Bottom };
-    private readonly DataGridView _vorziehung = new() { Dock = DockStyle.Bottom, Height = 150, Name = "Vorziehung", Visible = false };
+    /// <summary>Unterer Fensterteil „Vorziehungen“: Auswahl „Art“ und „Nur späteren Unterricht“ über der Liste.</summary>
+    private readonly Panel _vorzBereich = new() { Dock = DockStyle.Bottom, Height = 176, Visible = false };
+    private readonly Panel _vorzKopf = new() { Dock = DockStyle.Top, Height = 28 };
+    private readonly ComboBox _vorzArt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 34, Top = 3, Width = 250 };
+    private readonly CheckBox _vorzSpaeter = new() { Text = "Nur späteren Unterricht", AutoSize = true, Left = 296, Top = 5 };
+    private readonly DataGridView _vorziehung = new() { Dock = DockStyle.Fill, Name = "Vorziehung" };
+    /// <summary>Anzeige in der Spalte „Stundenplan“ (Rechtsklick): 0 Fach, 1 Klasse(n), 2 Raum.</summary>
+    private int _planAnzeige;
     private readonly ToolStripButton _alle = new("Alle Lehrer") { CheckOnClick = true, ToolTipText = "Auch gesperrte und weit entfernte Lehrer anzeigen" };
     private readonly ToolStripButton _weiter = new("Weiter zur nächsten offenen") { CheckOnClick = true, Checked = true, ToolTipText = "Nach dem Zuweisen automatisch die nächste offene Vertretung wählen" };
     private readonly ToolTip _tip = new();
@@ -60,14 +71,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_weiter);
         ts.Items.Add(_alle);
-        ts.Items.Add(Knopf("Einstellungen Vertretungsvorschlag", "gewichtung", () => { if (VertretungsEinstellungenDialog.Zeigen(this, 2)) Neuaufbau(); }));
+        ts.Items.Add(Knopf("Einstellungen", "gewichtung", () => { if (VorschlagEinstellungenDialog.Zeigen(this)) { SchriftAnwenden(); Neuaufbau(); } }));
         _alle.CheckedChanged += (_, _) => Neuaufbau();
         foreach (var c in new[] { _block, _disloz, _dauer, _nahe, _besetzt })
             c.CheckedChanged += (_, _) => Neuaufbau();
 
         _kopfLeiste.Umgeschaltet += () => _kopfDetails.Visible = _kopfLeiste.Offen;
         _optLeiste.Umgeschaltet += () => _optionen.Visible = _optLeiste.Offen;
-        _vorzLeiste.Umgeschaltet += () => _vorziehung.Visible = _vorzLeiste.Offen;
+        _vorzLeiste.Umgeschaltet += () => { _vorzBereich.Visible = _vorzLeiste.Offen; VorziehungsHoehe(); };
         _optionen.Controls.AddRange(new Control[] { _block, _disloz, _dauer, _nahe, _besetzt, _zusatzRaum });
         _tip.SetToolTip(_block, "Vorschlag für alle Stunden des Blocks (Doppelstunde)");
         _tip.SetToolTip(_disloz, "Auch Lehrkräfte vorschlagen, deren angrenzender Unterricht in einem anderen Gebäude (Abteilung des Raumes) liegt");
@@ -80,12 +91,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Spalten(_vorschlag, new (string, string, int)[]
         {
             ("Name", "Name", 72), ("S1", "Stundenplan", 50), ("S2", "", 50), ("S3", "", 50), ("Merker", "Merker zur Stunde", 82), ("Vertr", "Vertr.", 48),
-            ("Entf", "Entfall", 48), ("Zaehler", "Zähler", 50), ("ZW", "Zeitwunsch", 42), ("Jahr", "Jahressaldo", 52), ("Kennz", "Kennzeichen", 42),
-            ("RegB", "reg. Bereitschaft", 42), ("Dep", "Dep.", 58), ("Fach", "Fach", 38), ("Klasse", "Klasse", 44), ("StdTag", "Std./Tag", 50),
-            ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 56), ("Punkte", "Pkt.", 40), ("Kr", "Kriterien", 220),
+            ("Entf", "Entfall", 48), ("Zaehler", "Zähler", 50), ("ZW", "Zeitwunsch", 42), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42),
+            ("RegB", "reg. Bereitschaft", 42), ("Dep", "Dep.", 58), ("Fach", "Fach", 38), ("Klasse", "Klasse", 44), ("StdTag", "Unt./Tag", 50),
+            ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 56), ("Statistik", "Statistik", 52), ("Sperr", "Sperrvermerk", 70),
+            ("Bez", "bez.", 40), ("Betr", "Betreuungen", 70), ("Ben", "Benachrichtigen", 90), ("Punkte", "Punkte", 46), ("Kr", "Kriterien", 220),
         });
-        foreach (var n in new[] { "Vertr", "Entf", "Zaehler", "Jahr", "Dep", "Punkte" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-        foreach (var n in new[] { "Fach", "Klasse", "StdTag", "Woche", "Monat", "RegB", "Vorwoche" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        foreach (var n in new[] { "Vertr", "Entf", "Zaehler", "Jahr", "Dep", "Punkte", "StdTag", "Bez", "Betr" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        foreach (var n in new[] { "Fach", "Klasse", "Woche", "Monat", "RegB", "Vorwoche", "Ben" }) _vorschlag.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        // wie im Vorbild standardmäßig ausgeblendet (Rechtsklick auf die Spaltenüberschrift blendet sie ein)
+        foreach (var n in new[] { "Bez", "Betr", "Ben" }) _vorschlag.Columns[n]!.Visible = false;
         _vorschlag.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Uebernehmen(); };
         _vorschlag.CellFormatting += VorschlagFormatieren;
         _vorschlag.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Uebernehmen(); e.Handled = true; } };
@@ -96,15 +110,21 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Spalten(_betreuung, new (string, string, int)[]
         {
             ("Name", "Name", 72), ("S1", "Stundenplan", 50), ("S2", "", 50), ("S3", "", 50), ("Raum", "Raum", 46), ("Klasse", "Klasse", 46), ("Fach", "Fach", 46),
-            ("Zaehler", "Zähler", 50), ("ZW", "Zeitwunsch", 42), ("Jahr", "Jahressaldo", 52), ("Kennz", "Kennzeichen", 42), ("Kopplung", "Kopplung", 42),
-            ("Naehe", "Nähe", 110), ("Heute", "Betr. heute", 60),
+            ("Zaehler", "Zähler", 50), ("ZW", "Zeitwunsch", 42), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42), ("Kopplung", "Kopplungslehrer", 42),
+            ("Gang", "Gang", 64), ("Naehe", "Nähe", 110), ("Heute", "Betr. heute", 60),
         });
+        _betreuung.Columns["Gang"]!.Visible = false;
         foreach (var n in new[] { "Zaehler", "Jahr" }) _betreuung.Columns[n]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         _betreuung.Columns["Heute"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         _betreuung.CellFormatting += BetreuungFormatieren;
         _betreuung.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Betreuung(); e.Handled = true; } };
         _betreuung.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Betreuung(); };
         _betreuung.ContextMenuStrip = Menue(("Betreuung übernehmen (Doppelklick, Enter)", Betreuung));
+
+        // Spalte „Stundenplan“: Rechtsklick wählt die angezeigte Information (Fach, Klasse(n), Raum)
+        foreach (var g in new[] { _vorschlag, _betreuung })
+            foreach (var n in Stundenplanspalten)
+                g.Columns[n]!.ContextMenuStrip = PlanMenue();
 
         // --- Räume ---
         _raeume.Gewaehlt += _ => Raum();
@@ -114,9 +134,18 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         RasterEinrichten(_vorziehung);
         Spalten(_vorziehung, new (string, string, int)[]
         {
-            ("Name", "Name", 72), ("Tag", "Tag", 70), ("Std", "Std.", 36), ("Klasse", "Klasse", 60), ("Fach", "Fach", 56), ("Raum", "Raum", 50), ("Art", "Art", 140),
+            ("Name", "Name", 72), ("Tag", "von", 70), ("Merker", "Merker", 50), ("Klasse", "Klasse", 60), ("Fach", "Fach", 56), ("Raum", "Raum", 50), ("Art", "Art", 140),
         });
-        _vorziehung.Columns["Std"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        // wie im Vorbild: Name, von, Merker; die übrigen Angaben lassen sich per Rechtsklick auf die Spaltenüberschrift einblenden
+        foreach (var n in new[] { "Klasse", "Fach", "Raum", "Art" }) _vorziehung.Columns[n]!.Visible = false;
+        _vorzArt.Items.AddRange(new object[] { "Vorziehungen gemäß Vertretungszeitraster", "Vorziehungen aus Randstunden anzeigen", "Alle möglichen Verlegungen anzeigen" });
+        _vorzArt.SelectedIndex = Math.Clamp((int)D.Vertretungseinstellungen.Vorschlag.Vorziehungen, 0, 2);
+        _vorzSpaeter.Checked = D.Vertretungseinstellungen.Vorschlag.NurSpaeterenUnterricht;
+        _vorzArt.SelectedIndexChanged += (_, _) => Neuaufbau();
+        _vorzSpaeter.CheckedChanged += (_, _) => Neuaufbau();
+        _vorzKopf.Controls.AddRange(new Control[] { new Label { Text = "Art:", Left = 4, Top = 6, AutoSize = true }, _vorzArt, _vorzSpaeter });
+        _vorzBereich.Controls.Add(_vorziehung);
+        _vorzBereich.Controls.Add(_vorzKopf);
         _vorziehung.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Vorziehen(); };
         _vorziehung.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Vorziehen(); e.Handled = true; } };
         _vorziehung.ContextMenuStrip = Menue(("Vorziehen: Unterricht in die offene Stunde verlegen (Doppelklick, Enter)", Vorziehen));
@@ -141,7 +170,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
         flaeche.Controls.Add(_vorzLeiste);
-        flaeche.Controls.Add(_vorziehung);
+        flaeche.Controls.Add(_vorzBereich);
         flaeche.Controls.Add(_optionen);
         flaeche.Controls.Add(_optLeiste);
         flaeche.Controls.Add(_kopfDetails);
@@ -152,7 +181,57 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         AppZustand.VertretungGewaehlt += Gewaehlt;
         FormClosed += (_, _) => AppZustand.VertretungGewaehlt -= Gewaehlt;
         _v = AppZustand.AktiveVertretung;
+        SchriftAnwenden();
         Neuaufbau();
+    }
+
+    /// <summary>Kontextmenü der Spalte „Stundenplan“: Fach / Klasse(n) / Raum.</summary>
+    private ContextMenuStrip PlanMenue()
+    {
+        var cm = new ContextMenuStrip { Font = Ui.Schrift };
+        var texte = new[] { "Fach", "Klasse(n)", "Raum" };
+        for (var i = 0; i < texte.Length; i++)
+        {
+            var art = i;
+            cm.Items.Add(new ToolStripMenuItem(texte[i], null, (_, _) =>
+            {
+                _planAnzeige = art;
+                _vorschlag.Invalidate();
+                _betreuung.Invalidate();
+            }));
+        }
+        cm.Opening += (_, _) => { for (var i = 0; i < cm.Items.Count; i++) ((ToolStripMenuItem)cm.Items[i]).Checked = i == _planAnzeige; };
+        return cm;
+    }
+
+    /// <summary>Text einer Zelle der Spalte „Stundenplan“ je nach gewählter Anzeige (Fach, Klasse(n), Raum).</summary>
+    private string PlanText(StundenplanZelle z) => _planAnzeige switch
+    {
+        1 when z.Klassen.Length > 0 => z.Klassen,
+        2 when z.Raum.Length > 0 || z.Text.Length > 0 => z.Raum,
+        _ => z.Text,
+    };
+
+    /// <summary>Schrift aus den Einstellungen („Schrift“) auf die Tabellen anwenden.</summary>
+    private void SchriftAnwenden()
+    {
+        var schrift = VorschlagEinstellungenDialog.Schrift(D.Vertretungseinstellungen.Vorschlag.Schrift) ?? Ui.Schrift;
+        foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung, _raeume.Raster })
+        {
+            g.DefaultCellStyle.Font = schrift;
+            g.RowTemplate.Height = Math.Max(21, schrift.Height + 6);
+        }
+    }
+
+    /// <summary>Höhe des Vorziehungsbereichs: fest bzw. („Höhe automatisch anpassen“) nach der Anzahl der Vorziehungen bis zur eingestellten Höhe.</summary>
+    private void VorziehungsHoehe()
+    {
+        var e = D.Vertretungseinstellungen.Vorschlag;
+        var max = Math.Max(60, e.VorziehungenFensterhoehe);
+        var inhalt = _vorzKopf.Height + _vorziehung.ColumnHeadersHeight + Math.Max(3, _vorziehung.Rows.Count) * _vorziehung.RowTemplate.Height + 6;
+        var hoehe = e.VorziehungenHoeheAutomatisch ? Math.Min(inhalt, max) : max;
+        // höchstens die halbe Fensterhöhe, damit die Vorschläge sichtbar bleiben
+        _vorzBereich.Height = Math.Max(60, Math.Min(hoehe, Math.Max(60, ClientSize.Height / 2)));
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
@@ -255,7 +334,20 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (IsDisposed) return;
         _v = v is null ? null : D.Vertretungen.FirstOrDefault(x => x.Id == v.Id) ?? v;
         Neuaufbau();
+        // Vorbild: ohne „Fenster im Hintergrund“ kommt der Vertretungsvorschlag beim Wählen einer Vertretung nach vorn (ohne den
+        // Fokus zu übernehmen); nicht bei maximierten Fenstern, sonst verdeckte er das Vertretungsfenster ganz
+        if (v != null && !D.Vertretungseinstellungen.Vorschlag.FensterImHintergrund && Visible && WindowState == FormWindowState.Normal &&
+            IsHandleCreated && MdiParent?.ActiveMdiChild is { } aktiv && aktiv != this && aktiv.WindowState != FormWindowState.Maximized)
+        {
+            const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+            try { SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE); }
+            catch (EntryPointNotFoundException) { }
+            catch (DllNotFoundException) { }
+        }
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr nach, int x, int y, int cx, int cy, uint flags);
 
     /// <summary>Kopf wie im Vorbild: „30.8. Mo-1 Se/Mu/05D“ (Datum, Tag-Stunde, Lehrer/Fach/Klasse).</summary>
     internal static string KopfText(DatenIndex ix, Vertretung v)
@@ -305,7 +397,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             {
                 var z = Zaehlung.Lehrer(D, l, zv, zb);
                 var (vw, ew) = VertretungsVorschlag.Werte(z);
-                var r = _vorschlag.Rows.Add(l.Kurzname, "", "", "", "", Zahl(vw), Zahl(ew), ZahlLeer(z.Summe), "", "", "", "", "", "", "", "", "", "", "", $"Aufsichten: {Core.Module.Pausenaufsichten.Anzahl(D, l.Id)}");
+                var r = _vorschlag.Rows.Add(Werte(_vorschlag, ("Name", l.Kurzname), ("Vertr", Zahl(vw)), ("Entf", Zahl(ew)), ("Zaehler", ZahlLeer(z.Summe)),
+                    ("Kr", $"Aufsichten: {Core.Module.Pausenaufsichten.Anzahl(D, l.Id)}")));
                 _vorschlag.Rows[r].Tag = l.Id;
             }
             Zaehlerstaende();
@@ -328,10 +421,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         {
             var z = k.Zellen;
             var zeile = new DataGridViewRow();
-            zeile.CreateCells(_vorschlag, langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), k.Merker,
-                Zahl(k.VertretungenWert), Zahl(k.EntfaelleWert), ZahlLeer(k.Zaehler), Zeitwunsch(k.Zeitwunsch), ZahlLeer(k.Jahreszaehler), k.Kennzeichen ? "K" : "",
-                k.RegelBereitschaft > 0 ? k.RegelBereitschaft.ToString() : "", k.Deputat is decimal dep ? ZahlLeer(dep) : "",
-                k.Fachlehrer ? "✔" : "", k.Klassenlehrer ? "KL" : k.KenntKlasse ? "✔" : "", k.UnterrichtAmTag, k.ZaehlerWoche, k.ZaehlerMonat, vorwoche.Contains(k.Lehrer.Id) ? "✔" : "", ((int)k.Punkte).ToString(), string.Join(", ", k.Kriterien));
+            zeile.CreateCells(_vorschlag, Werte(_vorschlag, ("Name", langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname), ("S1", ZellText(z, 0)), ("S2", ZellText(z, 1)),
+                ("S3", ZellText(z, 2)), ("Merker", k.Merker), ("Vertr", Zahl(k.VertretungenWert)), ("Entf", Zahl(k.EntfaelleWert)), ("Zaehler", ZahlLeer(k.Zaehler)),
+                ("ZW", Zeitwunsch(k.Zeitwunsch)), ("Jahr", ZahlLeer(k.Jahreszaehler)), ("Kennz", k.Kennzeichen ? "K" : ""),
+                ("RegB", k.RegelBereitschaft > 0 ? k.RegelBereitschaft.ToString() : ""), ("Dep", k.Deputat is decimal dep ? ZahlLeer(dep) : ""),
+                ("Fach", k.Fachlehrer ? "✔" : ""), ("Klasse", k.Klassenlehrer ? "KL" : k.KenntKlasse ? "✔" : ""), ("StdTag", k.UnterrichtAmTag), ("Woche", k.ZaehlerWoche),
+                ("Monat", k.ZaehlerMonat), ("Vorwoche", vorwoche.Contains(k.Lehrer.Id) ? "✔" : ""), ("Statistik", k.Lehrer.Statistik ?? ""),
+                ("Sperr", k.Lehrer.Sperrvermerk > 0 ? k.Lehrer.Sperrvermerk.ToString() : ""), ("Bez", k.Bezahlt > 0 ? k.Bezahlt.ToString() : ""),
+                ("Betr", k.Betreuungen > 0 ? k.Betreuungen.ToString() : ""), ("Ben", k.Benachrichtigen ? "✔" : ""), ("Punkte", ((int)k.Punkte).ToString()),
+                ("Kr", string.Join(", ", k.Kriterien))));
             zeile.Tag = k;
             if (k.Kennzeichen) zeile.Cells[kennzSpalte].ToolTipText = k.KennzeichenText;
             zeile.Cells[nameSpalte].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? " – " + k.Lage : "");
@@ -340,22 +438,34 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         using (Core.Messung.Start("Vorschlag: Zeilen einfügen"))
             _vorschlag.Rows.AddRange(neueZeilen.ToArray());
         if (v.Offen)
-            foreach (var vz in VertretungsVorschlag.Vorziehungen(D, v))
+        {
+            // Vorbild: „Art“ (gemäß Vertretungszeitraster, aus Randstunden, alle möglichen Verlegungen) und „Nur späteren Unterricht“
+            var tpZiel = Tagesplan.Berechnen(D, v.Datum);
+            foreach (var vz in VertretungsVorschlag.Vorziehungen(D, v, (VorziehungsModus)Math.Max(0, _vorzArt.SelectedIndex), _vorzSpaeter.Checked))
             {
-                var tag = $"{Planungsdienst.TageKurz[((int)vz.Datum.DayOfWeek + 6) % 7]} {vz.Datum.Day}.{vz.Datum.Month}.";
-                var r = _vorziehung.Rows.Add(vz.Lehrer, tag, vz.Stunde, vz.Klassen, vz.Fach, vz.Raum, vz.Randstunde ? "Randstunde" : "erzeugt neue Lücke");
+                var merker = vz.Eintrag.LehrerIds.Count > 0 ? Vertretungen.Merker(D, tpZiel, vz.Eintrag.LehrerIds[0], v.Stunde) : "";
+                var r = _vorziehung.Rows.Add(Werte(_vorziehung, ("Name", vz.Lehrer), ("Tag", $"{vz.Datum.Day}.{vz.Datum.Month}. / {vz.Stunde}"), ("Merker", merker),
+                    ("Klasse", vz.Klassen), ("Fach", vz.Fach), ("Raum", vz.Raum), ("Art", vz.Randstunde ? "Randstunde" : "erzeugt neue Lücke")));
                 _vorziehung.Rows[r].Tag = vz;
-                _vorziehung.Rows[r].Cells["Art"].ToolTipText = vz.Beschreibung;
+                foreach (DataGridViewCell c in _vorziehung.Rows[r].Cells) c.ToolTipText = vz.Beschreibung;
             }
+        }
+        VorziehungsHoehe();
         var betreuungen = new List<DataGridViewRow>();
         var bKennz = _betreuung.Columns["Kennz"]!.Index;
+        var raumReihe = D.Raeume.Select((r, i) => (r.Kurzname, i)).GroupBy(x => x.Kurzname).ToDictionary(g => g.Key, g => g.First().i);
+        var eigenerRaum = Ix.KRaum(v.VertretungsraumId ?? v.RaumId);
         foreach (var b in VertretungsVorschlag.Betreuungen(D, v, markiert).Where(b => !_nahe.Checked || b.Naehe <= 2))
         {
             var z = b.Zellen;
             var zeile = new DataGridViewRow();
-            zeile.CreateCells(_betreuung, langname ? b.Lehrer.VollerName : b.Lehrer.Kurzname, ZellText(z, 0), ZellText(z, 1), ZellText(z, 2), b.Raum, b.Klassen, b.Fach,
-                ZahlLeer(b.Zaehler), Zeitwunsch(b.Zeitwunsch), ZahlLeer(b.Jahreszaehler), b.Kennzeichen ? "K" : "", b.Kopplung ? "✔" : "", b.NaeheText,
-                b.BetreuungenHeute > 0 ? b.BetreuungenHeute.ToString() : "");
+            // Gang (Flur) des Betreuers; ohne Gänge die Differenz der Eingabereihenfolge der beiden Räume, gekoppelte Lehrkräfte „Kopplung“
+            var gang = b.Kopplung ? "Kopplung" : b.Gang.Length > 0 ? b.Gang
+                : raumReihe.TryGetValue(b.Raum, out var r1) && raumReihe.TryGetValue(eigenerRaum, out var r2) ? Math.Abs(r1 - r2).ToString() : "";
+            zeile.CreateCells(_betreuung, Werte(_betreuung, ("Name", langname ? b.Lehrer.VollerName : b.Lehrer.Kurzname), ("S1", ZellText(z, 0)), ("S2", ZellText(z, 1)),
+                ("S3", ZellText(z, 2)), ("Raum", b.Raum), ("Klasse", b.Klassen), ("Fach", b.Fach), ("Zaehler", ZahlLeer(b.Zaehler)), ("ZW", Zeitwunsch(b.Zeitwunsch)),
+                ("Jahr", ZahlLeer(b.Jahreszaehler)), ("Kennz", b.Kennzeichen ? "K" : ""), ("Kopplung", b.Kopplung ? "✔" : ""), ("Gang", gang), ("Naehe", b.NaeheText),
+                ("Heute", b.BetreuungenHeute > 0 ? b.BetreuungenHeute.ToString() : "")));
             zeile.Tag = b;
             if (b.Kennzeichen) zeile.Cells[bKennz].ToolTipText = b.KennzeichenText;
             betreuungen.Add(zeile);
@@ -389,6 +499,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private static string ZellText(List<StundenplanZelle> z, int i) => i < z.Count ? z[i].Text : "";
 
+    /// <summary>Zellwerte einer Zeile in der Reihenfolge der Spalten (nicht genannte Spalten bleiben leer).</summary>
+    private static object?[] Werte(DataGridView g, params (string Spalte, object? Wert)[] werte)
+    {
+        var res = new object?[g.Columns.Count];
+        for (var i = 0; i < res.Length; i++) res[i] = "";
+        foreach (var (spalte, wert) in werte) res[g.Columns[spalte]!.Index] = wert;
+        return res;
+    }
+
     /// <summary>Zahlenformat wie im Vorbild: drei Nachkommastellen mit Punkt (0.000, -1.000).</summary>
     internal static string Zahl(decimal w) => w.ToString("0.000", Inv);
 
@@ -396,11 +515,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     internal static string Zeitwunsch(int w) => w == 0 ? "" : w.ToString("+0;-0", Inv);
 
-    /// <summary>Merker zur Stunde wie im Vorbild: 0–3 weiß, 4–8 zunehmend rosa, 9 rot; Bereitschaft (Fachkürzel) grün.</summary>
+    /// <summary>
+    /// Merker zur Stunde wie im Vorbild (Handbuch Kap. 7.3.1): 0 (Hohlstunde) grün, 1–3 weiß, 4–8 zunehmend rosa, 9 rot;
+    /// x (freigesetzt) und Bereitschaft (Fachkürzel) ohne Farbe.
+    /// </summary>
     internal static Color? MerkerFarbe(string merker)
     {
         if (merker.Length == 0 || merker == "x") return null;
-        if (!int.TryParse(merker, out var m)) return Bereitschaftsgruen;
+        if (!int.TryParse(merker, out var m)) return null;
+        if (m == 0) return Hohlstundengruen;
         if (m >= 9) return MerkerRot;
         if (m < 4) return null;
         var g = 217 - (m - 4) * 17;
@@ -431,6 +554,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             if (ka.Benachrichtigen) e.CellStyle.Font = Ui.SchriftFett;
         }
         if (name == "Merker" && MerkerFarbe(ka.Merker) is { } mf) e.CellStyle.BackColor = mf;
+        // Klassenlehrer: grüne Hintergrundmarkierung in der Spalte „Klasse“
+        if (name == "Klasse" && ka.Klassenlehrer) e.CellStyle.BackColor = Klassenlehrergruen;
     }
 
     private void BetreuungFormatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -438,6 +563,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (e.RowIndex < 0 || e.CellStyle is null) return;
         var name = _betreuung.Columns[e.ColumnIndex].Name;
         if (name == "Zaehler" && _betreuung.Rows[e.RowIndex].Tag is Betreuungskandidat b) e.CellStyle.BackColor = b.Zaehler > 0 ? ZaehlerRot : ZaehlerGelb;
+        // mit der abwesenden Lehrkraft gekoppelte Lehrkräfte: grün mit dem Wort „Kopplung“
+        if (name == "Gang" && _betreuung.Rows[e.RowIndex].Tag is Betreuungskandidat { Kopplung: true }) e.CellStyle.BackColor = Klassenlehrergruen;
         StundenplanFarbe(_betreuung, e, name);
     }
 
@@ -474,10 +601,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var hg = selected ? e.CellStyle.SelectionBackColor : e.CellStyle.BackColor;
             var vg = zelle.Entfallen ? Color.Red : zelle.Vordergrund != 0 ? Ui.Farbe(zelle.Vordergrund, Color.Black) : Ui.Textfarbe(hg);
             var text = new Rectangle(r.X + 1, r.Y, r.Width - 3, r.Height - 1);
-            TextRenderer.DrawText(e.Graphics, zelle.Text, e.CellStyle.Font ?? g.Font, text, vg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-            if (zelle.Entfallen && zelle.Text.Length > 0)
+            var inhalt = PlanText(zelle);
+            TextRenderer.DrawText(e.Graphics, inhalt, e.CellStyle.Font ?? g.Font, text, vg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+            if (zelle.Entfallen && inhalt.Length > 0)
             {
-                var breite = Math.Min(text.Width - 4, TextRenderer.MeasureText(zelle.Text, e.CellStyle.Font ?? g.Font).Width);
+                var breite = Math.Min(text.Width - 4, TextRenderer.MeasureText(inhalt, e.CellStyle.Font ?? g.Font).Width);
                 var y = r.Y + r.Height / 2;
                 using var p = new Pen(Color.Red, 1);
                 e.Graphics.DrawLine(p, r.X + (r.Width - breite) / 2, y, r.X + (r.Width + breite) / 2, y);
@@ -486,15 +614,19 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             e.Handled = true;
             return;
         }
-        if (spalte.Name == "Kennz" && e.Value as string == "K")
+        // Kennzeichen und (Vorschlag) Fach: Buchsymbol – „kann Fachvertretungen halten“
+        if ((spalte.Name == "Kennz" && e.Value as string == "K") || (g == _vorschlag && spalte.Name == "Fach" && e.Value as string == "✔"))
         {
             Ui.ZelleOhneInhalt(e);
-            var r = e.CellBounds;
-            var b = new Rectangle(r.X + (r.Width - 10) / 2, r.Y + (r.Height - 13) / 2, 10, 13);
-            using (var br = new SolidBrush(Color.FromArgb(40, 90, 180))) e.Graphics.FillRectangle(br, b);
-            using (var br = new SolidBrush(Color.FromArgb(120, 170, 235))) e.Graphics.FillRectangle(br, b.X + 1, b.Y + 1, 2, b.Height - 2);
-            using (var p = new Pen(Color.FromArgb(20, 50, 110))) e.Graphics.DrawRectangle(p, b);
-            using (var p = new Pen(Color.White)) e.Graphics.DrawLine(p, b.X + 4, b.Y + 3, b.X + 8, b.Y + 3);
+            BuchZeichnen(e.Graphics, e.CellBounds);
+            e.Handled = true;
+            return;
+        }
+        // Vorschlag, Spalte Klasse: Schülersymbol – „kennt die Schüler“ (Klassenlehrer zusätzlich grün hinterlegt)
+        if (g == _vorschlag && spalte.Name == "Klasse" && e.Value is "✔" or "KL")
+        {
+            Ui.ZelleOhneInhalt(e);
+            SchuelerZeichnen(e.Graphics, e.CellBounds);
             e.Handled = true;
             return;
         }
@@ -503,6 +635,36 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             if (spalte.Name == "Vorwoche") e.CellStyle.BackColor = Color.FromArgb(198, 239, 190);
             Ui.ZellHaken(e, Color.FromArgb(60, 170, 60));
         }
+    }
+
+    /// <summary>Blaues Buchsymbol (Kennzeichen, Fach).</summary>
+    private static void BuchZeichnen(Graphics g, Rectangle r)
+    {
+        var b = new Rectangle(r.X + (r.Width - 10) / 2, r.Y + (r.Height - 13) / 2, 10, 13);
+        using (var br = new SolidBrush(Color.FromArgb(40, 90, 180))) g.FillRectangle(br, b);
+        using (var br = new SolidBrush(Color.FromArgb(120, 170, 235))) g.FillRectangle(br, b.X + 1, b.Y + 1, 2, b.Height - 2);
+        using (var p = new Pen(Color.FromArgb(20, 50, 110))) g.DrawRectangle(p, b);
+        using (var p = new Pen(Color.White)) g.DrawLine(p, b.X + 4, b.Y + 3, b.X + 8, b.Y + 3);
+    }
+
+    /// <summary>Schülersymbol (zwei Köpfe mit Oberkörper) für „unterrichtet die Klasse“.</summary>
+    private static void SchuelerZeichnen(Graphics g, Rectangle r)
+    {
+        var x = r.X + (r.Width - 16) / 2;
+        var y = r.Y + (r.Height - 13) / 2;
+        var alt = g.SmoothingMode;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var rand = new Pen(Color.FromArgb(90, 60, 20));
+        foreach (var (dx, koerper) in new[] { (0, Color.FromArgb(200, 120, 40)), (7, Color.FromArgb(230, 170, 60)) })
+        {
+            using var haut = new SolidBrush(Color.FromArgb(250, 210, 160));
+            using var kb = new SolidBrush(koerper);
+            g.FillPie(kb, x + dx, y + 6, 9, 12, 180, 180);
+            g.DrawPie(rand, x + dx, y + 6, 9, 12, 180, 180);
+            g.FillEllipse(haut, x + dx + 2, y + 1, 5, 5);
+            g.DrawEllipse(rand, x + dx + 2, y + 1, 5, 5);
+        }
+        g.SmoothingMode = alt;
     }
 
     /// <summary>Vertretungsstunde: gelb-orange gestrichelter Rahmen links und rechts, oben in der ersten und unten in der letzten Zeile.</summary>
@@ -630,8 +792,49 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
     private void Betreuung()
     {
-        if (_betreuung.CurrentRow?.Tag is not Betreuungskandidat b) return;
-        Aktion($"Betreuung {b.Lehrer.Kurzname}", (d, v) => Vertretungen.VertreterSetzen(d, v, b.Lehrer.Id, true, AppZustand.Benutzer));
+        if (_betreuung.CurrentRow?.Tag is not Betreuungskandidat b || _v is not { } v0) return;
+        // Vorbild: Rückfrage, wie die Aktion zu Ende geführt werden soll – „Betreuung“ ist vorausgewählt
+        var l = b.Lehrer.Id;
+        var eintrag = Stundenaenderung.LehrerKonflikt(D, v0.Datum, v0.Stunde, l, v0.UnterrichtId);
+        var raumUebernehmen = false;
+        var betreuung = true;
+        if (eintrag != null)
+        {
+            var w = BetreuungFragen(Stundenaenderung.KonfliktText(D, l, v0.Datum, v0.Stunde, eintrag), out raumUebernehmen);
+            if (w is null or 0) return;
+            betreuung = w == 1;
+        }
+        var raum = raumUebernehmen ? eintrag?.RaumIds.FirstOrDefault() : null;
+        Aktion(betreuung ? $"Betreuung {b.Lehrer.Kurzname}" : $"Vertreter {b.Lehrer.Kurzname}", (d, v) =>
+        {
+            Vertretungen.VertreterSetzen(d, v, l, betreuung, AppZustand.Benutzer);
+            if (raum is int r && r != 0) v.VertretungsraumId = r;
+        });
+    }
+
+    /// <summary>
+    /// Frage wie im Vorbild: „Lehrer … hat am … in der … Stunde bereits Unterricht“, Optionen (Lehrer nicht verplanen / Lehrer hält sowohl
+    /// Unterricht als auch Vertretung (Betreuung) / Lehrer im regulären Unterricht vertreten lassen) und „Raum des Betreuungslehrers übernehmen“.
+    /// </summary>
+    /// <returns>0 nicht verplanen, 1 Betreuung, 2 vertreten lassen; null = abgebrochen.</returns>
+    private int? BetreuungFragen(string text, out bool raumUebernehmen)
+    {
+        raumUebernehmen = false;
+        var optionen = new[] { "Lehrer nicht verplanen", "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)", "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)" };
+        using var d = new Dialog("Frage", 520, 290);
+        d.Controls.Add(new TextBox { Text = text.Replace("\n", Environment.NewLine), Left = 12, Top = 10, Width = 496, Height = 100, Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = d.BackColor });
+        var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 116, Width = 496, Height = 28 + optionen.Length * 24 };
+        var knoepfe = optionen.Select((o, i) => new RadioButton { Text = o, Left = 12, Top = 20 + i * 24, Width = 476, Checked = i == 1 }).ToList();
+        grp.Controls.AddRange(knoepfe.ToArray<Control>());
+        var raum = new CheckBox { Text = "Raum des Betreuungslehrers übernehmen", Left = 12, Top = grp.Bottom + 8, AutoSize = true, Checked = true };
+        knoepfe[1].CheckedChanged += (_, _) => raum.Enabled = knoepfe[1].Checked;
+        d.Controls.AddRange(new Control[] { grp, raum });
+        d.Abbrechen.Visible = false;
+        d.Ok.Left = d.Abbrechen.Left;
+        if (d.ShowDialog(this) != DialogResult.OK) return null;
+        var wahl = knoepfe.FindIndex(k => k.Checked);
+        raumUebernehmen = wahl == 1 && raum.Checked;
+        return wahl;
     }
 
     private void Raum()
@@ -655,10 +858,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         if (_v is null || _vorziehung.CurrentRow?.Tag is not Vorziehung vz) return;
         var id = _v.Id;
         var warOffen = _v.OffenOderRaumOffen;
+        var (modus, spaeter) = ((VorziehungsModus)Math.Max(0, _vorzArt.SelectedIndex), _vorzSpaeter.Checked);
         Aendern("Vorziehung", AenderungsArt.Vertretung, d =>
         {
             var v = d.Vertretungen.First(x => x.Id == id);
-            var aktuell = VertretungsVorschlag.Vorziehungen(d, v).FirstOrDefault(x => x.Datum == vz.Datum && x.Stunde == vz.Stunde && x.Eintrag.Unterricht?.Id == vz.Eintrag.Unterricht?.Id)
+            var aktuell = VertretungsVorschlag.Vorziehungen(d, v, modus, spaeter).FirstOrDefault(x => x.Datum == vz.Datum && x.Stunde == vz.Stunde && x.Eintrag.Unterricht?.Id == vz.Eintrag.Unterricht?.Id)
                           ?? throw new InvalidOperationException("Die Vorziehung ist nicht mehr möglich.");
             VertretungsVorschlag.VorziehungAusfuehren(d, v, aktuell, AppZustand.Benutzer);
         });

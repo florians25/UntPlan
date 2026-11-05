@@ -327,25 +327,26 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
     {
+        // Reihenfolge und Bezeichnungen wie im Dialog „Felder der Ansicht“ des Vorbilds (Handbuch Vertretungsplanung, Kap. 7.1)
         ("Nr", "Vtr-Nr.", "Vertretungsnummer", 46, true, true, false), ("Art", "Art", "Art der Vertretung", 70, true, true, false),
-        ("Datum", "Datum", "Datum (TT.MM.) – automatisch bei mehreren Tagen", 44, true, false, false), ("Tag", "Tag", "Tag", 30, true, false, false),
+        ("Datum", "Datum", "Datum (TT.MM.)", 44, true, false, false), ("Tag", "Tag", "Tag", 30, true, false, false),
         ("Std", "Stunde", "Std.", 46, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
-        ("Fach", "(Fach)", "statt Fach", 52, true, true, true), ("NFach", "Fach", "Fach", 48, false, true, true),
-        ("Lehrer", "(Lehrer)", "statt Lehrer", 56, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 62, false, true, true),
-        ("AKlassen", "(Klasse(n))", "statt Klasse(n)", 62, true, false, true), ("Klassen", "Klasse(n)", "Klasse(n)", 62, true, true, true),
-        ("Raum", "(Raum)", "statt Raum", 52, true, true, true), ("NRaum", "Raum", "Raum", 48, false, true, true),
+        ("Fach", "(Fach)", "statt Fach:", 52, true, true, true), ("NFach", "Fach", "Fach", 48, false, true, true),
+        ("Lehrer", "(Lehrer)", "statt Lehrer:", 56, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 62, false, true, true),
+        ("AKlassen", "(Klasse(n))", "statt Klasse(n):", 62, true, false, true), ("Klassen", "Klasse(n)", "Klasse(n)", 62, true, true, true),
+        ("Raum", "(Raum)", "statt Raum:", 52, true, true, true), ("NRaum", "Raum", "Raum", 48, false, true, true),
+        ("Kz", "Statistik", "Statistik-Kennzeichen", 50, false, false, false),
         ("Von", "Vertr. von", "Verlegung", 68, true, true, false), ("Nach", "(Le.) nach", "Wegverlegung", 68, true, true, false),
-        ("Text", "Text", "Vertretungs-Text", 200, false, true, false), ("Kz", "Statistik", "Statistik-Kennzeichen", 50, false, false, false),
-        ("SG", "Schülergruppe", "Schülergruppe", 110, false, false, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),
         ("UText", "Unt.-Text", "Unterrichts-Text", 90, true, false, false), ("UZText", "Unt.-Zeilentext", "Unterrichts-Zeilentext", 90, true, false, false),
-        ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Entf", "Entfall", "Entfall", 44, true, false, false),
-        ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false), ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false),
-        ("Neu", "Neu", "Neue Vertretung", 36, true, false, false), ("Fix", "(X)", "(X) Fixiert", 30, true, false, false),
+        ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Text", "Text", "Vertretungs-Text", 200, false, true, false),
+        ("Entf", "Entfall", "Entfall", 44, true, false, false), ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false),
+        ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false), ("Neu", "Neu", "Neue Vertretung", 36, true, false, false),
+        ("Fix", "(X)", "(X) Fixiert", 30, true, false, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),
         ("ND", "(N)", "(N) Nicht Drucken", 30, true, false, false), ("Text2", "Text 2", "Vertretungs-Text 2", 120, false, false, false),
         ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zähler", "Zähler", 46, true, false, false),
         ("Unterschrift", "Unterschrift", "Unterschrift", 80, true, false, false), ("Wert", "Wert", "Wert bzw. Faktor", 46, false, false, false),
-        ("Abt", "Abteilung", "Abteilung", 70, true, false, true), ("Benutzer", "Benutzer", "Benutzer", 70, true, false, false),
-        ("Mehr", "Mehrarb.", "Mehrarbeit", 54, true, false, false),
+        ("SG", "Schülergruppe", "Schülergruppe", 110, false, false, false), ("Abt", "Abteilung", "Abteilung", 70, true, false, true),
+        ("Benutzer", "Benutzer", "Benutzer", 70, true, false, false), ("Mehr", "Mehrarb.", "Mehrarbeit", 54, true, false, false),
     };
 
     /// <summary>
@@ -429,6 +430,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             var r = t.Rows.Add(s.Feld, x.Contains('a'), x.Contains('d'), s.Lang ? (x.Contains('L') ? "Langname" : "Kurzname") : "");
             t.Rows[r].Tag = s.Name;
             if (s.Standard) t.Rows[r].Cells[0].Style.Font = Ui.SchriftFett;
+            if (s.Name == "Datum") t.Rows[r].Cells[0].ToolTipText = "Wird automatisch eingeblendet, sobald mehrere Tage angezeigt werden.";
             if (!s.Lang) t.Rows[r].Cells["L"].ReadOnly = true;
             // Vertretungsnummer kann am Bildschirm nicht ausgeblendet werden (für den Druck schon)
             if (s.Name == "Nr") { t.Rows[r].Cells["A"].ReadOnly = true; t.Rows[r].Cells["A"].Style.BackColor = Color.Gainsboro; }
