@@ -90,7 +90,7 @@ struct StundendetailInhalt: View {
         _auswahl = auswahl
         _einflug = einflug
         self.reiterRaum = reiterRaum
-        _daten = StateObject(wrappedValue: Stundendaten(karte: karte))
+        _daten = StateObject(wrappedValue: Stundendaten.fuer(karte))
         _einflugVersatz = State(initialValue: einflug.wrappedValue)
         // Reiterwechsel im offenen Blatt: nicht erneut auf das Einblenden warten
         _eingeblendet = State(initialValue: einflug.wrappedValue != 0)

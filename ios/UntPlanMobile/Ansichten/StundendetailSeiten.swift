@@ -35,6 +35,23 @@ final class Stundendaten: ObservableObject {
         self.karte = karte
     }
 
+    /// Zwischenspeicher geöffneter Stunden: erneutes Öffnen zeigt die Details sofort (ohne Ladebild),
+    /// aktualisiert wird im Hintergrund. NSCache ist threadsicher und gibt bei Speicherknappheit selbst frei.
+    nonisolated(unsafe) private static let speicher: NSCache<NSString, Stundendaten> = {
+        let c = NSCache<NSString, Stundendaten>()
+        c.countLimit = 40
+        return c
+    }()
+
+    /// Daten einer Stunde – aus dem Zwischenspeicher, sonst neu.
+    nonisolated static func fuer(_ karte: Karte) -> Stundendaten {
+        let schluessel = "\(karte.datum)|\(karte.von)|\(karte.bis)|\(karte.unterricht.map { String($0) } ?? "-")|\(karte.fach)|\(karte.istEntfall)" as NSString
+        if let d = speicher.object(forKey: schluessel) { return d }
+        let d = Stundendaten(karte: karte)
+        speicher.setObject(d, forKey: schluessel)
+        return d
+    }
+
     /// Klassen der Stunde (bei Änderung der ursprüngliche Wert, falls der neue leer ist).
     var klassen: [String] {
         karte.klassen.map { $0.k.isEmpty ? ($0.alt ?? "") : $0.k }.filter { !$0.isEmpty }
@@ -603,7 +620,10 @@ struct NotizSeite: View {
             }
         } rechts: {
             if bearbeitbar {
-                SichernKnopf(speichert: speichert, aktiv: text != anfang) { Task { await sichern() } }
+                SichernKnopf(speichert: speichert, aktiv: text != anfang) {
+                    // wie im Original: nach dem Speichern schließt das Fenster automatisch
+                    Task { if await sichern() { zurueck() } }
+                }
             }
         }
         .onAppear {
