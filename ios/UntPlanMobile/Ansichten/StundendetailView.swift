@@ -147,7 +147,7 @@ struct StundendetailInhalt: View {
             }
             if zeigtSkelett {
                 Detailskelett()
-                    .transition(.opacity)
+                    .transition(.identity)
             } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -209,8 +209,9 @@ struct StundendetailInhalt: View {
             }
             }
         }
-        // Inhalt blendet über das Ladebild ein; zurück zum Ladebild (beim Schließen) ohne Überblenden
-        .animation(zeigtSkelett ? nil : .easeOut(duration: 0.18), value: zeigtSkelett)
+        // Platzhalter → Inhalt ohne Überblenden: beim Überblenden zeichnet das Blatt beide Ebenen gleichzeitig und baut die Liste
+        // im selben Bild auf – das wirkte auf dem Gerät ruckelig (Original: harter Wechsel)
+        .transaction(value: zeigtSkelett) { $0.animation = nil }
         .task {
             guard blattBewegt == nil, !eingeblendet else { return }
             // Systemblatt: nach dem Einblenden (≈ 0,35 s) den Inhalt aufbauen
