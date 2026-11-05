@@ -109,8 +109,9 @@ public class KartenDarstellungTests
         Assert.Contains("export const ZUSATZ_TEXT = 'Zusätzl. Unterrichtsstunde';", js);
         Assert.Contains("if (k.text && k.fach && !/^entf", js);   // Sprint 27: Info-Symbol auch bei Zusatzstunden mit eigenem Text
         var css = Datei("css", "karten.css");
-        Assert.Contains(".mks .mk-verlegung.von { background-color: #f03e3e;", css);
-        Assert.Contains("M3.5 8h9M9 4.5 12.5 8 9 11.5", css);    // Pfeil nach rechts (ursprüngliche Stunde)
+        // Verlegungs-Marker abgerundet wie Vorlage in app.css (Quadrat grün, Ursprung als Dreieck mit Pfeil auf #FFE5DE)
+        Assert.Contains(".mks .mk-verlegung.weg {", Datei("css", "app.css"));
+        Assert.DoesNotContain(".mks .mk-verlegung.von {", css);
         Assert.DoesNotContain("M12.5 8h-9M7 4.5 3.5 8 7 11.5", css);   // Sprint 27: auch die Zielstunde mit Pfeil nach rechts
         // Zeilen etwas enger
         Assert.Contains(".std .z1 { margin-bottom: 0; }", css);

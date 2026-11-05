@@ -353,7 +353,8 @@ public class KartenSprint27Tests
         var css = Datei("css", "karten.css");
         Assert.Contains(".u-hover-label.rot { background: #f44336;", css);
         Assert.Contains(".u-hover-label.klein { font-size: 13px;", css);
-        Assert.Contains("M13 3.5 23.5 21H2.5Z' fill='%23ff4040' stroke='%23ff4040' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M7.4 16h11.2M14.2 11.6l4.4 4.4-4.4 4.4' fill='none' stroke='%23fff' stroke-width='2.5'", css);
+        Assert.DoesNotContain("M13 3.5 23.5 21H2.5Z", css);   // spitzes Dreieck ersetzt durch abgerundetes in app.css
+        Assert.Contains("stroke-width='100' stroke-linejoin='round'", Datei("css", "app.css"));
         Assert.Contains(".u-hover-label.pillen span { background: #6b7680;", css);
         Assert.Contains(".u-hover-label.pillen span.p-weg, .u-hover-label.pillen span.p-aus { text-decoration: line-through;", css);
         Assert.Contains(".std .z-liste > .z-namen", css);
