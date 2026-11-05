@@ -1967,3 +1967,13 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 /* Abmelden und Neuigkeiten wie in der Vorlage: Hover-Fläche gleich lang wie bei den Menüpunkten, aber niedriger (32 px statt 40 px) */
 .u-benutzer { width: calc(100% - 16px); }
 .u-abmelden { width: calc(100% - 16px); padding-top: 4px; padding-bottom: 4px; margin-top: 0; min-height: 32px; }
+
+/* Einheitliche Menülogik in allen Menüs (Hauptmenü, Stammdaten, Administration): Überfahren hellorange (#ffeae6) mit orangem
+   Text/Symbol bis 16 px vor den rechten Rand, rechts voll abgerundet; aktiver Punkt orange mit Balken links, ohne Fläche.
+   Höhere Spezifität, damit spätere Stildateien (nl-design.css) das Überfahren nicht grau färben. */
+.u-leiste .u-nav .u-nav-punkt:hover,
+.u-leiste .u-nav .u-nav-punkt.aktiv:hover { background: #ffeae6; color: var(--u-akzent); border-radius: 0 999px 999px 0; width: calc(100% - 16px); }
+.u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
+.u-leiste .u-nav .u-nav-punkt.aktiv { background: none; color: var(--u-akzent); }
+.u-leiste .u-nav-kompakt .u-nav-punkt { width: calc(100% - 16px); }
+.u-leiste .u-nav-kompakt .u-nav-punkt.aktiv::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 0; background: var(--u-akzent); }
