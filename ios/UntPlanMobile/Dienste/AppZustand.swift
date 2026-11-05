@@ -32,6 +32,9 @@ final class AppZustand: ObservableObject {
     @Published var konten: [Konto] = []
     /// Zählt bei jedem Kontowechsel hoch – die Oberfläche wird für das neue Konto frisch aufgebaut
     @Published var kontoStand = 0
+    /// Kontowechsel aus der laufenden App: wie im Original bleibt die Oberfläche stehen und wird abgedunkelt, bis das
+    /// neue Konto bereit ist (statt der leeren Seite „Verbindung wird hergestellt …“)
+    @Published var kontoWechselLaeuft = false
 
     /// Rechte für Entschuldigungen (Fachlehrkraft bzw. Klassenleitung); nil = noch nicht geladen.
     @Published var entschuldigungsrechte: Entschuldigungsrechte? = nil
@@ -157,10 +160,16 @@ final class AppZustand: ObservableObject {
         UserDefaults.standard.set(konto.merken, forKey: ApiClient.merkenSchluessel)
         Kontenspeicher.sitzungWiederherstellen(fuer: konto.id)
         Kontenspeicher.aktivId = konto.id
-        sitzung = nil
-        oberflaecheZuruecksetzen()
-        // Während des Wechsels „Verbindung wird hergestellt …“ statt der Daten des vorigen Kontos
-        phase = .startet
+        // Aus der laufenden App: Oberfläche abgedunkelt stehen lassen (Original), sonst „Verbindung wird hergestellt …“
+        let ausOberflaeche = phase == .angemeldet
+        if ausOberflaeche {
+            withAnimation(.easeInOut(duration: 0.2)) { kontoWechselLaeuft = true }
+        } else {
+            sitzung = nil
+            oberflaecheZuruecksetzen()
+            phase = .startet
+        }
+        defer { kontoWechselLaeuft = false }
         do {
             var s = try await api.sitzung()
             if s.benutzer == nil, let passwort = Schluesselbund.lesen(konto: konto.id) {
@@ -168,6 +177,7 @@ final class AppZustand: ObservableObject {
                 s = try await api.sitzung()
             }
             if s.benutzer != nil {
+                if ausOberflaeche { oberflaecheZuruecksetzen() }
                 Kontenspeicher.sitzungSichern(fuer: konto.id)
                 _ = kontoMerken(server: konto.server, login: konto.login, merken: konto.merken, sitzung: s)
                 kontoStand += 1
@@ -178,6 +188,10 @@ final class AppZustand: ObservableObject {
             }
         } catch {
             // Server nicht erreichbar oder Sitzung abgelaufen: Anmeldemaske (mit Server und Benutzer des Kontos)
+        }
+        if ausOberflaeche {
+            sitzung = nil
+            oberflaecheZuruecksetzen()
         }
         phase = .abgemeldet
         return false

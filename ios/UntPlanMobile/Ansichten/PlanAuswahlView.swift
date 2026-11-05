@@ -147,7 +147,8 @@ struct PlanAuswahlView: View {
             .scrollDismissesKeyboard(.immediately)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Plankategorie.self) { kategorie in
-                ElementlisteView(kategorie: kategorie, elemente: elemente, auswahl: auswahl) { plan in
+                ElementlisteView(kategorie: kategorie, elemente: elemente, auswahl: auswahl,
+                                 schuljahrfilter: zustand.istKollegium) { plan in
                     waehlen(plan)
                 }
                 .environmentObject(favoriten)
@@ -402,6 +403,8 @@ struct ElementlisteView: View {
     let kategorie: Plankategorie
     let elemente: Elemente?
     let auswahl: PlanAuswahl?
+    /// Filter „Aktuelles Schuljahr“ zeigen (Original: nur in Konten des Kollegiums, Schüler*innen sehen ihn nicht)
+    var schuljahrfilter: Bool = true
     let waehlen: (PlanAuswahl) -> Void
     @EnvironmentObject var favoriten: Favoriten
     @Environment(\.dismiss) private var zurueck
@@ -424,7 +427,8 @@ struct ElementlisteView: View {
         var id: String { buchstabe }
     }
 
-    private var gruppen: [Gruppe] {
+    /// Einmal je Zeichnen berechnet (body hält das Ergebnis in einer Konstante – nicht für jede Abfrage neu sortieren).
+    private var gruppenBerechnen: [Gruppe] {
         let sortiert = gefiltert.sorted { $0.kurz.localizedStandardCompare($1.kurz) == .orderedAscending }
         var ergebnis: [Gruppe] = []
         for e in sortiert {
@@ -438,13 +442,13 @@ struct ElementlisteView: View {
         return ergebnis
     }
 
-    /// Register am rechten Rand nur ohne Suche und bei mehreren Gruppen (wie in den Kontakten).
-    private var mitRegister: Bool { suche.isEmpty && gruppen.count > 1 }
-
-    /// Filter „Aktuelles Schuljahr“ nur bei Klassen (die Klassen wechseln mit dem Schuljahr).
-    private var mitFilter: Bool { kategorie == .klasse }
+    /// Filter „Aktuelles Schuljahr“ nur bei Klassen (die Klassen wechseln mit dem Schuljahr) und nur im Kollegium.
+    private var mitFilter: Bool { kategorie == .klasse && schuljahrfilter }
 
     var body: some View {
+        let gruppen = gruppenBerechnen
+        // Register am rechten Rand nur ohne Suche und bei mehreren Gruppen (wie in den Kontakten)
+        let mitRegister = suche.isEmpty && gruppen.count > 1
         ScrollViewReader { leser in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {

@@ -56,6 +56,8 @@ struct StundenplanView: View {
     /// Stand je geladener Woche (zählt bei jedem Neuladen hoch) – das Raster rechnet nur bei neuem Stand neu
     @State private var staende: [String: Int] = [:]
     @State private var laedt = false
+    /// Zuletzt geladene Woche (beliebiger Plan): Vorlage für das leere Raster, solange ein neu gewählter Plan lädt
+    @State private var leerVorlage: Wochenplan? = nil
     @State private var fehler: String? = nil
     /// Geöffnete Stundendetails (mit allen Stunden derselben Zeit als Reiter)
     @State private var detail: Detailauswahl? = nil
@@ -207,9 +209,10 @@ struct StundenplanView: View {
                         .padding(.bottom, 6)
                 }
                 inhalt
-                    // Kräftiger oranger Ladebalken direkt unter der Kopfzeile, solange der Plan lädt
+                    // Kräftiger oranger Ladebalken direkt unter der Kopfzeile, solange ein angezeigter Plan neu lädt; beim
+                    // ersten Laden eines Plans wie im Original ohne Balken (dort stehen leeres Raster bzw. Ladekreis)
                     .overlay(alignment: .top) {
-                        Ladebalken(aktiv: laedt)
+                        Ladebalken(aktiv: laedt && aktuellerPlan != nil)
                     }
             }
             .background(Farben.leiste.ignoresSafeArea())
@@ -564,7 +567,7 @@ struct StundenplanView: View {
             let kompakt = groessenklasse == .compact
             let rinne = Rasterrahmen.rinnenBreite(kompakt: kompakt)
             let sw = max(w - rinne, 1)
-            let daten = seiten.map { seitendaten($0) }
+            let daten = mitLeerraster(seiten.map { seitendaten($0) })
             Group {
                 if let rahmen = rahmenSpeicher.rahmen(seiten: daten, typ: typ, element: element, kompakt: kompakt,
                                                       tagesansicht: ansicht == .tag, untenFrei: untenFrei) {
@@ -726,6 +729,41 @@ struct StundenplanView: View {
                                  abwesenheiten: p.map { abwesenheitsbalken($0) } ?? [:])
     }
 
+    /// Neu gewählter Plan, von dem noch keine Woche geladen ist: wie im Original steht sofort das Raster (Kopf mit den
+    /// Tagen, Zeitleiste, Linien) leer da, bis die Stunden kommen – nach dem Zeitraster der zuletzt geladenen Woche.
+    /// Ohne Vorlage (erster Aufbau, Kontowechsel) bleibt es beim Ladekreis.
+    private func mitLeerraster(_ daten: [Rasterseitendaten]) -> [Rasterseitendaten] {
+        guard daten.count == 3, daten.allSatisfy({ $0.plan == nil }), let vorlage = leerVorlage,
+              let mustertag = vorlage.tage.first(where: { !$0.frei }) ?? vorlage.tage.first else { return daten }
+        let d = daten[1]
+        var leer = vorlage
+        leer.typ = typ
+        leer.element = element
+        leer.montag = Datumsformat.iso(d.montag)
+        leer.karten = []
+        leer.aufsichten = []
+        leer.abwesenheiten = nil
+        leer.gesperrt = false
+        leer.sperrhinweis = nil
+        leer.tage = d.kopftage.map { iso in
+            var t = mustertag
+            t.datum = iso
+            t.frei = false
+            t.freiGrund = nil
+            t.freiArt = nil
+            t.freiVon = nil
+            t.freiBis = nil
+            t.tagesaktuell = false
+            t.hinweise = []
+            t.ereignisse = []
+            return t
+        }
+        var ergebnis = daten
+        ergebnis[1] = Rasterseitendaten(anfang: d.anfang, montag: d.montag, plan: leer, nurTage: d.nurTage, stand: 0,
+                                        abwesenheiten: [:])
+        return ergebnis
+    }
+
     /// Wochen zu einem Plan zusammenführen (Ansicht über das Wochenende hinweg, z. B. Fr. und Mo.).
     private func zusammengefuehrt(_ wochen: [Wochenplan]) -> Wochenplan? {
         guard var p = wochen.first else { return nil }
@@ -865,6 +903,7 @@ struct StundenplanView: View {
             let neuerPlan = try await zustand.api.plan(typ: t, element: e, datum: m)
             plaene[k(m)] = neuerPlan
             staende[k(m), default: 0] += 1
+            if !neuerPlan.gesperrt, !neuerPlan.tage.isEmpty, !neuerPlan.zeitraster.isEmpty { leerVorlage = neuerPlan }
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
@@ -930,33 +969,20 @@ struct Sperrhinweis: View {
     }
 }
 
-/// Seite einer noch nicht geladenen Woche: Kopf mit KW und Tagen, darunter ein Ladekreis.
+/// Erster Aufbau ohne jede geladene Woche (Start, Kontowechsel): wie im Original nur die Fläche der Leiste (dunkel
+/// schwarz) mit dem Ladekreis in der Mitte – ohne KW-Zeile und Raster; danach erscheint das Raster mit den Stunden.
 struct Platzhalterwoche: View {
     let montag: Date
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .bottom, spacing: 0) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("KW \(Datumsformat.kalenderwoche(montag))")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(Farben.kopfText2)
-                    Text(Wochenkopf.monat(montag))
-                        .font(.system(size: 17.5, weight: .semibold))
-                        .foregroundStyle(Farben.kopfText)
-                }
-                .padding(.leading, 6)
-                Spacer()
-            }
-            .lineLimit(1)
-            .padding(.top, 2)
-            .padding(.bottom, 8)
-            .background(Farben.leiste)
-            ZStack {
-                LinearGradient(colors: [Farben.rasterOben, Farben.rasterUnten], startPoint: .top, endPoint: .bottom)
-                ProgressView()
-            }
+        ZStack {
+            Farben.leiste
+            ProgressView()
+                .controlSize(.regular)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Stundenplan für KW \(Datumsformat.kalenderwoche(montag)) wird geladen")
     }
 }
 
