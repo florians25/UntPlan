@@ -87,7 +87,7 @@ public sealed class WertkorrekturSeite : TabPage
             if (datumText.Length == 0 && wertText.Length == 0) continue;
             DateOnly datum;
             try { datum = Ui.DatumLesen(datumText.Length == 0 ? Format.Datum(AppZustand.Datum) : datumText, AppZustand.Datum); }
-            catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException) { Ui.Info($"Das Datum „{datumText}“ ist ungültig."); return; }
+            catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException) { Ui.EingabeHinweis(_g, $"Das Datum „{datumText}“ ist ungültig – bitte als TT.MM.JJJJ eingeben."); return; }
             if (!decimal.TryParse(wertText.Replace(',', '.'), NumberStyles.Number, CultureInfo.InvariantCulture, out var wert)) wert = 0;
             neu.Add(new Wertkorrektur { Datum = datum, Art = r.Cells["Art"].Value?.ToString() is { Length: > 0 } a ? a : "V", Wert = wert, Text = r.Cells["Text"].Value?.ToString() ?? "" });
         }

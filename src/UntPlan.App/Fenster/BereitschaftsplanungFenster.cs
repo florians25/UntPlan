@@ -202,6 +202,7 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
     private void Entfernen()
     {
         if (_gewaehlt is not { } g || _eingeteilt.SelectedItem is not Eintrag e) return;
+        if (!Ui.LoeschenBestaetigen(1, "Bereitschaft", "Bereitschaften", e.L.Kurzname)) return;
         Aendern($"Bereitschaft {e.L.Kurzname} entfernen", AenderungsArt.Stundenplan, d => Bereitschaftsplanung.Entfernen(d, e.L.Id, g.Tag, g.Stunde));
     }
 

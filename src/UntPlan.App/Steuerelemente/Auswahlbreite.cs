@@ -127,46 +127,20 @@ public static class Auswahlbreite
     }
 
     /// <summary>
-    /// Mausrad über einer geschlossenen Auswahlliste: Wert nicht ändern (auch nicht, wenn sie den Fokus hat – zu leicht passiert
-    /// das beim Rollen durch einen Dialog oder eine Tabelle), stattdessen die umgebende Tabelle bzw. Fläche rollen.
+    /// Einzelne Auswahlfelder (Dialoge, Werkzeugleisten, Kopfbereiche, Formulare) auf den gemeinsamen Baustein
+    /// <see cref="ListenSuche"/> umstellen – jede Auswahlliste, unabhängig von Länge und Inhalt, verhält sich wie die Auswahlzellen
+    /// der Tabellen. Freie Eingabefelder (Stil DropDown ohne Stammdaten) behalten ihren Text und bekommen nur Darstellung und Schutz.
     /// </summary>
-    internal static void MausradSchuetzen(object? sender, MouseEventArgs e)
-    {
-        if (sender is not ComboBox cb || cb.DroppedDown || e is not HandledMouseEventArgs h) return;
-        h.Handled = true;
-        for (var p = cb.Parent; p != null; p = p.Parent)
-        {
-            if (p is DataGridView g)
-            {
-                if (g.RowCount == 0) return;
-                var zeilen = Math.Max(1, SystemInformation.MouseWheelScrollLines) * (e.Delta > 0 ? -1 : 1);
-                var erste = Math.Clamp(g.FirstDisplayedScrollingRowIndex + zeilen, 0, g.RowCount - 1);
-                // laufende Eingabe in der Zelle nicht abbrechen – nur rollen, wenn die Zeile sichtbar bleiben kann
-                try { if (erste >= 0 && g.Rows[erste].Visible) g.FirstDisplayedScrollingRowIndex = erste; } catch (InvalidOperationException) { }
-                return;
-            }
-            if (p is ScrollableControl { AutoScroll: true } sc && sc.VerticalScroll.Visible)
-            {
-                var y = -sc.AutoScrollPosition.Y - e.Delta;
-                sc.AutoScrollPosition = new Point(-sc.AutoScrollPosition.X, Math.Max(0, y));
-                return;
-            }
-        }
-    }
-
-    /// <summary>Lange Auswahllisten ohne Langnamen bekommen ebenfalls die Direktsuche (ab so vielen Einträgen).</summary>
-    private const int SucheAbEintraegen = 8;
-
-    /// <summary>Einzelne Auswahlfelder (Dialoge, Werkzeugleisten, Unterfenster) auf dieselbe Darstellung wie in den Tabellen bringen.</summary>
     public static void Vereinheitlichen(ComboBox cb)
     {
-        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView) return;
-        // Direktsuche auch für lange feste Listen (Tippen filtert, Enter/Tab übernimmt, Escape stellt zurück)
-        var lang = cb.DropDownStyle == ComboBoxStyle.DropDownList && cb.DataSource is null && cb.Items.Count >= SucheAbEintraegen;
-        if (!lang && !MitLangnamen(cb)) return;
+        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView) return;
         if (cb.DropDownStyle == ComboBoxStyle.DropDownList) Ui.Suchliste(cb);
-        else ListenSuche.Einrichten(cb);
+        else if (cb.DropDownStyle == ComboBoxStyle.DropDown) ListenSuche.Einrichten(cb, frei: !MitLangnamen(cb));
     }
+
+    /// <summary>Nutzt die Auswahlliste den gemeinsamen Baustein (bzw. ist sie bewusst ein eigenes, selbst gezeichnetes Feld)?</summary>
+    public static bool Einheitlich(ComboBox cb) =>
+        ListenSuche.HatMausradSchutz(cb) && !cb.Font.Bold && (ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) || cb.DrawMode != DrawMode.Normal);
 
     private static void Erfassen(Control c)
     {
@@ -186,19 +160,20 @@ public static class Auswahlbreite
                 }
                 cb.VisibleChanged += (_, _) => { if (cb.Visible) Vereinheitlichen(cb); };
                 cb.Enter += (_, _) => Vereinheitlichen(cb);
-                cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); };
+                // auch eigene, selbst gezeichnete Listen: mindestens so breit wie Kurz- und Langname und immer nach unten
+                cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) { ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); ListenSuche.NachUnten(cb); } };
                 // kein versehentliches Umschalten mit dem Mausrad: nur in der geöffneten Liste blättert das Rad, sonst rollt die Umgebung
-                cb.MouseWheel += MausradSchuetzen;
+                ListenSuche.MausradSchuetzen(cb);
                 break;
             case DataGridView g:
+                // Auswahlzellen jeder Tabelle (auch in Dialogen) mit demselben Baustein wie die Vertretungsliste: Kurz- und Langname,
+                // Direktsuche, Enter/Tab übernimmt, Esc stellt zurück, ungültige Eingabe bleibt beim alten Wert
+                if (!SuchKombi.IstAktiv(g)) SuchKombi.Aktivieren(g);
                 g.EditingControlShowing += (_, e) =>
                 {
                     if (e.Control is not ComboBox cb) return;
                     if (g.CurrentCell?.OwningColumn is DataGridViewComboBoxColumn aktSpalte) SpaltenListeBreit(aktSpalte);
                     Erfassen(cb);
-                    // Auswahlzellen aller Tabellen wie die Vertretungsliste: Kurz- und Langname, Direktsuche, breite Liste
-                    if (!SuchKombi.IstAktiv(g) && g.CurrentCell is DataGridViewComboBoxCell && cb.DrawMode == DrawMode.Normal && MitLangnamen(cb))
-                        ListenSuche.Einrichten(cb);
                     ListenSuche.BreiteAktualisieren(cb);
                     g.BeginInvoke(() => { if (!cb.IsDisposed) ListenSuche.BreiteAktualisieren(cb); });
                 };
@@ -209,6 +184,8 @@ public static class Auswahlbreite
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
                 // Kopieren nur als reiner Text (sichtbare Zellen, ohne HTML/CSV-Formate)
                 NurText.Tabelle(g);
+                // einheitliches Eingabeverhalten (Enter/Esc/F2/Entf/Strg+V/Strg+X, ungültige Eingaben) in allen Tabellen
+                Tabellenbedienung.Einrichten(g);
                 // Freitextspalten (Text, Bemerkung …): Vorschläge aus den zuletzt verwendeten Eingaben
                 Textverlauf.Tabelle(g);
                 g.CellPainting += KontrollkaestchenOhneHover;

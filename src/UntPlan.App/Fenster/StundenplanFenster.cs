@@ -764,7 +764,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     {
         var name = _plan.Format.Name;
         if (!D.Formate.Any(x => x.Typ == _typ && x.Name == name)) { Ui.Info("Das Standardformat ist nicht gespeichert und kann nicht gelöscht werden."); return; }
-        if (!Ui.Frage($"Stundenplanformat \"{name}\" löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(1, "Stundenplanformat", "Stundenplanformate", name)) return;
         Aendern("Stundenplanformat löschen", AenderungsArt.Einstellungen, d => d.Formate.RemoveAll(x => x.Typ == _typ && x.Name == name));
         _formatName = null;
         AppZustand.Einstellungen.Stundenplanformate.Remove(FormatSchluessel);
@@ -868,6 +868,32 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         if (ziel is null) return false;
         ziel.ElementAmTagZeigen(id, v);
         return true;
+    }
+
+    /// <summary>
+    /// Vorziehungsvorschlag gewählt (Handbuch Vertretungsplanung Kap. 3.5): alle verknüpften tagesaktuellen Pläne zeigen mit roten Pfeilen,
+    /// wie sich der Stundenplan ändern würde (Schritt 1: vorgezogene Stunde → offene Stunde, Schritt 2: → Lücke bzw. zweite Blockstunde);
+    /// null entfernt die Pfeile. Liefert die Zahl der Pläne, in denen ein Pfeil sichtbar ist.
+    /// </summary>
+    internal static int VorziehungAnzeigen(Vorziehung? vz, Vertretung? v)
+    {
+        var pfeile = new List<(DateOnly, int, DateOnly, int)>();
+        if (vz != null && v != null)
+        {
+            pfeile.Add((vz.Datum, vz.Stunde, v.Datum, v.Stunde));
+            if (vz.Schritt2 is { } s2)
+            {
+                var (datum2, stunde2) = vz.Schritt2VertretungId is int id2 && AppZustand.D.Vertretungen.FirstOrDefault(x => x.Id == id2) is { } v2 ? (v2.Datum, v2.Stunde) : (vz.Datum, vz.Stunde);
+                pfeile.Add((s2.Datum, s2.Stunde, datum2, stunde2));
+            }
+        }
+        var n = 0;
+        foreach (var f in AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().Where(f => !f.IsDisposed))
+        {
+            f._plan.VorschauPfeileSetzen(pfeile);
+            if (f._plan.VorschauPfeileSichtbar > 0) n++;
+        }
+        return n;
     }
 
     /// <summary>

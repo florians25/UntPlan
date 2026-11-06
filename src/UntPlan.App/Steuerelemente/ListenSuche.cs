@@ -4,9 +4,16 @@ using System.Runtime.InteropServices;
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
-/// Suche direkt in der Auswahlliste, ohne eigene Vorschlagsliste: Tippen öffnet die Liste und markiert den besten Treffer.
-/// Gesucht wird im Kurznamen und im Langnamen (Anfang, dann enthalten).
-/// Die Liste zeigt neben dem Kurznamen grau den Langnamen und öffnet immer nach unten (die Höhe passt sich dem Platz an).
+/// Der gemeinsame Baustein aller Auswahllisten (Formularfelder, Kopfbereiche, Werkzeugleisten, Dialoge und Tabellenzellen):
+/// <list type="bullet">
+/// <item>Kurzname | Langname in zwei Spalten, normaler Schnitt (nie fett), mindestens so breit wie beide Spalten</item>
+/// <item>öffnet immer nach unten, höchstens <see cref="SichtbareEintraege"/> Einträge hoch</item>
+/// <item>Tippen öffnet die Liste und springt sofort zum besten Treffer (Kurzname, dann Langname)</item>
+/// <item>Enter/Tab übernimmt den markierten Eintrag (wie ein Mausklick), Esc stellt den alten Wert her</item>
+/// <item>ungültige Eingabe wird nicht übernommen (kurzer Hinweis, der alte Wert bleibt)</item>
+/// <item>das Mausrad ändert den Wert nie, solange die Liste geschlossen ist (es rollt die Umgebung)</item>
+/// </list>
+/// Freie Eingabefelder (z. B. Land, Schuljahr) nutzen nur Darstellung, Breite, Richtung und Mausradschutz.
 /// </summary>
 public static class ListenSuche
 {
@@ -20,6 +27,33 @@ public static class ListenSuche
         public string VorherText = "";
         /// <summary>Seit dem Öffnen wurde getippt (die Liste zeigt Suchtreffer, der Text ist noch nicht übernommen).</summary>
         public bool Getippt;
+        /// <summary>Freies Eingabefeld: beliebiger Text erlaubt, die Liste bietet nur Vorschläge an.</summary>
+        public bool Frei;
+    }
+
+    /// <summary>Zahl der Einträge, die eine geöffnete Liste höchstens zeigt (überall gleich, danach Rollbalken).</summary>
+    public const int SichtbareEintraege = 20;
+
+    /// <summary>Zuletzt gezeigter Hinweis auf eine ungültige Eingabe (für den Selbsttest).</summary>
+    public static string? LetzterHinweis { get; private set; }
+
+    private static DateTime _hinweisZeit;
+
+    /// <summary>
+    /// Ungültige Eingabe melden (die Eingabe wird nicht übernommen, der bisherige Wert bleibt). Gemeinsamer Hinweis aller Masken
+    /// (<see cref="Ui.EingabeHinweis"/>: Statuszeile und kurzes Hinweisfenster unter dem Feld) statt eines Meldungsfensters,
+    /// damit die Eingabe ohne Klick weitergehen kann.
+    /// </summary>
+    public static void UngueltigMelden(ComboBox cb, string eingabe)
+    {
+        eingabe = eingabe.Trim();
+        if (eingabe.Length == 0 || cb.IsDisposed) return;
+        var text = $"„{eingabe}“ ist nicht in der Liste – der bisherige Wert bleibt erhalten.";
+        // dieselbe Ablehnung kommt beim Verlassen oft zweimal an (Taste und Prüfung): nur einmal zeigen
+        if (text == LetzterHinweis && (DateTime.Now - _hinweisZeit).TotalMilliseconds < 600) return;
+        LetzterHinweis = text;
+        _hinweisZeit = DateTime.Now;
+        Ui.EingabeHinweis(cb, text);
     }
 
     private static void VorherMerken(ComboBox cb, Zustand z)
@@ -44,19 +78,44 @@ public static class ListenSuche
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList && cb.Focused) cb.SelectAll();
     }
 
+    /// <summary>Ungültige Eingabe verwerfen: alten Wert herstellen und kurz darauf hinweisen.</summary>
+    private static void Ablehnen(ComboBox cb, Zustand z)
+    {
+        var eingabe = cb.Text;
+        var geaendert = z.Getippt && !string.Equals(eingabe.Trim(), z.VorherText.Trim(), StringComparison.CurrentCultureIgnoreCase);
+        // wie Esc: Liste schließen, alter Wert steht wieder im Feld
+        z.Getippt = false;
+        if (cb.DroppedDown) cb.DroppedDown = false;
+        Zuruecksetzen(cb, z);
+        if (geaendert) UngueltigMelden(cb, eingabe);
+    }
+
+    private static readonly System.Reflection.MethodInfo? AuswahlBestaetigt =
+        typeof(ComboBox).GetMethod("OnSelectionChangeCommitted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
     /// <summary>Markierten Treffer übernehmen (Enter, Tab); liefert false, wenn es keinen Treffer gibt.</summary>
     private static bool Uebernehmen(ComboBox cb, Zustand z)
     {
         var i = z.Markiert >= 0 ? z.Markiert : z.Getippt ? Treffer(cb, cb.Text, z) : cb.SelectedIndex;
+        // Text gelöscht: den leeren Eintrag wählen (falls die Liste einen hat) – wie das Löschen einer Zelle
+        if (i < 0 && z.Getippt && cb.Text.Trim().Length == 0)
+            for (var k = 0; k < cb.Items.Count && i < 0; k++) if ((cb.GetItemText(cb.Items[k]) ?? "").Length == 0) i = k;
         if (i < 0 || i >= cb.Items.Count) return false;
         z.Getippt = false;
         z.Markiert = -1;
         if (cb.DroppedDown) cb.DroppedDown = false;
+        var neu = cb.SelectedIndex != i || i != z.VorherIndex;
         if (cb.SelectedIndex != i) cb.SelectedIndex = i;
         var t = cb.GetItemText(cb.Items[i]) ?? "";
         if (cb.Text != t) cb.Text = t;
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList) cb.SelectAll();
         VorherMerken(cb, z);
+        // mit der Tastatur übernommen wie mit der Maus: dieselbe Reaktion des Fensters (z. B. anderes Element anzeigen)
+        if (neu && cb is not IDataGridViewEditingControl)
+        {
+            try { AuswahlBestaetigt?.Invoke(cb, new object[] { EventArgs.Empty }); }
+            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
+        }
         return true;
     }
 
@@ -70,21 +129,55 @@ public static class ListenSuche
 
     private static readonly ConditionalWeakTable<ComboBox, Zustand> Zustaende = new();
 
-    /// <summary>Langname eines Kurznamens (Lehrer, Klassen, Räume, Fächer, Gänge) – für die Anzeige in Auswahllisten.</summary>
+    /// <summary>
+    /// Langname eines Kurznamens (Lehrer mit vollem Namen, Klassen, Räume, Fächer, Gänge) und der Sonderwerte – für die Anzeige in
+    /// Auswahllisten, überall gleich.
+    /// </summary>
     public static string? Langname(string kurz)
     {
+        if (Sonderwert(kurz) is { } s) return s;
         if (string.IsNullOrWhiteSpace(kurz) || AppZustand.Doc is null) return null;
         var d = AppZustand.D;
         foreach (var liste in new IEnumerable<Core.Model.Element>[] { d.Lehrer, d.Klassen, d.Raeume, d.Faecher, d.Gaenge })
             foreach (var e in liste)
-                if (e.Kurzname == kurz) return string.IsNullOrWhiteSpace(e.Langname) || e.Langname == kurz ? null : e.Langname;
+                if (e.Kurzname == kurz) return ElementLangname(e);
         return null;
     }
+
+    /// <summary>Sonderwerte der Vertretungsplanung: „???“ offen, „---“ Entfall, „+++“ Vertretung ohne Lehrkraft.</summary>
+    public static string? Sonderwert(string kurz) => kurz switch
+    {
+        "???" => "offen",
+        "---" => "Entfall",
+        "+++" => "Vertr. o. Lehrkr.",
+        _ => null,
+    };
+
+    /// <summary>Zusatztext eines Elements in der Liste (Lehrkräfte mit vollem Namen; nichts, wenn er nur den Kurznamen wiederholt).</summary>
+    public static string? ElementLangname(Core.Model.Element e)
+    {
+        var l = e is Core.Model.Lehrer le && le.VollerName.Length > 0 ? le.VollerName : e.Langname;
+        return string.IsNullOrWhiteSpace(l) || l == e.Kurzname ? null : l;
+    }
+
+    /// <summary>Zusatztext (Langname) eines Listeneintrags: Elemente direkt, sonst über den Kurznamen.</summary>
+    private static string? Zusatz(object? eintrag, string text, Func<string, string?>? langname) =>
+        eintrag is Core.Model.Element e ? ElementLangname(e) : langname?.Invoke(text);
 
     /// <summary>Wird die Auswahlliste schon von der Listensuche betreut (eigene Breitenberechnung mit Stil)?</summary>
     public static bool IstEingerichtet(ComboBox cb) => Zustaende.TryGetValue(cb, out _);
 
-    public static void Einrichten(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
+    /// <summary>Auswahlliste, die bewusst nicht vereinheitlicht wird (z. B. ein Suchfeld mit Trefferliste statt einer Auswahl).</summary>
+    private static readonly ConditionalWeakTable<ComboBox, object> Ausgenommen = new();
+
+    public static void Ausnehmen(ComboBox cb) => Ausgenommen.AddOrUpdate(cb, new object());
+
+    public static bool IstAusgenommen(ComboBox cb) => Ausgenommen.TryGetValue(cb, out _);
+
+    /// <summary>Ist die Liste ein freies Eingabefeld (beliebiger Text, Liste nur als Vorschlag)?</summary>
+    public static bool IstFrei(ComboBox cb) => Zustaende.TryGetValue(cb, out var z) && z.Frei;
+
+    public static void Einrichten(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null, bool frei = false)
     {
         langname ??= Langname;
         if (Zustaende.TryGetValue(cb, out var z))
@@ -92,6 +185,7 @@ public static class ListenSuche
             // Tabellenzellen setzen beim Öffnen Stil und Ergänzung zurück
             z.Stil = stil;
             z.Langname = langname;
+            cb.MaxDropDownItems = SichtbareEintraege;
             if (cb.DropDownStyle == ComboBoxStyle.DropDownList) cb.DropDownStyle = ComboBoxStyle.DropDown;
             cb.AutoCompleteMode = AutoCompleteMode.None;
             Ui.ListenSchriftSetzen(cb);
@@ -100,8 +194,9 @@ public static class ListenSuche
             VorherMerken(cb, z);
             return;
         }
-        z = new Zustand { Stil = stil, Langname = langname };
+        z = new Zustand { Stil = stil, Langname = langname, Frei = frei };
         Zustaende.Add(cb, z);
+        cb.MaxDropDownItems = SichtbareEintraege;
         var auswahl = cb.SelectedIndex;
         if (cb.DropDownStyle == ComboBoxStyle.DropDownList) cb.DropDownStyle = ComboBoxStyle.DropDown;
         if (auswahl >= 0 && auswahl < cb.Items.Count && cb.SelectedIndex != auswahl) cb.SelectedIndex = auswahl;
@@ -111,7 +206,7 @@ public static class ListenSuche
         cb.ItemHeight = Math.Max(cb.ItemHeight, 19);
         cb.IntegralHeight = false;
         cb.DrawItem += Zeichnen;
-        cb.MouseWheel += (_, e) => Mausrad(cb, e);
+        MausradSchuetzen(cb);
         VorherMerken(cb, z);
         cb.Enter += (_, _) => VorherMerken(cb, z);
         // Wert ohne Tippen geändert (Programm, Durchschalter, Klick in die Liste): neuer Ausgangswert
@@ -131,6 +226,7 @@ public static class ListenSuche
         cb.DropDownClosed += (_, _) =>
         {
             z.Markiert = -1;
+            if (z.Frei) { z.Getippt = false; return; }
             // Liste ohne Auswahl geschlossen (Klick daneben, Fokuswechsel): getippten Suchtext verwerfen, nichts ändern.
             // Erst nach dem Schließen prüfen – die Reihenfolge von Schließen und Auswahl ist unter Windows nicht festgelegt.
             if (!cb.IsHandleCreated) return;
@@ -139,22 +235,30 @@ public static class ListenSuche
                 // Tabellen-Editor: Bearbeitung inzwischen beendet bzw. andere Zelle – nichts mehr ändern
                 if (!Bedienbar(cb)) { z.Getippt = false; return; }
                 if (cb.DroppedDown) return;
-                if (z.Getippt && !IstEintrag(cb, cb.Text.Trim())) { Zuruecksetzen(cb, z); return; }
+                if (z.Getippt && !IstEintrag(cb, cb.Text.Trim())) { Ablehnen(cb, z); return; }
                 // ohne Tippen bzw. mit gültigem Eintrag geschlossen: das ist der neue Ausgangswert
                 if (cb.SelectedIndex >= 0 || !z.Getippt) VorherMerken(cb, z);
             });
         };
-        cb.TextUpdate += (_, _) => { z.Getippt = true; Suchen(cb, z); };
-        // Tab übernimmt den markierten Treffer (wie Enter), danach geht der Fokus normal weiter
+        cb.TextUpdate += (_, _) =>
+        {
+            // freies Feld: der Text bleibt, wie getippt; eine offene Liste zeigt nur den passenden Vorschlag
+            if (z.Frei) { if (cb.DroppedDown) ListeMarkieren(cb, Treffer(cb, cb.Text, z)); return; }
+            z.Getippt = true;
+            Suchen(cb, z);
+        };
+        // Tab übernimmt den markierten Treffer (wie Enter), danach geht der Fokus normal weiter; ohne Treffer bleibt der alte Wert
         cb.PreviewKeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Tab && (cb.DroppedDown || z.Getippt)) Uebernehmen(cb, z);
+            if (z.Frei) return;
+            if (e.KeyCode == Keys.Tab && (cb.DroppedDown || z.Getippt) && !Uebernehmen(cb, z)) Ablehnen(cb, z);
         };
         cb.KeyDown += (_, e) =>
         {
+            if (z.Frei) return;
             if (e.KeyCode == Keys.Enter && (cb.DroppedDown || z.Getippt))
             {
-                if (!Uebernehmen(cb, z)) Zuruecksetzen(cb, z);
+                if (!Uebernehmen(cb, z)) Ablehnen(cb, z);
                 // in Dialogen nicht zusätzlich den Standardknopf auslösen, wenn nur die Liste bestätigt wurde
                 e.Handled = e.SuppressKeyPress = true;
             }
@@ -181,7 +285,7 @@ public static class ListenSuche
     {
         if (!Zustaende.TryGetValue(cb, out var z) || (!z.Getippt && z.Markiert < 0)) return true;
         if (Uebernehmen(cb, z)) return true;
-        Zuruecksetzen(cb, z);
+        Ablehnen(cb, z);
         return false;
     }
 
@@ -194,27 +298,45 @@ public static class ListenSuche
         !cb.IsDisposed && (cb is not IDataGridViewEditingControl ec ||
                            (ec.EditingControlDataGridView is { } g && g.IsCurrentCellInEditMode && g.EditingControl == cb && g.CurrentCell?.RowIndex == ec.EditingControlRowIndex));
 
+    private static readonly ConditionalWeakTable<ComboBox, object> MitMausradSchutz = new();
+
     /// <summary>
-    /// Mausrad über einer geschlossenen Liste: in Tabellen blättert die Tabelle (statt still den Wert der Zelle zu ändern),
-    /// sonst ändert das Rad den Wert nur, wenn die Liste den Fokus hat (nicht beim Blättern über das Fenster hinweg).
+    /// Mausradschutz (für jede Auswahlliste genau einmal): über einer geschlossenen Liste ändert das Rad nie den Wert – auch nicht,
+    /// wenn sie den Fokus hat (zu leicht passiert das beim Rollen durch einen Dialog oder eine Tabelle); stattdessen rollt die
+    /// umgebende Tabelle bzw. Fläche. In der geöffneten Liste blättert das Rad wie gewohnt.
     /// </summary>
-    private static void Mausrad(ComboBox cb, MouseEventArgs e)
+    public static void MausradSchuetzen(ComboBox cb)
     {
-        if (cb.DroppedDown || e is not HandledMouseEventArgs h) return;
-        if (cb is IDataGridViewEditingControl { EditingControlDataGridView: { } g })
+        if (MitMausradSchutz.TryGetValue(cb, out _)) return;
+        MitMausradSchutz.Add(cb, new object());
+        cb.MouseWheel += Mausrad;
+    }
+
+    /// <summary>Hat die Liste den Mausradschutz?</summary>
+    public static bool HatMausradSchutz(ComboBox cb) => MitMausradSchutz.TryGetValue(cb, out _);
+
+    private static void Mausrad(object? sender, MouseEventArgs e)
+    {
+        if (sender is not ComboBox cb || cb.DroppedDown || e is not HandledMouseEventArgs h) return;
+        h.Handled = true;
+        for (var p = cb.Parent; p != null; p = p.Parent)
         {
-            h.Handled = true;
-            if (g.Rows.Count == 0) return;
-            var zeilen = Math.Max(1, SystemInformation.MouseWheelScrollLines) * -Math.Sign(e.Delta);
-            try
+            if (p is DataGridView g)
             {
-                var erste = Math.Clamp(g.FirstDisplayedScrollingRowIndex + zeilen, 0, g.Rows.Count - 1);
-                if (erste >= 0 && g.Rows[erste].Visible && !g.Rows[erste].Frozen) g.FirstDisplayedScrollingRowIndex = erste;
+                if (g.RowCount == 0) return;
+                var zeilen = Math.Max(1, SystemInformation.MouseWheelScrollLines) * (e.Delta > 0 ? -1 : 1);
+                var erste = Math.Clamp(g.FirstDisplayedScrollingRowIndex + zeilen, 0, g.RowCount - 1);
+                // laufende Eingabe in der Zelle nicht abbrechen – nur rollen, wenn die Zeile sichtbar bleiben kann
+                try { if (erste >= 0 && g.Rows[erste].Visible && !g.Rows[erste].Frozen) g.FirstDisplayedScrollingRowIndex = erste; } catch (InvalidOperationException) { }
+                return;
             }
-            catch (InvalidOperationException) { }
-            return;
+            if (p is ScrollableControl { AutoScroll: true } sc && sc.VerticalScroll.Visible)
+            {
+                var y = -sc.AutoScrollPosition.Y - e.Delta;
+                sc.AutoScrollPosition = new Point(-sc.AutoScrollPosition.X, Math.Max(0, y));
+                return;
+            }
         }
-        if (!cb.Focused) h.Handled = true;
     }
 
     /// <summary>Ist gerade ein getippter, noch nicht übernommener Suchtext in der Liste?</summary>
@@ -234,8 +356,9 @@ public static class ListenSuche
     {
         text = text.Trim();
         if (text.Length == 0) return -1;
-        var kurz = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
-        var lang = kurz.Select(k => z.Langname?.Invoke(k) ?? "").ToList();
+        var eintraege = cb.Items.Cast<object>().ToList();
+        var kurz = eintraege.Select(o => cb.GetItemText(o) ?? "").ToList();
+        var lang = kurz.Select((k, n) => Zusatz(eintraege[n], k, z.Langname) ?? "").ToList();
         const StringComparison ci = StringComparison.CurrentCultureIgnoreCase;
         var i = kurz.FindIndex(k => k.Equals(text, ci));
         if (i < 0) i = kurz.FindIndex(k => k.StartsWith(text, ci));
@@ -278,7 +401,7 @@ public static class ListenSuche
         foreach (var o in cb.Items)
         {
             var t = cb.GetItemText(o) ?? "";
-            var zusatz = stil?.Invoke(t)?.Zusatz ?? langname?.Invoke(t);
+            var zusatz = stil?.Invoke(t)?.Zusatz is { Length: > 0 } sz ? sz : Zusatz(o, t, langname);
             kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(t, schrift).Width);
             if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(zusatz, schrift).Width); }
         }
@@ -289,9 +412,6 @@ public static class ListenSuche
         return w;
     }
 
-    /// <summary>
-    /// Liste so breit öffnen, dass Kurz- und Langname vollständig lesbar sind (auch in schmalen Tabellenspalten).
-    /// </summary>
     /// <summary>Mindestbreite jeder geöffneten Auswahlliste – nie nur so schmal wie die Tabellenspalte bzw. das Feld.</summary>
     public const int MindestListenbreite = 240;
 
@@ -314,13 +434,15 @@ public static class ListenSuche
     }
 
     /// <summary>Listenhöhe so wählen, dass die Liste unter dem Feld Platz hat (Windows öffnet sonst nach oben).</summary>
-    private static void NachUnten(ComboBox cb)
+    public static void NachUnten(ComboBox cb)
     {
+        if (cb.IsDisposed || !cb.IsHandleCreated) return;
         var unten = cb.PointToScreen(new Point(0, cb.Height)).Y;
         var platz = Screen.FromControl(cb).WorkingArea.Bottom - unten - 6;
         var gewuenscht = Math.Max(1, cb.Items.Count) * cb.ItemHeight + 4;
-        var max = Math.Min(gewuenscht, 22 * cb.ItemHeight + 4);
-        cb.DropDownHeight = Math.Max(cb.ItemHeight * 3 + 4, Math.Min(max, platz));
+        var max = Math.Min(gewuenscht, SichtbareEintraege * cb.ItemHeight + 4);
+        var hoehe = Math.Max(cb.ItemHeight * 3 + 4, Math.Min(max, platz));
+        if (cb.DropDownHeight != hoehe) cb.DropDownHeight = hoehe;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -373,7 +495,7 @@ public static class ListenSuche
         Zustaende.TryGetValue(cb, out var z);
         var text = cb.GetItemText(cb.Items[e.Index]) ?? "";
         var s = z?.Stil?.Invoke(text);
-        var zusatz = !string.IsNullOrEmpty(s?.Zusatz) ? s.Value.Zusatz : z?.Langname?.Invoke(text);
+        var zusatz = !string.IsNullOrEmpty(s?.Zusatz) ? s.Value.Zusatz : Zusatz(cb.Items[e.Index], text, z?.Langname);
         var ausgewaehlt = (e.State & DrawItemState.Selected) != 0;
         var hinter = ausgewaehlt ? SystemColors.Highlight : s?.Hintergrund is Color h && h != Color.Empty ? h : cb.BackColor;
         var vorder = ausgewaehlt ? SystemColors.HighlightText : s?.Text is Color t && t != Color.Empty ? t : cb.ForeColor;

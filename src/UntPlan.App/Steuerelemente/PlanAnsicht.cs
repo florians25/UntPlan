@@ -759,6 +759,7 @@ public sealed class PlanAnsicht : Control
             if (frei is DateOnly fd) FreiSpalteZeichnen(g, bounds, t, fd, linie);
         }
         if (!druck) TauschAnzeigen(g, bounds);
+        if (!druck) VorschauPfeileZeichnen(g, bounds);
         if (klassik)
         {
             // doppelte Linien unter dem Kopf und rechts der Stundenspalte, Rahmen um den ganzen Plan
@@ -1192,6 +1193,59 @@ public sealed class PlanAnsicht : Control
             g.DrawRectangle(rot, b.X + 0.5f, b.Y + 0.5f, b.Width - 2, b.Height - 2);
         }
         TauschPfeil(g, a, b);
+        g.SmoothingMode = alt;
+    }
+
+    /// <summary>
+    /// Vorschau einer Vorziehung wie im Handbuch (Vertretungsplanung Kap. 3.5): Klick auf einen Vorziehungsvorschlag zeigt in den
+    /// tagesaktuellen Stundenplänen mit roten Pfeilen, wohin die Stunden wandern (von der vorzuziehenden zur offenen Stunde).
+    /// </summary>
+    private List<(DateOnly VonDatum, int VonStunde, DateOnly NachDatum, int NachStunde)> _vorschauPfeile = new();
+
+    internal void VorschauPfeileSetzen(IEnumerable<(DateOnly VonDatum, int VonStunde, DateOnly NachDatum, int NachStunde)> pfeile)
+    {
+        var neu = pfeile.ToList();
+        if (neu.SequenceEqual(_vorschauPfeile)) return;
+        _vorschauPfeile = neu;
+        Invalidate();
+    }
+
+    /// <summary>Selbsttest: Anzahl der in der angezeigten Woche gezeichneten Vorschaupfeile.</summary>
+    internal int VorschauPfeileSichtbar => _vorschauPfeile.Count(p => TagInWoche(p.VonDatum) is not null && TagInWoche(p.NachDatum) is not null);
+
+    private int? TagInWoche(DateOnly datum) => _woche is DateOnly w && (datum.DayNumber - w.DayNumber) is var t && t >= 0 && t < Tage && (_nurTag is null || _nurTag == t) ? t : null;
+
+    private void VorschauPfeileZeichnen(Graphics g, Rectangle bounds)
+    {
+        if (_vorschauPfeile.Count == 0 || !Tagesmodus) return;
+        var alt = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using var rahmen = new Pen(Color.FromArgb(230, 0, 0), Rahmen);
+        using var saum = new Pen(Color.FromArgb(220, Color.White), 6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var spitze = new AdjustableArrowCap(3.2f, 3.6f, true);
+        using var rot = new Pen(Color.FromArgb(230, 0, 0), 3f) { StartCap = LineCap.Round, CustomEndCap = spitze };
+        foreach (var p in _vorschauPfeile)
+        {
+            if (TagInWoche(p.VonDatum) is not int tv || TagInWoche(p.NachDatum) is not int tn) continue;
+            var a = Bereich(bounds, tv, p.VonStunde, p.VonStunde);
+            var b = Bereich(bounds, tn, p.NachStunde, p.NachStunde);
+            if (a.Width <= 0 || b.Width <= 0) continue;
+            g.DrawRectangle(rahmen, a.X + 0.5f, a.Y + 0.5f, a.Width - 2, a.Height - 2);
+            g.DrawRectangle(rahmen, b.X + 0.5f, b.Y + 0.5f, b.Width - 2, b.Height - 2);
+            var pa = new PointF(a.X + a.Width / 2, a.Y + a.Height / 2);
+            var pb = new PointF(b.X + b.Width / 2, b.Y + b.Height / 2);
+            var (dx, dy) = (pb.X - pa.X, pb.Y - pa.Y);
+            var laenge = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (laenge < 4) continue;
+            var bauch = Math.Max(12f, laenge * 0.2f);
+            var mitte = new PointF((pa.X + pb.X) / 2 - dy / laenge * bauch, (pa.Y + pb.Y) / 2 + dx / laenge * bauch);
+            var start = Richtung(pa, mitte, Math.Min(a.Width, a.Height) * 0.25f);
+            var ende = RandPunkt(b, mitte);
+            var c1 = new PointF(start.X + (mitte.X - start.X) * 2 / 3, start.Y + (mitte.Y - start.Y) * 2 / 3);
+            var c2 = new PointF(ende.X + (mitte.X - ende.X) * 2 / 3, ende.Y + (mitte.Y - ende.Y) * 2 / 3);
+            g.DrawBezier(saum, start, c1, c2, ende);
+            g.DrawBezier(rot, start, c1, c2, ende);
+        }
         g.SmoothingMode = alt;
     }
 

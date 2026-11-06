@@ -89,7 +89,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _ansicht.DrawMode = DrawMode.OwnerDrawFixed;
         _ansicht.DrawItem += AnsichtZeichnen;
         _ansicht.DropDownWidth = 190;
-        _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, Ui.SchriftFett.Height + 2);
+        _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, 18);
         AnsichtenFuellen(AppZustand.Einstellungen.Vertretungsansicht);
         Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
         ElementeFuellen();
@@ -294,7 +294,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.KeyPress += TastenDruck;
         _g.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
+            if (e.KeyData == Keys.Delete && !_g.IsCurrentCellInEditMode) { Entfernen(); e.Handled = true; }
             if (e.KeyCode == Keys.Enter && !_g.IsCurrentCellInEditMode) { VorschlagOeffnen(); e.Handled = true; }
             if (e.KeyCode == Keys.F3) { NaechsteOffene(e.Shift ? -1 : 1); e.Handled = true; }
         };
@@ -681,15 +681,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         e.DrawBackground();
         if (e.Index < 0) return;
         var item = _ansicht.Items[e.Index];
-        var befehl = item is AnsichtBefehl;
-        var schrift = e.Font ?? Ui.Schrift;
-        using var fett = new Font(schrift, FontStyle.Bold);
+        // wie alle Auswahllisten: normaler Schnitt (auch die Befehle „Speichern …“), geglättete Listenschrift
+        var schrift = Ui.OhneFett(e.Font ?? _ansicht.Font);
         var text = item is Vertretungsformat f ? f.Langname : Convert.ToString(item) ?? "";
         // „Löschen“ gilt nur für eigene Formate
         var grau = ReferenceEquals(item, BefehlLoeschen) && !(_letztesFormat?.Eigen ?? false);
         var farbe = (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : grau ? SystemColors.GrayText : SystemColors.ControlText;
-        TextRenderer.DrawText(e.Graphics, text, befehl ? fett : schrift, e.Bounds, farbe,
-            TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        Ui.ListenText(e.Graphics, text, schrift, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height), farbe);
         if (ReferenceEquals(item, BefehlSpeichern) && (e.State & DrawItemState.ComboBoxEdit) == 0) e.Graphics.DrawLine(SystemPens.ControlDark, e.Bounds.Left, e.Bounds.Top, e.Bounds.Right, e.Bounds.Top);
     }
 
@@ -707,7 +705,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             var f = Fmt;
             if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
-            if (!Ui.Frage($"Vertretungsformat „{f.Langname}“ löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Vertretungsformat", "Vertretungsformate", f.Langname)) return;
             FormatLoeschen(f);
         }
     }
@@ -1200,18 +1198,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     private List<Vertretung> TauschZusammenfassen(List<Vertretung> liste)
     {
-        var weg = liste.Where(q => q.Art == VertretungsArt.Entfall && q.NachDatum.HasValue && q.VerlegungsId.HasValue && !_behalten.Enthaelt(q.Id))
-            .GroupBy(q => (q.Datum, q.Stunde)).ToDictionary(g => g.Key, g => g.ToList());
-        if (weg.Count == 0) return liste;
-        var versteckt = new HashSet<int>();
-        foreach (var z in liste.Where(z => IstVerlegung(z) && z.VonDatum.HasValue && z.VerlegungsId.HasValue))
-        {
-            if (!weg.TryGetValue((z.Datum, z.Stunde), out var kandidaten)) continue;
-            var q = kandidaten.FirstOrDefault(q => !versteckt.Contains(q.Id) && q.VerlegungsId != z.VerlegungsId && q.KlassenIds.ToHashSet().SetEquals(z.NeueKlassenIds));
-            if (q is null) continue;
-            versteckt.Add(q.Id);
-            _weg[z.Id] = q;
-        }
+        // Vorziehung (Handbuch Kap. 3.5): auch die gefüllte offene Stunde der Absenz steht mit der vorgezogenen Stunde in einer Zeile „Verlegung“
+        var paare = Vertretungen.ZusammengefassteZeilen(liste, q => _behalten.Enthaelt(q.Id));
+        if (paare.Count == 0) return liste;
+        foreach (var (z, q) in paare) _weg[z] = q;
+        var versteckt = paare.Values.Select(q => q.Id).ToHashSet();
         return liste.Where(v => !versteckt.Contains(v.Id)).ToList();
     }
 
@@ -1697,7 +1688,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 Ausfuehren("Schülergruppe", id, (d, x) => x.Schuelergruppe = wert);
                 return;
             case "Kopp":
-                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Ui.Info("Vertretungs-Kopplung: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                if (!int.TryParse(wert.Length == 0 ? "0" : wert, out var kopp) || kopp < 0) { Neuaufbau(); Steuerelemente.Tabellenbedienung.Ungueltig(_g, wert, "Vertretungs-Kopplung: bitte eine Zahl eingeben."); return; }
                 Ausfuehren("Vertretungs-Kopplung", id, (d, x) => x.Kopplung = kopp);
                 return;
             case "Wert":
@@ -1705,7 +1696,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
                 if (wert.Length > 0)
                 {
                     if (decimal.TryParse(wert.Replace('.', ','), System.Globalization.NumberStyles.Number, Format.De, out var wd)) w = wd;
-                    else { Ui.Info("Wert: bitte eine Zahl eingeben."); Neuaufbau(); return; }
+                    else { Neuaufbau(); Steuerelemente.Tabellenbedienung.Ungueltig(_g, wert, "Wert: bitte eine Zahl eingeben."); return; }
                 }
                 Ausfuehren("Wert", id, (d, x) => x.Wert = w);
                 return;
@@ -1945,7 +1936,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             return;
         }
         var nicht = alle.Count - liste.Count;
-        if (!Ui.Frage($"{liste.Count} Vertretung(en) löschen?" + (nicht > 0 ? $"\n\n{nicht} Zeile(n) aus Absenzen/Veranstaltungen bleiben erhalten." : ""))) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Vertretung", "Vertretungen", zusatz: nicht > 0 ? $"{nicht} Zeile(n) aus Absenzen/Veranstaltungen bleiben erhalten." : null)) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Vertretungen löschen", AenderungsArt.Vertretung, d =>
         {
@@ -2300,5 +2291,65 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         return $"Vertretung {id}: Vertreter {lehrer.Kurzname} und Text eingegeben, Zeile blieb bis zum Zeilenwechsel";
     }
-}
 
+    /// <summary>Selbsttest (Handbuch-Abläufe): angezeigte Zeile mit Werten je Spaltenname und Schriftfarbe nach der Formatierung.</summary>
+    internal sealed record SelbsttestZeile(Vertretung V, Dictionary<string, string> Werte, Dictionary<string, Color> Schrift, Dictionary<string, Color> Hintergrund);
+
+    /// <summary>Selbsttest: alle angezeigten Zeilen (ohne Filter „Offene Vertretungen“/„Kollisionen“) für ein Datum.</summary>
+    internal List<SelbsttestZeile> SelbsttestZeilen(DateOnly? datum = null)
+    {
+        if (_offen.Checked || _kollisionen.Checked) { _offen.Checked = _kollisionen.Checked = false; }
+        if (datum is { } dt && (Von != dt || Bis != dt)) DatumGewechselt(dt);
+        Neuaufbau(true);
+        var res = new List<SelbsttestZeile>();
+        foreach (DataGridViewRow r in _g.Rows)
+        {
+            if (r.Tag is not Vertretung v) continue;
+            var werte = new Dictionary<string, string>();
+            var schrift = new Dictionary<string, Color>();
+            var hinten = new Dictionary<string, Color>();
+            foreach (DataGridViewColumn c in _g.Columns)
+            {
+                var stil = new DataGridViewCellStyle(r.Cells[c.Index].InheritedStyle);
+                var e = new DataGridViewCellFormattingEventArgs(c.Index, r.Index, r.Cells[c.Index].Value, typeof(string), stil);
+                Formatieren(_g, e);
+                werte[c.Name] = (e.Value ?? "").ToString()!.Replace("\n", "");
+                schrift[c.Name] = e.CellStyle!.ForeColor;
+                hinten[c.Name] = e.CellStyle.BackColor;
+            }
+            res.Add(new SelbsttestZeile(v, werte, schrift, hinten));
+        }
+        return res;
+    }
+
+    /// <summary>Selbsttest: Zeile einer Vertretung wählen und die Schaltfläche „Entfall“ der Symbolleiste klicken.</summary>
+    internal void SelbsttestEntfallKnopf(int vertretungId)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Vertretung v && v.Id == vertretungId)
+                ?? throw new InvalidOperationException($"Vertretung {vertretungId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        r.Selected = true;
+        _g.CurrentCell = r.Cells["Nr"];
+        static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        var knopf = Alle(this).OfType<ToolStrip>().SelectMany(t => t.Items.OfType<ToolStripItem>()).FirstOrDefault(i => i.Text == "Entfall")
+                    ?? throw new InvalidOperationException("Schaltfläche „Entfall“ fehlt in der Symbolleiste.");
+        knopf.PerformClick();
+    }
+
+    /// <summary>Selbsttest: Wert in eine Zelle eintippen und die Zelle verlassen (z. B. Kurzname des Vertreters).</summary>
+    internal void SelbsttestEingeben(int vertretungId, string spalte, string wert)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Vertretung v && v.Id == vertretungId)
+                ?? throw new InvalidOperationException($"Vertretung {vertretungId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        r.Selected = true;
+        _g.CurrentCell = r.Cells[spalte];
+        _wertVorher = r.Cells[spalte].Value?.ToString()?.Trim() ?? "";
+        _g.CurrentCell.Value = wert;
+        ZelleGeaendert(_g, new DataGridViewCellEventArgs(_g.CurrentCell.ColumnIndex, _g.CurrentCell.RowIndex));
+    }
+
+    /// <summary>Selbsttest: Einträge der Auswahlliste einer Spalte (z. B. „Vertreter“).</summary>
+    internal List<string> SelbsttestAuswahl(string spalte) =>
+        _g.Columns[spalte] is DataGridViewComboBoxColumn cb ? cb.Items.Cast<object>().Select(x => x.ToString() ?? "").ToList() : new();
+}

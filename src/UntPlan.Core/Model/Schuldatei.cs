@@ -78,6 +78,9 @@ public sealed class Ferien
     public string WocheDanach { get; set; } = "";
     /// <summary>Wochennummerierung: die Ferienwoche zählt bei der Nummerierung der Schulwochen (A/B) mit.</summary>
     public bool Wochennummerierung { get; set; }
+
+    /// <summary>Vollständige Kopie (alle Felder, auch künftig hinzukommende).</summary>
+    public Ferien Kopie() => (Ferien)MemberwiseClone();
 }
 
 public sealed class Einstellungen

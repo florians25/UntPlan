@@ -39,6 +39,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private readonly Steuerelemente.ZellKommentare _kommentare;
     /// <summary>Mit Strg+C gemerkte Absenzen (Strg+V fügt sie am eingestellten Tag ein).</summary>
     private static List<Abwesenheit> _zwischenablage = new();
+    private static string? _ablageText;
 
     public AbwesenheitenFenster()
     {
@@ -140,10 +141,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (e.KeyCode == Keys.Escape && _entwurf != null) { EntwurfVerwerfen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Enter && _entwurf != null && e.Modifiers == Keys.Control) { EntwurfSofortUebernehmen(); e.Handled = true; return; }
             if (e.KeyCode == Keys.Delete && e.Modifiers == Keys.Control) { Loeschen(); e.Handled = true; }
-            if (e.KeyCode == Keys.Insert) Neu();
+            if (e.KeyData == Keys.Insert) { Neu(); e.Handled = true; }
             // wie im Vorbild (Kap. 5.2 Absenzen kopieren): Strg+C merkt die markierten Absenzen, Strg+V fügt sie am eingestellten Tag ein
-            if (e.KeyCode == Keys.C && e.Modifiers == Keys.Control) { AbsenzenMerken(); e.Handled = true; }
-            if (e.KeyCode == Keys.V && e.Modifiers == Keys.Control) { AbsenzenEinfuegen(); e.Handled = true; }
+            // zusätzlich wie in jeder Tabelle: Strg+C kopiert die Zellen als Text; kam danach anderer Text in die Zwischenablage,
+            // fügt Strg+V diesen in die Felder ein (Tabellenbedienung)
+            if (e.KeyCode == Keys.C && e.Modifiers == Keys.Control) { AbsenzenMerken(); _ablageText = Steuerelemente.Tabellenbedienung.DatensaetzeKopieren(_g); e.Handled = true; }
+            if (e.KeyCode == Keys.V && e.Modifiers == Keys.Control && _zwischenablage.Count > 0 && Steuerelemente.Tabellenbedienung.DatensatzEinfuegen(_ablageText)) { AbsenzenEinfuegen(); e.Handled = true; }
         };
         _kommentare = Steuerelemente.ZellKommentare.Aktivieren(_g, r => r.Tag is Abwesenheit a ? ("Absenz:" + a.Id, "Absenz Nr. " + a.Id) : null);
         _g.CellMouseDown += (_, e) =>
@@ -464,7 +467,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
                     break;
                 case "SV": a.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
                 case "SB": a.StundeBis = wert.Length == 0 ? LetzteStunde : Math.Clamp(int.Parse(wert), 1, LetzteStunde); break;
-                case "G": a.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "G":
+                    var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase));
+                    // unbekannter Grund: bisherigen Grund behalten (nicht stillschweigend löschen)
+                    if (grund is null && wert.Length > 0) meldung = $"Absenzgrund \"{wert}\" ist nicht vorhanden.";
+                    else a.GrundId = grund?.Id;
+                    break;
                 case "Beg":
                     var teile = wert.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
                     var unbekannt = teile.Where(k => !D.Lehrer.Any(l => l.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -528,6 +536,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (sofort || !IsHandleCreated) Neuaufbau(); else NachZellwechsel(Neuaufbau);
             return;
         }
+        // nichts geändert (z. B. ungültige Eingabe verworfen): nicht speichern, Daten bleiben unverändert
+        if (alt != null && System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(alt))
+        {
+            if (sofort || !IsHandleCreated) Neuaufbau(); else NachZellwechsel(Neuaufbau);
+            return;
+        }
         var text = alt is null ? "Absenz eingeben" : "Absenz geändert";
         if (sofort || !IsHandleCreated || IsDisposed) Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text);
         else NachZellwechsel(() => Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text));
@@ -542,11 +556,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Neuaufbau();
     }
 
-    private static Abwesenheit Kopie(Abwesenheit a) => new()
-    {
-        Id = a.Id, Art = a.Art, ElementId = a.ElementId, Von = a.Von, Bis = a.Bis, StundeVon = a.StundeVon, StundeBis = a.StundeBis,
-        GrundId = a.GrundId, Text = a.Text, BegleitLehrerIds = new List<int>(a.BegleitLehrerIds), Erstellt = a.Erstellt, Benutzer = a.Benutzer,
-    };
+    private static Abwesenheit Kopie(Abwesenheit a) => a.Kopie();
 
     private void Neu()
     {
@@ -744,7 +754,50 @@ public sealed class AbwesenheitenFenster : MdiFenster
     {
         EntwurfSofortUebernehmen();
         var liste = Markierte();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Absenz", "Absenzen", zusatz: "Daraus entstandene Vertretungen werden entfernt.")) return;
         Speichern(Array.Empty<Abwesenheit>(), liste, "Absenz löschen");
+    }
+
+    // ----------------------------------------------------------------------------------------------
+    // Selbsttest (Handbuch-Abläufe, Kurzeinführung Kap. 3.2)
+    // ----------------------------------------------------------------------------------------------
+
+    /// <summary>Selbsttest: Reiter Lehrer (0), Klassen (1), Räume (2) wählen.</summary>
+    internal void SelbsttestReiter(int i) => _tabs.SelectedIndex = i;
+
+    /// <summary>Selbsttest: Überschriften der sichtbaren Spalten.</summary>
+    internal List<string> SelbsttestSpalten() => _g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
+
+    /// <summary>Selbsttest: Texte der Schaltflächen der Symbolleiste.</summary>
+    internal List<string> SelbsttestKnoepfe()
+    {
+        static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => Alle(k).Prepend(k));
+        return Alle(this).OfType<ToolStrip>().SelectMany(t => t.Items.OfType<ToolStripItem>()).Select(i => i.Text ?? "").ToList();
+    }
+
+    /// <summary>
+    /// Selbsttest: in der leeren Eingabezeile (bzw. der Zeile einer Absenz) einen Wert eintippen und mit Tab/Enter bestätigen; mit
+    /// <paramref name="zeileVerlassen"/> wird die Zeile danach verlassen (Absenz gespeichert).
+    /// </summary>
+    internal void SelbsttestEingeben(string spalte, string wert, int? absenzId = null, bool zeileVerlassen = true)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().LastOrDefault(x => absenzId is int id ? x.Tag is Abwesenheit a && a.Id == id : x.Tag is null && !x.IsNewRow)
+                ?? throw new InvalidOperationException("Eingabezeile der Absenzen nicht gefunden.");
+        _g.ClearSelection();
+        _g.CurrentCell = r.Cells[spalte];
+        r.Cells[spalte].Value = wert;
+        ZelleGeaendert(_g, new DataGridViewCellEventArgs(r.Cells[spalte].ColumnIndex, r.Index));
+        if (zeileVerlassen) EntwurfSofortUebernehmen();
+    }
+
+    /// <summary>Selbsttest: Absenz markieren und „Löschen“ (Rückfrage wird über den Antwort-Haken beantwortet).</summary>
+    internal void SelbsttestLoeschen(int absenzId)
+    {
+        var r = _g.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Abwesenheit a && a.Id == absenzId)
+                ?? throw new InvalidOperationException($"Absenz {absenzId} steht nicht in der Liste.");
+        _g.ClearSelection();
+        _g.CurrentCell = r.Cells["E"];
+        r.Cells["E"].Selected = true;
+        Loeschen();
     }
 }

@@ -42,8 +42,8 @@ public sealed partial class HauptFenster : Form
         _schnell.Items.AddRange(new ToolStripItem[]
         {
             SKnopf("Neu", "neu", Neu), SKnopf("Öffnen", "oeffnen", Oeffnen), SKnopf("Speichern (Strg+S)", "speichern", () => Speichern()),
-            new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => AppZustand.Doc.Rueckgaengig()),
-            SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => AppZustand.Doc.Wiederholen()), new ToolStripSeparator(),
+            new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => Ui.Rueckgaengig()),
+            SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => Ui.Rueckgaengig(wiederherstellen: true)), new ToolStripSeparator(),
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)),
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
             WebKnopf(), new ToolStripSeparator(),
@@ -312,6 +312,8 @@ public sealed partial class HauptFenster : Form
             E("Lehrerpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Lehrer)),
             E("Raumpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Raum)),
             E("Vertretungsplan (HTML)…", "vertretung", () => VertretungenFenster.HtmlAusgabe(AppZustand.Datum, 2, false)),
+            // Handbuch S. 23–24: Listenauswahl „Vertretungs-Abrechnung“ (Zeitraum: Schuljahr bis heute)
+            E("Vertretungs-Abrechnung…", "wertrechnung", () => StatistikBerichte.Starten(this, StatistikBerichte.Abrechnung, AppZustand.D.Einstellungen.SchuljahrVon, AppZustand.Datum)),
             null,
             E("Berichts-Einstellungen…", "einstellungen", () => BerichtseinstellungenDialog.Zeigen(this), hinweis: "Kopf- und Fußzeile aller Berichte, Drucknamen"),
         }));
@@ -428,6 +430,8 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Stundentafel", "unterricht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(2)), true));
         g.Eintraege.Add(E("Wochenwerte", "wertrechnung", () => Oeffnen("wochenwerte", () => new WochenwerteFenster()), true, hinweis: "Je Kalenderwoche geplant, verplant, gehalten, Entfälle, Vertretungen, Sondereinsätze eines Lehrers"));
         g = Gruppe(module, "Weitere Module");
+        // Handbuch Kap. 3.1: Vertretungsmodus über Module | Vertretungsplanung ein- und ausschalten
+        g.Eintraege.Add(E("Vertretungs-planung", "vertretung", VertretungsmodusUmschalten, true));
         g.Eintraege.Add(E("Mehrwochen / Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Bereitschafts-planung", "bereitschaft", () => FensterOeffnen("bereitplan"), true));
         g.Eintraege.Add(E("Unterrichts-gruppen", "perioden", () => FensterOeffnen("ugruppen"), true, hinweis: "A/B-Wochen und weitere Wochenzyklen"));
@@ -726,10 +730,10 @@ public sealed partial class HauptFenster : Form
         switch (keyData)
         {
             case Keys.Control | Keys.Z when ActiveMdiChild?.ActiveControl is not TextBoxBase:
-                AppZustand.Doc.Rueckgaengig();
+                Ui.Rueckgaengig();
                 return true;
             case Keys.Control | Keys.Y when ActiveMdiChild?.ActiveControl is not TextBoxBase:
-                AppZustand.Doc.Wiederholen();
+                Ui.Rueckgaengig(wiederherstellen: true);
                 return true;
             // Vertretungsmodus wie im Handbuch (Kap. 4.3 Datum): Strg+T heute, Strg+M kommender, Strg+G vergangener Schultag
             case Keys.Control | Keys.T when AppZustand.Vertretungsmodus:
@@ -917,6 +921,8 @@ public sealed partial class HauptFenster : Form
 
     public static void Starten(string pfad)
     {
+        // im Selbsttest (Fehler werden protokolliert) keine externen Programme (Browser) öffnen
+        if (Ui.FehlerProtokoll != null) return;
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(pfad) { UseShellExecute = true }); }
         catch (Exception ex) { Ui.Fehler(ex); }
     }

@@ -123,11 +123,7 @@ public sealed class FerienFenster : MdiFenster
         if (art is AenderungsArt.Einstellungen or AenderungsArt.Alles && !_geaendert) EntwurfLaden();
     }
 
-    private static Ferien Kopie(Ferien f) => new()
-    {
-        Id = f.Id, Kurzname = f.Kurzname, Langname = f.Langname, Von = f.Von, Bis = f.Bis, Feiertag = f.Feiertag, WocheDanach = f.WocheDanach,
-        Wochennummerierung = f.Wochennummerierung,
-    };
+    private static Ferien Kopie(Ferien f) => f.Kopie();
 
     private void EntwurfLaden()
     {
@@ -244,7 +240,15 @@ public sealed class FerienFenster : MdiFenster
             f.Wochennummerierung = row.Cells["N"].Value is true;
             f.Feiertag = row.Cells["F"].Value is true;
         }
-        catch (FormatException) { Ui.Info("Bitte Datum als TT.MM.JJJJ eingeben."); }
+        catch (FormatException)
+        {
+            // ungültiges Datum: der Entwurf bleibt unverändert (nicht als geändert markieren), die Zeile zeigt nach dem Neuaufbau
+            // wieder den bisherigen Wert und die Eingabe steht darüber zur Korrektur in der Zelle (Esc verwirft sie)
+            var eingabe = row.Cells[e.ColumnIndex].Value?.ToString() ?? "";
+            NachZellwechsel(Neuaufbau);
+            Steuerelemente.Tabellenbedienung.Ungueltig(_liste, e.RowIndex, e.ColumnIndex, eingabe, "Bitte Datum als TT.MM.JJJJ eingeben.");
+            return;
+        }
         NachZellwechsel(Geaendert);
     }
 
@@ -252,7 +256,7 @@ public sealed class FerienFenster : MdiFenster
     {
         var weg = _liste.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Ferien>().Distinct().ToList();
         if (weg.Count == 0 && FerienAm(_gewaehlt) is { } f) weg.Add(f);
-        if (weg.Count == 0) return;
+        if (!Ui.LoeschenBestaetigen(weg.Count, "Ferieneintrag", "Ferieneinträge", weg.Count == 1 ? weg[0].Kurzname : null)) return;
         _entwurf.RemoveAll(weg.Contains);
         Geaendert();
     }

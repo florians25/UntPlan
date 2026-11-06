@@ -17,7 +17,7 @@ namespace UntPlan.App.Fenster;
 public sealed class VertretungsPlanungsdialogFenster : MdiFenster
 {
     private readonly TabControl _ansicht = new() { Dock = DockStyle.Top, Height = 22 };
-    private readonly ComboBox _element = new() { Left = 6, Top = 6, Width = 130, DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
+    private readonly ComboBox _element = new() { Left = 6, Top = 6, Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Label _name = new() { Left = 166, Top = 9, Width = 260, Text = "Name" };
     private readonly DateTimePicker _woche1 = new() { Left = 6, Top = 34, Width = 110, Format = DateTimePickerFormat.Short };
     private readonly DateTimePicker _woche2 = new() { Left = 188, Top = 34, Width = 110, Format = DateTimePickerFormat.Short };
@@ -526,7 +526,7 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
         }
         if (uid is null && e.Vertretung is { } se)
         {
-            if (!Ui.Frage("Sondereinsatz löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Sondereinsatz", "Sondereinsätze")) return;
             Aendern("Sondereinsatz löschen", AenderungsArt.Vertretung, d => Verlegungsaufhebung.SondereinsaetzeLoeschen(d, new[] { se.Id }));
             Neuaufbau();
             return;
@@ -543,7 +543,7 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
     {
         if (daten.StartsWith("sondereinsatz:") && int.TryParse(daten[14..], out var vid))
         {
-            if (!Ui.Frage("Sondereinsatz löschen?")) return;
+            if (!Ui.LoeschenBestaetigen(1, "Sondereinsatz", "Sondereinsätze")) return;
             Aendern("Sondereinsatz löschen", AenderungsArt.Vertretung, d => Verlegungsaufhebung.SondereinsaetzeLoeschen(d, new[] { vid }));
             Neuaufbau();
             return;

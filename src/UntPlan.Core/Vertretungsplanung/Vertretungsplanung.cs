@@ -973,6 +973,36 @@ public static class Vertretungen
         }
     }
 
+    /// <summary>
+    /// Zeilen, die die Vertretungsliste mit einer an derselben Position ankommenden Verlegung bzw. einem Tausch zu einer Zeile
+    /// zusammenfasst (in Klammern der bisherige, daneben der neue Unterricht): die wegverlegte Stunde (Entfall mit „(Le.) nach“) und –
+    /// wie im Handbuch Kap. 3.5 (Vorziehungen) – die offene Stunde einer Absenz, in die eine Stunde vorgezogen wurde (Entfall der
+    /// abwesenden Lehrkraft ohne „(Le.) nach“). Ergebnis: je ankommender Zeile (Vtr-Nr.) die verdeckte Zeile.
+    /// </summary>
+    /// <param name="behalten">Zeilen, die nicht verdeckt werden dürfen (z. B. gerade bearbeitete).</param>
+    public static Dictionary<int, Vertretung> ZusammengefassteZeilen(IReadOnlyCollection<Vertretung> liste, Func<Vertretung, bool>? behalten = null)
+    {
+        var res = new Dictionary<int, Vertretung>();
+        var weg = liste.Where(q => q.Art == VertretungsArt.Entfall && (behalten is null || !behalten(q)) &&
+                                   ((q.NachDatum.HasValue && q.VerlegungsId.HasValue) || (!q.NachDatum.HasValue && q.AbwesenheitId.HasValue && q.UnterrichtId.HasValue)))
+            .GroupBy(q => (q.Datum, q.Stunde)).ToDictionary(g => g.Key, g => g.ToList());
+        if (weg.Count == 0) return res;
+        var verdeckt = new HashSet<int>();
+        foreach (var z in liste.Where(z => z.Art is VertretungsArt.Tausch or VertretungsArt.Verlegung or VertretungsArt.Verlegt && z.VonDatum.HasValue && z.VerlegungsId.HasValue)
+                     .OrderBy(z => z.Id))
+        {
+            if (!weg.TryGetValue((z.Datum, z.Stunde), out var kandidaten)) continue;
+            var klassen = z.NeueKlassenIds.ToHashSet();
+            // zuerst die wegverlegte Stunde (Stundentausch), dann die durch eine Vorziehung gefüllte offene Stunde
+            var q = kandidaten.Where(q => !verdeckt.Contains(q.Id) && q.VerlegungsId != z.VerlegungsId && klassen.SetEquals(q.KlassenIds))
+                .OrderBy(q => q.NachDatum.HasValue ? 0 : 1).ThenBy(q => q.Id).FirstOrDefault();
+            if (q is null) continue;
+            verdeckt.Add(q.Id);
+            res[z.Id] = q;
+        }
+        return res;
+    }
+
     private static int? ZielLehrer(Schuldatei d, Tagesplan tp, int? lehrer, int stunde) =>
         lehrer is int l && !Absenzen.LehrerAbwesend(d, l, tp.Datum, stunde) ? l : null;
 

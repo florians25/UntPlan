@@ -62,6 +62,34 @@ public sealed class Dokument
     public bool KannRueckgaengig => _undo.Count > 0;
     public bool KannWiederholen => _redo.Count > 0;
     public string? RueckgaengigText => _undo.Last?.Value.Text;
+    /// <summary>Beschreibung der Änderung, die „Wiederherstellen“ (Strg+Y) erneut ausführt.</summary>
+    public string? WiederholenText => _redo.Count > 0 ? _redo.Peek().Text : null;
+
+    private int _sammelTiefe;
+    private string? _sammelText;
+    private bool _sammelSchritt;
+
+    /// <summary>
+    /// Mehrere Änderungen (z. B. Einfügen bzw. Leeren mehrerer Tabellenzellen) als eine Rückgängig-Stufe zusammenfassen: alle
+    /// <see cref="Aendern"/>-Aufrufe bis zum Dispose ergeben einen einzigen Eintrag in der Historie (Beschreibung des Sammelvorgangs).
+    /// Verschachtelte Aufrufe gehören zum äußersten Sammelvorgang.
+    /// </summary>
+    public IDisposable Sammeln(string beschreibung)
+    {
+        if (_sammelTiefe++ == 0) { _sammelText = beschreibung; _sammelSchritt = false; }
+        return new SammelEnde(this);
+    }
+
+    private sealed class SammelEnde(Dokument doc) : IDisposable
+    {
+        private bool _fertig;
+        public void Dispose()
+        {
+            if (_fertig) return;
+            _fertig = true;
+            if (--doc._sammelTiefe == 0) { doc._sammelText = null; doc._sammelSchritt = false; }
+        }
+    }
     /// <summary>Beschreibungen der rückgängig machbaren Änderungen, neueste zuerst (Karteikarte „Historie“ des Planungsdialogs).</summary>
     public IReadOnlyList<string> Historie => _undo.Reverse().Select(x => x.Text).ToList();
 
@@ -168,8 +196,13 @@ public sealed class Dokument
             _index = null;
             throw;
         }
-        _undo.AddLast((beschreibung, vorher));
-        if (_undo.Count > MaxUndo) _undo.RemoveFirst();
+        if (_sammelTiefe > 0 && _sammelSchritt) { /* Stand vor dem ersten Schritt des Sammelvorgangs ist bereits gemerkt */ }
+        else
+        {
+            _undo.AddLast((_sammelTiefe > 0 ? _sammelText ?? beschreibung : beschreibung, vorher));
+            if (_undo.Count > MaxUndo) _undo.RemoveFirst();
+            if (_sammelTiefe > 0) _sammelSchritt = true;
+        }
         _redo.Clear();
         Melden(art);
     }

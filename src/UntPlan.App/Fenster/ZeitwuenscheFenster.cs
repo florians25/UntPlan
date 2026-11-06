@@ -70,7 +70,7 @@ public sealed class ZeitwuenscheFenster : MdiFenster
             ts.Items.Add(b);
         }
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Alle Zeitwünsche löschen", "loeschen", () => Uebernehmen(new Zeitwuensche(), "Zeitwünsche gelöscht")));
+        ts.Items.Add(Knopf("Alle Zeitwünsche löschen", "loeschen", () => { if (Ui.LoeschenBestaetigen(1, "Zeitwunschtabelle", "Zeitwunschtabellen", _auswahl.Text, "Alle Zeitwünsche dieses Elements werden gelöscht.")) Uebernehmen(new Zeitwuensche(), "Zeitwünsche gelöscht"); }));
         ts.Items.Add(Knopf("Serienänderung", "kopieren", Serienaenderung));
         ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => { if (_id.HasValue && _typ != ElementTyp.Unterricht) StundenplanFenster.Neu(_typ, _id, false); }));
         _laden = true;

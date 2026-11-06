@@ -89,6 +89,17 @@ public static class Textverlauf
     /// <summary>Gerade angezeigte Vorschläge (leer, wenn die Liste geschlossen ist) – für den Selbsttest.</summary>
     internal static IReadOnlyList<string> SichtbareVorschlaege() => Liste.Sichtbar();
 
+    /// <summary>Ist für dieses Textfeld die Vorschlagsliste offen und ein Vorschlag markiert (Enter übernimmt dann den Vorschlag)?</summary>
+    internal static bool VorschlagMarkiert(TextBox t) => Liste.Markiert(t);
+
+    /// <summary>Vorschlagsliste dieses Textfelds schließen; true, wenn sie offen war.</summary>
+    internal static bool ListeSchliessen(TextBox t)
+    {
+        var offen = Liste.Offen(t);
+        if (offen) Liste.Schliessen(t);
+        return offen;
+    }
+
     // ------------------------------------------------------------------------------------------
     // Vorschlagsliste
     // ------------------------------------------------------------------------------------------
@@ -147,6 +158,10 @@ public static class Textverlauf
                 return cp;
             }
         }
+
+        public static bool Offen(TextBox t) => _fenster is { IsDisposed: false, Visible: true } f && f._feld == t;
+
+        public static bool Markiert(TextBox t) => Offen(t) && _fenster!._box.SelectedIndex >= 0;
 
         public static List<string> Sichtbar() => _fenster is { IsDisposed: false, Visible: true } f ? f._box.Items.Cast<string>().ToList() : new();
 

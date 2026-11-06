@@ -316,6 +316,7 @@ public sealed class KommentarUebersicht : MdiFenster
         ts.Items.Add(Knopf("Löschen", "loeschen", () =>
         {
             var ids = _g.SelectedRows.Cast<DataGridViewRow>().Select(r => (int)r.Tag!).ToList();
+            if (!Ui.LoeschenBestaetigen(ids.Count, "Kommentar", "Kommentare")) return;
             Aendern("Kommentare löschen", AenderungsArt.Stammdaten, d => d.Kommentare.RemoveAll(k => ids.Contains(k.Id)));
             Neuaufbau();
         }));

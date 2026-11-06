@@ -510,7 +510,7 @@ public sealed class KlausurenFenster : MdiFenster
                 default: return;
             }
         }
-        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException) { BeginInvoke(Neuaufbau); Steuerelemente.Tabellenbedienung.Ungueltig(_g, e.RowIndex, e.ColumnIndex, wert, $"Die Eingabe \"{wert}\" ist ungültig."); return; }
         if (alt is null && k.KlassenIds.Count == 0 && _g.Columns[e.ColumnIndex].Name is not ("K" or "N")) return;
         Aendern(alt is null ? "Klausur anlegen" : "Klausur geändert", AenderungsArt.Vertretung, d =>
         {
@@ -540,7 +540,7 @@ public sealed class KlausurenFenster : MdiFenster
     {
         var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Klausur>().Distinct().ToList();
         if (liste.Count == 0 && _g.CurrentRow?.Tag is Klausur aktuell) liste.Add(aktuell);
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Klausur(en) löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Klausur", "Klausuren")) return;
         var ids = liste.Select(k => k.Id).ToHashSet();
         // Ein Klick auf eine Zelle startet die Bearbeitung – die offene Bearbeitung verwerfen, sonst bliebe der Neuaufbau aus und die
         // gelöschte Klausur stünde weiter in der Liste. Danach die Zeile an der Stelle der ersten gelöschten Klausur auswählen.
@@ -830,7 +830,7 @@ public sealed class VormerkungenFenster : MdiFenster
         switch (spalte)
         {
             case "S":
-                if (!int.TryParse(wert, out var n) || n < 1) { Ui.Info($"Die Eingabe \"{wert}\" ist ungültig."); BeginInvoke(Neuaufbau); return; }
+                if (!int.TryParse(wert, out var n) || n < 1) { BeginInvoke(Neuaufbau); Steuerelemente.Tabellenbedienung.Ungueltig(_g, e.RowIndex, e.ColumnIndex, wert, $"Die Eingabe \"{wert}\" ist ungültig."); return; }
                 if (n < vm.VerplantAm.Count) { Ui.Info($"Die Stundenzahl kann nur bis zur Anzahl der bereits verplanten Stunden ({vm.VerplantAm.Count}) vermindert werden."); BeginInvoke(Neuaufbau); return; }
                 vm.Stunden = n;
                 break;
@@ -945,7 +945,7 @@ public sealed class VormerkungenFenster : MdiFenster
             });
             return;
         }
-        if (!Ui.Frage($"{liste.Count} Vormerkung(en) löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Vormerkung", "Vormerkungen")) return;
         Aendern("Vormerkung löschen", AenderungsArt.Vertretung, d => d.Vormerkungen.RemoveAll(v => ids.Contains(v.Id)));
     }
 }

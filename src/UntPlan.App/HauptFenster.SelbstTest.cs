@@ -1543,7 +1543,7 @@ public sealed partial class HauptFenster
             {
                 (MeldungsArt.Warnung, "UntPlan - Hinweis", "Absenzgrund fehlt.", new[] { "OK" }, false),
                 (MeldungsArt.Info, "UntPlan", "Stundenplanänderungen wurden nacherfasst.", new[] { "OK" }, false),
-                (MeldungsArt.Frage, "UntPlan - Frage", "3 Absenz(en) löschen? Daraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
+                (MeldungsArt.Frage, Ui.LoeschenTitel, Ui.LoeschenFrageText + "\n\n3 Absenzen\n\nDaraus entstandene Vertretungen werden entfernt.", new[] { "Ja", "Nein" }, false),
                 (MeldungsArt.Warnung, "UntPlan - Raum belegt", "Raum R104 ist in der 3. Stunde bereits durch 7a/Ma/MÜL belegt.", new[] { "Verlegen und Raumvertretung für meinen Unterricht", "Kollision erzeugen" }, true),
                 (MeldungsArt.Fehler, "UntPlan - Fehler", "Raum oder Raumgruppe \"X99\" ist nicht vorhanden.", new[] { "OK" }, false),
             };
@@ -1673,8 +1673,1117 @@ public sealed partial class HauptFenster
                 e.AnsichtStandMerken();
             }
         });
+        Schritt("R3A_Auswahllisten_einheitlich", () =>
+        {
+            // R3-A: jede Auswahlliste jeder Maske nutzt denselben Baustein (Kurz-/Langname, Suche, Mausradschutz, nie fett) und
+            // Auswahllisten mit Lehrkräften sind überall gleich sortiert und gleich breit
+            List<string> lehrerSortiert = Stammdaten.Sortiert(AppZustand.D, ElementTyp.Lehrer).Select(l => l.Kurzname).ToList();
+            List<string> fehler = new();
+            var felder = 0;
+            var zellen = 0;
+            List<(string Ort, int Breite)> lehrerListen = new();
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(k => new[] { k }.Concat(Alle(k)));
+            void LehrerReihenfolge(string ort, ComboBox cb)
+            {
+                var namen = cb.Items.Cast<object>().Select(o => cb.GetItemText(o) ?? "").ToList();
+                var lehrer = namen.Where(n => lehrerSortiert.Contains(n)).ToList();
+                if (lehrer.Count < Math.Max(3, lehrerSortiert.Count * 3 / 4)) return;
+                if (!lehrer.SequenceEqual(lehrerSortiert.Where(lehrer.Contains))) fehler.Add($"{ort}: Lehrkräfte anders sortiert ({string.Join(",", lehrer.Take(5))} …)");
+                lehrerListen.Add((ort, cb.DropDownWidth));
+            }
+            void FeldPruefen(string ort, ComboBox cb)
+            {
+                felder++;
+                cb.Focus();
+                Warten(40);
+                Steuerelemente.Auswahlbreite.Vereinheitlichen(cb);
+                if (!Steuerelemente.Auswahlbreite.Einheitlich(cb)) fehler.Add($"{ort}: nicht der gemeinsame Baustein");
+                if (cb.Font.Bold) fehler.Add($"{ort}: fett");
+                if (cb.Items.Count == 0 || !Steuerelemente.ListenSuche.IstEingerichtet(cb)) return;
+                cb.DroppedDown = true;
+                Warten(60);
+                var noetig = Math.Min(Steuerelemente.ListenSuche.BenoetigteBreite(cb, langname: Steuerelemente.ListenSuche.Langname), 760);
+                if (cb.DropDownWidth < Math.Min(noetig, Steuerelemente.ListenSuche.MindestListenbreite)) fehler.Add($"{ort}: Liste {cb.DropDownWidth} px schmaler als {noetig} px");
+                if (cb.MaxDropDownItems != Steuerelemente.ListenSuche.SichtbareEintraege) fehler.Add($"{ort}: {cb.MaxDropDownItems} statt {Steuerelemente.ListenSuche.SichtbareEintraege} sichtbare Einträge");
+                LehrerReihenfolge(ort, cb);
+                cb.DroppedDown = false;
+            }
+            void ZellePruefen(string ort, DataGridView g, DataGridViewComboBoxColumn spalte)
+            {
+                var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => !r.IsNewRow && r.Visible && !r.Cells[spalte.Index].ReadOnly && r.Cells[spalte.Index] is DataGridViewComboBoxCell);
+                if (zeile is null) return;
+                try
+                {
+                    g.CurrentCell = zeile.Cells[spalte.Index];
+                    g.BeginEdit(true);
+                    Warten(80);
+                    if (g.EditingControl is not ComboBox cb) return;
+                    zellen++;
+                    if (!Steuerelemente.SuchKombi.IstAktiv(g)) fehler.Add($"{ort}: Tabelle ohne Direktsuche");
+                    if (!Steuerelemente.ListenSuche.IstEingerichtet(cb)) fehler.Add($"{ort}: Zelle nicht der gemeinsame Baustein");
+                    if (!Steuerelemente.ListenSuche.HatMausradSchutz(cb)) fehler.Add($"{ort}: Zelle ohne Mausradschutz");
+                    if (cb.Font.Bold) fehler.Add($"{ort}: Zelle fett");
+                    if (cb.MaxDropDownItems != Steuerelemente.ListenSuche.SichtbareEintraege) fehler.Add($"{ort}: Zelle {cb.MaxDropDownItems} sichtbare Einträge");
+                    cb.DroppedDown = true;
+                    Warten(60);
+                    LehrerReihenfolge(ort, cb);
+                    cb.DroppedDown = false;
+                }
+                finally { g.CancelEdit(); g.EndEdit(); }
+            }
+            void FormPruefen(string name, Form f)
+            {
+                Steuerelemente.Auswahlbreite.AlleErfassen();
+                Warten(150);
+                foreach (var cb in Alle(f).OfType<ComboBox>().Where(c => c.Visible && c.Enabled && c is not IDataGridViewEditingControl).ToList())
+                    FeldPruefen($"{name}/{(cb.Name is { Length: > 0 } n ? n : cb.Parent?.GetType().Name + ":" + cb.Text)}", cb);
+                foreach (var ts in Alle(f).OfType<ToolStrip>().ToList())
+                    foreach (var tc in ts.Items.OfType<ToolStripComboBox>().Where(x => x.Visible && x.Enabled).ToList())
+                        FeldPruefen($"{name}/Leiste:{tc.Text}", tc.ComboBox);
+                foreach (var g in Alle(f).OfType<DataGridView>().Where(x => x.Visible && !x.ReadOnly && x.RowCount > 0).ToList())
+                    foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>().Where(c => c.Visible && !c.ReadOnly).ToList())
+                        ZellePruefen($"{name}/{g.Name}.{spalte.HeaderText}", g, spalte);
+            }
+            foreach (var schluessel in new[] { "vertr", "abw", "veranst", "st:Lehrer", "st:Raum", "u:Klasse", "u:Lehrer" })
+            {
+                AlleSchliessen();
+                if (FensterOeffnen(schluessel) is not { } f) { fehler.Add($"{schluessel}: Fenster fehlt"); continue; }
+                f.WindowState = FormWindowState.Maximized;
+                Warten(300);
+                FormPruefen(schluessel, f);
+            }
+            AlleSchliessen();
+            // ein beliebiges Fenster (keine Ableitung von Dialog): wird programmweit erfasst – Felder und Tabellenzellen gleich
+            using (var d = new Form { Text = "R3A", Size = new Size(520, 300), StartPosition = FormStartPosition.CenterScreen, ShowInTaskbar = false })
+            {
+                var lehrer = ElementListe.Combo(ElementTyp.Lehrer, null);
+                lehrer.SetBounds(10, 10, 120, 24);
+                var kurz = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Items = { "Standard", "links", "rechts" }, SelectedIndex = 0 };
+                kurz.SetBounds(140, 10, 100, 24);
+                var frei = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, Items = { "2025/2026", "2026/2027" }, Text = "frei" };
+                frei.SetBounds(250, 10, 100, 24);
+                var g = new DataGridView { Left = 10, Top = 50, Width = 480, Height = 180, AllowUserToAddRows = false, Name = "R3A" };
+                g.Columns.Add(new DataGridViewComboBoxColumn { Name = "L", HeaderText = "Lehrer", Width = 60, DataSource = new[] { "" }.Concat(lehrerSortiert).ToList() });
+                d.Controls.AddRange(new Control[] { lehrer, kurz, frei, g });
+                d.Show(this);
+                g.Rows.Add("");
+                Warten(300);
+                FormPruefen("Fenster", d);
+                if (!Steuerelemente.ListenSuche.IstFrei(frei)) fehler.Add("freies Feld nicht als frei erkannt");
+                if (lehrerListen.Count > 1 && lehrerListen.Select(x => x.Breite).Distinct().Count() > 2)
+                    log.Add("INFO  Lehrerlisten-Breiten: " + string.Join(", ", lehrerListen.Select(x => $"{x.Ort}={x.Breite}")));
+                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad ändert nichts
+                log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld Lehrer", lehrer, lehrerSortiert));
+                log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld kurz", kurz, new List<string> { "Standard", "links", "rechts" }));
+                d.Close();
+            }
+            // gleiches Verhalten im Kopfbereich bzw. in einer Tabellenzelle der Vertretungsliste
+            if (FensterOeffnen("vertr") is VertretungenFenster vf)
+            {
+                Max(vf);
+                Warten(400);
+                var g = Alle(vf).OfType<DataGridView>().FirstOrDefault(x => x.Columns.Contains("Vertreter"));
+                var zeile = g?.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && !r.Cells["Vertreter"].ReadOnly && r.Cells["Vertreter"] is DataGridViewComboBoxCell);
+                if (g != null && zeile != null)
+                {
+                    g.CurrentCell = zeile.Cells["Vertreter"];
+                    g.BeginEdit(true);
+                    Warten(150);
+                    if (g.EditingControl is ComboBox zc)
+                    {
+                        var vorher = zc.Text;
+                        zc.Text = "xq§";
+                        Aufrufen(zc, "OnTextUpdate", EventArgs.Empty);
+                        Aufrufen(zc, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+                        Warten(60);
+                        if (zc.Text != vorher) fehler.Add($"Vertreterzelle: ungültige Eingabe übernommen („{zc.Text}“ statt „{vorher}“)");
+                        if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) fehler.Add("Vertreterzelle: kein Hinweis auf die ungültige Eingabe");
+                        var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+                        Aufrufen(zc, "OnMouseWheel", rad);
+                        if (!rad.Handled || zc.Text != vorher) fehler.Add("Vertreterzelle: Mausrad ändert den Wert");
+                    }
+                    g.CancelEdit();
+                    g.EndEdit();
+                }
+            }
+            log.Add($"INFO  Auswahllisten geprüft: {felder} Felder, {zellen} Tabellenzellen, {lehrerListen.Count} Lehrerlisten");
+            if (felder < 6 || zellen < 6) throw new InvalidOperationException($"Zu wenige Auswahllisten gefunden ({felder} Felder, {zellen} Zellen).");
+            if (fehler.Count > 0) throw new InvalidOperationException("Auswahllisten uneinheitlich: " + string.Join("; ", fehler.Take(15)));
+        }, -1);
+        Schritt("R3A_Auswahlliste_Bild", () =>
+        {
+            // Bildschirmfoto einer geöffneten Auswahlliste in einem Formularfeld (Kurzname | Langname, nach unten, nicht fett)
+            var d = new Form { Text = "Auswahlliste", Size = new Size(420, 520), StartPosition = FormStartPosition.CenterScreen, ShowInTaskbar = false };
+            var lehrer = ElementListe.Combo(ElementTyp.Lehrer, AppZustand.D.Lehrer.FirstOrDefault()?.Id);
+            lehrer.SetBounds(20, 20, 120, 24);
+            d.Controls.Add(lehrer);
+            d.Show(this);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            Warten(200);
+            lehrer.Focus();
+            Steuerelemente.Auswahlbreite.Vereinheitlichen(lehrer);
+            Warten(100);
+            lehrer.DroppedDown = true;
+            Warten(300);
+            Foto(Path.Combine(ordner, "R3A_Auswahlliste_offen.png"));
+            lehrer.DroppedDown = false;
+            d.Close();
+        }, -1);
+        // ---------------------------------------------------------------- R3B: einheitliches, verlässliches Eingabeverhalten in allen Masken
+        // Tasten werden wie vom Benutzer gesendet (Enter/Esc als Fensternachricht an das Eingabefeld, Tastenkombinationen über die
+        // gemeinsame Tastenverarbeitung); jede Maske muss gleich reagieren, sonst wird der Schritt rot.
+        DataGridView R3BTabelle(Form f) => Ui.Tabellen(f).Where(g => g.Visible && g.Width > 40 && g.Height > 40).OrderByDescending(g => g.Width * g.Height).First();
+        string R3BSchl(DataGridViewRow r) => Steuerelemente.Tabellenbedienung.ZeilenSchluessel(r) ?? "#" + r.Index;
+        DataGridViewCell? R3BZelle(DataGridView g, string schluessel, int spalte) =>
+            g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => R3BSchl(r) == schluessel) is { } r && spalte < g.Columns.Count ? r.Cells[spalte] : null;
+        string R3BText(DataGridViewCell? c) => c is null ? "<Zeile fehlt>" : Steuerelemente.NurText.ZellText(c);
+        void R3BTaste(Control ziel, Keys taste)
+        {
+            R3BPostMessage(ziel.Handle, 0x100, (IntPtr)(int)taste, IntPtr.Zero);
+            R3BPostMessage(ziel.Handle, 0x101, (IntPtr)(int)taste, (IntPtr)unchecked((int)0xC0000001));
+            Warten(150);
+        }
+        void R3BKombi(DataGridView g, Keys keys) { Steuerelemente.Tabellenbedienung.Senden(g, keys); Warten(350); }
+        void R3BWaehlen(DataGridView g, DataGridViewCell? z)
+        {
+            if (z is null) return;
+            g.ClearSelection();
+            g.CurrentCell = z;
+            if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect) z.OwningRow.Selected = true; else z.Selected = true;
+            Warten(80);
+        }
+        void R3BMaske(string maske, Form f, string[] spaltenWunsch, bool historie)
+        {
+            Warten(400);
+            // neue Fenster werden sonst erst im Leerlauf erfasst (im Selbsttest läuft kein Leerlauf)
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            f.Activate();
+            var g = R3BTabelle(f);
+            g.Focus();
+            var fehler = new List<string>();
+            var spalte = spaltenWunsch.Select(n => g.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.Name == n || c.HeaderText == n)).FirstOrDefault(c => c != null)
+                ?? throw new InvalidOperationException($"{maske}: keine Spalte {string.Join("/", spaltenWunsch)}");
+            if (!spalte.Visible) { spalte.Visible = true; Warten(100); }
+            var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && r.Tag != null && Steuerelemente.Tabellenbedienung.ZelleAenderbar(r.Cells[spalte.Index]))
+                ?? throw new InvalidOperationException($"{maske}: keine änderbare Zeile in Spalte „{spalte.HeaderText}“");
+            var key = R3BSchl(zeile);
+            var si = spalte.Index;
+            var original = R3BText(zeile.Cells[si]);
+            var neu = original == "R3B-Eingabe" ? "R3B-Eingabe2" : "R3B-Eingabe";
+            void Zurueck()
+            {
+                if (historie) { R3BKombi(g, Keys.Control | Keys.Z); return; }
+                if (R3BZelle(g, key, si) is { } z) { Steuerelemente.Tabellenbedienung.Setzen(g, z, original); Warten(300); }
+            }
+
+            // 1. F2 bearbeitet, Esc verwirft die laufende Eingabe
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            R3BKombi(g, Keys.F2);
+            if (!g.IsCurrentCellInEditMode || g.EditingControl is not TextBox tb1) fehler.Add("F2 startet keine Bearbeitung");
+            else
+            {
+                tb1.Text = neu;
+                R3BTaste(tb1, Keys.Escape);
+                Warten(200);
+                if (g.IsCurrentCellInEditMode) fehler.Add("Esc beendet die Bearbeitung nicht");
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add($"Esc verwirft die Eingabe nicht („{R3BText(R3BZelle(g, key, si))}“)");
+            }
+
+            // 2. Enter prüft und übernimmt die Eingabe und springt zum nächsten Feld
+            var historieVorher = AppZustand.Doc.Historie.Count;
+            var rueckVorher = AppZustand.Doc.RueckgaengigText;
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            g.BeginEdit(true);
+            Warten(80);
+            if (g.EditingControl is TextBox tb2)
+            {
+                tb2.Text = neu;
+                R3BTaste(tb2, Keys.Enter);
+                Warten(500);
+                if (g.IsCurrentCellInEditMode) fehler.Add("Enter beendet die Bearbeitung nicht");
+                if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add($"Enter übernimmt die Eingabe nicht („{R3BText(R3BZelle(g, key, si))}“)");
+                if (g.CurrentCell is { } cc && R3BSchl(cc.OwningRow) == key && cc.ColumnIndex == si) fehler.Add("Enter springt nicht zum nächsten Feld");
+                if (historie && AppZustand.Doc.Historie.Count == historieVorher && AppZustand.Doc.RueckgaengigText == rueckVorher) fehler.Add("Eingabe steht nicht in der Historie");
+            }
+            else fehler.Add("Bearbeitung lässt sich nicht starten");
+
+            // 3. Strg+Z / Strg+Y wirken in der Maske, mit Hinweis in der Statuszeile; die Zeile bleibt aktuell
+            if (historie && R3BText(R3BZelle(g, key, si)) == neu)
+            {
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BKombi(g, Keys.Control | Keys.Z);
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add($"Strg+Z stellt den Wert nicht wieder her („{R3BText(R3BZelle(g, key, si))}“)");
+                if (!Ui.LetzterHinweis.StartsWith("Rückgängig:", StringComparison.Ordinal)) fehler.Add($"kein Statuszeilen-Hinweis nach Strg+Z („{Ui.LetzterHinweis}“)");
+                if (g.CurrentCell is null || R3BSchl(g.CurrentCell.OwningRow) != key) fehler.Add("nach Strg+Z steht der Cursor nicht mehr auf der bearbeiteten Zeile");
+                R3BKombi(g, Keys.Control | Keys.Y);
+                if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add("Strg+Y stellt die Änderung nicht wieder her");
+                if (!Ui.LetzterHinweis.StartsWith("Wiederhergestellt:", StringComparison.Ordinal)) fehler.Add($"kein Statuszeilen-Hinweis nach Strg+Y („{Ui.LetzterHinweis}“)");
+                R3BKombi(g, Keys.Control | Keys.Z);
+            }
+            else if (!historie) Zurueck();
+            if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Ausgangswert nicht wiederhergestellt");
+
+            // 4. Strg+V fügt ein (eine Rückgängig-Stufe), Strg+C kopiert die markierten Zellen
+            R3BWaehlen(g, R3BZelle(g, key, si));
+            var ablage = Steuerelemente.NurText.Kopieren(neu) && Steuerelemente.NurText.Einfuegetext() == neu;
+            if (ablage) R3BKombi(g, Keys.Control | Keys.V);
+            else { Steuerelemente.Tabellenbedienung.Einfuegen(g, neu); Warten(350); }
+            if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add($"Strg+V fügt nicht ein („{R3BText(R3BZelle(g, key, si))}“)");
+            else
+            {
+                if (ablage)
+                {
+                    Steuerelemente.NurText.Kopieren("leer");
+                    R3BWaehlen(g, R3BZelle(g, key, si));
+                    R3BKombi(g, Keys.Control | Keys.C);
+                    var kopiert = Steuerelemente.NurText.Einfuegetext() ?? "";
+                    // Zeilenmarkierung kopiert die ganze Zeile, Zellmarkierung die Zelle
+                    if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect ? !kopiert.Split('\t').Contains(neu) : kopiert != neu) fehler.Add($"Strg+C kopiert die Zelle nicht („{Steuerelemente.NurText.Einfuegetext()}“)");
+                }
+                Zurueck();
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Einfügen nicht als eine Rückgängig-Stufe");
+            }
+
+            // 5. Entf leert das Feld (rückgängig mit Strg+Z)
+            if (original.Length > 0)
+            {
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BTaste(g, Keys.Delete);
+                Warten(350);
+                if (R3BText(R3BZelle(g, key, si)) != "" && !Ui.LetzterHinweis.Contains("nicht übernommen")) fehler.Add($"Entf leert das Feld nicht („{R3BText(R3BZelle(g, key, si))}“)");
+                if (R3BText(R3BZelle(g, key, si)) == "") Zurueck();
+                if (R3BText(R3BZelle(g, key, si)) != original) fehler.Add("Wert nach Entf nicht wiederherstellbar");
+            }
+
+            // 6. Strg+E / Strg+F passen die Spaltenbreiten an
+            if (g.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.Visible && c.AutoSizeMode != DataGridViewAutoSizeColumnMode.Fill && c.HeaderText.Length > 3 && c.Resizable != DataGridViewTriState.False) is { } breit)
+            {
+                var alt = breit.Width;
+                foreach (var (taste, name) in new[] { (Keys.E, "Strg+E"), (Keys.F, "Strg+F") })
+                {
+                    breit.Width = Math.Max(breit.MinimumWidth, 6);
+                    var schmal = breit.Width;
+                    R3BKombi(g, Keys.Control | taste);
+                    if (breit.Width <= schmal) fehler.Add($"{name} passt die Spaltenbreite nicht an");
+                }
+                breit.Width = alt;
+            }
+
+            // 7. Löschen: überall dieselbe Rückfrage (auch bei Mehrfachauswahl); „Nein“ löscht nichts
+            var antwortVorher = Ui.FrageAntwort;
+            var infoVorher = Ui.InfoAntwort;
+            var gestellt = new List<string>();
+            var info = new List<string>();
+            var zeilenVorher = g.Rows.Count;
+            var stufenVorher = AppZustand.Doc.Historie.Count;
+            var rueckText = AppZustand.Doc.RueckgaengigText;
+            try
+            {
+                Ui.FrageAntwort = (t, _) => { gestellt.Add(t); return false; };
+                Ui.InfoAntwort = (t, _) => info.Add(t);
+                if (Steuerelemente.Tabellenbedienung.LoeschKnopf(g) is null) fehler.Add("kein Knopf „Löschen“ für Strg+Entf");
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                R3BKombi(g, Keys.Control | Keys.Delete);
+                var andere = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && r.Tag != null && R3BSchl(r) != key && r.Tag.GetType() == zeile.Tag!.GetType());
+                if (andere != null)
+                {
+                    R3BWaehlen(g, R3BZelle(g, key, si));
+                    if (g.SelectionMode == DataGridViewSelectionMode.FullRowSelect) andere.Selected = true; else andere.Cells[si].Selected = true;
+                    R3BKombi(g, Keys.Control | Keys.Delete);
+                }
+                var einheitlich = gestellt.Where(t => t.StartsWith(Ui.LoeschenFrageText, StringComparison.Ordinal)).ToList();
+                if (einheitlich.Count == 0 && info.Count == 0) fehler.Add($"Rückfrage vor dem Löschen fehlt bzw. weicht ab: {string.Join(" / ", gestellt)}");
+                if (gestellt.Count > einheitlich.Count) fehler.Add($"Rückfrage mit abweichendem Wortlaut: {string.Join(" / ", gestellt.Except(einheitlich))}");
+                if (andere != null && einheitlich.Count >= 2 && !einheitlich[^1].Contains("\n\n2 ")) fehler.Add($"Mehrfachauswahl: Rückfrage nennt nicht 2 Datensätze ({einheitlich[^1].Replace("\n", " ")})");
+                if (g.Rows.Count != zeilenVorher || AppZustand.Doc.Historie.Count != stufenVorher || AppZustand.Doc.RueckgaengigText != rueckText) fehler.Add("mit „Nein“ wurde trotzdem gelöscht");
+                log.Add($"INFO  R3B {maske}: Rückfrage „{(einheitlich.FirstOrDefault() ?? info.FirstOrDefault() ?? "").Replace("\n", " ")}“");
+            }
+            finally
+            {
+                Ui.FrageAntwort = antwortVorher;
+                Ui.InfoAntwort = infoVorher;
+            }
+            if (fehler.Count > 0) throw new InvalidOperationException($"{maske} weicht vom einheitlichen Eingabeverhalten ab: " + string.Join("; ", fehler));
+            log.Add($"INFO  R3B {maske}: F2/Esc/Enter/Strg+Z/Strg+Y/Strg+C/Strg+V/Entf/Strg+E/Strg+F/Löschen einheitlich (Spalte „{spalte.HeaderText}“)");
+        }
+        void R3BVertretungsmodus(bool an)
+        {
+            if (AppZustand.Vertretungsmodus != an) { VertretungsmodusUmschalten(); Warten(300); }
+            if (an) AppZustand.DatumSetzen(tag);
+        }
+        Schritt("R3B_Stammdaten_Lehrer", () => { R3BVertretungsmodus(false); R3BMaske("Lehrer", Max(Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer))), new[] { "Langname" }, true); }, 1);
+        Schritt("R3B_Stammdaten_Faecher", () => { R3BVertretungsmodus(false); R3BMaske("Fächer", Max(Oeffnen<StammdatenFenster>("st:Fach", () => new StammdatenFenster(ElementTyp.Fach))), new[] { "Langname" }, true); }, 1);
+        Schritt("R3B_Unterricht", () => { R3BVertretungsmodus(false); R3BMaske("Unterricht", Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse))), new[] { "Text", "Zeilentext" }, true); }, 1);
+        Schritt("R3B_Ferien", () => { R3BVertretungsmodus(false); R3BMaske("Ferien", Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), new[] { "L" }, false); }, 0);
+        Schritt("R3B_Absenzen", () => { R3BVertretungsmodus(true); R3BMaske("Absenzen", Max(FensterOeffnen("abw")!), new[] { "T" }, true); }, -1);
+        Schritt("R3B_Veranstaltungen", () => { R3BVertretungsmodus(true); R3BMaske("Veranstaltungen", Max(FensterOeffnen("veranst")!), new[] { "T" }, true); }, -1);
+        Schritt("R3B_Vertretungen", () =>
+        {
+            R3BVertretungsmodus(true);
+            // Einzelzeilen prüfen: eine zusammengefasste Veranstaltungszeile zeigt nach dem Leeren wieder den Namen der Veranstaltung
+            // (wie im Vorbild) – sonst hinge der Schritt davon ab, ob am Tag eine Veranstaltung liegt
+            var vorher = AppZustand.Einstellungen.VeranstaltungenZusammenfassen;
+            AppZustand.Einstellungen.VeranstaltungenZusammenfassen = false;
+            try { R3BMaske("Vertretungen", Max(FensterOeffnen("vertr")!), new[] { "Text" }, true); }
+            finally { AppZustand.Einstellungen.VeranstaltungenZusammenfassen = vorher; }
+        }, -1);
+        Schritt("R3B_Klausuren", () =>
+        {
+            R3BVertretungsmodus(true);
+            if (!AppZustand.D.Klausuren.Any(k => k.Datum == tag && !k.Importiert))
+                AppZustand.Doc.Aendern("R3B Testklausur", AenderungsArt.Vertretung, d => d.Klausuren.Add(new Klausur
+                {
+                    Id = d.NeueId(), Name = "R3B", Datum = tag, StundeVon = 1, StundeBis = 1, KlassenIds = new() { d.Klassen[0].Id }, Text = "Probe", Aktiv = true, UnterrichtEntfaellt = false,
+                }));
+            R3BMaske("Klausuren", Max(FensterOeffnen("klaus")!), new[] { "T" }, true);
+        }, -1);
+        Schritt("R3B_Vormerkungen", () =>
+        {
+            R3BVertretungsmodus(true);
+            if (AppZustand.D.Vormerkungen.Count == 0)
+                AppZustand.Doc.Aendern("R3B Testvormerkung", AenderungsArt.Vertretung, d => d.Vormerkungen.Add(new Vormerkung
+                {
+                    Id = d.NeueId(), Quelle = VormerkungsQuelle.Konkret, Stunden = 1, FachId = d.Faecher[0].Id, LehrerIds = new() { d.Lehrer[0].Id }, Text = "Probe",
+                }));
+            R3BMaske("Vormerkungen", Max(FensterOeffnen("vorm")!), new[] { "T" }, true);
+        }, -1);
+        // ungültige Eingabe: Hinweis in Statuszeile/Tooltip, kein Meldungsfenster, Eingabe bleibt zur Korrektur stehen, Esc verwirft sie
+        Schritt("R3B_Ungueltige_Eingabe", () =>
+        {
+            R3BVertretungsmodus(true);
+            var f = Max(FensterOeffnen("veranst")!);
+            Warten(400);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var g = R3BTabelle(f);
+            var zeile = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is Veranstaltung) ?? throw new InvalidOperationException("keine Veranstaltung");
+            var key = R3BSchl(zeile);
+            var si = g.Columns["SV"]!.Index;
+            var original = R3BText(zeile.Cells[si]);
+            var infos = new List<string>();
+            var infoVorher = Ui.InfoAntwort;
+            var hinweis = "";
+            var vaId = ((Veranstaltung)zeile.Tag!).Id;
+            var stundeVon = AppZustand.D.Veranstaltungen.First(v => v.Id == vaId).StundeVon;
+            try
+            {
+                Ui.InfoAntwort = (t, _) => infos.Add(t);
+                R3BWaehlen(g, R3BZelle(g, key, si));
+                g.BeginEdit(true);
+                Warten(80);
+                if (g.EditingControl is not TextBox tb) throw new InvalidOperationException("Stunde-von nicht bearbeitbar");
+                tb.Text = "xx";
+                R3BTaste(tb, Keys.Enter);
+                Warten(600);
+                hinweis = Ui.LetzterHinweis;
+                if (infos.Count > 0) throw new InvalidOperationException("Ungültige Eingabe öffnet ein Meldungsfenster: " + infos[0]);
+                if (!Ui.LetzterHinweis.Contains("ungültig", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException($"kein Hinweis in der Statuszeile („{Ui.LetzterHinweis}“)");
+                if (!g.IsCurrentCellInEditMode || g.EditingControl is not TextBox tb2 || tb2.Text != "xx") throw new InvalidOperationException("ungültige Eingabe steht nicht mehr zur Korrektur in der Zelle");
+                if (g.CurrentCell is not { } cc || R3BSchl(cc.OwningRow) != key || cc.ColumnIndex != si) throw new InvalidOperationException("Cursor hat die Zelle der ungültigen Eingabe verlassen");
+                R3BTaste(tb2, Keys.Escape);
+                Warten(300);
+                if (g.IsCurrentCellInEditMode || R3BText(R3BZelle(g, key, si)) != original) throw new InvalidOperationException("Esc verwirft die ungültige Eingabe nicht");
+                if (AppZustand.D.Veranstaltungen.First(v => v.Id == vaId).StundeVon != stundeVon) throw new InvalidOperationException("ungültige Eingabe hat die Daten geändert");
+                if (Ui.FehlerProtokoll is { Count: > 0 }) throw new InvalidOperationException("Ausnahme bei ungültiger Eingabe");
+            }
+            finally { Ui.InfoAntwort = infoVorher; }
+            log.Add($"INFO  R3B ungültige Eingabe: „{hinweis}“");
+        }, -1);
+        // Fokus nach Neuaufbau: Änderung aus einem anderen Fenster (bzw. Rückgängig) – Zeile und Spalte bleiben erhalten
+        Schritt("R3B_Fokus_nach_Neuaufbau", () =>
+        {
+            R3BVertretungsmodus(false);
+            var f = Max(Oeffnen<StammdatenFenster>("st:Lehrer", () => new StammdatenFenster(ElementTyp.Lehrer)));
+            Warten(400);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var g = R3BTabelle(f);
+            var zeilen = g.Rows.Cast<DataGridViewRow>().Where(r => r.Visible && r.Tag != null).ToList();
+            if (zeilen.Count < 6) throw new InvalidOperationException("zu wenige Lehrer");
+            var spalte = g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Skip(2).First();
+            R3BWaehlen(g, zeilen[5].Cells[spalte.Index]);
+            var key = R3BSchl(zeilen[5]);
+            var erste = g.FirstDisplayedScrollingRowIndex;
+            var anderer = AppZustand.D.Lehrer.First(l => R3BSchl(zeilen[5]) != "Lehrer:" + l.Id);
+            AppZustand.Doc.Aendern("R3B fremde Änderung", AenderungsArt.Stammdaten, d => d.Lehrer.First(l => l.Id == anderer.Id).Langname += " ");
+            Warten(400);
+            void Pruefen(string wann)
+            {
+                if (g.CurrentCell is not { } c || R3BSchl(c.OwningRow) != key || c.ColumnIndex != spalte.Index)
+                    throw new InvalidOperationException($"{wann}: Zeile/Spalte nicht erhalten (jetzt {(g.CurrentCell is { } x ? R3BSchl(x.OwningRow) + "/" + x.OwningColumn.HeaderText : "keine")})");
+                if (Math.Abs(g.FirstDisplayedScrollingRowIndex - erste) > 1) throw new InvalidOperationException($"{wann}: Bildlauf gesprungen ({erste} → {g.FirstDisplayedScrollingRowIndex})");
+            }
+            Pruefen("nach Änderung in anderem Fenster");
+            Ui.Rueckgaengig();
+            Warten(400);
+            Pruefen("nach Rückgängig");
+        }, 1);
+        // ===========================================================================================================
+        // R3C: Abläufe der Handbücher Schritt für Schritt (Vertretungsplanung Kurzeinführung Kap. 3, Stundenplan Kap. 3–6)
+        // ===========================================================================================================
+        var r3cTag = Kalender.NaechsterUnterrichtstag(AppZustand.D, Kalender.Montag(tag).AddDays(14));
+        while (r3cTag.DayOfWeek != DayOfWeek.Monday || !Kalender.IstUnterrichtstag(AppZustand.D, r3cTag)) r3cTag = Kalender.NaechsterUnterrichtstag(AppZustand.D, r3cTag.AddDays(1));
+        Lehrer R3cHugo()
+        {
+            var tp0 = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, r3cTag);
+            return AppZustand.D.Lehrer.Where(l => l.Id != krank.Id).OrderByDescending(l => tp0.Regel.Count(r => r.LehrerId == l.Id)).First();
+        }
+        var r3cHugo = R3cHugo();
+        void R3cModus(bool vertretung)
+        {
+            if (AppZustand.Vertretungsmodus != vertretung) VertretungsmodusUmschalten();
+            AppZustand.DatumSetzen(r3cTag);
+            Warten(200);
+        }
+        static void R3cPruefen(bool ok, string text) { if (!ok) throw new InvalidOperationException(text); }
+        static IEnumerable<Control> R3cAlle(Control c) => c.Controls.Cast<Control>().SelectMany(k => R3cAlle(k).Prepend(k));
+        List<VertretungenFenster.SelbsttestZeile> R3cListe() =>
+            (FensterOeffnen("vertr") as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt")).SelbsttestZeilen(r3cTag);
+        List<Vertretung> R3cOffene() => AppZustand.D.Vertretungen.Where(v => v.Datum == r3cTag && v.LehrerId == r3cHugo.Id && v.Offen && v.Art == VertretungsArt.Vertretung).OrderBy(v => v.Stunde).ToList();
+
+        Schritt("R3C_VP01_Vertretungsmodus", () =>
+        {
+            // Kap. 3.1: Schaltfläche <Vertretungsplanung> in der Registerkarte „Start“ (oder „Module“) – Oberfläche grün, Reiter „Vertretungsplanung“
+            R3cModus(false);
+            Steuerelemente.RibbonEintrag? Knopf(string seite) => _ribbon.Seiten.FirstOrDefault(s => s.Text == seite)?.Gruppen.SelectMany(g => g.Eintraege).FirstOrDefault(e => e.Text == "Vertretungsplanung");
+            var start = Knopf("Start") ?? throw new InvalidOperationException("Registerkarte „Start“ ohne Schaltfläche „Vertretungsplanung“");
+            if (Knopf("Module") is null) log.Add("INFO  R3C_VP01: Abweichung Menüband (nicht in diesem Paket): Registerkarte „Module“ ohne Schaltfläche „Vertretungsplanung“ (Handbuch Kap. 3.1)");
+            var vorher = Ui.Titel;
+            start.Klick!();
+            Warten(300);
+            R3cPruefen(AppZustand.Vertretungsmodus, "Vertretungsmodus nicht aktiv");
+            R3cPruefen(Ui.Titel.ToArgb() != vorher.ToArgb() && Ui.Titel.G > Ui.Titel.R && Ui.Titel.G > Ui.Titel.B, $"Oberfläche nicht grün: {Ui.Titel}");
+            var vp = _ribbon.Seiten.FirstOrDefault(s => s.Text == "Vertretungsplanung") ?? throw new InvalidOperationException("Reiter „Vertretungsplanung“ fehlt");
+            R3cPruefen(vp.IstSichtbar && _ribbon.AktiveSeite == _ribbon.Seiten.IndexOf(vp), "Reiter „Vertretungsplanung“ nicht sichtbar/aktiv");
+            // andere Reiter bleiben erreichbar (Stammdaten-/Unterrichtsfenster)
+            R3cPruefen(_ribbon.Seiten.First(s => s.Text == "Dateneingabe").IstSichtbar, "Reiter „Dateneingabe“ im Vertretungsmodus nicht erreichbar");
+            AppZustand.DatumSetzen(r3cTag);
+            log.Add($"INFO  R3C_VP01: Vertretungsmodus über Start, Farbe {Ui.Titel.R},{Ui.Titel.G},{Ui.Titel.B}, Reiter „Vertretungsplanung“ aktiv");
+        }, -1, false);
+
+        Schritt("R3C_VP02_Absenzeingabe", () =>
+        {
+            // Kap. 3.2: Absenzfenster, Kalender auf Montag, Lehrer-Kurzname eintippen, Tab/Enter → ganzer Tag absent; Spalte „Grund“; Art „Raum“; <Löschen>
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var tp0 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag);
+            var stunden = tp0.Regel.Where(r => r.LehrerId == r3cHugo.Id).Select(r => r.Stunde).ToList();
+            var f = Max(FensterOeffnen("abw")!) as AbwesenheitenFenster ?? throw new InvalidOperationException("Absenzfenster fehlt");
+            Warten(300);
+            f.SelbsttestReiter(0);
+            var soll = new[] { "AbsNr.", "Lehrer", "Von TT.MM.", "ab St.", "Bis TT.MM.", "bis St.", "Grund", "Text" };
+            var ist = f.SelbsttestSpalten();
+            R3cPruefen(ist.Take(soll.Length).SequenceEqual(soll), "Spalten des Absenzfensters: " + string.Join(" | ", ist));
+            R3cPruefen(f.SelbsttestKnoepfe().Contains("Löschen"), "Schaltfläche <Löschen> fehlt");
+            f.SelbsttestEingeben("E", r3cHugo.Kurzname.ToLowerInvariant());
+            Warten(400);
+            var a = dd.Abwesenheiten.LastOrDefault(x => x.Art == AbwesenheitsArt.Lehrer && x.ElementId == r3cHugo.Id && x.Von <= r3cTag && x.Bis >= r3cTag)
+                    ?? throw new InvalidOperationException("Absenz wurde nicht angelegt");
+            R3cPruefen(a.Von == r3cTag && a.Bis == r3cTag && a.StundeVon == 1 && a.StundeBis >= stunden.DefaultIfEmpty(1).Max(), $"Absenz nicht ganztägig: {a.Von}–{a.Bis}, {a.StundeVon}.–{a.StundeBis}. Std.");
+            var vtr = dd.Vertretungen.Where(v => v.Datum == r3cTag && v.LehrerId == r3cHugo.Id && v.Art != VertretungsArt.Pausenaufsicht).ToList();
+            R3cPruefen(vtr.Count == stunden.Count, $"{vtr.Count} Vertretungszeilen statt {stunden.Count} betroffener Stunden");
+            // Raum absent setzen: Reiter „Räume“, Titel „Absenzen / Raum“
+            f.SelbsttestReiter(2);
+            Warten(200);
+            R3cPruefen(f.Text == "Absenzen / Raum", "Art „Raum“: Titel " + f.Text);
+            var raum = dd.Raeume.First(r => !r.Ignorieren);
+            f.SelbsttestEingeben("E", raum.Kurzname);
+            Warten(300);
+            var ra = dd.Abwesenheiten.LastOrDefault(x => x.Art == AbwesenheitsArt.Raum && x.ElementId == raum.Id && x.Von == r3cTag) ?? throw new InvalidOperationException("Raumabsenz nicht angelegt");
+            // <Löschen> entfernt die Absenz wieder
+            f.SelbsttestLoeschen(ra.Id);
+            Warten(300);
+            R3cPruefen(dd.Abwesenheiten.All(x => x.Id != ra.Id), "Absenz wurde mit <Löschen> nicht entfernt");
+            f.SelbsttestReiter(0);
+            log.Add($"INFO  R3C_VP02: {r3cHugo.Kurzname} am {r3cTag:dd.MM.} ganztägig (1.–{a.StundeBis}. Std.) absent, {vtr.Count} Vertretungszeilen; Raumabsenz {raum.Kurzname} angelegt und gelöscht");
+        }, -1);
+
+        Schritt("R3C_VP03_Vertretungen_bearbeiten", () =>
+        {
+            // Kap. 3.3: je betroffener Stunde eine Zeile, offene Vertretung mit drei roten Fragezeichen
+            R3cModus(true);
+            var zeilen = R3cListe().Where(z => z.V.LehrerId == r3cHugo.Id && z.V.Art != VertretungsArt.Pausenaufsicht).ToList();
+            R3cPruefen(zeilen.Count > 0, "keine Zeilen der abwesenden Lehrkraft");
+            foreach (var z in zeilen.Where(z => z.V.Offen))
+                R3cPruefen(z.Werte["Vertreter"] == "???" && z.Schrift["Vertreter"].ToArgb() == Color.Red.ToArgb() && z.Werte["Art"] == "Vertretung",
+                    $"Offene Vertretung {z.V.Id}: „{z.Werte["Vertreter"]}“ in {z.Schrift["Vertreter"]}, Art {z.Werte["Art"]}");
+            StundenplanFenster.Neu(ElementTyp.Lehrer, r3cHugo.Id, false);
+            LayoutMdi(MdiLayout.TileVertical);
+            log.Add($"INFO  R3C_VP03: {zeilen.Count} Zeilen, davon {zeilen.Count(z => z.V.Offen)} offen (rot „???“): " + string.Join("; ", zeilen.Select(z => $"{z.Werte["Std"]}. {z.Werte["Art"]} {z.Werte["Vertreter"]}")));
+        }, -1);
+
+        Schritt("R3C_VP04_Vertretungsvorschlag_Doppelklick", () =>
+        {
+            // Kap. 3.4: Vertretungsvorschlag mit Merker; Doppelklick setzt die Lehrkraft ein, ihr Stundenplan zeigt die zusätzliche Stunde
+            R3cModus(true);
+            var v = R3cOffene().FirstOrDefault() ?? throw new InvalidOperationException("keine offene Vertretung");
+            var vertr = FensterOeffnen("vertr") as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            var auswahl = vertr.SelbsttestAuswahl("Vertreter");
+            R3cPruefen(AppZustand.D.Lehrer.All(l => auswahl.Contains(l.Kurzname)), "Auswahlliste „Vertreter“ enthält nicht alle Lehrkräfte");
+            var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            Warten(400);
+            AppZustand.VertretungWaehlen(v);
+            Warten(300);
+            var spalten = f.SelbsttestSpalten();
+            R3cPruefen(spalten.Take(3).SequenceEqual(new[] { "Name", "Stundenplan", "Merker zur Stunde" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
+            var k = f.SelbsttestKandidaten();
+            R3cPruefen(k.Count > 0, "Vertretungsvorschlag ohne Kandidaten");
+            var l = k[0].Lehrer;
+            f.SelbsttestDoppelklick(l.Id);
+            Warten(300);
+            var nach = AppZustand.D.Vertretungen.First(x => x.Id == v.Id);
+            R3cPruefen(nach.VertreterId == l.Id, $"Doppelklick hat {l.Kurzname} nicht eingesetzt");
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, r3cTag);
+            R3cPruefen(tp.VonLehrer(l.Id).Any(e => e.Stunde == v.Stunde), "Lehrerplan des Vertreters zeigt die Vertretungsstunde nicht");
+            var z = vertr.SelbsttestZeilen(r3cTag).First(x => x.V.Id == v.Id);
+            R3cPruefen(z.Werte["Vertreter"] == l.Kurzname && z.Schrift["Vertreter"].ToArgb() != Color.Red.ToArgb(), $"Liste zeigt Vertreter „{z.Werte["Vertreter"]}“");
+            StundenplanFenster.Neu(ElementTyp.Lehrer, l.Id, false);
+            LayoutMdi(MdiLayout.TileVertical);
+            log.Add($"INFO  R3C_VP04: {k.Count} Vorschläge (1. {l.Kurzname}, Merker {k[0].Merker}); Doppelklick setzte {l.Kurzname} in die {v.Stunde}. Std. ein");
+        }, -1);
+
+        Schritt("R3C_VP05_Vertreter_eintippen", () =>
+        {
+            // Kap. 3.4: Kurzname des Vertreters eintippen
+            R3cModus(true);
+            var v = R3cOffene().FirstOrDefault();
+            if (v is null) { log.Add("INFO  R3C_VP05: keine weitere offene Vertretung"); return; }
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, r3cTag);
+            var frei = Core.Vertretungsplanung.VertretungsVorschlag.Berechnen(AppZustand.D, v).Select(x => x.Lehrer).First(l => Core.Vertretungsplanung.Vertretungen.LehrerBelegt(AppZustand.D, tp, l.Id, v.Stunde, v) is null);
+            var vertr = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            vertr.SelbsttestZeilen(r3cTag);
+            vertr.SelbsttestEingeben(v.Id, "Vertreter", frei.Kurzname);
+            Warten(400);
+            R3cPruefen(AppZustand.D.Vertretungen.First(x => x.Id == v.Id).VertreterId == frei.Id, "eingetippter Vertreter nicht übernommen");
+            log.Add($"INFO  R3C_VP05: {frei.Kurzname} in die {v.Stunde}. Std. eingetippt");
+        }, -1);
+
+        Schritt("R3C_VP06_Vorziehung", () =>
+        {
+            // Kap. 3.5: unterer Teil des Vorschlags zeigt Vorziehungen; Doppelklick führt sie durch – in der Liste eine Zeile „Verlegung“ mit
+            // der abwesenden Lehrkraft in Klammern und „Vertr. von“, die Ursprungsposition als Entfall
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var zeitraster = new Dictionary<int, VertretungsRegel>(dd.Vertretungseinstellungen.Zeitraster);
+            try
+            {
+                // wie im Handbuch (Tipp Vertretungszeitraster): Nachmittagsstunden entfallen – Vorziehungen „gemäß Vertretungszeitraster“
+                for (var t = 0; t < dd.Zeitraster.TageProWoche; t++)
+                    for (var s = 6; s <= dd.Zeitraster.StundenProTag; s++) dd.Vertretungseinstellungen.Zeitraster[t * 100 + s] = VertretungsRegel.Entfall;
+                Core.Vertretungsplanung.Vertretungen.Aktualisieren(dd, r3cTag);
+                var v = R3cOffene().FirstOrDefault(x => Core.Vertretungsplanung.VertretungsVorschlag.Vorziehungen(dd, x).Count > 0);
+                if (v is null)
+                {
+                    // weitere Lehrkraft absent setzen, bis eine Vorziehung möglich ist
+                    foreach (var l in dd.Lehrer.Where(l => l.Id != r3cHugo.Id && l.Id != krank.Id))
+                    {
+                        var ab = new Abwesenheit { Id = dd.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = l.Id, Von = r3cTag, Bis = r3cTag, StundeVon = 1, StundeBis = dd.Zeitraster.StundenProTag };
+                        dd.Abwesenheiten.Add(ab);
+                        Core.Vertretungsplanung.Vertretungen.Aktualisieren(dd, r3cTag);
+                        v = dd.Vertretungen.Where(x => x.Datum == r3cTag && x.LehrerId == l.Id && x.Offen && x.Art == VertretungsArt.Vertretung)
+                            .FirstOrDefault(x => Core.Vertretungsplanung.VertretungsVorschlag.Vorziehungen(dd, x).Count > 0);
+                        if (v != null) break;
+                        dd.Abwesenheiten.Remove(ab);
+                        Core.Vertretungsplanung.Vertretungen.Aktualisieren(dd, r3cTag);
+                    }
+                }
+                AppZustand.Doc.Aendern("Selbsttest", AenderungsArt.Vertretung, _ => { });
+                if (v is null) { log.Add("INFO  R3C_VP06: keine Vorziehung in der Beispielschule möglich"); return; }
+                var (vid, abwesend, fach, stunde) = (v.Id, v.LehrerId, v.FachId, v.Stunde);
+                var vertr = FensterOeffnen("vertr") as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+                var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+                LayoutMdi(MdiLayout.TileVertical);
+                Warten(400);
+                AppZustand.VertretungWaehlen(dd.Vertretungen.First(x => x.Id == vid));
+                Warten(300);
+                var klPlan = StundenplanFenster.Neu(ElementTyp.Klasse, v.KlassenIds.First(), false);
+                var lePlan = StundenplanFenster.Neu(ElementTyp.Lehrer, abwesend, false);
+                LayoutMdi(MdiLayout.TileVertical);
+                Warten(300);
+                var vz = f.SelbsttestVorziehen(false) ?? throw new InvalidOperationException("Vorziehungsvorschlag im unteren Teil leer");
+                var anzahl = f.SelbsttestVorziehungen().Count;
+                Warten(300);
+                // Klick auf die Zeile: rote Pfeile in den Stundenplänen
+                var mitPfeil = MdiChildren.OfType<StundenplanFenster>().Count(p => p.Plan.VorschauPfeileSichtbar > 0);
+                R3cPruefen(mitPfeil > 0, "Klick auf den Vorziehungsvorschlag zeigt keine roten Pfeile in den Stundenplänen");
+                Foto(Path.Combine(ordner, "R3C_VP06_Vorziehung_Pfeile.png"));
+                f.SelbsttestVorziehen(true);
+                R3cPruefen(MdiChildren.OfType<StundenplanFenster>().All(p => p.Plan.VorschauPfeileSichtbar == 0), "Pfeile bleiben nach der Vorziehung stehen");
+                Warten(400);
+                var zeilen = vertr.SelbsttestZeilen(r3cTag);
+                var ix = AppZustand.Doc.Index;
+                var verlegung = zeilen.FirstOrDefault(z => z.V.Stunde == stunde && z.Werte["Art"] == "Verlegung" && z.Werte["Lehrer"].TrimStart('*') == ix.KLehrer(abwesend))
+                                ?? throw new InvalidOperationException("Vorziehung: keine Zeile „Verlegung“ mit der abwesenden Lehrkraft in Klammern ((Lehrer) " + ix.KLehrer(abwesend) + "): " +
+                                                                       string.Join("; ", zeilen.Where(z => z.V.Stunde == stunde).Select(z => $"{z.V.Id} {z.Werte["Art"]} ({z.Werte["Lehrer"]}) {z.Werte["Vertreter"]}")));
+                R3cPruefen(verlegung.Werte["Von"].Length > 0, "Vorziehung: Spalte „Vertr. von“ leer");
+                R3cPruefen(verlegung.Werte["Fach"] == ix.KFach(fach), $"Vorziehung: (Fach) „{verlegung.Werte["Fach"]}“ statt „{ix.KFach(fach)}“");
+                R3cPruefen(zeilen.All(z => z.V.Id != vid), "Vorziehung: die gefüllte offene Stunde steht zusätzlich als eigene Zeile in der Liste");
+                var ursprung = zeilen.FirstOrDefault(z => z.V.Art == VertretungsArt.Entfall && z.V.NachDatum == r3cTag && z.V.NachStunde == stunde && z.Werte["Nach"].Length > 0);
+                R3cPruefen(ursprung != null || vz.Datum != r3cTag, "Vorziehung: Entfall an der Ursprungsposition mit „(Le.) nach“ fehlt");
+                log.Add($"INFO  R3C_VP06: {anzahl} Vorziehung(en); {vz.Beschreibung} → Zeile {verlegung.V.Id} Verlegung ({verlegung.Werte["Lehrer"]}) {verlegung.Werte["Vertreter"]}, " +
+                        $"(Fach) {verlegung.Werte["Fach"]} → {verlegung.Werte["NFach"]}, Vertr. von {verlegung.Werte["Von"]}");
+            }
+            finally
+            {
+                dd.Vertretungseinstellungen.Zeitraster.Clear();
+                foreach (var (k2, w) in zeitraster) dd.Vertretungseinstellungen.Zeitraster[k2] = w;
+            }
+        }, -1);
+
+        Schritt("R3C_VP07_Betreuung", () =>
+        {
+            // Kap. 3.6: Karteikarte <Betreuung>, Doppelklick → Frage „Lehrer … hat am … in der … Stunde bereits Unterricht“, Vorgabe Betreuung
+            R3cModus(true);
+            var v = R3cOffene().Concat(AppZustand.D.Vertretungen.Where(x => x.Datum == r3cTag && x.Offen && x.Art == VertretungsArt.Vertretung).OrderBy(x => x.Stunde))
+                .FirstOrDefault(x => Core.Vertretungsplanung.VertretungsVorschlag.Betreuungen(AppZustand.D, x).Count > 0);
+            if (v is null)
+            {
+                // wie im Handbuch: eine weitere Stunde der abwesenden Lehrkraft wieder öffnen
+                var gefuellt = AppZustand.D.Vertretungen.Where(x => x.Datum == r3cTag && x.LehrerId == r3cHugo.Id && x.Art == VertretungsArt.Vertretung && x.VertreterId.HasValue).ToList();
+                var id0 = gefuellt.Select(x => x.Id).FirstOrDefault(id => { var p = Dokument.Klonen(AppZustand.D); var y = p.Vertretungen.First(z => z.Id == id); y.VertreterId = null; return Core.Vertretungsplanung.VertretungsVorschlag.Betreuungen(p, y).Count > 0; });
+                if (id0 == 0) { log.Add("INFO  R3C_VP07: keine offene Vertretung mit Betreuungsvorschlag"); return; }
+                AppZustand.Doc.Aendern("Zurücksetzen", AenderungsArt.Vertretung, x => x.Vertretungen.First(y => y.Id == id0).VertreterId = null);
+                v = AppZustand.D.Vertretungen.First(x => x.Id == id0);
+            }
+            string? frage = null;
+            IReadOnlyList<string>? optionen = null;
+            Ui.AuswahlAntwort = (t, o) => { frage = t; optionen = o; return 1; };
+            try
+            {
+                var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+                Warten(400);
+                AppZustand.VertretungWaehlen(v);
+                Warten(300);
+                var l = f.SelbsttestBetreuung() ?? throw new InvalidOperationException("Karteikarte Betreuungen leer");
+                Warten(300);
+                var erwartet = $"Lehrer {l.Kurzname} hat am {r3cTag.Day}.{r3cTag.Month}. in der {v.Stunde}. Stunde bereits Unterricht";
+                R3cPruefen(frage?.StartsWith(erwartet) == true, $"Rückfrage „{frage}“ statt „{erwartet}…“");
+                R3cPruefen(optionen is { Count: 3 } && optionen[0] == "Lehrer nicht verplanen" && optionen[1] == "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)"
+                           && optionen[2] == "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)", "Optionen der Rückfrage: " + string.Join(" | ", optionen ?? Array.Empty<string>()));
+                var nach = AppZustand.D.Vertretungen.First(x => x.Id == v.Id);
+                R3cPruefen(nach.Art == VertretungsArt.Betreuung && nach.VertreterId == l.Id, $"Zeile nicht als Betreuung ausgewiesen ({nach.Art})");
+                var z = R3cListe().First(x => x.V.Id == v.Id);
+                R3cPruefen(z.Werte["Art"] == "Betreuung", "Liste: Art " + z.Werte["Art"]);
+                log.Add($"INFO  R3C_VP07: {frage!.Split('\n')[0]} → „{optionen![1]}“ → {v.Stunde}. Std. Betreuung durch {l.Kurzname}");
+            }
+            finally { Ui.AuswahlAntwort = null; }
+        }, -1);
+
+        Schritt("R3C_VP08_Entfall", () =>
+        {
+            // Kap. 3.7: Klick auf den Entfallsbutton – offene Vertretung entfällt; erneuter Klick macht wieder eine offene Vertretung daraus
+            R3cModus(true);
+            var v = R3cOffene().FirstOrDefault();
+            if (v is null)
+            {
+                v = AppZustand.D.Vertretungen.First(x => x.Datum == r3cTag && x.LehrerId == r3cHugo.Id && x.Art is VertretungsArt.Vertretung && x.VertreterId.HasValue);
+                AppZustand.Doc.Aendern("Zurücksetzen", AenderungsArt.Vertretung, x => x.Vertretungen.First(y => y.Id == v.Id).VertreterId = null);
+            }
+            var id = v.Id;
+            var vertr = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            vertr.SelbsttestZeilen(r3cTag);
+            vertr.SelbsttestEntfallKnopf(id);
+            Warten(400);
+            var z = vertr.SelbsttestZeilen(r3cTag).FirstOrDefault(x => x.V.Id == id) ?? throw new InvalidOperationException("Zeile nach Entfall verschwunden");
+            R3cPruefen(z.V.Art == VertretungsArt.Entfall && z.Werte["Art"] == "Entfall" && z.Werte["Vertreter"] == "---", $"nach Entfall: {z.Werte["Art"]} / {z.Werte["Vertreter"]}");
+            vertr.SelbsttestEntfallKnopf(id);
+            Warten(400);
+            z = vertr.SelbsttestZeilen(r3cTag).First(x => x.V.Id == id);
+            R3cPruefen(z.V.Offen && z.Werte["Vertreter"] == "???", $"erneuter Klick: {z.Werte["Art"]} / {z.Werte["Vertreter"]}");
+            log.Add($"INFO  R3C_VP08: Vertretung {id}: Entfall („---“) und zurück zur offenen Vertretung („???“)");
+        }, -1);
+
+        Schritt("R3C_VP09_Sondereinsatz", () =>
+        {
+            // Kap. 3.8.1: Kontextmenü „Sondereinsatz / Stunde ändern“; der Sondereinsatz steht im Plan und in der Vertretungsansicht
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var klasse = Stammdaten.Sortiert(dd.Klassen).First();
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Klasse, klasse.Id, false));
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag);
+            var frei = Enumerable.Range(1, dd.Zeitraster.StundenProTag).First(s => !tp.VonKlasse(klasse.Id).Any(e => e.Stunde == s));
+            var menue = sp.SelbsttestTagesMenue(r3cTag, frei, null);
+            R3cPruefen(menue.Items.Cast<ToolStripItem>().Any(i => i.Text == "Sondereinsatz / Stunde ändern"), "Kontextmenü ohne „Sondereinsatz / Stunde ändern“");
+            var lehrer = dd.Lehrer.First(l => Core.Vertretungsplanung.Vertretungen.LehrerBelegt(dd, tp, l.Id, frei) is null && l.Id != r3cHugo.Id);
+            AppZustand.Doc.Aendern("Sondereinsatz", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Sondereinsatz(x, r3cTag, frei, frei, new[] { klasse.Id }, new[] { lehrer.Id }, x.Faecher.First().Id, null, ""));
+            var z = R3cListe().FirstOrDefault(x => x.V.Art == VertretungsArt.Sondereinsatz && x.V.Stunde == frei && x.V.VertreterId == lehrer.Id) ?? throw new InvalidOperationException("Sondereinsatz nicht in der Vertretungsansicht");
+            R3cPruefen(z.Werte["Art"] == "Sondereinsatz", "Art " + z.Werte["Art"]);
+            R3cPruefen(Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag).VonKlasse(klasse.Id).Any(e => e.Stunde == frei), "Sondereinsatz nicht im Stundenplan");
+            log.Add($"INFO  R3C_VP09: Sondereinsatz {klasse.Kurzname} {frei}. Std. mit {lehrer.Kurzname} – Zeile {z.V.Id} „{z.Werte["Art"]}“");
+        }, -1);
+
+        Schritt("R3C_VP10_Verlegen_Tauschen_Entfallen", () =>
+        {
+            // Kap. 3.8.2: grüne Felder = kollisionsfrei verlegbar; Verlegung im Vertretungsfenster (magenta, „Vertr. von“); Lupe → Entfall; <Änderungen rückgängig>
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag);
+            bool Frei(Core.Vertretungsplanung.TagesEintrag e) => e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { Zeilen.Count: 1 } && e.KlassenIds.Count == 1 && !e.LehrerIds.Contains(r3cHugo.Id) && !e.LehrerIds.Contains(krank.Id);
+            (Core.Vertretungsplanung.TagesEintrag E, int Ziel)? verlegbar = null;
+            foreach (var e in tp.Eintraege.Where(Frei))
+            {
+                foreach (var s in Enumerable.Range(1, dd.Zeitraster.StundenProTag).Where(s => s != e.Stunde))
+                    if (Core.Vertretungsplanung.Tagesverlegung.Zielstatus(dd, tp, e.Stunde, e.Unterricht!.Id, null, tp, s) == Core.Planung.Feldstatus.Frei) { verlegbar = (e, s); break; }
+                if (verlegbar != null) break;
+            }
+            if (verlegbar is not { } vb) throw new InvalidOperationException("kein grünes Feld für eine Verlegung");
+            AppZustand.Doc.Aendern("Verlegung", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, vb.E.Unterricht!.Id, null, r3cTag, vb.E.Stunde, r3cTag, vb.Ziel));
+            var zeilen = R3cListe();
+            var ziel = zeilen.FirstOrDefault(z => z.V.UnterrichtId == vb.E.Unterricht!.Id && z.V.Stunde == vb.Ziel && z.V.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt)
+                       ?? throw new InvalidOperationException("Verlegung nicht im Vertretungsfenster");
+            R3cPruefen(ziel.Werte["Von"].Length > 0 && ziel.Hintergrund["Klassen"].ToArgb() == VertretungenFenster.VerlegungsFarbe.ToArgb(), "Verlegung: „Vertr. von“ leer bzw. Felder nicht magenta");
+            var spSicht = StundenplanFenster.Neu(ElementTyp.Klasse, vb.E.KlassenIds[0], false);
+            var e2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag).Eintraege.First(e => Frei(e) && e.Unterricht!.Id != vb.E.Unterricht!.Id);
+            AppZustand.Doc.Aendern("Entfall", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Entfallen(x, e2.Unterricht!.Id, null, r3cTag, e2.Stunde));
+            R3cPruefen(dd.Vertretungen.Any(v => v.Datum == r3cTag && v.Stunde == e2.Stunde && v.UnterrichtId == e2.Unterricht!.Id && v.Art == VertretungsArt.Entfall), "Stunde in der Lupe: kein Entfall");
+            R3cPruefen(R3cAlle(spSicht).OfType<ToolStrip>().SelectMany(t => t.Items.OfType<ToolStripItem>()).Any(i => i.Text == "Änderungen rückgängig"), "Stundenplan ohne Schaltfläche <Änderungen rückgängig>");
+            LayoutMdi(MdiLayout.TileVertical);
+            log.Add($"INFO  R3C_VP10: U{vb.E.Unterricht!.Id} {vb.E.Stunde}. → {vb.Ziel}. Std. (grünes Feld) als Verlegung, Vertr. von {ziel.Werte["Von"]}; U{e2.Unterricht!.Id} {e2.Stunde}. Std. per Lupe entfallen");
+        }, -1);
+
+        Schritt("R3C_VP11_Raum_zuordnen", () =>
+        {
+            // Kap. 3.8.3: <Raum zuordnen / löschen> mit Stundenblock und „Zusätzlichen Raum zuordnen“
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var e = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, r3cTag).Eintraege.First(x => x.Findetstatt && x.Unterricht != null && x.RaumIds.Count > 0);
+            var dlg = RaumZuordnenVertretungDialog.Anzeigen(this, r3cTag, e.Stunde, e.Unterricht!.Id, e.Regel?.ZeilenIndex ?? 0);
+            Warten(500);
+            R3cPruefen(dlg.Text == "Raum zuordnen / löschen", "Titel des Dialogs: " + dlg.Text);
+            var texte = R3cAlle(dlg).Select(c => c.Text).ToList();
+            R3cPruefen(texte.Contains("Zusätzlichen Raum zuordnen") && texte.Contains("Stundenblock"), "Dialog ohne „Stundenblock“ bzw. „Zusätzlichen Raum zuordnen“");
+            Foto(Path.Combine(ordner, "R3C_VP11_Raum_zuordnen_Dialog.png"));
+            dlg.Close();
+            log.Add("INFO  R3C_VP11: Dialog „Raum zuordnen / löschen“ mit Stundenblock und „Zusätzlichen Raum zuordnen“");
+        }, -1);
+
+        Schritt("R3C_VP12_Ausgabe_Schueler_Lehrer", () =>
+        {
+            // Kap. 3.9.1/3.9.2/3.10: <Ausgabe> zeigt die Fenstergruppe mit den Vertretungsansichten für Schüler und Lehrer; HTML-Ausgabe
+            R3cModus(true);
+            var vorher = AppZustand.Einstellungen.Vertretungsansicht;
+            var fenster = AusgabeFenstergruppe();
+            Warten(400);
+            R3cPruefen(fenster.Count == 2, $"{fenster.Count} Fenster statt zwei Vertretungsansichten");
+            R3cPruefen(fenster[0].AktuellesFormat == "Druck - Klasse" && fenster[1].AktuellesFormat == "Druck - Lehrer", $"Ansichten {fenster[0].AktuellesFormat} / {fenster[1].AktuellesFormat}");
+            R3cPruefen(AppZustand.Einstellungen.Vertretungsansicht == vorher, "Ausgabe hat die Ansicht des Arbeitsfensters verändert");
+            R3cPruefen(fenster.All(f => f is IDruckbar), "Ausgabefenster ohne Seitenansicht/Druck");
+            var html = Core.Austausch.Export.VertretungsplanHtml(AppZustand.D, new[] { r3cTag }, false);
+            R3cPruefen(html.Length > 0, "HTML-Ausgabe leer");
+            log.Add($"INFO  R3C_VP12: Fenstergruppe Ausgabe: „{fenster[0].Text}“ | „{fenster[1].Text}“; HTML-Ausgabe {html.Length} Zeichen");
+        }, -1);
+
+        Schritt("R3C_VP13_Absenzgruende_Abrechnung", () =>
+        {
+            // Kap. 3.12: Absenzgründe „Krankheit“ (keine Häkchen) und „Sonderurlaub“ (Entfall zählen); Vertretungsautomatik; Vertretungsabrechnung
+            R3cModus(true);
+            var dd = AppZustand.D;
+            var st = Max(Oeffnen<StammdatenFenster>("st:Grund", () => new StammdatenFenster(ElementTyp.Abwesenheitsgrund)));
+            Warten(300);
+            var kopf = R3cAlle(st).OfType<DataGridView>().First().Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
+            foreach (var s in new[] { "Entf zählen", "FS n.zählen", "N. in Abs.kopf" }) R3cPruefen(kopf.Contains(s), $"Absenzgründe ohne Spalte „{s}“: {string.Join(" | ", kopf)}");
+            var montag2 = Kalender.NaechsterUnterrichtstag(dd, r3cTag.AddDays(7));
+            while (montag2.DayOfWeek != DayOfWeek.Monday) montag2 = Kalender.NaechsterUnterrichtstag(dd, montag2.AddDays(1));
+            var kr = new Abwesenheitsgrund { Id = dd.NeueId(), Kurzname = "KR3C", Langname = "Krankheit" };
+            var so = new Abwesenheitsgrund { Id = dd.NeueId(), Kurzname = "SO3C", Langname = "Sonderurlaub", EntfallZaehlen = true };
+            R3cPruefen(!kr.EntfallZaehlen && !kr.FreisetzungNichtZaehlen && !kr.NichtImAbsenzkopf, "neuer Absenzgrund hat Häkchen");
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, montag2);
+            var lehrer = dd.Lehrer.Where(l => l.Id != krank.Id && l.Id != r3cHugo.Id).OrderByDescending(l => tp.Regel.Count(r => r.LehrerId == l.Id)).Take(2).ToList();
+            var (gauss, newton) = (lehrer[0], lehrer[1]);
+            var zeitraster = new Dictionary<int, VertretungsRegel>(dd.Vertretungseinstellungen.Zeitraster);
+            AppZustand.Doc.Aendern("Absenzgründe", AenderungsArt.Vertretung, x =>
+            {
+                // wie in der Demo-Datei des Handbuchs: ab der 5. Stunde entfällt der Unterricht (Vertretungszeitraster) – dort entstehen Entfälle
+                for (var t = 0; t < x.Zeitraster.TageProWoche; t++)
+                    for (var s0 = 5; s0 <= x.Zeitraster.StundenProTag; s0++) x.Vertretungseinstellungen.Zeitraster[t * 100 + s0] = VertretungsRegel.Entfall;
+                x.Abwesenheitsgruende.Add(kr);
+                x.Abwesenheitsgruende.Add(so);
+                x.Abwesenheiten.Add(new Abwesenheit { Id = x.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = gauss.Id, Von = montag2, Bis = montag2, StundeVon = 1, StundeBis = x.Zeitraster.StundenProTag, GrundId = kr.Id });
+                x.Abwesenheiten.Add(new Abwesenheit { Id = x.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = newton.Id, Von = montag2, Bis = montag2, StundeVon = 1, StundeBis = x.Zeitraster.StundenProTag, GrundId = so.Id });
+                Core.Vertretungsplanung.Vertretungen.Aktualisieren(x, montag2);
+                Core.Vertretungsplanung.VertretungsVorschlag.Automatisch(x, montag2);
+                x.Vertretungseinstellungen.Zeitraster.Clear();
+                foreach (var (k2, w) in zeitraster) x.Vertretungseinstellungen.Zeitraster[k2] = w;
+            });
+            dd = AppZustand.D;
+            var (von, bis) = (new DateOnly(montag2.Year, montag2.Month, 1), new DateOnly(montag2.Year, montag2.Month, 1).AddMonths(1).AddDays(-1));
+            var zg = Core.Vertretungsplanung.Zaehlung.Lehrer(dd, gauss, von, bis);
+            var zn = Core.Vertretungsplanung.Zaehlung.Lehrer(dd, newton, von, bis);
+            var entfG = dd.Vertretungen.Count(v => v.Datum == montag2 && v.LehrerId == gauss.Id && v.IstEntfall && !v.NachDatum.HasValue && v.Art != VertretungsArt.Pausenaufsicht);
+            var entfN = dd.Vertretungen.Count(v => v.Datum == montag2 && v.LehrerId == newton.Id && v.IstEntfall && !v.NachDatum.HasValue && v.Art != VertretungsArt.Pausenaufsicht);
+            var zgTag = zg.Zeilen.Where(z => z.Datum == montag2 && z.Code == "-E").ToList();
+            var znTag = zn.Zeilen.Where(z => z.Datum == montag2 && z.Code == "-E").ToList();
+            R3cPruefen(entfG + entfN > 0, "Vertretungsabrechnung: keine Entfälle entstanden");
+            R3cPruefen(zg.EntfaelleNichtZuZaehlen == zgTag.Count && zn.Entfaelle == znTag.Count, $"Bilanz: Entfall nicht zu zählen {zg.EntfaelleNichtZuZaehlen} / Entfälle {zn.Entfaelle}");
+            R3cPruefen(zgTag.All(z => !z.Zaehlt && z.Wert == 0), $"Krankheit: Entfälle werden gezählt ({string.Join(",", zgTag.Select(z => z.Wert))})");
+            R3cPruefen(znTag.All(z => z.Zaehlt && z.Wert < 0), $"Sonderurlaub: Entfälle werden nicht negativ gezählt ({string.Join(",", znTag.Select(z => z.Wert))})");
+            var vertreter = dd.Vertretungen.Where(v => v.Datum == montag2 && (v.LehrerId == gauss.Id || v.LehrerId == newton.Id) && v.VertreterId is int && v.Art == VertretungsArt.Vertretung)
+                .GroupBy(v => v.VertreterId!.Value).OrderByDescending(g => g.Count()).FirstOrDefault();
+            if (vertreter != null)
+            {
+                var zv = Core.Vertretungsplanung.Zaehlung.Lehrer(dd, dd.Lehrer.First(l => l.Id == vertreter.Key), montag2, montag2);
+                R3cPruefen(zv.Zeilen.Count(z => z.Code is "+V" or "B" && z.Datum == montag2) >= vertreter.Count(), "Vertreter: gehaltene Vertretungen nicht positiv gezählt");
+                log.Add($"INFO  R3C_VP13: Vertreter {AppZustand.Doc.Index.KLehrer(vertreter.Key)}: {vertreter.Count()} Vertretung(en), Zähler am Tag {zv.Summe:+0.##;-0.##;0}");
+            }
+            Max(FensterOeffnen("stat")!);
+            log.Add($"INFO  R3C_VP13: {gauss.Kurzname} (Krankheit) {entfG} Entfälle, „Entfall nicht zu zählen“ {zg.EntfaelleNichtZuZaehlen}, Monat {zg.Summe:0.##}; " +
+                    $"{newton.Kurzname} (Sonderurlaub) {entfN} Entfälle, gezählt {zn.Entfaelle}, Tag {znTag.Sum(z => z.Wert):0.##}");
+        }, -1);
+
+        // ---------------------------------------------- Stundenplan-Handbuch ----------------------------------------------
+        Schritt("R3C_SP01_Unterricht_eingeben_Kl_Le", () =>
+        {
+            // Stundenplan Kap. 3.3: Kl,Le leer bei einfachem Unterricht, „4, 1“ bei Klassenkopplung in einer Zeile, „+4, 2“ bei Kopplungszeilen;
+            // neuer Unterricht im Fenster der Klasse: aktive Klasse eingetragen, Stammraum der Klasse und Fachraum des Fachs automatisch
+            R3cModus(false);
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var einfach = dd.Unterrichte.First(u => u.Zeilen.Count == 1 && u.KlassenIds.Count() == 1 && u.LehrerIds.Count() == 1);
+            R3cPruefen(UnterrichtFenster.KlLeText(einfach, false) == "", "Kl,Le bei einfachem Unterricht: " + UnterrichtFenster.KlLeText(einfach, false));
+            var k = new Unterricht { Id = 1, Zeilen = { new Kopplungszeile { LehrerId = einfach.LehrerIds.First(), KlassenIds = dd.Klassen.Take(4).Select(x => x.Id).ToList() } } };
+            R3cPruefen(UnterrichtFenster.KlLeText(k, false) == "4, 1", "Kl,Le bei Klassenkopplung: " + UnterrichtFenster.KlLeText(k, false));
+            k.Zeilen.Add(new Kopplungszeile { LehrerId = dd.Lehrer.First(l => l.Id != einfach.LehrerIds.First()).Id, KlassenIds = k.Zeilen[0].KlassenIds.Take(2).ToList() });
+            R3cPruefen(UnterrichtFenster.KlLeText(k, false) == "⊞4, 2" && UnterrichtFenster.KlLeText(k, true) == "⊟4, 2", "Kl,Le bei Kopplungszeilen: " + UnterrichtFenster.KlLeText(k, false));
+            var klasse = dd.Klassen.FirstOrDefault(x => x.StammraumId.HasValue) ?? dd.Klassen.First();
+            var zweite = dd.Klassen.First(x => x.Id != klasse.Id);
+            var fach = dd.Faecher.FirstOrDefault(x => x.FachraumId.HasValue && !x.Bereitschaft) ?? dd.Faecher.First(x => !x.Bereitschaft);
+            var lehrer = Stammdaten.Sortiert(dd.Lehrer).First();
+            var uf = Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+            uf.ElementSetzen(klasse.Id);
+            Warten(300);
+            var vorher = dd.Unterrichte.Select(u => u.Id).ToHashSet();
+            uf.SelbsttestWaehlen(null, "Wst");
+            R3cPruefen(uf.SelbsttestEingabe("4"), "Eingabe „4“ in Wst nicht übernommen: " + uf.HinweisText);
+            Warten(300);
+            var neu = AppZustand.D.Unterrichte.FirstOrDefault(u => !vorher.Contains(u.Id)) ?? throw new InvalidOperationException("Unterricht wurde nicht angelegt");
+            R3cPruefen(neu.Wochenstunden == 4 && neu.KlassenIds.Contains(klasse.Id), $"neuer Unterricht: {neu.Wochenstunden} Wst, Klassen {ix.KKlassen(neu.KlassenIds)} (aktive Klasse nicht eingetragen)");
+            uf.SelbsttestWaehlen(neu.Id, "Lehrer"); R3cPruefen(uf.SelbsttestEingabe(lehrer.Kurzname), "Lehrer: " + uf.HinweisText);
+            uf.SelbsttestWaehlen(neu.Id, "Fach"); R3cPruefen(uf.SelbsttestEingabe(fach.Kurzname), "Fach: " + uf.HinweisText);
+            uf.SelbsttestWaehlen(neu.Id, "Klassen"); R3cPruefen(uf.SelbsttestEingabe($"{klasse.Kurzname},{zweite.Kurzname}"), "Klassen: " + uf.HinweisText);
+            Warten(300);
+            neu = AppZustand.D.Unterrichte.First(u => u.Id == neu.Id);
+            var z0 = neu.Zeilen[0];
+            R3cPruefen(z0.KlassenIds.SequenceEqual(new[] { klasse.Id, zweite.Id }), "Klassen nicht „2a,2b“: " + ix.KKlassen(z0.KlassenIds));
+            if (klasse.StammraumId.HasValue) R3cPruefen(z0.StammraumId == klasse.StammraumId, "Stammraum der Klasse nicht eingetragen");
+            if (fach.FachraumId.HasValue) R3cPruefen(z0.FachraumId == fach.FachraumId, "Fachraum des Fachs nicht eingetragen");
+            R3cPruefen(UnterrichtFenster.KlLeText(neu, false) == "2, 1", "Kl,Le nach Eingabe: " + UnterrichtFenster.KlLeText(neu, false));
+            uf.SelbsttestWaehlen(neu.Id, "UNr");
+            log.Add($"INFO  R3C_SP01: U{neu.Id}: 4 Wst {lehrer.Kurzname} {fach.Kurzname} {ix.KKlassen(z0.KlassenIds)}, Stammraum {ix.KRaum(z0.StammraumId)}, Fachraum {ix.KRaum(z0.FachraumId)}, Kl,Le „{UnterrichtFenster.KlLeText(neu, false)}“");
+        }, 1);
+
+        Schritt("R3C_SP02_Koppeln", () =>
+        {
+            // Kap. 3.3.4: Drag & Drop – Warnung „Wollen Sie folgende Unterrichte koppeln?“ (gezogener, dann Ziel als „U-Nr, Lehrer, Fach“);
+            // Schaltfläche <Koppeln>: Dialog mit U-Nr, Dazu, Wegnehmen, Abbrechen, Ok und Tabelle U-Nr | Wst | Lehrer | Klasse | Fach
+            R3cModus(false);
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var klasse = Stammdaten.Sortiert(dd.Klassen).First();
+            var paar = dd.Unterrichte.Where(u => u.Zeilen.Count == 1 && u.LehrerIds.Count() == 1 && u.KlassenIds.Contains(klasse.Id)).Take(2).ToList();
+            var text = UnterrichtFenster.KoppelnWarnText(ix, paar[1], paar[0]);
+            var soll = $"Wollen Sie folgende Unterrichte koppeln?\n\n{paar[1].Id}, {ix.KLehrer(paar[1].LehrerIds.First())}, {ix.KFach(paar[1].Zeilen[0].FachId)}\n{paar[0].Id}, {ix.KLehrer(paar[0].LehrerIds.First())}, {ix.KFach(paar[0].Zeilen[0].FachId)}";
+            R3cPruefen(text == soll, $"Warnung „{text}“ statt „{soll}“");
+            var uf = Max(Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)));
+            uf.ElementSetzen(klasse.Id);
+            Warten(300);
+            var dlg = KoppelnDialog.Zeigen(uf, paar[0].Id, () => paar[1].Id, _ => { });
+            var knoepfe = R3cAlle(dlg).OfType<Button>().OrderBy(b => b.Top).Select(b => b.Text).ToList();
+            R3cPruefen(knoepfe.SequenceEqual(new[] { "Dazu", "Wegnehmen", "Abbrechen", "Ok" }), "Schaltflächen: " + string.Join(" | ", knoepfe));
+            R3cAlle(dlg).OfType<Button>().First(b => b.Text == "Dazu").PerformClick();
+            var g = R3cAlle(dlg).OfType<DataGridView>().First();
+            var kopf = g.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText).ToList();
+            R3cPruefen(kopf.SequenceEqual(new[] { "U-Nr", "Wst", "Lehrer", "Klasse", "Fach" }), "Spalten: " + string.Join(" | ", kopf));
+            var zeilen = g.Rows.Count;
+            R3cPruefen(zeilen == 2 && g.Rows[1].Cells[0].Value?.ToString() == paar[1].Id.ToString(), "<Dazu> hat den aktivierten Unterricht nicht eingetragen");
+            Warten(300);
+            Foto(Path.Combine(ordner, "R3C_SP02_Koppeln_Dialog.png"));
+            dlg.Close();
+            log.Add($"INFO  R3C_SP02: Warnung „{text.Replace("\n\n", " / ").Replace("\n", " / ")}“; Dialog Koppeln mit {zeilen} Unterrichten");
+        }, 1);
+
+        Schritt("R3C_SP03_Entkoppeln", () =>
+        {
+            // Kap. 3.3.5: Dialog „Entkoppeln“ (Alter Unterricht | Pfeil | Neue Unterrichte), „Alle Entkoppeln“ löst auch Klassenkopplungen auf
+            R3cModus(false);
+            var dd = AppZustand.D;
+            var u = dd.Unterrichte.FirstOrDefault(x => x.Zeilen.Count >= 2) ?? throw new InvalidOperationException("kein gekoppelter Unterricht in der Beispielschule");
+            var dlg = new EntkoppelnDialog(u);
+            dlg.Show(this);
+            dlg.Markieren(1);
+            dlg.Verschieben(true);
+            Warten(300);
+            R3cPruefen(dlg.Zeilen.SequenceEqual(new[] { 1 }), "Pfeil: neue Unterrichte " + string.Join(",", dlg.Zeilen));
+            var texte = R3cAlle(dlg).Select(c => c.Text).ToList();
+            R3cPruefen(texte.Contains($"Alter Unterricht  U-Nr. {u.Id}, Wst {u.Wochenstunden}") && texte.Contains("Neue Unterrichte") && texte.Contains("Alle Entkoppeln"), "Beschriftungen: " + string.Join(" | ", texte.Where(t => t.Length > 0)));
+            Foto(Path.Combine(ordner, "R3C_SP03_Entkoppeln_Dialog.png"));
+            dlg.Close();
+            // Ergebnis auf einer Kopie
+            var probe = Dokument.Klonen(dd);
+            var zeilen = probe.Unterrichte.First(x => x.Id == u.Id).Zeilen.Count;
+            var neue = Core.Planung.Unterrichtswerkzeuge.Entkoppeln(probe, u.Id, new[] { 1 });
+            R3cPruefen(neue.Count == 1 && probe.Unterrichte.First(x => x.Id == u.Id).Zeilen.Count == zeilen - 1, "Entkoppeln: Zeile nicht als eigener Unterricht");
+            var probe2 = Dokument.Klonen(dd);
+            var klassen = u.Zeilen.Sum(z => Math.Max(1, z.KlassenIds.Count));
+            var alle = Core.Planung.Unterrichtswerkzeuge.AlleEntkoppeln(probe2, u.Id);
+            R3cPruefen(alle.Count == klassen - 1, $"Alle Entkoppeln: {alle.Count + 1} Unterrichte statt {klassen}");
+            log.Add($"INFO  R3C_SP03: U{u.Id} ({u.Zeilen.Count} Zeilen): Entkoppeln → neu {string.Join(",", neue)}; Alle Entkoppeln → {alle.Count + 1} Unterrichte");
+        }, 1);
+
+        Schritt("R3C_SP04_Zeitwuensche_Optimierung_Diagnose", () =>
+        {
+            // Stundenplan-Handbuch: Zeitwünsche eingeben, Optimierung starten, Diagnose – Fenster und Dialoge öffnen
+            R3cModus(false);
+            var zw = Max(ZeitwuenscheFenster.Zeigen(ElementTyp.Lehrer, AppZustand.D.Lehrer.First().Id));
+            Warten(200);
+            var diag = Oeffnen<DiagnoseFenster>("diag", () => new DiagnoseFenster());
+            LayoutMdi(MdiLayout.TileVertical);
+            var opt = new OptimierungDialog();
+            opt.Show(this);
+            Warten(300);
+            log.Add($"INFO  R3C_SP04: Zeitwünsche „{zw.Text}“, Diagnose „{diag.Text}“, Optimierung „{opt.Text}“ ({R3cAlle(opt).OfType<RadioButton>().Count()} Optionsfelder)");
+        }, 2);
+
+        Schritt("R3C_SP05_Stundenplan_verplanen_Druck", () =>
+        {
+            // Stundenplan ansehen, Stunde wählen (grüne Felder), Druck
+            R3cModus(false);
+            var dd = AppZustand.D;
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Klasse, Stammdaten.Sortiert(dd.Klassen).First().Id, false));
+            Warten(300);
+            var p = dd.Stundenplan.First(x => sp.Plan.StundenAm(x.Tag, x.Stunde).Contains(x));
+            sp.StundeAnklicken(p);
+            Warten(200);
+            var u = dd.Unterrichte.First(x => x.Id == p.UnterrichtId);
+            var gruen = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag).Select(s => (t, s)))
+                .Count(x => Core.Planung.Planungsdienst.Status(dd, AppZustand.Doc.Index, u, x.t, x.s, 1, new[] { p }) == Core.Planung.Feldstatus.Frei);
+            var bilder = StundenplanDruck.Bilder(ElementTyp.Klasse, new List<int> { dd.Klassen[0].Id }, new StundenplanFormat { Typ = ElementTyp.Klasse, Gross = false, Schriftgroesse = 8 });
+            R3cPruefen(bilder.Count > 0, "Druck ohne Seite");
+            bilder[0].Save(Path.Combine(ordner, "R3C_SP05_Druck.png"));
+            log.Add($"INFO  R3C_SP05: Stunde U{p.UnterrichtId} gewählt, {gruen} grüne Felder; Druck {bilder.Count} Seite(n)");
+        }, 3);
+        // R3D: Robustheit – Fensterrundgang durch alle Menüband-Einträge beider Modi (Beispielschule und leere Datei), Fehleingaben
+        // Zeilen sofort in r3d.log (Fortschritt, falls etwas hängt); Befunde zusätzlich ins Selbsttest-Protokoll
+        var r3dPfad = Path.Combine(ordner, "r3d.log");
+        void R3DMelden(string z)
+        {
+            File.AppendAllText(r3dPfad, z + Environment.NewLine);
+            if (!z.StartsWith("  … ", StringComparison.Ordinal)) log.Add(z);
+        }
+        void R3DRundgang(bool leer)
+        {
+            var f = Fensterrundgang(leer, R3DMelden);
+            if (f.Count > 0) throw new InvalidOperationException($"{f.Count} Ausnahme(n)/Problem(e) im Fensterrundgang – Einzelheiten in den Zeilen „FEHLER R3D“.");
+        }
+        Schritt("R3D_Fensterrundgang", () => R3DRundgang(false), -1);
+        Schritt("R3D_Fensterrundgang_leer", () => R3DRundgang(true), -1);
+        Schritt("R3D_Fehleingaben", () =>
+        {
+            var f = Fehleingaben(R3DMelden);
+            if (f.Count > 0) throw new InvalidOperationException($"{f.Count} Problem(e) bei Fehleingaben – Einzelheiten in den Zeilen „FEHLER R3D“.");
+        }, -1);
+        Schritt("R3D_Einstellungen_Rundreise", () =>
+        {
+            // Benutzereinstellungen (einstellungen.json, gleiche Optionen wie Speichern/Laden): jedes Feld mit Nicht-Standardwert übersteht die Rundreise
+            var abweichungen = new List<string>();
+            var optionen = new System.Text.Json.JsonSerializerOptions();
+            foreach (var t in Rundreise.Modelltypen(typeof(Benutzereinstellungen)))
+            {
+                var o = Activator.CreateInstance(t)!;
+                new Rundreise.Fueller().Fuellen(o, 0);
+                var geladen = System.Text.Json.JsonSerializer.Deserialize(System.Text.Json.JsonSerializer.Serialize(o, t, optionen), t, optionen)!;
+                Rundreise.Vergleichen(o, geladen, t.Name, abweichungen);
+            }
+            // Ansichtseinstellungen in der Schuldatei: Herauslösen → Schuldatei speichern/laden → Übernehmen
+            var e1 = new Benutzereinstellungen();
+            new Rundreise.Fueller().Fuellen(e1, 0);
+            var datei = new Schuldatei { Ansichtseinstellungen = e1.AnsichtAlsJson() };
+            var e2 = new Benutzereinstellungen();
+            var n = e2.AnsichtUebernehmen(Dokument.Klonen(datei).Ansichtseinstellungen);
+            foreach (var feld in Benutzereinstellungen.AnsichtsFelder)
+            {
+                var p = typeof(Benutzereinstellungen).GetProperty(feld)!;
+                Rundreise.Vergleichen(p.GetValue(e1), p.GetValue(e2), "Ansicht." + feld, abweichungen);
+            }
+            if (abweichungen.Count > 0) throw new InvalidOperationException("Einstellungen verlieren Werte beim Speichern/Laden:\n" + string.Join("\n", abweichungen.Take(40)));
+            log.Add($"INFO  R3D Einstellungen: {Rundreise.Modelltypen(typeof(Benutzereinstellungen)).Count} Typen, {n} Ansichtsfelder über die Schuldatei übernommen");
+        }, -1);
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();
+    }
+
+    /// <summary>Geschützte Ereignismethode eines Steuerelements aufrufen (Selbsttest: Tippen, Tasten, Mausrad nachstellen).</summary>
+    private static void Aufrufen(Control c, string methode, object argument)
+    {
+        for (var t = c.GetType(); t != null; t = t.BaseType)
+        {
+            var m = t.GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly)
+                .FirstOrDefault(x => x.Name == methode && x.GetParameters() is { Length: 1 } p && p[0].ParameterType.IsInstanceOfType(argument));
+            if (m is null) continue;
+            m.Invoke(c, new[] { argument });
+            return;
+        }
+        throw new InvalidOperationException($"{methode} nicht gefunden");
+    }
+
+    /// <summary>
+    /// R3-A: Bedienung einer Auswahlliste prüfen – Tippen springt zum Treffer, Enter übernimmt (wie ein Mausklick), Esc stellt den
+    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad ändert nichts.
+    /// </summary>
+    private static string AuswahlVerhaltenPruefen(string ort, ComboBox cb, List<string> werte)
+    {
+        string Wert() => cb.SelectedIndex >= 0 ? cb.GetItemText(cb.SelectedItem) ?? "" : "";
+        void Tippen(string text)
+        {
+            // wie echtes Tippen: erst ein Zeichen (öffnet die Liste), dann der Rest – ohne dass das Setzen des Texts vorab auswählt
+            cb.Text = text[..1];
+            Aufrufen(cb, "OnTextUpdate", EventArgs.Empty);
+            cb.Text = text;
+            Aufrufen(cb, "OnTextUpdate", EventArgs.Empty);
+            Warten(40);
+        }
+        var bestaetigt = 0;
+        void Zaehlen(object? s, EventArgs e) => bestaetigt++;
+        cb.Focus();
+        Warten(40);
+        cb.SelectionChangeCommitted += Zaehlen;
+        try
+        {
+            var kandidaten = werte.Where(w => w.Length > 0 && w != Wert()).Take(2).ToList();
+            if (kandidaten.Count < 2) return $"{ort}: zu wenige Einträge";
+            // 1) Tippen + Enter
+            Tippen(kandidaten[0]);
+            if (!cb.DroppedDown) throw new InvalidOperationException($"{ort}: Tippen öffnet die Liste nicht");
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+            Warten(40);
+            if (Wert() != kandidaten[0]) throw new InvalidOperationException($"{ort}: Enter übernimmt „{Wert()}“ statt „{kandidaten[0]}“");
+            if (bestaetigt == 0) throw new InvalidOperationException($"{ort}: Enter meldet die Auswahl nicht wie ein Mausklick");
+            if (cb.DroppedDown) throw new InvalidOperationException($"{ort}: Liste bleibt nach Enter offen");
+            // 2) Esc stellt her
+            var vorher = Wert();
+            Tippen(kandidaten[1][..1]);
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Escape));
+            Warten(40);
+            if (Wert() != vorher || cb.Text != vorher) throw new InvalidOperationException($"{ort}: Esc stellt „{vorher}“ nicht her („{cb.Text}“)");
+            // 3) ungültige Eingabe
+            Tippen("xq§");
+            Aufrufen(cb, "OnKeyDown", new KeyEventArgs(Keys.Enter));
+            Warten(40);
+            if (Wert() != vorher || cb.Text != vorher) throw new InvalidOperationException($"{ort}: ungültige Eingabe übernommen („{cb.Text}“)");
+            if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) throw new InvalidOperationException($"{ort}: kein Hinweis auf ungültige Eingabe");
+            // 4) Tab übernimmt
+            Tippen(kandidaten[1]);
+            Aufrufen(cb, "OnPreviewKeyDown", new PreviewKeyDownEventArgs(Keys.Tab));
+            Warten(40);
+            if (Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Tab übernimmt „{Wert()}“ statt „{kandidaten[1]}“");
+            // 5) Mausrad über der geschlossenen Liste
+            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+            Aufrufen(cb, "OnMouseWheel", rad);
+            if (!rad.Handled || Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Mausrad ändert den Wert der geschlossenen Liste");
+            return $"{ort}: Tippen/Enter, Esc, ungültig, Tab und Mausrad wie überall";
+        }
+        finally
+        {
+            cb.SelectionChangeCommitted -= Zaehlen;
+            if (cb.DroppedDown) cb.DroppedDown = false;
+        }
     }
 
     /// <summary>Simuliert das Überfahren jeder sichtbaren Zelle einer nicht aktuellen Zeile und meldet Zellen, die dabei nicht hervorgehoben werden.</summary>
@@ -1809,6 +2918,9 @@ public sealed partial class HauptFenster
             }
         return erg;
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
+    private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
 
     private static void Warten(int ms)
     {

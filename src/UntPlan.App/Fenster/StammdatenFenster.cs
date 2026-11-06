@@ -12,6 +12,9 @@ namespace UntPlan.App.Fenster;
 public sealed class StammdatenFenster : MdiFenster, IDruckbar
 {
     private readonly ElementTyp _typ;
+
+    /// <summary>Elementart des Fensters (Klassen, Lehrer, …).</summary>
+    internal ElementTyp Typ => _typ;
     private readonly List<Feld> _felder;
     private readonly DataGridView _grid = new() { Dock = DockStyle.Fill };
     private readonly SplitContainer _split = new() { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, FixedPanel = FixedPanel.Panel2 };
@@ -143,7 +146,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         _grid.MouseMove += GridMouseMove;
         _grid.ColumnDisplayIndexChanged += (_, _) => { if (!_laden) AnsichtVeraendert(); };
         _grid.CellMouseClick += (_, e) => { if (e.Button == MouseButtons.Right && e.RowIndex >= 0) Kontextmenue(e); };
-        _grid.KeyDown += (_, e) => { if (e.KeyCode == Keys.Delete && !_grid.IsCurrentCellInEditMode) { ZellenLeeren(); e.Handled = true; } };
+        // Entf leert die markierten Felder; ganz markierte Zeilen bzw. Strg+Entf löschen (einheitlich, siehe Tabellenbedienung)
+        _grid.KeyDown += (_, e) => { if (e.KeyData == Keys.Delete && !_grid.IsCurrentCellInEditMode && !Steuerelemente.Tabellenbedienung.GanzeZeilenMarkiert(_grid)) { ZellenLeeren(); e.Handled = true; } };
 
         _formular.AllowDrop = true;
         _formular.DragOver += (_, e) => e.Effect = (e.Data!.GetData(DataFormats.Text) as string)?.StartsWith("aus:") == true ? DragDropEffects.Move : DragDropEffects.None;
@@ -571,10 +575,9 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         if (auswahl.Count == 0 && _aktuell != null) auswahl.Add(_aktuell);
         if (auswahl.Count == 0) return;
         var verwendet = auswahl.Sum(e => Stammdaten.Verwendung(D, e));
-        var text = auswahl.Count == 1 ? $"{Ui.TypName(_typ)} \"{auswahl[0].Kurzname}\" löschen?" : $"{auswahl.Count} Elemente löschen?";
-        if (verwendet > 0) text += $"\n\nDas Element wird in {verwendet} Unterricht(en) verwendet; die Verweise werden entfernt.";
-        text += "\n\nHinweis: Stammdaten sollten im laufenden Schuljahr nicht gelöscht werden (Statistik).";
-        if (!Ui.Frage(text)) return;
+        var zusatz = (verwendet > 0 ? $"Das Element wird in {verwendet} Unterricht(en) verwendet; die Verweise werden entfernt.\n\n" : "") +
+                     "Hinweis: Stammdaten sollten im laufenden Schuljahr nicht gelöscht werden (Statistik).";
+        if (!Ui.LoeschenBestaetigen(auswahl.Count, Ui.TypName(_typ), Ui.TypName(_typ, true), auswahl[0].Kurzname, zusatz)) return;
         _aktuell = null;
         if (Aendern("Löschen", AenderungsArt.Alles, d => auswahl.ForEach(e => Stammdaten.Loeschen(d, e)))) Neuaufbau();
     }
@@ -708,7 +711,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 {
                     var cb = new ComboBox { Left = 2, Top = 1, Width = 124, DropDownStyle = f.Art == FeldArt.Auswahl ? ComboBoxStyle.DropDownList : ComboBoxStyle.DropDown, Enabled = f.Editierbar };
                     if (f.Art == FeldArt.Auswahl) cb.Items.AddRange(f.Auswahl);
-                    else { cb.Items.Add(""); cb.Items.AddRange(D.AlleElemente(f.RefTyp).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
+                    else { cb.Items.Add(""); cb.Items.AddRange(Stammdaten.Sortiert(D, f.RefTyp).Where(x => !x.Ignorieren).Select(x => (object)x.Kurzname).ToArray()); Steuerelemente.ListenSuche.Einrichten(cb); }
                     cb.SelectionChangeCommitted += (_, _) => FormularWert(f, cb.SelectedItem?.ToString() ?? "");
                     cb.Leave += (_, _) =>
                     {

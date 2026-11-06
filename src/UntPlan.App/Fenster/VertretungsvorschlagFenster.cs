@@ -247,7 +247,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Controls.Add(flaeche);
         Controls.Add(ts);
         AppZustand.VertretungGewaehlt += Gewaehlt;
-        FormClosed += (_, _) => AppZustand.VertretungGewaehlt -= Gewaehlt;
+        FormClosed += (_, _) => { AppZustand.VertretungGewaehlt -= Gewaehlt; StundenplanFenster.VorziehungAnzeigen(null, null); };
         _v = AppZustand.AktiveVertretung;
         SchriftAnwenden();
         Neuaufbau();
@@ -402,7 +402,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     /// </summary>
     internal void PlaeneZeigen()
     {
-        if (_v is not { } v || _planQuelle is not { } g || g.CurrentRow?.Tag is not { } tag) return;
+        if (_v is not { } v || _planQuelle is not { } g || g.CurrentRow?.Tag is not { } tag) { StundenplanFenster.VorziehungAnzeigen(null, null); return; }
+        // Vorziehung: rote Pfeile in den Stundenplänen (Handbuch Kap. 3.5), sonst Pfeile entfernen
+        StundenplanFenster.VorziehungAnzeigen(tag as Vorziehung, v);
         switch (tag)
         {
             case Kandidat k: StundenplanFenster.VorschlagAnzeigen(ElementTyp.Lehrer, k.Lehrer.Id, v); break;
@@ -420,6 +422,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private void Gewaehlt(Vertretung? v)
     {
         if (IsDisposed) return;
+        StundenplanFenster.VorziehungAnzeigen(null, null);
         _v = v is null ? null : D.Vertretungen.FirstOrDefault(x => x.Id == v.Id) ?? v;
         Neuaufbau();
         // Vorbild: ohne „Fenster im Hintergrund“ kommt der Vertretungsvorschlag beim Wählen einer Vertretung nach vorn (ohne den
@@ -1189,6 +1192,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         raumUebernehmen = false;
         var optionen = new[] { "Lehrer nicht verplanen", "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)", "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)" };
+        // Selbsttest: wie die übrigen Auswahlfragen über den Antwort-Haken (Vorgabe „Betreuung“, Raum übernehmen)
+        if (Ui.AuswahlAntwort is { } hook)
+        {
+            var w = hook(text, optionen);
+            raumUebernehmen = w == 1;
+            return w;
+        }
         using var d = new Dialog("Frage", 520, 290);
         d.Controls.Add(new TextBox { Text = text.Replace("\n", Environment.NewLine), Left = 12, Top = 10, Width = 496, Height = 100, Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = d.BackColor });
         var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 116, Width = 496, Height = 28 + optionen.Length * 24 };
@@ -1252,6 +1262,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                           ?? throw new InvalidOperationException("Die Vorziehung ist nicht mehr möglich.");
             VertretungsVorschlag.VorziehungAusfuehren(d, v, aktuell, AppZustand.Benutzer);
         });
+        StundenplanFenster.VorziehungAnzeigen(null, null);
         _v = D.Vertretungen.FirstOrDefault(x => x.Id == id);
         Neuaufbau();
         Weiter(warOffen);
@@ -1268,6 +1279,55 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _kopfLeiste.Offen = kopf;
         _vorzLeiste.Offen = vorziehungen;
     }
+
+    /// <summary>Selbsttest (Handbuch-Abläufe): sichtbare Spaltenüberschriften der Vorschlagsliste.</summary>
+    internal List<string> SelbsttestSpalten() => _vorschlag.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
+
+    /// <summary>Selbsttest: Kandidaten der Vorschlagsliste in angezeigter Reihenfolge (Kurzname, Merker).</summary>
+    internal List<(Lehrer Lehrer, string Merker)> SelbsttestKandidaten() =>
+        _vorschlag.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Kandidat>().Select(k => (k.Lehrer, k.Merker)).ToList();
+
+    /// <summary>Selbsttest: Doppelklick auf den Vorschlag einer Lehrkraft (setzt sie als Vertreter ein).</summary>
+    internal void SelbsttestDoppelklick(int lehrerId)
+    {
+        _reiter.Index = 0;
+        ReiterGewechselt();
+        var r = _vorschlag.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Kandidat k && k.Lehrer.Id == lehrerId)
+                ?? throw new InvalidOperationException($"Lehrkraft {Ix.KLehrer(lehrerId)} steht nicht im Vorschlag.");
+        _vorschlag.CurrentCell = r.Cells["Name"];
+        Uebernehmen();
+    }
+
+    /// <summary>Selbsttest: Karteikarte „Betreuungen“ – erste Lehrkraft per Doppelklick einsetzen; liefert sie (bzw. null ohne Betreuung).</summary>
+    internal Lehrer? SelbsttestBetreuung()
+    {
+        _reiter.Index = 1;
+        ReiterGewechselt();
+        var r = _betreuung.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Betreuungskandidat);
+        if (r?.Tag is not Betreuungskandidat b) return null;
+        _betreuung.CurrentCell = r.Cells[0];
+        Betreuung();
+        return b.Lehrer;
+    }
+
+    /// <summary>Selbsttest: Zeilen des Vorziehungsvorschlags (unterer Teil); Klick auf die erste visualisiert, Doppelklick führt sie durch.</summary>
+    internal List<Vorziehung> SelbsttestVorziehungen() => VorziehungsRaster.Rows.Cast<DataGridViewRow>().Select(r => r.Tag).OfType<Vorziehung>().ToList();
+
+    internal Vorziehung? SelbsttestVorziehen(bool ausfuehren)
+    {
+        _vorzLeiste.Offen = true;
+        var r = VorziehungsRaster.Rows.Cast<DataGridViewRow>().FirstOrDefault(x => x.Tag is Vorziehung);
+        if (r?.Tag is not Vorziehung vz) return null;
+        VorziehungsRaster.CurrentCell = r.Cells.Cast<DataGridViewCell>().First(c => c.Visible);
+        // wie ein Klick auf die Zeile: Pläne folgen, rote Pfeile zeigen die Vorziehung
+        _planQuelle = VorziehungsRaster;
+        PlaeneZeigen();
+        if (ausfuehren) Vorziehen();
+        return vz;
+    }
+
+    /// <summary>Selbsttest: Schaltfläche „Entfall“ des Vertretungsvorschlags.</summary>
+    internal void SelbsttestEntfall() => EntfallMitRueckfrage();
 
     /// <summary>Selbsttest: Spalten und Werte wie im Vorbild (drei Stundenplanspalten mit genau einer Vertretungsstunde, drei Nachkommastellen).</summary>
     /// <summary>

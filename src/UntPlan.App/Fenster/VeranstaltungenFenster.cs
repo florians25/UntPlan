@@ -17,6 +17,7 @@ namespace UntPlan.App.Fenster;
 public sealed class VeranstaltungenFenster : MdiFenster
 {
     private static Veranstaltung? _zwischenablage;
+    private static string? _ablageText;
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -247,14 +248,14 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private void Taste(object? sender, KeyEventArgs e)
     {
         if (_g.IsCurrentCellInEditMode) return;
-        if (e.Control && e.KeyCode == Keys.C) { KopierenMerken(); e.Handled = true; }
-        else if (e.Control && e.KeyCode == Keys.V) { Einfuegen(); e.Handled = true; }
+        if (e.Control && e.KeyCode == Keys.C) { KopierenMerken(); _ablageText = Steuerelemente.Tabellenbedienung.DatensaetzeKopieren(_g); e.Handled = true; }
+        else if (e.Control && e.KeyCode == Keys.V && _zwischenablage != null && Steuerelemente.Tabellenbedienung.DatensatzEinfuegen(_ablageText)) { Einfuegen(); e.Handled = true; }
         else if ((e.KeyCode == Keys.F4 || (e.Alt && e.KeyCode == Keys.Down)) && _g.CurrentCell is { } c && AuswahlSpalten.Contains(c.OwningColumn.Name))
         {
             AuswahlZeigen(c.RowIndex, c.ColumnIndex);
             e.Handled = true;
         }
-        else if (e.KeyCode == Keys.Delete && e.Control) { Loeschen(); e.Handled = true; }
+        else if (e.KeyData == (Keys.Control | Keys.Delete)) { Loeschen(); e.Handled = true; }
     }
 
     /// <summary>Auswahlliste der Spalte (Klassen/Lehrer/Räume mehrfach mit Strg-Klick, Schülergruppe einfach).</summary>
@@ -504,8 +505,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
             switch (_g.Columns[e.ColumnIndex].Name)
             {
                 case "T": v.Text = wert; break;
-                case "V": v.Von = Ui.DatumLesen(wert, v.Von); if (v.Bis < v.Von || alt is null) v.Bis = v.Von; break;
-                case "B": v.Bis = Ui.DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
+                case "V": v.Von = DatumLesen(wert, v.Von); if (v.Bis < v.Von || alt is null) v.Bis = v.Von; break;
+                case "B": v.Bis = DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
                 case "SV": v.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, Math.Max(1, D.Zeitraster.StundenProTag)); break;
                 case "SB": v.StundeBis = wert.Length == 0 || int.Parse(wert) >= D.Zeitraster.StundenProTag ? 99 : Math.Max(1, int.Parse(wert)); break;
                 case "K": v.KlassenIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
@@ -522,7 +523,11 @@ public sealed class VeranstaltungenFenster : MdiFenster
                     else v.LehrerIds = namen;
                     break;
                 case "R": v.RaumIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Raum, wert, v.Von, v.Bis); break;
-                case "G": v.GrundId = D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id; break;
+                case "G":
+                    // unbekannter Grund: Hinweis, nichts ändern (nicht stillschweigend den Grund löschen)
+                    v.GrundId = wert.Length == 0 ? null : D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id
+                        ?? throw new FormatException($"Absenzgrund \"{wert}\" ist nicht vorhanden.");
+                    break;
                 case "Z": v.Zaehlen = wert == "1"; break;
                 case "SG":
                     // neue Schülergruppe (Handbuch Kap. 6.3): Rückfrage, ob der kollidierende Unterricht trotzdem stattfindet –
@@ -543,8 +548,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         }
         catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
         {
-            Ui.Info(ex is FormatException { Message: { Length: > 0 } m } && !m.StartsWith("Input") && !m.StartsWith("The input") ? m : $"Die Eingabe \"{wert}\" ist ungültig.");
             NachZellwechsel(Neuaufbau);
+            Steuerelemente.Tabellenbedienung.Ungueltig(_g, e.RowIndex, e.ColumnIndex, wert,
+                ex is FormatException { Message: { Length: > 0 } m } && !m.StartsWith("Input") && !m.StartsWith("The input") ? m : $"Die Eingabe \"{wert}\" ist ungültig.");
             return;
         }
         if (alt is null && string.IsNullOrWhiteSpace(v.Text) && v.KlassenIds.Count == 0 && v.KlassenteilIds.Count == 0 && v.LehrerIds.Count == 0) return;
@@ -569,6 +575,16 @@ public sealed class VeranstaltungenFenster : MdiFenster
             return;
         }
         Speichern(v, alt);
+    }
+
+    /// <summary>Datum einer Zelle lesen; ungültig: verständlicher deutscher Hinweis statt der Systemmeldung.</summary>
+    private static DateOnly DatumLesen(string wert, DateOnly bisher)
+    {
+        try { return Ui.DatumLesen(wert, bisher); }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
+        {
+            throw new FormatException($"„{wert}“ ist kein gültiges Datum – bitte als TT.MM.JJJJ eingeben.");
+        }
     }
 
     private void Speichern(Veranstaltung v, Veranstaltung? alt)
@@ -638,7 +654,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private void Loeschen()
     {
         var liste = _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Veranstaltung>().Distinct().ToList();
-        if (liste.Count == 0 || !Ui.Frage($"{liste.Count} Veranstaltung(en) löschen?")) return;
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Veranstaltung", "Veranstaltungen", liste.Count == 1 ? liste[0].Text : null)) return;
         var ids = liste.Select(v => v.Id).ToHashSet();
         Aendern("Veranstaltung löschen", AenderungsArt.Vertretung, d =>
         {
