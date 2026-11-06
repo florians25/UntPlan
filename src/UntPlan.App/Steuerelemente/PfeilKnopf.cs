@@ -26,9 +26,16 @@ public sealed class PfeilKnopf : Control
     protected override void OnMouseDown(MouseEventArgs e) { if (e.Button == MouseButtons.Left) { _gedrueckt = true; Invalidate(); } base.OnMouseDown(e); }
     protected override void OnMouseUp(MouseEventArgs e) { _gedrueckt = false; Invalidate(); base.OnMouseUp(e); }
 
+    /// <summary>
+    /// Darstellung wie im Vorbild (Von-Bis): kleine weiße Pfeilfelder ohne Rahmen mit winzigem Dreieck bzw. Kalenderknopf als weißes
+    /// Rechteck mit grauem Rand und grauem Dropdown-Dreieck.
+    /// </summary>
+    public bool Klassisch { get; init; }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
+        if (Klassisch) { KlassischZeichnen(g); return; }
         g.SmoothingMode = SmoothingMode.AntiAlias;
         var r = new Rectangle(0, 0, Width - 1, Height - 1);
         using (var pfad = Rund(r, 3))
@@ -60,6 +67,41 @@ public sealed class PfeilKnopf : Control
         using var p = new Pen(farbe, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         var dx = _art == Art.Links ? 2.5f : -2.5f;
         g.DrawLines(p, new[] { new PointF(m.X + dx, m.Y - 5), new PointF(m.X - dx, m.Y), new PointF(m.X + dx, m.Y + 5) });
+    }
+
+    private void KlassischZeichnen(Graphics g)
+    {
+        var hinter = !Enabled ? Color.FromArgb(240, 240, 240) : _gedrueckt ? Color.FromArgb(204, 228, 247) : _ueber ? Color.FromArgb(229, 241, 251) : Color.White;
+        using (var b = new SolidBrush(hinter)) g.FillRectangle(b, ClientRectangle);
+        var farbe = Enabled ? Color.FromArgb(72, 72, 72) : Color.Silver;
+        using var pinsel = new SolidBrush(farbe);
+        if (_art == Art.Kalender)
+        {
+            using (var rand = new Pen(_ueber ? Color.FromArgb(0, 120, 215) : Color.FromArgb(171, 171, 171))) g.DrawRectangle(rand, 0, 0, Width - 1, Height - 1);
+            // Kalenderblatt (links) und Dropdown-Dreieck (rechts)
+            var k = new Rectangle(4, (Height - 14) / 2, 14, 14);
+            using var stift = new Pen(Color.FromArgb(110, 110, 110));
+            using var kopf = new SolidBrush(Color.FromArgb(127, 177, 206));
+            g.FillRectangle(kopf, k.X, k.Y, k.Width, 4);
+            g.DrawRectangle(stift, k.X, k.Y, k.Width - 1, k.Height - 1);
+            using var tage = new SolidBrush(Color.FromArgb(90, 90, 90));
+            for (var i = 0; i < 3; i++)
+                for (var j = 0; j < 2; j++)
+                    g.FillRectangle(tage, k.X + 2 + i * 4, k.Y + 6 + j * 3, 2, 2);
+            var dx = Width - 13;
+            var dy = Height / 2 - 1;
+            using var grau = new SolidBrush(Color.FromArgb(119, 119, 119));
+            g.FillPolygon(grau, new[] { new Point(dx, dy), new Point(dx + 7, dy), new Point(dx + 3, dy + 4), new Point(dx + 3, dy + 4) });
+            return;
+        }
+        // winziges Dreieck (3 Pixel breit, 5 hoch) in der Mitte
+        var mx = Width / 2;
+        var my = Height / 2;
+        var punkte = _art == Art.Links
+            ? new[] { new Point(mx + 1, my - 3), new Point(mx + 1, my + 3), new Point(mx - 2, my) }
+            : new[] { new Point(mx - 1, my - 3), new Point(mx - 1, my + 3), new Point(mx + 2, my) };
+        g.SmoothingMode = SmoothingMode.None;
+        g.FillPolygon(pinsel, punkte);
     }
 
     private static GraphicsPath Rund(Rectangle r, int radius)

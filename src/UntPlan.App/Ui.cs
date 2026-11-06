@@ -198,7 +198,43 @@ public static partial class Ui
             });
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
+        // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
+        // mit der aktuellen Zelle hell orange
+        g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        DataGridViewColumn? kopfAktiv = null;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var neu = g.CurrentCell?.OwningColumn;
+            if (ReferenceEquals(neu, kopfAktiv)) return;
+            if (kopfAktiv is { DataGridView: not null }) kopfAktiv.HeaderCell.Style.BackColor = Color.Empty;
+            if (neu != null) neu.HeaderCell.Style.BackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+            kopfAktiv = neu;
+        };
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
+    }
+
+    /// <summary>
+    /// Tabellen ohne Zeilenköpfe (wie im Vorbild Absenzen/Vertretungen): die erste sichtbare Zelle der aktuellen Zeile ist hell
+    /// orange und zeigt so die Zeile an.
+    /// </summary>
+    public static void ZeilenmarkeErsteSpalte(DataGridView g)
+    {
+        var letzte = -1;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var z = g.CurrentCell?.RowIndex ?? -1;
+            if (z == letzte) return;
+            if (letzte >= 0 && letzte < g.RowCount) g.InvalidateRow(letzte);
+            if (z >= 0) g.InvalidateRow(z);
+            letzte = z;
+        };
+        g.CellFormatting += (_, e) =>
+        {
+            if (e.CellStyle is null || e.RowIndex < 0 || e.RowIndex != g.CurrentCell?.RowIndex) return;
+            var erste = g.Columns.GetFirstColumn(DataGridViewElementStates.Visible);
+            if (erste != null && e.ColumnIndex == erste.Index && g.CurrentCell.ColumnIndex != erste.Index)
+                e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+        };
     }
 
     /// <summary>

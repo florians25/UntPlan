@@ -1,0 +1,45 @@
+name: Bildschirmfotos (Windows)
+
+# Echte Windows-Darstellung ausgewählter Fenster als Vergleich zum Vorbild: führt nur die gewählten Selbsttest-Schritte aus und
+# legt die Bildschirmfotos (Windows, 100 %) für einen Tag als Artefakt ab. Kein Release.
+on:
+  workflow_dispatch:
+    inputs:
+      schritte:
+        description: 'Regulärer Ausdruck der Selbsttest-Schritte'
+        required: false
+        default: '^(17_|19_|R3B_Absenzen|R3B_Vertretungen)'
+  push:
+    branches: [ 'claude/**' ]
+    paths: [ 'src/UntPlan.App/**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  fotos:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Anwendung veröffentlichen
+        run: dotnet publish src/UntPlan.App -c Release -r win-x64 --self-contained -o artifacts/UntPlan
+
+      - name: Gewählte Selbsttest-Schritte
+        shell: pwsh
+        run: |
+          $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(17_|19_|R3B_Absenzen|R3B_Vertretungen)' }
+          $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
+          if (-not $p.WaitForExit(900000)) { $p.Kill() }
+          Get-Content artifacts/fotos/selbsttest.log
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Bildschirmfotos-Windows
+          path: artifacts/fotos
+          retention-days: 1
