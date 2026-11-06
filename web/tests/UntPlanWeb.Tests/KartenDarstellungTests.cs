@@ -116,6 +116,7 @@ public class KartenDarstellungTests
         // Zeilen etwas enger
         Assert.Contains(".std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }", css);
         Assert.Contains(".std .z2 { font-weight: 400; }", css);
+        Assert.Contains(".std .z1:has(.lbl) { margin-bottom: 0; }", css);
         Assert.Contains(".std .z2 + .z2 { margin-top: 0; }", css);
         Assert.Contains("font-variant-numeric: lining-nums;", css);
     }

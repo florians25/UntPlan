@@ -13,6 +13,8 @@
    Zeilen Regular, Kopf 1px höher und 2px näher an den Zeilen */
 .std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }
 .std .z2 { font-weight: 400; }
+/* Kopf mit Label (farbiger Kasten): 3px Luft bis zur nächsten Zeile wie in der Vorlage – der Kasten ist höher als die Versalien */
+.std .z1:has(.lbl) { margin-bottom: 0; }
 .std .z2 + .z2 { margin-top: 0; }
 .std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; }
 .std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
