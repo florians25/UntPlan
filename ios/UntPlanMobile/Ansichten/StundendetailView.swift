@@ -120,8 +120,13 @@ struct StundendetailInhalt: View {
             // runde X und darunter graue Platzhalterbalken (Detailskelett). Der Kopf bleibt beim Blättern stehen.
             StundendetailKopf(karte: karte, karten: karten, auswahl: index, daten: daten, verborgen: zeigtSkelett,
                               schliessen: { schliessen() }, waehlen: { reiterWaehlen($0) })
+                // Kopf behält immer seine Höhe (wird nie vom Inhalt verdrängt)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(2)
             if karten.count > 1 {
                 reiterleiste
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
             }
             // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
             // Mehrere Stunden: die Fachfarbe steht stattdessen als Strich unter dem jeweiligen Reiter
@@ -223,12 +228,16 @@ struct StundendetailInhalt: View {
                     ForEach(karten.indices, id: \.self) { i in
                         seitenansicht(i)
                             .environmentObject(datenListe[i])
-                            .containerRelativeFrame([.horizontal, .vertical])
+                            // nur in der Breite an der Fläche ausrichten; die Höhe gibt die Seitenfläche vor (sonst wurde der
+                            // Inhalt höher als das Blatt und schob den Kopf mit X, Datum und ⋮ nach oben aus dem Bild)
+                            .containerRelativeFrame(.horizontal)
+                            .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
                 .scrollTargetLayout()
             }
             .scrollIndicators(.hidden)
+            .frame(maxHeight: .infinity)
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $seitenPosition)
             .onChange(of: seitenPosition) { _, neu in
