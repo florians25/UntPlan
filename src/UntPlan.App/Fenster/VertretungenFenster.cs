@@ -158,6 +158,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
         var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 2, 6, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
         _element.Margin = new Padding(2, 0, 0, 0);
+        Ui.KlassischeDarstellung(_element);
         elementSpalte.Controls.Add(_elementGruppe);
         elementSpalte.Controls.Add(_element);
         _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen", schloss: true, kalenderAussen: true);

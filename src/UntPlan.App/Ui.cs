@@ -227,6 +227,24 @@ public static partial class Ui
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
     }
 
+    [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hwnd, string? appName, string? idList);
+
+    /// <summary>
+    /// Klassische Windows-Darstellung für ein einzelnes Steuerelement (wie im Vorbild z. B. das Auswahlfeld „Klasse(n)“: vertiefter
+    /// Rahmen, grauer Knopf mit schwarzem Dreieck) – schaltet nur für dieses Element die Windows-Designs ab.
+    /// </summary>
+    public static void KlassischeDarstellung(Control c)
+    {
+        void Setzen()
+        {
+            try { SetWindowTheme(c.Handle, "", ""); }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
+        if (c.IsHandleCreated) Setzen();
+        c.HandleCreated += (_, _) => Setzen();
+    }
+
     /// <summary>
     /// Tabellen ohne Zeilenköpfe (wie im Vorbild Absenzen/Vertretungen): die erste sichtbare Zelle der aktuellen Zeile ist hell
     /// orange und zeigt so die Zeile an.

@@ -6,6 +6,12 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop – Absenzen und Vertretungen wie im Vorbild
+- Kopf nachgemessen: Rahmen „Von-Bis“ mit Datum TT.MM.JJJJ, Schloss und Bis-Datum, darunter Wochentag und kleine Pfeile; Kalenderknopf rechts neben dem Rahmen, bei den Absenzen darunter die Anzahl der Tage.
+- Absenzen: Reiter „Lehrer | Klassen | Räume“ als klassische Karteireiter auf farbigem Band, Fenstertitel „Absenzen / Standard“.
+- Vertretungen: „Klasse(n)“ als klassisches Auswahlfeld ohne Rahmen, „Ansicht einschränken auf...“ mit Kästchen untereinander; „Veranstaltungen zusammenfassen“ jetzt im Menü Einstellungen.
+- Tabellen ohne Zeilenköpfe, vertiefter Rahmen, Überschrift der aktuellen Spalte hell orange, zu lange Überschriften werden abgeschnitten statt umbrochen.
+
 ### Desktop – Stundenplan
 - Doppelstunden und Blöcke werden auch in der Stundenplanung getrennt, wenn eine Stunde keinen Raum oder einen anderen Raum hat (gilt auch für Ziehen und „Ganzen Block markieren“).
 
