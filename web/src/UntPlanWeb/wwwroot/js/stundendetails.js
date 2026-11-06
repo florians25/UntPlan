@@ -323,11 +323,15 @@ export function karteDialog(karte, kontext = {}) {
       const befreit = daten.befreit?.has(s.id);
       const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : st === 'weg' ? `<span class="sd-statusbild weg">${KREUZ}</span>`
         : st === 'frueh' ? '<span class="sd-statusbild frueh"><i class="bi bi-box-arrow-right"></i></span>' : '<span class="sd-statusbild spaet"><i class="bi bi-clock-fill"></i></span>';
-      const zusatz = f && st !== 'weg' ? `<span class="sd-minuten ${f.fehlstunden ? 'gewertet' : ''}">${st === 'spaet' ? '+' : '−'}${f.minuten}′</span>` : '';
+      // Verspätung / früher gegangen: eigene Zeile unter dem Namen (modernes Kartenlayout) statt einer Plakette über dem Namen
+      const zusatz = f && st !== 'weg'
+        ? `<span class="sd-zeitpille ${st} ${f.fehlstunden ? 'gewertet' : ''}"><span>${st === 'spaet' ? 'Verspätet' : 'Früher gegangen'}</span><b>${f.minuten} Min</b></span>`
+        : '';
       return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
-        ${status}${zusatz}
+        ${status}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name">${sitz.nameHtml(s, nameW)}</span>
+        ${zusatz}
         ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };

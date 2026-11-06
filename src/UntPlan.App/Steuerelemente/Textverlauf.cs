@@ -5,9 +5,9 @@ namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
 /// Autovervollständigung aus den zuletzt verwendeten Eingaben (je Feldart, in den Benutzereinstellungen gespeichert, höchstens
-/// 30 Einträge): Beim Tippen erscheint unter dem Textfeld eine Vorschlagsliste (Anfang vor „enthält“, Groß-/Kleinschreibung
-/// egal). Pfeil ab/auf wählt, Enter bzw. Tab übernimmt, Escape schließt die Liste, Entf entfernt den markierten Vorschlag aus
-/// dem Verlauf. Gilt für eigenständige Textfelder und für Textspalten in Tabellen (Text, Bemerkung …).
+/// 30 Einträge): Beim Tippen erscheint der Rest des zuletzt verwendeten passenden Textes blau markiert direkt hinter der Eingabe
+/// (Groß-/Kleinschreibung egal). Tab bestätigt den Vorschlag, Weitertippen ersetzt ihn, Entf/Rücktaste/Esc entfernen ihn;
+/// Enter übernimmt nur den getippten Text. Gilt für eigenständige Textfelder und für Textspalten in Tabellen (Text, Bemerkung …).
 /// </summary>
 public static class Textverlauf
 {
@@ -86,206 +86,124 @@ public static class Textverlauf
         };
     }
 
-    /// <summary>Gerade angezeigte Vorschläge (leer, wenn die Liste geschlossen ist) – für den Selbsttest.</summary>
-    internal static IReadOnlyList<string> SichtbareVorschlaege() => Liste.Sichtbar();
+    /// <summary>Gerade angezeigter Vorschlag (leer, wenn keiner angezeigt wird) – für den Selbsttest.</summary>
+    internal static IReadOnlyList<string> SichtbareVorschlaege() =>
+        Inline.Aktiv is { } t && Inline.HatVorschlag(t) ? new[] { t.Text } : Array.Empty<string>();
 
-    /// <summary>Ist für dieses Textfeld die Vorschlagsliste offen und ein Vorschlag markiert (Enter übernimmt dann den Vorschlag)?</summary>
-    internal static bool VorschlagMarkiert(TextBox t) => Liste.Markiert(t);
+    /// <summary>Zeigt dieses Textfeld gerade einen (noch nicht bestätigten) blauen Vorschlag?</summary>
+    internal static bool VorschlagMarkiert(TextBox t) => Inline.HatVorschlag(t);
 
-    /// <summary>Vorschlagsliste dieses Textfelds schließen; true, wenn sie offen war.</summary>
-    internal static bool ListeSchliessen(TextBox t)
-    {
-        var offen = Liste.Offen(t);
-        if (offen) Liste.Schliessen(t);
-        return offen;
-    }
+    /// <summary>Vorschlag dieses Textfelds verwerfen (nur der getippte Text bleibt); true, wenn einer angezeigt wurde.</summary>
+    internal static bool ListeSchliessen(TextBox t) => Inline.Verwerfen(t);
+
+    /// <summary>Selbsttest: angezeigten Vorschlag wie mit Tab bestätigen.</summary>
+    internal static bool VorschlagBestaetigen(TextBox t) => Inline.Bestaetigen(t);
 
     // ------------------------------------------------------------------------------------------
-    // Vorschlagsliste
+    // Vorschlag im Text (wie im Vorbild): der Rest des zuletzt verwendeten passenden Textes erscheint markiert (blau) hinter der
+    // Eingabe; Tab bestätigt ihn, Weitertippen ersetzt ihn, Entf/Rücktaste/Esc entfernen ihn. Keine Liste.
     // ------------------------------------------------------------------------------------------
 
     private static void Einrichten(TextBox t, Bindung b)
     {
         t.AutoCompleteMode = AutoCompleteMode.None;
+        var vorher = t.Text;
+        t.Enter += (_, _) => vorher = t.Text;
         t.TextChanged += (_, _) =>
         {
-            if (!b.Aktiv || t.ReadOnly || !t.Focused || Liste.Unterdrueckt) return;
-            Liste.Zeigen(t, b.Feld());
+            var alt = vorher;
+            vorher = t.Text;
+            if (!b.Aktiv || t.ReadOnly || !t.Focused || Inline.Unterdrueckt) return;
+            // nur beim Weiterschreiben am Ende vorschlagen (nicht beim Löschen oder Einfügen in der Mitte)
+            if (t.TextLength <= alt.Length || t.SelectionStart != t.TextLength || !t.Text.StartsWith(alt, StringComparison.Ordinal)) { Inline.Vergessen(t); return; }
+            if (!AppZustand.Einstellungen.Autovervollstaendigen) return;
+            Inline.Vorschlagen(t, b.Feld());
+            vorher = t.Text;
         };
         t.KeyDown += (_, e) =>
         {
-            // Alt+Pfeil ab bzw. Strg+Leertaste: ganzen Verlauf zeigen
-            if (b.Aktiv && !t.ReadOnly && ((e.Alt && e.KeyCode == Keys.Down) || (e.Control && e.KeyCode == Keys.Space)))
-            {
-                Liste.Zeigen(t, b.Feld(), alle: true);
-                e.Handled = e.SuppressKeyPress = true;
-            }
+            if (!Inline.HatVorschlag(t)) return;
+            if (e.KeyCode is Keys.Delete or Keys.Back) { Inline.Verwerfen(t); vorher = t.Text; e.Handled = e.SuppressKeyPress = true; }
         };
-        t.Leave += (_, _) => Liste.Schliessen(t);
-        t.Disposed += (_, _) => Liste.Schliessen(t);
+        t.Leave += (_, _) => { Inline.Verwerfen(t); vorher = t.Text; };
+        t.Disposed += (_, _) => Inline.Vergessen(t);
     }
 
-    /// <summary>Vorschlagsfenster (eines für das ganze Programm): erscheint ohne Aktivierung unter dem Textfeld.</summary>
-    private sealed class Liste : Form, IMessageFilter
+    private static class Inline
     {
-        private static Liste? _fenster;
         public static bool Unterdrueckt;
-        private readonly ListBox _box = new() { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None, IntegralHeight = false, Font = Ui.Schrift };
-        private TextBox? _feld;
-        private string _feldart = "";
-        private bool _filter;
+        public static TextBox? Aktiv;
+        /// <summary>Länge des getippten Teils (davor), wenn ein Vorschlag angezeigt wird.</summary>
+        private static int _getippt = -1;
+        private static readonly Filter TastenFilter = new();
+        private static bool _filterAn;
 
-        private Liste()
+        public static bool HatVorschlag(TextBox t) =>
+            ReferenceEquals(Aktiv, t) && !t.IsDisposed && _getippt >= 0 && t.SelectionStart == _getippt && t.SelectionStart + t.SelectionLength == t.TextLength && t.SelectionLength > 0;
+
+        public static void Vorschlagen(TextBox t, string feldart)
         {
-            FormBorderStyle = FormBorderStyle.None;
-            ShowInTaskbar = false;
-            StartPosition = FormStartPosition.Manual;
-            BackColor = SystemColors.ControlDark;
-            Padding = new Padding(1);
-            Controls.Add(_box);
-            _box.MouseMove += (_, e) => { var i = _box.IndexFromPoint(e.Location); if (i >= 0 && i != _box.SelectedIndex) _box.SelectedIndex = i; };
-        }
-
-        protected override bool ShowWithoutActivation => true;
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOPMOST = 0x8;
-                var cp = base.CreateParams;
-                cp.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST;
-                return cp;
-            }
-        }
-
-        public static bool Offen(TextBox t) => _fenster is { IsDisposed: false, Visible: true } f && f._feld == t;
-
-        public static bool Markiert(TextBox t) => Offen(t) && _fenster!._box.SelectedIndex >= 0;
-
-        public static List<string> Sichtbar() => _fenster is { IsDisposed: false, Visible: true } f ? f._box.Items.Cast<string>().ToList() : new();
-
-        public static void Zeigen(TextBox t, string feldart, bool alle = false)
-        {
-            // Einstellungen | Anpassen: „Autovervollständigen“ aus – nur die ausdrücklich geöffnete Liste (alle) zeigen
-            if (!alle && !AppZustand.Einstellungen.Autovervollstaendigen) { Schliessen(t); return; }
-            var vorschlaege = Eingabeverlauf.Vorschlaege(Verlauf, feldart, alle ? "" : t.Text);
-            if (vorschlaege.Count == 0 || (!alle && t.Text.Trim().Length == 0)) { Schliessen(t); return; }
-            if (_fenster is null || _fenster.IsDisposed) _fenster = new Liste();
-            _fenster.Anzeigen(t, feldart, vorschlaege);
-        }
-
-        public static void Schliessen(TextBox? t)
-        {
-            if (_fenster is null || _fenster.IsDisposed || (t != null && _fenster._feld != t)) return;
-            _fenster.Verbergen();
-        }
-
-        private void Anzeigen(TextBox t, string feldart, List<string> vorschlaege)
-        {
-            _feld = t;
-            _feldart = feldart;
-            _box.BeginUpdate();
-            _box.Items.Clear();
-            foreach (var v in vorschlaege) _box.Items.Add(v);
-            _box.EndUpdate();
-            _box.SelectedIndex = -1;
-            var unten = t.PointToScreen(new Point(0, t.Height));
-            var bildschirm = Screen.FromControl(t).WorkingArea;
-            var breite = Math.Max(t.Width, Math.Min(520, vorschlaege.Max(v => TextRenderer.MeasureText(v, _box.Font).Width) + 24));
-            var hoehe = Math.Min(vorschlaege.Count, 10) * _box.ItemHeight + Padding.Vertical + 4;
-            var y = unten.Y + hoehe > bildschirm.Bottom ? t.PointToScreen(Point.Empty).Y - hoehe : unten.Y;
-            var x = Math.Max(bildschirm.Left, Math.Min(unten.X, bildschirm.Right - breite));
-            Bounds = new Rectangle(x, y, breite, hoehe);
-            if (!Visible)
-            {
-                if (t.FindForm() is { } owner && !owner.IsDisposed) Owner = owner.MdiParent ?? owner;
-                Show();
-            }
-            if (!_filter) { Application.AddMessageFilter(this); _filter = true; }
-        }
-
-        private void Verbergen()
-        {
-            if (_filter) { Application.RemoveMessageFilter(this); _filter = false; }
-            _feld = null;
-            if (Visible) Hide();
-        }
-
-        private void Uebernehmen()
-        {
-            if (_feld is not { } t || _box.SelectedItem is not string text) { Verbergen(); return; }
+            var eingabe = t.Text;
+            if (eingabe.Trim().Length == 0) { Vergessen(t); return; }
+            var treffer = Eingabeverlauf.Vorschlaege(Verlauf, feldart, eingabe)
+                .FirstOrDefault(v => v.StartsWith(eingabe, StringComparison.CurrentCultureIgnoreCase) && v.Length > eingabe.Length);
+            if (treffer is null) { Vergessen(t); return; }
             Unterdrueckt = true;
             try
             {
-                t.Text = text;
-                t.SelectionStart = t.TextLength;
-                t.SelectionLength = 0;
+                t.Text = eingabe + treffer[eingabe.Length..];
+                t.Select(eingabe.Length, t.TextLength - eingabe.Length);
             }
             finally { Unterdrueckt = false; }
-            Verbergen();
+            Aktiv = t;
+            _getippt = eingabe.Length;
+            if (!_filterAn) { Application.AddMessageFilter(TastenFilter); _filterAn = true; }
         }
 
-        /// <summary>Tasten für die Liste abfangen, bevor das Textfeld bzw. die Tabelle sie verarbeitet (Pfeile, Enter, Tab, Escape, Entf).</summary>
-        public bool PreFilterMessage(ref Message m)
+        public static bool Bestaetigen(TextBox t)
         {
-            const int WM_KEYDOWN = 0x100, WM_LBUTTONDOWN = 0x201, WM_NCLBUTTONDOWN = 0x00A1, WM_RBUTTONDOWN = 0x204;
-            if (_feld is not { } t || t.IsDisposed || !Visible) return false;
-            if (m.Msg == WM_LBUTTONDOWN && m.HWnd == _box.Handle)
+            if (!HatVorschlag(t)) return false;
+            t.Select(t.TextLength, 0);
+            Vergessen(t);
+            return true;
+        }
+
+        public static bool Verwerfen(TextBox t)
+        {
+            if (!HatVorschlag(t)) { Vergessen(t); return false; }
+            Unterdrueckt = true;
+            try
             {
-                // Klick in die Liste: sofort übernehmen, ohne dass die Liste den Fokus bekommt (das Textfeld bleibt aktiv)
-                var lp = (int)(long)m.LParam;
-                var i = _box.IndexFromPoint(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
-                if (i >= 0) { _box.SelectedIndex = i; Uebernehmen(); }
-                return true;
+                var n = _getippt;
+                t.Text = t.Text[..n];
+                t.Select(n, 0);
             }
-            if (m.Msg is WM_LBUTTONDOWN or WM_NCLBUTTONDOWN or WM_RBUTTONDOWN)
+            finally { Unterdrueckt = false; }
+            Vergessen(t);
+            return true;
+        }
+
+        public static void Vergessen(TextBox t)
+        {
+            if (Aktiv != null && !ReferenceEquals(Aktiv, t)) return;
+            Aktiv = null;
+            _getippt = -1;
+            if (_filterAn) { Application.RemoveMessageFilter(TastenFilter); _filterAn = false; }
+        }
+
+        /// <summary>Tab bestätigt, Esc verwirft – vor der Tabelle bzw. dem Dialog (sonst würde Tab die Zelle wechseln).</summary>
+        private sealed class Filter : IMessageFilter
+        {
+            public bool PreFilterMessage(ref Message m)
             {
-                // Klick außerhalb von Textfeld und Liste schließt die Liste (ohne etwas zu übernehmen)
-                if (m.HWnd != t.Handle && m.HWnd != _box.Handle && m.HWnd != Handle) Verbergen();
+                const int WM_KEYDOWN = 0x100;
+                if (m.Msg != WM_KEYDOWN || Aktiv is not { } t || t.IsDisposed || m.HWnd != t.Handle) return false;
+                var taste = (Keys)(int)m.WParam & Keys.KeyCode;
+                if (taste == Keys.Tab && Control.ModifierKeys == Keys.None) return Bestaetigen(t);
+                if (taste == Keys.Escape) return Verwerfen(t);
+                if (taste == Keys.Enter) Verwerfen(t);
                 return false;
             }
-            if (m.Msg != WM_KEYDOWN || m.HWnd != t.Handle) return false;
-            var taste = (Keys)(int)m.WParam & Keys.KeyCode;
-            switch (taste)
-            {
-                case Keys.Down:
-                    _box.SelectedIndex = Math.Min(_box.Items.Count - 1, _box.SelectedIndex + 1);
-                    return true;
-                case Keys.Up:
-                    if (_box.SelectedIndex <= 0) { _box.SelectedIndex = -1; return true; }
-                    _box.SelectedIndex--;
-                    return true;
-                case Keys.PageDown:
-                    _box.SelectedIndex = Math.Min(_box.Items.Count - 1, _box.SelectedIndex + 9);
-                    return true;
-                case Keys.PageUp:
-                    _box.SelectedIndex = Math.Max(0, _box.SelectedIndex - 9);
-                    return true;
-                case Keys.Enter or Keys.Tab:
-                    // nur mit markiertem Vorschlag abfangen; sonst wirken Enter/Tab wie gewohnt
-                    if (_box.SelectedIndex < 0) { Verbergen(); return false; }
-                    Uebernehmen();
-                    return taste == Keys.Enter;
-                case Keys.Escape:
-                    Verbergen();
-                    return true;
-                case Keys.Delete when _box.SelectedItem is string weg && Control.ModifierKeys == Keys.Shift:
-                    // Umschalt+Entf: markierten Vorschlag aus dem Verlauf entfernen
-                    if (Eingabeverlauf.Entfernen(Verlauf, _feldart, weg)) AppZustand.Einstellungen.Speichern();
-                    var i = _box.SelectedIndex;
-                    _box.Items.RemoveAt(i);
-                    if (_box.Items.Count == 0) Verbergen();
-                    else _box.SelectedIndex = Math.Min(i, _box.Items.Count - 1);
-                    return true;
-            }
-            return false;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (_filter) { Application.RemoveMessageFilter(this); _filter = false; }
-            base.Dispose(disposing);
         }
     }
 }

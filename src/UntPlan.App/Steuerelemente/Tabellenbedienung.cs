@@ -442,8 +442,7 @@ public static class Tabellenbedienung
         var mod = keyData & Keys.Modifiers;
         if (taste == Keys.Enter && (mod & (Keys.Control | Keys.Alt)) == 0)
         {
-            // geöffnete Vorschlagsliste mit markiertem Vorschlag: zuerst den Vorschlag übernehmen (Textverlauf)
-            if (g.EditingControl is TextBox tb && Textverlauf.VorschlagMarkiert(tb)) return false;
+            // nicht bestätigter Vorschlag (Textverlauf): Enter übernimmt nur den getippten Text
             if (g.EditingControl is TextBox t2) Textverlauf.ListeSchliessen(t2);
             if (g.EditingControl is ComboBox cb)
             {
