@@ -242,9 +242,10 @@ public sealed class FerienFenster : MdiFenster
         }
         catch (FormatException)
         {
-            // ungültiges Datum: Eingabe steht wieder zur Korrektur in der Zelle (Esc verwirft sie)
+            // ungültiges Datum: der Entwurf bleibt unverändert (nicht als geändert markieren), die Zeile zeigt nach dem Neuaufbau
+            // wieder den bisherigen Wert und die Eingabe steht darüber zur Korrektur in der Zelle (Esc verwirft sie)
             var eingabe = row.Cells[e.ColumnIndex].Value?.ToString() ?? "";
-            NachZellwechsel(Geaendert);
+            NachZellwechsel(Neuaufbau);
             Steuerelemente.Tabellenbedienung.Ungueltig(_liste, e.RowIndex, e.ColumnIndex, eingabe, "Bitte Datum als TT.MM.JJJJ eingeben.");
             return;
         }

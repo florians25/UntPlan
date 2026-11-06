@@ -4,7 +4,7 @@ namespace UntPlan.App;
 
 /// <summary>
 /// Gemeinsames Bedienverhalten aller Masken (Runde 3 B): einheitliche Rückfrage vor dem Löschen, Rückgängig/Wiederherstellen mit
-/// Hinweis in der Statuszeile, Hinweis auf ungültige Eingaben (Statuszeile und Tooltip an der Zelle, ohne Meldungsfenster).
+/// Hinweis in der Statuszeile, Hinweis auf ungültige Eingaben (Statuszeile und Hinweisfenster an der Zelle bzw. am Feld, ohne Meldungsfenster).
 /// </summary>
 public static partial class Ui
 {
@@ -72,27 +72,89 @@ public static partial class Ui
         }
     }
 
-    private static ToolTip? _eingabeTip;
+    /// <summary>Letzter Hinweis auf eine ungültige Eingabe (Tabellen, Felder und Auswahllisten; für den Selbsttest).</summary>
+    public static string LetzterEingabeHinweis { get; private set; } = "";
+
+    /// <summary>Zahl der bisher gemeldeten ungültigen Eingaben (der Selbsttest erkennt daran einen neuen Hinweis, auch bei gleichem Text).</summary>
+    public static int EingabeHinweisZaehler { get; private set; }
+
+    private static EingabeHinweisFenster? _hinweisFenster;
 
     /// <summary>
-    /// Ungültige Eingabe in einer Tabelle bzw. einem Feld: Hinweis in der Statuszeile und als Tooltip an der Zelle (wie im Vorbild,
-    /// kein Meldungsfenster). Die Eingabe bleibt stehen und kann korrigiert oder mit Esc verworfen werden.
+    /// Der eine gemeinsame Hinweis auf eine ungültige Eingabe – für Tabellenzellen, Felder und Auswahllisten gleich: Text in der
+    /// Statuszeile und ein kleines gelbes Hinweisfenster unter der Zelle bzw. dem Feld (kein Meldungsfenster). Die Eingabe bzw. der
+    /// bisherige Wert bleibt stehen und kann korrigiert oder mit Esc verworfen werden.
     /// </summary>
     public static void EingabeHinweis(Control? ort, string text)
     {
+        LetzterEingabeHinweis = text;
+        EingabeHinweisZaehler++;
         Statushinweis(text);
         if (ort is null || ort.IsDisposed || !ort.IsHandleCreated || !ort.Visible) return;
         try
         {
-            var punkt = new Point(4, ort.Height);
+            // Anker in Bildschirmkoordinaten: aktuelle Zelle einer Tabelle, sonst das Feld selbst
+            var anker = new Rectangle(ort.PointToScreen(Point.Empty), ort.Size);
             if (ort is DataGridView g && g.CurrentCell is { } c && c.RowIndex >= 0 && c.ColumnIndex >= 0)
             {
                 var r = g.GetCellDisplayRectangle(c.ColumnIndex, c.RowIndex, false);
-                if (!r.IsEmpty) punkt = new Point(r.Left, r.Bottom + 2);
+                if (!r.IsEmpty) anker = g.RectangleToScreen(r);
             }
-            _eingabeTip ??= new ToolTip { ToolTipIcon = ToolTipIcon.Warning, ToolTipTitle = "Ungültige Eingabe" };
-            _eingabeTip.Show(text, ort, punkt, 4000);
+            // eigenes kleines Fenster ohne Aktivierung statt ToolTip: ein ToolTip hält sich am Steuerelement fest und stürzt mit
+            // ObjectDisposedException ab, wenn die Tabelle bzw. ihr Eingabefeld verworfen wird, bevor er sich ausblendet
+            if (_hinweisFenster is { IsDisposed: false }) _hinweisFenster.Close();
+            _hinweisFenster = new EingabeHinweisFenster(text);
+            var bereich = Screen.FromRectangle(anker).WorkingArea;
+            var x = Math.Clamp(anker.Left, bereich.Left, Math.Max(bereich.Left, bereich.Right - _hinweisFenster.Width));
+            var y = anker.Bottom + 2 + _hinweisFenster.Height > bereich.Bottom ? anker.Top - _hinweisFenster.Height - 2 : anker.Bottom + 2;
+            _hinweisFenster.Location = new Point(x, y);
+            _hinweisFenster.Show();
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException or System.ComponentModel.Win32Exception) { }
+    }
+
+    /// <summary>Kurzer Hinweis (gelb wie ein Tooltip), schließt sich nach 2,5 Sekunden selbst und nimmt nie den Fokus.</summary>
+    private sealed class EingabeHinweisFenster : Form
+    {
+        private readonly System.Windows.Forms.Timer _zeit = new() { Interval = 2500 };
+
+        public EingabeHinweisFenster(string text)
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.Manual;
+            TopMost = true;
+            BackColor = Color.FromArgb(255, 255, 225);
+            Padding = new Padding(1);
+            var l = new Label
+            {
+                Text = "⚠ " + text, AutoSize = true, Font = ListenSchrift, ForeColor = Color.FromArgb(30, 30, 30),
+                Padding = new Padding(6, 4, 6, 4), BackColor = BackColor,
+            };
+            Controls.Add(l);
+            ClientSize = l.PreferredSize + new Size(2, 2);
+            l.Location = new Point(1, 1);
+            Paint += (_, e) => e.Graphics.DrawRectangle(SystemPens.ControlDark, 0, 0, Width - 1, Height - 1);
+            _zeit.Tick += (_, _) => Close();
+            _zeit.Start();
+        }
+
+        protected override bool ShowWithoutActivation => true;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.ExStyle |= 0x08000000 | 0x00000080; // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+                return cp;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _zeit.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }

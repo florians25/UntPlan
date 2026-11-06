@@ -37,12 +37,12 @@ public static class ListenSuche
     /// <summary>Zuletzt gezeigter Hinweis auf eine ungültige Eingabe (für den Selbsttest).</summary>
     public static string? LetzterHinweis { get; private set; }
 
-    private static HinweisFenster? _hinweis;
     private static DateTime _hinweisZeit;
 
     /// <summary>
-    /// Ungültige Eingabe melden (die Eingabe wird nicht übernommen, der bisherige Wert bleibt). Kurzer Hinweis unter dem Feld
-    /// statt eines Meldungsfensters, damit die Eingabe ohne Klick weitergehen kann.
+    /// Ungültige Eingabe melden (die Eingabe wird nicht übernommen, der bisherige Wert bleibt). Gemeinsamer Hinweis aller Masken
+    /// (<see cref="Ui.EingabeHinweis"/>: Statuszeile und kurzes Hinweisfenster unter dem Feld) statt eines Meldungsfensters,
+    /// damit die Eingabe ohne Klick weitergehen kann.
     /// </summary>
     public static void UngueltigMelden(ComboBox cb, string eingabe)
     {
@@ -53,64 +53,7 @@ public static class ListenSuche
         if (text == LetzterHinweis && (DateTime.Now - _hinweisZeit).TotalMilliseconds < 600) return;
         LetzterHinweis = text;
         _hinweisZeit = DateTime.Now;
-        if (!cb.IsHandleCreated || !cb.Visible) return;
-        try
-        {
-            // eigenes kleines Fenster ohne Aktivierung (ein ToolTip hielte sich am Feld fest und stürzte ab, wenn die Tabelle es verwirft)
-            if (_hinweis is { IsDisposed: false }) _hinweis.Close();
-            _hinweis = new HinweisFenster(text);
-            var unten = cb.PointToScreen(new Point(0, cb.Height + 2));
-            var bereich = Screen.FromControl(cb).WorkingArea;
-            _hinweis.Location = new Point(Math.Clamp(unten.X, bereich.Left, Math.Max(bereich.Left, bereich.Right - _hinweis.Width)),
-                unten.Y + _hinweis.Height > bereich.Bottom ? cb.PointToScreen(Point.Empty).Y - _hinweis.Height - 2 : unten.Y);
-            _hinweis.Show();
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or ArgumentException or System.ComponentModel.Win32Exception) { }
-    }
-
-    /// <summary>Kurzer Hinweis (gelb wie ein Tooltip), schließt sich nach 2,5 Sekunden selbst und nimmt nie den Fokus.</summary>
-    private sealed class HinweisFenster : Form
-    {
-        private readonly System.Windows.Forms.Timer _zeit = new() { Interval = 2500 };
-
-        public HinweisFenster(string text)
-        {
-            FormBorderStyle = FormBorderStyle.None;
-            ShowInTaskbar = false;
-            StartPosition = FormStartPosition.Manual;
-            TopMost = true;
-            BackColor = Color.FromArgb(255, 255, 225);
-            Padding = new Padding(1);
-            var l = new Label
-            {
-                Text = "⚠ " + text, AutoSize = true, Font = Ui.ListenSchrift, ForeColor = Color.FromArgb(30, 30, 30),
-                Padding = new Padding(6, 4, 6, 4), BackColor = BackColor,
-            };
-            Controls.Add(l);
-            ClientSize = l.PreferredSize + new Size(2, 2);
-            l.Location = new Point(1, 1);
-            Paint += (_, e) => e.Graphics.DrawRectangle(SystemPens.ControlDark, 0, 0, Width - 1, Height - 1);
-            _zeit.Tick += (_, _) => Close();
-            _zeit.Start();
-        }
-
-        protected override bool ShowWithoutActivation => true;
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                var cp = base.CreateParams;
-                cp.ExStyle |= 0x08000000 | 0x00000080; // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
-                return cp;
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) _zeit.Dispose();
-            base.Dispose(disposing);
-        }
+        Ui.EingabeHinweis(cb, text);
     }
 
     private static void VorherMerken(ComboBox cb, Zustand z)

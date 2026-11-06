@@ -652,6 +652,16 @@ public sealed partial class HauptFenster
             ("Absenzen", true, "abw"), ("Vertretungen", true, "vertr"), ("Veranstaltungen", true, "veranst"),
         };
 
+        // eine zur Korrektur stehen gebliebene ungültige Eingabe mit Esc verwerfen (wie der Benutzer), damit sie nicht beim nächsten
+        // Zellwechsel erneut geprüft wird und den Hinweis des folgenden Versuchs vortäuscht
+        void EingabeVerwerfen(DataGridView? g)
+        {
+            if (g is null || g.IsDisposed || !g.IsCurrentCellInEditMode) return;
+            Steuerelemente.Tabellenbedienung.Senden(g.EditingControl ?? (Control)g, Keys.Escape);
+            if (g.IsCurrentCellInEditMode) { g.CancelEdit(); g.EndEdit(); }
+            Pumpen(60);
+        }
+
         DataGridView? Tabelle(Form f) => AlleSteuerelemente(f).OfType<DataGridView>().Where(g => g.Visible && !g.ReadOnly && g.ColumnCount > 0)
             .OrderByDescending(g => g.Width * g.Height).FirstOrDefault();
 
@@ -690,7 +700,14 @@ public sealed partial class HauptFenster
                         var g = Tabelle(f);
                         var zeile = g?.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => !r.IsNewRow && r.Visible);
                         if (g is null || zeile is null || g.Columns[spaltenName] is not { } spalte) continue;
+                        EingabeVerwerfen(g);
+                        protokoll.Clear();
+                        hinweise.Clear();
                         var vorher = Stand();
+                        // gemeinsamer Hinweis auf ungültige Eingaben (Ui.EingabeHinweis: Statuszeile und Hinweisfenster, auch für Auswahllisten)
+                        var hinweisNrVorher = Ui.EingabeHinweisZaehler;
+                        // Zeile über ihre Position verfolgen: baut das Fenster die Tabelle neu auf, gehört das Zeilenobjekt nicht mehr dazu
+                        var zeilenIndex = zeile.Index;
                         // Hinweisleiste des Unterrichtsfensters (ungültige Eingabe: „Bitte prüfen: …“ und Fehlersymbol)
                         var leisteVorher = (f as Fenster.UnterrichtFenster)?.HinweisText;
                         string? leisteNachher = null;
@@ -737,9 +754,10 @@ public sealed partial class HauptFenster
                         var ausnahmen = protokoll.Where(IstAusnahme).ToList();
                         var meldungen = protokoll.Where(t => !IstAusnahme(t)).Concat(hinweise).ToList();
                         if (fehlerText is { Length: > 0 }) meldungen.Add(fehlerText);
+                        if (Ui.EingabeHinweisZaehler != hinweisNrVorher && Ui.LetzterEingabeHinweis.Length > 0) meldungen.Add(Ui.LetzterEingabeHinweis);
                         if (leisteNachher != null && leisteNachher != leisteVorher && leisteNachher.StartsWith("Bitte prüfen", StringComparison.Ordinal)) meldungen.Add(leisteNachher);
-                        var zeileGueltig = !g.IsDisposed && zeile.Index >= 0 && zeile.Index < g.RowCount;
-                        if (zeileGueltig && g.Rows[zeile.Index].Cells[spalte.Index].ErrorText is { Length: > 0 } zt) meldungen.Add(zt);
+                        var zeileGueltig = !g.IsDisposed && zeilenIndex >= 0 && zeilenIndex < g.RowCount && spalte.Index < g.ColumnCount;
+                        if (zeileGueltig && g.Rows[zeilenIndex].Cells[spalte.Index].ErrorText is { Length: > 0 } zt) meldungen.Add(zt);
                         protokoll.Clear();
                         hinweise.Clear();
                         if (p != null) Fehler($"{ort}: {p}");
@@ -748,7 +766,10 @@ public sealed partial class HauptFenster
                         waechter.Probleme.Clear();
                         waechter.Dialoge.Clear();
                         foreach (var r in DatenRegeln(AppZustand.D).Except(regelnVorher)) Fehler($"{ort}: Datenregel verletzt – {r}");
-                        var zelleNachher = zeileGueltig ? g.Rows[zeile.Index].Cells[spalte.Index].FormattedValue?.ToString() ?? "" : "";
+                        var zelleNachher = zeileGueltig ? g.Rows[zeilenIndex].Cells[spalte.Index].FormattedValue?.ToString() ?? "" : "";
+                        // ungültiger Wert: die Zelle zeigt danach den bisherigen Wert (bzw. die Eingabe zur Korrektur), nie ein leeres Feld
+                        if (ungueltig && !geaendert && zelleVorher.Length > 0 && zelleNachher.Length == 0)
+                            Fehler($"{ort}: Zelle nach ungültigem Wert „{Kurz(wert)}“ leer (vorher „{Kurz(zelleVorher)}“)");
                         if (ungueltig && geaendert) Fehler($"{ort}: ungültiger Wert „{Kurz(wert)}“ wurde übernommen (Daten geändert; Zelle „{Kurz(zelleVorher)}“ → „{Kurz(zelleNachher)}“)");
                         else if (ungueltig && meldungen.Count == 0)
                         {
@@ -759,6 +780,10 @@ public sealed partial class HauptFenster
                         else if (!ungueltig) melden($"INFO  R3D {ort}: {(geaendert ? "übernommen" : "unverändert")} (Zelle „{Kurz(zelleNachher)}“)");
                         // der eingegebene Wert übersteht Speichern und Laden
                         if (geaendert && Versuch("Speichern/Laden", () => Dokument.Klonen(AppZustand.D)) is { } pk) Fehler($"{ort}: {pk}");
+                        if (Versuch("Esc", () => EingabeVerwerfen(g.IsDisposed ? null : g)) is { } pe) Fehler($"{ort}: {pe}");
+                        if (!vorher.AsSpan().SequenceEqual(Stand()) && !geaendert) Fehler($"{ort}: Esc nach der Eingabe hat die Daten geändert");
+                        protokoll.Clear();
+                        hinweise.Clear();
                     }
                 }
                 // leere Pflichtfelder in einer neuen Zeile: nur einen Langnamen eingeben

@@ -505,8 +505,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
             switch (_g.Columns[e.ColumnIndex].Name)
             {
                 case "T": v.Text = wert; break;
-                case "V": v.Von = Ui.DatumLesen(wert, v.Von); if (v.Bis < v.Von || alt is null) v.Bis = v.Von; break;
-                case "B": v.Bis = Ui.DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
+                case "V": v.Von = DatumLesen(wert, v.Von); if (v.Bis < v.Von || alt is null) v.Bis = v.Von; break;
+                case "B": v.Bis = DatumLesen(wert, v.Bis); if (v.Bis < v.Von) v.Von = v.Bis; break;
                 case "SV": v.StundeVon = wert.Length == 0 ? 1 : Math.Clamp(int.Parse(wert), 1, Math.Max(1, D.Zeitraster.StundenProTag)); break;
                 case "SB": v.StundeBis = wert.Length == 0 || int.Parse(wert) >= D.Zeitraster.StundenProTag ? 99 : Math.Max(1, int.Parse(wert)); break;
                 case "K": v.KlassenIds = VeranstaltungsAuswahl.Lesen(D, ElementTyp.Klasse, wert, v.Von, v.Bis); v.KlassenteilIds.RemoveAll(v.KlassenIds.Contains); break;
@@ -575,6 +575,16 @@ public sealed class VeranstaltungenFenster : MdiFenster
             return;
         }
         Speichern(v, alt);
+    }
+
+    /// <summary>Datum einer Zelle lesen; ungültig: verständlicher deutscher Hinweis statt der Systemmeldung.</summary>
+    private static DateOnly DatumLesen(string wert, DateOnly bisher)
+    {
+        try { return Ui.DatumLesen(wert, bisher); }
+        catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
+        {
+            throw new FormatException($"„{wert}“ ist kein gültiges Datum – bitte als TT.MM.JJJJ eingeben.");
+        }
     }
 
     private void Speichern(Veranstaltung v, Veranstaltung? alt)
