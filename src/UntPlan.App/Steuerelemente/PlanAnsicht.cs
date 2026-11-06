@@ -509,8 +509,11 @@ public sealed class PlanAnsicht : Control
     /// <summary>Große Pläne: gleichzeitige Unterrichte untereinander in einem Feld, im kleinen Plan nebeneinander.</summary>
     private bool Stapeln => KlassikStil && !Format.Klein;
 
-    /// <summary>Zusammenfassung zu Doppelstunden/Blöcken (nicht in der Darstellung „Einzelstunden“).</summary>
-    private string? RegelSchluessel(Planstunde p) => Format.Einzelstunden ? null : p.UnterrichtId.ToString();
+    /// <summary>Zusammenfassung zu Doppelstunden/Blöcken (nicht in der Darstellung „Einzelstunden“).
+    /// Eine Stunde ohne Raum bzw. mit anderem Raum trennt den Block (wie im tagesaktuellen Plan).</summary>
+    private string? RegelSchluessel(Planstunde p) => Format.Einzelstunden ? null : p.UnterrichtId + "/" + RaumKennung(p);
+
+    private static string RaumKennung(Planstunde p) => p.RaumKennung(D.Unterrichte.FirstOrDefault(u => u.Id == p.UnterrichtId)?.Zeilen.Count ?? 1);
 
     /// <summary>Felder des tagesaktuellen Plans; Entfälle werden in der Vorbild-Darstellung je Stunde einzeln gezeigt.</summary>
     private List<PlanBlock<TagesEintrag>> TagesFelder(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s),
@@ -579,10 +582,11 @@ public sealed class PlanAnsicht : Control
     /// <summary>Position der gezogenen Stunde(n) in diesem Plan (Tag, erste Stunde) für die Tausch-Pfeilanzeige.</summary>
     private (int Tag, int Stunde)? _ziehQuelle;
 
-    /// <summary>Stunden des Blocks (Doppelstunde, Block) einer Planstunde: benachbarte Stunden desselben Unterrichts am selben Tag.</summary>
+    /// <summary>Stunden des Blocks (Doppelstunde, Block) einer Planstunde: benachbarte Stunden desselben Unterrichts mit denselben Räumen am selben Tag.</summary>
     public static List<Planstunde> Block(Planstunde p)
     {
-        var gleiche = D.Stundenplan.Where(x => x.UnterrichtId == p.UnterrichtId && x.Tag == p.Tag).ToList();
+        var raum = RaumKennung(p);
+        var gleiche = D.Stundenplan.Where(x => x.UnterrichtId == p.UnterrichtId && x.Tag == p.Tag && RaumKennung(x) == raum).ToList();
         var res = new List<Planstunde> { p };
         for (var s = p.Stunde - 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s--) res.Insert(0, x);
         for (var s = p.Stunde + 1; gleiche.FirstOrDefault(x => x.Stunde == s) is { } x; s++) res.Add(x);

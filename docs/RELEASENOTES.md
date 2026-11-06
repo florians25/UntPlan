@@ -6,6 +6,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop – Stundenplan
+- Doppelstunden und Blöcke werden auch in der Stundenplanung getrennt, wenn eine Stunde keinen Raum oder einen anderen Raum hat (gilt auch für Ziehen und „Ganzen Block markieren“).
+
 ### Desktop – sicheres Bedienen wie im Handbuch
 - Alle Auswahllisten in jeder Maske gleich: Kurz- und Langname, öffnet nach unten, Tippen springt sofort, Enter/Tab übernimmt, Esc stellt den alten Wert her, ungültige Eingabe mit Hinweis, Mausrad verstellt nichts.
 - Einheitliches Eingabeverhalten in allen Tabellen: Enter/Tab/Esc/F2/Entf/Einfg gleich, Einfügen auch aus Tabellenkalkulationen, Rückgängig/Wiederherstellen überall mit Hinweis, dieselbe Lösch-Rückfrage, Position bleibt nach dem Neuaufbau erhalten.
