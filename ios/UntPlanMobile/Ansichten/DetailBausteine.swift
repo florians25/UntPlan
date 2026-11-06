@@ -359,7 +359,7 @@ struct Randblatt<Inhalt: View>: View {
             // Erst nach dem ersten Layout einfahren (nächster Durchlauf der Hauptschleife): Aufbau von Vollbild und Ladebild
             // fällt so nicht in die ersten Bilder der Animation – das Blatt startet ohnehin unsichtbar unter dem Rand
             DispatchQueue.main.async {
-                withAnimation(.spring(response: 0.26, dampingFraction: 0.95)) { sichtbar = true } completion: {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.92)) { sichtbar = true } completion: {
                     // Ladebild → Inhalt hart (ohne geerbte Animation)
                     guard !schliesst else { return }
                     var still = Transaction()
@@ -406,7 +406,7 @@ struct Randblatt<Inhalt: View>: View {
         withTransaction(still) { bewegt = true }
         Tastatur.schliessen()
         elternSchrumpfen?(false)
-        withAnimation(.easeIn(duration: 0.17)) {
+        withAnimation(.easeIn(duration: 0.22)) {
             sichtbar = false
             zug = 0
         } completion: {
