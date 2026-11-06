@@ -15,7 +15,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Kennzahlen oben (Klassenbuch, Übersicht) einen Tick weniger fett.
 
 ### Web – Stundenplan-Karten
-- Kartentext nachgemessen: erste Zeile ohne zusätzliche Kontur (weniger fett), Lehrkraft und Raum in Regular statt Medium, Zeilenabstände wie in der Vorlage (erste Zeile 2px näher an den übrigen).
+- Kartentext nachgemessen: erste Zeile ohne zusätzliche Kontur (weniger fett), Lehrkraft und Raum in Regular statt Medium, Zeilenabstände wie in der Vorlage (erste Zeile 2px näher an den übrigen; mit Label wie „HA“ bleibt der volle Abstand zur nächsten Zeile).
 
 ### Desktop – Absenzen und Vertretungen wie im Vorbild
 - Kopf nachgemessen: Rahmen „Von-Bis“ mit Datum TT.MM.JJJJ, Schloss und Bis-Datum, darunter Wochentag und kleine Pfeile; Kalenderknopf rechts neben dem Rahmen, bei den Absenzen darunter die Anzahl der Tage.
