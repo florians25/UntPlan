@@ -14,7 +14,7 @@ namespace UntPlan.App.Fenster;
 public sealed class AbwesenheitenFenster : MdiFenster
 {
     private static readonly string[] Reiter = { "Lehrer", "Klassen", "Räume" };
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Top, Height = 22 };
+    private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -43,19 +43,18 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     public AbwesenheitenFenster()
     {
-        Text = "Absenzen / Lehrer";
+        Text = "Absenzen / Standard";
         HilfeThema = "Abwesenheiten";
         Icon = SymbolIcon("abwesenheit");
         Size = new Size(780, 320);
         Positionieren();
-        foreach (var t in Reiter) _tabs.TabPages.Add(t + " (0)");
+        foreach (var t in Reiter) _tabs.Hinzufuegen(t + " (0)");
         // Reiterwechsel: offenen Entwurf zuerst übernehmen (früher blieb die alte Liste unter dem neuen Reiter stehen)
         _tabs.Selecting += (_, _) => EntwurfSofortUebernehmen();
         _tabs.SelectedIndexChanged += (_, _) =>
         {
             if (_tabs.SelectedIndex == _letzterReiter) return;
             _letzterReiter = _tabs.SelectedIndex;
-            Text = "Absenzen / " + (Art switch { AbwesenheitsArt.Lehrer => "Lehrer", AbwesenheitsArt.Klasse => "Klasse", _ => "Raum" });
             Neuaufbau();
         };
         // Symbolleiste wie im Vorbild (Handbuch Kap. 5.1, Bereich 1): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht,
@@ -84,6 +83,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
 
         Ui.RasterGestalten(_g, true);
+        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern
+        _g.RowHeadersVisible = false;
+        _g.BorderStyle = BorderStyle.Fixed3D;
+        Ui.ZeilenmarkeErsteSpalte(_g);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 55, ReadOnly = true });
@@ -157,7 +160,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         };
 
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
-        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Absenzen");
+        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Absenzen", schloss: true, kalenderAussen: true);
         _zeitraum.Geaendert += () =>
         {
             if (_laedt) return;
@@ -166,14 +169,18 @@ public sealed class AbwesenheitenFenster : MdiFenster
             // Datumsauswahl gilt für alle verknüpften Fenster (Vertretungsliste, Stundenpläne, Menüband)
             if (Verknuepft && (Von == Bis || _zeitraum.Art != Steuerelemente.Zeitraumart.VonBis) && AppZustand.Datum != Von) AppZustand.DatumSetzen(Von);
         };
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 66, MinimumSize = new Size(0, 66), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 62) };
-        gruppe.Controls.Add(_zeitraum);
-        _zeitraum.Location = new Point(6, 18);
+        // Kopf wie im Vorbild: Rahmen „Von-Bis“ (Von, Schloss, Bis – darunter Wochentag und Pfeile), rechts daneben der
+        // Kalenderknopf und darunter die Anzahl der Tage („329 Tage“)
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 6, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
+        var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
+        _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);
-        // wie im Vorbild: Anzahl der Tage des Zeitraums rechts daneben („329 Tage“)
-        _tage.Margin = new Padding(6, 36, 0, 0);
-        kopf.Controls.Add(_tage);
+        var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(7, 8, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
+        _zeitraum.Kalender.Margin = Padding.Empty;
+        rechts.Controls.Add(_zeitraum.Kalender);
+        _tage.Margin = new Padding(0, 3, 0, 0);
+        rechts.Controls.Add(_tage);
+        kopf.Controls.Add(rechts);
 
         Controls.Add(_g);
         Controls.Add(_tabs);
@@ -365,7 +372,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         for (var i = 0; i < 3; i++)
         {
             var art = (AbwesenheitsArt)i;
-            _tabs.TabPages[i].Text = $"{Reiter[i]} ({D.Abwesenheiten.Count(a => a.Art == art && a.Bis >= von && a.Von <= bis)})";
+            _tabs.TextSetzen(i, $"{Reiter[i]} ({D.Abwesenheiten.Count(a => a.Art == art && a.Bis >= von && a.Von <= bis)})");
         }
     }
 

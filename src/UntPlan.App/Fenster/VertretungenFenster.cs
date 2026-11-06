@@ -57,7 +57,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private const int VaSammelAb = 4;
     /// <summary>„Felder der Ansicht“ während eines Neuaufbaus (sonst je Zelle neu gelesen).</summary>
     private Dictionary<string, string>? _felder;
-    private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90 };
+    private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 107 };
     private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen – erneuter Klick stellt die ursprünglichen Spalten wieder her" };
     /// <summary>Spalten, die vor „Felder mit Inhalt“ sichtbar waren.</summary>
     private HashSet<string>? _vorInhalt;
@@ -68,7 +68,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// Stunde (Entfall mit „(Le.) nach“), deren Lehrer, Fach, Raum und Klassen in den Klammerspalten stehen.
     /// </summary>
     private readonly Dictionary<int, Vertretung> _weg = new();
-    private readonly GroupBox _elementGruppe;
+    /// <summary>Beschriftung über der Elementauswahl („Klasse(n)“ bzw. „Vertreter“).</summary>
+    private readonly Label _elementGruppe = new() { AutoSize = true, Margin = new Padding(0, 0, 0, 3) };
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
     private readonly TextBox _nr = new() { Width = 60 };
@@ -80,7 +81,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     public VertretungenFenster()
     {
-        Text = "Vertretungen / Klasse – Standard";
+        Text = "Vertretungen / Klasse - Standard";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("vertretung");
         Size = new Size(1180, 520);
@@ -91,7 +92,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _ansicht.DropDownWidth = 190;
         _ansicht.ItemHeight = Math.Max(_ansicht.ItemHeight, 18);
         AnsichtenFuellen(AppZustand.Einstellungen.Vertretungsansicht);
-        Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
+        Text = "Vertretungen / " + Fmt.Langname;
         ElementeFuellen();
 
         var ts = Werkzeugleiste();
@@ -152,26 +153,39 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, LehrerSicht));
         ts.Items.Add(einst);
 
-        // Kopf wie im Vertretungsfenster üblich: Element, Zeitraum (Tag/Woche/Von-Bis), Ansicht einschränken
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 66, MinimumSize = new Size(0, 66), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        GroupBox Gruppe(string text, params Control[] inhalt)
-        {
-            var g = new GroupBox { Text = text, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), Margin = new Padding(2, 0, 6, 0), MinimumSize = new Size(0, 62) };
-            var fl = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0), Padding = new Padding(0, 2, 0, 0) };
-            fl.Controls.AddRange(inhalt);
-            g.Controls.Add(fl);
-            return g;
-        }
-        _elementGruppe = Gruppe("Klasse(n)", new Control[] { _element }.Concat(Ui.Durchschalter(_element)).ToArray());
-        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen", schloss: true);
+        // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
+        // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
+        var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 2, 6, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
+        _element.Margin = new Padding(2, 0, 0, 0);
+        Ui.KlassischeDarstellung(_element);
+        elementSpalte.Controls.Add(_elementGruppe);
+        elementSpalte.Controls.Add(_element);
+        _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen", schloss: true, kalenderAussen: true);
         _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
-        filter.Controls.Add(_elementGruppe);
-        filter.Controls.Add(Gruppe("Von-Bis", _zeitraum));
-        _offen.Padding = _kollisionen.Padding = new Padding(2, 4, 6, 0);
-        _vaSammeln.Padding = new Padding(2, 4, 6, 0);
+        filter.Controls.Add(elementSpalte);
+        var vonBis = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
+        _zeitraum.InRahmen(vonBis);
+        filter.Controls.Add(vonBis);
+        _zeitraum.Kalender.Margin = new Padding(9, 16, 0, 0);
+        filter.Controls.Add(_zeitraum.Kalender);
+        var ansicht = new GroupBox { Text = "Ansicht einschränken auf...", Size = new Size(222, 65), MinimumSize = new Size(222, 65), Margin = new Padding(21, 0, 0, 0) };
+        _offen.Location = new Point(10, 22);
+        _kollisionen.Location = new Point(10, 43);
+        _offen.Padding = _kollisionen.Padding = Padding.Empty;
+        ansicht.Controls.Add(_offen);
+        ansicht.Controls.Add(_kollisionen);
+        filter.Controls.Add(ansicht);
+        // gleiche Höhe wie der Rahmen „Von-Bis“
+        vonBis.SizeChanged += (_, _) => { if (ansicht.Height != vonBis.Height) ansicht.MinimumSize = ansicht.Size = new Size(ansicht.Width, vonBis.Height); };
+        // „Veranstaltungen zusammenfassen“ (eigene Einstellung) liegt im Menü Einstellungen der Symbolleiste
         _vaSammeln.Checked = AppZustand.Einstellungen.VeranstaltungenZusammenfassen;
-        new ToolTip().SetToolTip(_vaSammeln, "Entfälle und Freisetzungen einer Veranstaltung (z. B. Lehrkräftekonferenz, pädagogischer Tag) je Tag in einer Zeile zeigen – „Alle Klassen“, Stunde „1-6“. Ausschalten zeigt jede Stunde einzeln.");
-        filter.Controls.Add(Gruppe("Ansicht einschränken auf …", _offen, _kollisionen, _vaSammeln));
+        var vaMenue = new ToolStripMenuItem("Veranstaltungen zusammenfassen") { CheckOnClick = true, Checked = _vaSammeln.Checked,
+            ToolTipText = "Entfälle und Freisetzungen einer Veranstaltung (z. B. Lehrkräftekonferenz, pädagogischer Tag) je Tag in einer Zeile zeigen – „Alle Klassen“, Stunde „1-6“. Ausschalten zeigt jede Stunde einzeln." };
+        vaMenue.CheckedChanged += (_, _) => _vaSammeln.Checked = vaMenue.Checked;
+        _vaSammeln.CheckedChanged += (_, _) => vaMenue.Checked = _vaSammeln.Checked;
+        einst.DropDownItems.Insert(0, vaMenue);
+        einst.DropDownItems.Insert(1, new ToolStripSeparator());
 
         // Fußleiste wie im Vorbild: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
         var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
@@ -190,6 +204,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         links.Dock = DockStyle.Left;
 
         Ui.RasterGestalten(_g, true);
+        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen
+        _g.RowHeadersVisible = false;
+        _g.BorderStyle = BorderStyle.Fixed3D;
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = true;
         _g.EditMode = DataGridViewEditMode.EditOnKeystrokeOrF2;
@@ -321,7 +338,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Neuaufbau(true);
         };
         _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
-        var ansichtName = new Label { Dock = DockStyle.Top, Height = 22, Padding = new Padding(10, 4, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
+        var ansichtName = new Label { Dock = DockStyle.Top, Height = 24, Padding = new Padding(14, 4, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
             if (_laedtAnsicht) return;
@@ -337,7 +354,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _letztesFormat = Fmt;
             AppZustand.Einstellungen.Vertretungsansicht = Fmt.Langname;
             AppZustand.Einstellungen.Speichern();
-            Text = "Vertretungen / " + Fmt.Langname.Replace(" - ", " – ");
+            Text = "Vertretungen / " + Fmt.Langname;
             ElementeFuellen();
             _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
             ansichtName.Text = Fmt.Langname;

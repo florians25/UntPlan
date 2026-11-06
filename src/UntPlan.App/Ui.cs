@@ -198,7 +198,75 @@ public static partial class Ui
             });
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
+        // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
+        // mit der aktuellen Zelle hell orange
+        g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        g.CellPainting += (_, e) =>
+        {
+            // Überschrift ohne „…“: zu lange Texte werden wie im Vorbild einfach am Spaltenrand abgeschnitten
+            if (e.RowIndex != -1 || e.ColumnIndex < 0 || e.Graphics is null || e.CellStyle is null) return;
+            var c = g.Columns[e.ColumnIndex];
+            if (c.HeaderCell.Style.Alignment is not (DataGridViewContentAlignment.NotSet or DataGridViewContentAlignment.MiddleLeft)) return;
+            if (TextRenderer.MeasureText(e.Graphics, c.HeaderText, e.CellStyle.Font ?? g.Font).Width <= e.CellBounds.Width - 6) return;
+            e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+            var glyphe = c.HeaderCell.SortGlyphDirection != SortOrder.None ? 14 : 0;
+            var r = Rectangle.FromLTRB(e.CellBounds.Left + 3, e.CellBounds.Top, e.CellBounds.Right - 2 - glyphe, e.CellBounds.Bottom - 1);
+            TextRenderer.DrawText(e.Graphics, c.HeaderText, e.CellStyle.Font ?? g.Font, r, e.CellStyle.ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+            e.Handled = true;
+        };
+        DataGridViewColumn? kopfAktiv = null;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var neu = g.CurrentCell?.OwningColumn;
+            if (ReferenceEquals(neu, kopfAktiv)) return;
+            if (kopfAktiv is { DataGridView: not null }) kopfAktiv.HeaderCell.Style.BackColor = Color.Empty;
+            if (neu != null) neu.HeaderCell.Style.BackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+            kopfAktiv = neu;
+        };
         typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
+    }
+
+    [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hwnd, string? appName, string? idList);
+
+    /// <summary>
+    /// Klassische Windows-Darstellung für ein einzelnes Steuerelement (wie im Vorbild z. B. das Auswahlfeld „Klasse(n)“: vertiefter
+    /// Rahmen, grauer Knopf mit schwarzem Dreieck) – schaltet nur für dieses Element die Windows-Designs ab.
+    /// </summary>
+    public static void KlassischeDarstellung(Control c)
+    {
+        void Setzen()
+        {
+            try { SetWindowTheme(c.Handle, "", ""); }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
+        if (c.IsHandleCreated) Setzen();
+        c.HandleCreated += (_, _) => Setzen();
+    }
+
+    /// <summary>
+    /// Tabellen ohne Zeilenköpfe (wie im Vorbild Absenzen/Vertretungen): die erste sichtbare Zelle der aktuellen Zeile ist hell
+    /// orange und zeigt so die Zeile an.
+    /// </summary>
+    public static void ZeilenmarkeErsteSpalte(DataGridView g)
+    {
+        var letzte = -1;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var z = g.CurrentCell?.RowIndex ?? -1;
+            if (z == letzte) return;
+            if (letzte >= 0 && letzte < g.RowCount) g.InvalidateRow(letzte);
+            if (z >= 0) g.InvalidateRow(z);
+            letzte = z;
+        };
+        g.CellFormatting += (_, e) =>
+        {
+            if (e.CellStyle is null || e.RowIndex < 0 || e.RowIndex != g.CurrentCell?.RowIndex) return;
+            var erste = g.Columns.GetFirstColumn(DataGridViewElementStates.Visible);
+            if (erste != null && e.ColumnIndex == erste.Index && g.CurrentCell.ColumnIndex != erste.Index)
+                e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+        };
     }
 
     /// <summary>

@@ -23,6 +23,9 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
     private readonly Label _wochentagBis = new() { AutoSize = true, MinimumSize = new Size(34, 16), Padding = new Padding(2, 1, 0, 0) };
     private readonly Label _strich = new() { Text = "", AutoSize = true, Width = 0, Visible = false };
     private Control? _bisZeile;
+    /// <summary>Platzhalter für Schloss und Bis-Datum, solange sie ausgeblendet sind.</summary>
+    private readonly Panel _schlossPlatz;
+    private readonly int _volleBreite;
     private readonly ToolStripDropDownButton _art = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Zeitraum: Tag, Woche oder Von-Bis" };
     private readonly string _schluessel;
     private bool _setzen;
@@ -38,7 +41,10 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
 
     public Zeitraumart Art { get; private set; }
 
-    public ZeitraumAuswahl(DateTimePicker von, DateTimePicker bis, string schluessel, bool schloss = false)
+    /// <summary>Kalenderknopf (Zeitraumart); liegt wie im Vorbild rechts neben dem Rahmen „Von-Bis“, wenn das Fenster ihn dort einsetzt.</summary>
+    public Control Kalender { get; }
+
+    public ZeitraumAuswahl(DateTimePicker von, DateTimePicker bis, string schluessel, bool schloss = false, bool kalenderAussen = false)
     {
         _von = von;
         _bis = bis;
@@ -49,14 +55,20 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         Margin = new Padding(0);
         Padding = new Padding(0);
         BackColor = Color.Transparent;
-        _von.Margin = _bis.Margin = new Padding(2, 2, 8, 0);
-        // Breite nach der tatsächlichen Schrift: Datum mit Wochentag passt auch bei größerer Windows-Schrift vollständig hinein
-        var muster = _von.Format == DateTimePickerFormat.Custom ? new DateTime(2026, 11, 25).ToString(_von.CustomFormat) : new DateTime(2026, 11, 25).ToShortDateString();
-        var noetig = Math.Max(TextRenderer.MeasureText(muster, _von.Font).Width, TextRenderer.MeasureText(muster, Ui.Schrift).Width) + SystemInformation.VerticalScrollBarWidth + 14;
-        _von.Width = Math.Max(_von.Width, noetig);
-        _bis.Width = Math.Max(_bis.Width, noetig);
-        // wie im Vorbild: unter jedem Datum der Wochentag mit zwei kleinen Pfeilen (◂ ▸)
-        PfeilKnopf Klein(PfeilKnopf.Art art, string hinweis) => new(art, hinweis) { Size = new Size(16, 15), Margin = new Padding(0, 1, 0, 0) };
+        // wie im Vorbild: Datum immer als TT.MM.JJJJ (unabhängig von der Windows-Region), Wochentag steht darunter
+        foreach (var f in new[] { _von, _bis })
+        {
+            f.Format = DateTimePickerFormat.Custom;
+            f.CustomFormat = "dd.MM.yyyy";
+        }
+        _von.Margin = new Padding(0, 0, 0, 0);
+        _bis.Margin = new Padding(0, 0, 0, 0);
+        // Breite nach der tatsächlichen Schrift: das Datum passt auch bei größerer Windows-Schrift vollständig hinein
+        var muster = new DateTime(2026, 11, 25).ToString("dd.MM.yyyy");
+        var noetig = Math.Max(TextRenderer.MeasureText(muster, _von.Font).Width, TextRenderer.MeasureText(muster, Ui.Schrift).Width) + SystemInformation.VerticalScrollBarWidth + 6;
+        _von.Width = _bis.Width = noetig;
+        // wie im Vorbild: unter jedem Datum links der Wochentag, rechts bündig zwei kleine weiße Pfeilfelder
+        PfeilKnopf Klein(PfeilKnopf.Art art, string hinweis) => new(art, hinweis) { Klassisch = true, Size = new Size(15, 14), Margin = Padding.Empty, Cursor = Cursors.Default };
         var zurueck = Klein(PfeilKnopf.Art.Links, "Zurück");
         var vor = Klein(PfeilKnopf.Art.Rechts, "Vor");
         zurueck.Click += (_, _) => Blaettern(-1);
@@ -65,7 +77,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         var bisVor = Klein(PfeilKnopf.Art.Rechts, "Bis-Datum vor");
         bisZurueck.Click += (_, _) => BisVerschieben(-1);
         bisVor.Click += (_, _) => BisVerschieben(+1);
-        var kalender = new PfeilKnopf(PfeilKnopf.Art.Kalender, "Zeitraum: Tag, Woche oder Von-Bis") { Margin = new Padding(6, 2, 0, 0) };
+        var kalender = new PfeilKnopf(PfeilKnopf.Art.Kalender, "Zeitraum: Tag, Woche oder Von-Bis")
+        {
+            Klassisch = true, Size = new Size(35, Math.Max(26, _von.PreferredSize.Height + 3)), Margin = new Padding(7, 0, 0, 0), Cursor = Cursors.Default,
+        };
+        Kalender = kalender;
         foreach (var a in Enum.GetValues<Zeitraumart>())
         {
             var art = a;
@@ -86,23 +102,37 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         };
         Panel Spalte(DateTimePicker feld, Label tag, Control z, Control v)
         {
-            var unten = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = false, Margin = new Padding(2, 0, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
-            unten.Controls.AddRange(new Control[] { tag, z, v });
-            var sp = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent };
-            sp.Controls.Add(feld);
-            sp.Controls.Add(unten);
+            var sp = new Panel { Margin = Padding.Empty, Padding = Padding.Empty, BackColor = Color.Transparent };
+            void Anordnen()
+            {
+                var h = feld.Height;
+                feld.Location = Point.Empty;
+                tag.AutoSize = true;
+                tag.Padding = Padding.Empty;
+                tag.MinimumSize = Size.Empty;
+                tag.Location = new Point(1, h + 4);
+                v.Location = new Point(feld.Width - 2 - v.Width, h + 5);
+                z.Location = new Point(v.Left - z.Width, h + 5);
+                sp.Size = new Size(feld.Width, Math.Max(tag.Bottom, v.Bottom) + 1);
+            }
+            sp.Controls.AddRange(new Control[] { feld, tag, z, v });
+            feld.SizeChanged += (_, _) => Anordnen();
+            tag.SizeChanged += (_, _) => Anordnen();
+            Anordnen();
             return sp;
         }
         _bisZeile = Spalte(_bis, _wochentagBis, bisZurueck, bisVor);
+        _bisZeile.Margin = new Padding(0, 0, 0, 0);
         Controls.Add(Spalte(_von, _wochentag, zurueck, vor));
+        _schlossPlatz = new Panel { Size = new Size(39, 1), Margin = Padding.Empty, BackColor = Color.Transparent };
         if (schloss)
         {
             _schloss = new CheckBox
             {
-                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(22, 22), Margin = new Padding(0, 2, 6, 0),
-                FlatStyle = FlatStyle.Flat, BackColor = Color.Transparent, Text = "", Visible = false,
+                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(23, 23), Margin = new Padding(6, 0, 10, 0),
+                FlatStyle = FlatStyle.Flat, BackColor = Color.White, Text = "", Visible = false,
             };
-            _schloss.FlatAppearance.BorderColor = Color.FromArgb(160, 160, 160);
+            _schloss.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
             _schloss.FlatAppearance.CheckedBackColor = Color.FromArgb(255, 226, 150);
             new ToolTip().SetToolTip(_schloss, "Tages-Abstand einfrieren: bleibt bei einer Datumsänderung erhalten");
             if (AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel + ".Schloss", out var ab) && int.TryParse(ab, out var tage) && tage >= 0)
@@ -119,7 +149,12 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
             };
             Controls.Add(_schloss);
         }
-        Controls.AddRange(new Control[] { _bisZeile, kalender });
+        else _bisZeile.Margin = new Padding(10, 0, 0, 0);
+        Controls.Add(_schlossPlatz);
+        Controls.Add(_bisZeile);
+        if (!kalenderAussen) Controls.Add(kalender);
+        // wie im Vorbild bleibt der Platz für das Bis-Datum auch bei „Tag“ frei (Rahmen „Von-Bis“ immer gleich breit)
+        _volleBreite = _von.Width + 6 + 23 + 10 + _bis.Width + (kalenderAussen ? 0 : kalender.Width + kalender.Margin.Horizontal);
         _von.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(true); };
         _bis.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(false); };
         var gespeichert = AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel, out var g) && Enum.TryParse<Zeitraumart>(g, out var z) ? z : Zeitraumart.Tag;
@@ -163,12 +198,38 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         BeginInvoke(PlatzSichern);
     }
 
+    /// <summary>Platzhalter füllt die Lücke ausgeblendeter Felder: der Kopf bleibt in jeder Zeitraumart gleich breit.</summary>
+    private void PlatzhalterAnpassen()
+    {
+        var belegt = _von.Width + (_schloss is { Visible: true } ? _schloss.Width + _schloss.Margin.Horizontal : 0) +
+                     (_bisZeile is { Visible: true } ? _bisZeile.Width + _bisZeile.Margin.Horizontal : 0) +
+                     (Controls.Contains(Kalender) ? Kalender.Width + Kalender.Margin.Horizontal : 0);
+        _schlossPlatz.Width = Math.Max(0, _volleBreite - belegt);
+        // Platzhalter vor dem Kalenderknopf (bzw. am Ende)
+        Controls.SetChildIndex(_schlossPlatz, Controls.Count - (Controls.Contains(Kalender) ? 2 : 1));
+    }
+
+    /// <summary>
+    /// In den Rahmen „Von-Bis“ setzen – Abstände wie im Vorbild nachgemessen: Datum knapp unter dem Rahmentitel, unter den Pfeilen
+    /// 6 Pixel bis zur Rahmenlinie, rechts 8 Pixel.
+    /// </summary>
+    public void InRahmen(GroupBox gb)
+    {
+        gb.AutoSize = false;
+        gb.Controls.Add(this);
+        Location = new Point(9, Math.Max(16, gb.Font.Height + 1));
+        void Groesse() => gb.Size = new Size(Right + 8, Bottom + 6);
+        SizeChanged += (_, _) => Groesse();
+        Groesse();
+    }
+
     public void ArtSetzen(Zeitraumart art, bool merken = true)
     {
         Art = art;
         foreach (ToolStripMenuItem it in _art.DropDownItems) it.Checked = _art.DropDownItems.IndexOf(it) == (int)art;
         if (_bisZeile != null) _bisZeile.Visible = art != Zeitraumart.Tag;
         if (_schloss != null) _schloss.Visible = art == Zeitraumart.VonBis;
+        PlatzhalterAnpassen();
         _bis.Visible = art != Zeitraumart.Tag;
         _bis.Enabled = art == Zeitraumart.VonBis;
         if (merken)

@@ -1,0 +1,57 @@
+name: Bildschirmfotos (Windows)
+
+# Echte Windows-Darstellung ausgewählter Fenster als Vergleich zum Vorbild: führt nur die gewählten Selbsttest-Schritte aus und
+# legt die Bildschirmfotos (Windows, 100 %) für einen Tag als Artefakt ab. Kein Release.
+on:
+  workflow_dispatch:
+    inputs:
+      schritte:
+        description: 'Regulärer Ausdruck der Selbsttest-Schritte'
+        required: false
+        default: '^(1[0-9]|R3B_Absenzen|R3B_Vertretungen)'
+  push:
+    branches: [ 'claude/**' ]
+    paths: [ 'src/UntPlan.App/**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  fotos:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Anwendung veröffentlichen
+        run: dotnet publish src/UntPlan.App -c Release -r win-x64 --self-contained -o artifacts/UntPlan
+
+      - name: Gewählte Selbsttest-Schritte
+        shell: pwsh
+        run: |
+          $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(1[0-9]|R3B_Absenzen|R3B_Vertretungen)' }
+          $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
+          if (-not $p.WaitForExit(900000)) { $p.Kill() }
+          Get-Content artifacts/fotos/selbsttest.log
+
+      # Bilder zusätzlich als Text im Protokoll (zum Abruf ohne Artefakt-Download)
+      - name: Bilder ins Protokoll
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem artifacts/fotos -Filter *.png | Where-Object { $_.Name -match '^(17_Vertretungen|19_Absenzen|R3B_Absenzen|R3B_Vertretungen)\.png$' }) {
+            $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
+            Write-Output "BILD-ANFANG $($f.Name)"
+            for ($i = 0; $i -lt $b.Length; $i += 4000) { Write-Output ("B64 " + $b.Substring($i, [Math]::Min(4000, $b.Length - $i))) }
+            Write-Output "BILD-ENDE $($f.Name)"
+          }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Bildschirmfotos-Windows
+          path: artifacts/fotos
+          retention-days: 1
