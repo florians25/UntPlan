@@ -201,6 +201,20 @@ public static partial class Ui
         // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
         // mit der aktuellen Zelle hell orange
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        g.CellPainting += (_, e) =>
+        {
+            // Überschrift ohne „…“: zu lange Texte werden wie im Vorbild einfach am Spaltenrand abgeschnitten
+            if (e.RowIndex != -1 || e.ColumnIndex < 0 || e.Graphics is null || e.CellStyle is null) return;
+            var c = g.Columns[e.ColumnIndex];
+            if (c.HeaderCell.Style.Alignment is not (DataGridViewContentAlignment.NotSet or DataGridViewContentAlignment.MiddleLeft)) return;
+            if (TextRenderer.MeasureText(e.Graphics, c.HeaderText, e.CellStyle.Font ?? g.Font).Width <= e.CellBounds.Width - 6) return;
+            e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+            var glyphe = c.HeaderCell.SortGlyphDirection != SortOrder.None ? 14 : 0;
+            var r = Rectangle.FromLTRB(e.CellBounds.Left + 3, e.CellBounds.Top, e.CellBounds.Right - 2 - glyphe, e.CellBounds.Bottom - 1);
+            TextRenderer.DrawText(e.Graphics, c.HeaderText, e.CellStyle.Font ?? g.Font, r, e.CellStyle.ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+            e.Handled = true;
+        };
         DataGridViewColumn? kopfAktiv = null;
         g.CurrentCellChanged += (_, _) =>
         {

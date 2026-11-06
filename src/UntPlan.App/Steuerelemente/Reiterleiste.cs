@@ -57,6 +57,9 @@ public sealed class Reiterleiste : Control
         }
     }
 
+    /// <summary>Band hinter den Reitern: im Vertretungsmodus die Farbe des Arbeitsbereichs, sonst ein kräftigeres Hellblau.</summary>
+    private static Color Band => Ui.Vertretungsmodus ? Ui.MdiHintergrund : Color.FromArgb(196, 224, 246);
+
     /// <summary>Gewählter Reiter: etwas heller als der Kopfbereich (nachgemessen).</summary>
     private static Color Gewaehlt => Ui.Vertretungsmodus ? Color.FromArgb(225, 243, 236) : Color.FromArgb(230, 242, 252);
 
@@ -81,7 +84,7 @@ public sealed class Reiterleiste : Control
         var g = e.Graphics;
         // Kopfbereich oberhalb des Bandes, Band in der Farbe des Arbeitsbereichs
         using (var kopf = new SolidBrush(Ui.Kopf)) g.FillRectangle(kopf, 0, 0, Width, 1);
-        using (var band = new SolidBrush(Ui.MdiHintergrund)) g.FillRectangle(band, 0, 1, Width, Height - 1);
+        using (var band = new SolidBrush(Band)) g.FillRectangle(band, 0, 1, Width, Height - 1);
         var unten = Height - 5;
         // Kante unter den Reitern (hell) und Rahmen der Tabelle darunter (vertieft)
         using var weiss = new Pen(Color.White);
@@ -108,7 +111,7 @@ public sealed class Reiterleiste : Control
 
     private void Reiter(Graphics g, Rectangle r, bool gewaehlt, string text, Pen weiss, Pen hell, Pen grau, Pen dunkel)
     {
-        using (var b = new SolidBrush(gewaehlt ? Gewaehlt : Ui.MdiHintergrund)) g.FillRectangle(b, r.Left + 2, r.Top + 2, r.Width - 4, r.Height - 2);
+        using (var b = new SolidBrush(gewaehlt ? Gewaehlt : Band)) g.FillRectangle(b, r.Left + 2, r.Top + 2, r.Width - 4, r.Height - 2);
         if (gewaehlt) using (var oben = new Pen(Color.FromArgb(213, 213, 213))) g.DrawLine(oben, r.Left + 1, r.Top, r.Right - 2, r.Top);
         g.DrawLine(weiss, r.Left, r.Top + 1, r.Left, r.Bottom - 1);
         g.DrawLine(weiss, r.Left + 1, r.Top + 1, r.Right - 2, r.Top + 1);

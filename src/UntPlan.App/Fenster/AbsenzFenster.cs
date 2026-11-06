@@ -172,9 +172,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // Kopf wie im Vorbild: Rahmen „Von-Bis“ (Von, Schloss, Bis – darunter Wochentag und Pfeile), rechts daneben der
         // Kalenderknopf und darunter die Anzahl der Tage („329 Tage“)
         var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 6, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
-        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(8, 3, 8, 3), Margin = Padding.Empty };
-        gruppe.Controls.Add(_zeitraum);
-        _zeitraum.Location = new Point(9, 17);
+        var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
+        _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);
         var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(7, 8, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
         _zeitraum.Kalender.Margin = Padding.Empty;

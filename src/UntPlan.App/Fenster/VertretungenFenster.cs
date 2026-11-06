@@ -163,9 +163,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _zeitraum = new Steuerelemente.ZeitraumAuswahl(_von, _bis, "Vertretungen", schloss: true, kalenderAussen: true);
         _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
         filter.Controls.Add(elementSpalte);
-        var vonBis = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(8, 3, 8, 3), Margin = Padding.Empty };
-        vonBis.Controls.Add(_zeitraum);
-        _zeitraum.Location = new Point(9, 17);
+        var vonBis = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
+        _zeitraum.InRahmen(vonBis);
         filter.Controls.Add(vonBis);
         _zeitraum.Kalender.Margin = new Padding(9, 16, 0, 0);
         filter.Controls.Add(_zeitraum.Kalender);
