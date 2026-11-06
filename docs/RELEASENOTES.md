@@ -11,7 +11,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Absenzen: Reiter „Lehrer | Klassen | Räume“ so groß wie im Vertretungsvorschlag.
 
 ### Web – Klassenbuch
-- Verspätung bzw. früher gegangen steht an der Schülerkarte als eigene Plakette unter Bild und Name (mit Minuten, als Fehlstunde gewertet in Rot) – mit Abstand zu Name und Umschalter.
+- Verspätung bzw. früher gegangen an der Schülerkarte als eigene Plakette unter Bild und Name: nur Symbol und Minuten in der Statusfarbe (gelb verspätet, lila früher gegangen, rot als Fehlstunde gewertet), mit Abstand zu Name und Umschalter.
+- Kennzahlen oben (Klassenbuch, Übersicht) einen Tick weniger fett.
 
 ### Desktop – Absenzen und Vertretungen wie im Vorbild
 - Kopf nachgemessen: Rahmen „Von-Bis“ mit Datum TT.MM.JJJJ, Schloss und Bis-Datum, darunter Wochentag und kleine Pfeile; Kalenderknopf rechts neben dem Rahmen, bei den Absenzen darunter die Anzahl der Tage.
