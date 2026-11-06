@@ -6,6 +6,13 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop – Eingabe
+- Textvorschläge (zuletzt verwendete Texte) erscheinen nicht mehr als Liste, sondern direkt im Feld: der Rest des passenden Textes steht blau markiert hinter der Eingabe, Tab übernimmt ihn, Weitertippen, Entf oder Esc verwerfen ihn. Behebt das schwarze Feld unter der Eingabe.
+- Absenzen: Reiter „Lehrer | Klassen | Räume“ so groß wie im Vertretungsvorschlag.
+
+### Web – Klassenbuch
+- Verspätung bzw. früher gegangen steht an der Schülerkarte als eigene Plakette unter Bild und Name (mit Minuten, als Fehlstunde gewertet in Rot) – mit Abstand zu Name und Umschalter.
+
 ### Desktop – Absenzen und Vertretungen wie im Vorbild
 - Kopf nachgemessen: Rahmen „Von-Bis“ mit Datum TT.MM.JJJJ, Schloss und Bis-Datum, darunter Wochentag und kleine Pfeile; Kalenderknopf rechts neben dem Rahmen, bei den Absenzen darunter die Anzahl der Tage.
 - Absenzen: Reiter „Lehrer | Klassen | Räume“ als klassische Karteireiter auf farbigem Band, Fenstertitel „Absenzen / Standard“.

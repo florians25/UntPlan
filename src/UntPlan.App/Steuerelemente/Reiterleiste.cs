@@ -24,7 +24,7 @@ public sealed class Reiterleiste : Control
         TabStop = true;
     }
 
-    private int HoeheNachSchrift() => Font.Height + 8;
+    private int HoeheNachSchrift() => Font.Height + 13;
 
     protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); Height = HoeheNachSchrift(); }
 
@@ -68,13 +68,13 @@ public sealed class Reiterleiste : Control
     {
         var res = new List<Rectangle>();
         var x = 2;
-        var oben = 3;
+        var oben = 4;
         var unten = Height - 5;
         foreach (var t in _texte)
         {
-            var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding).Width + 10;
+            var w = TextRenderer.MeasureText(t, Font).Width + 12;
             res.Add(new Rectangle(x, oben, w, unten - oben));
-            x += w;
+            x += w + 1;
         }
         return res;
     }
