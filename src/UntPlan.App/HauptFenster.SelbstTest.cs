@@ -2017,7 +2017,16 @@ public sealed partial class HauptFenster
         Schritt("R3B_Ferien", () => { R3BVertretungsmodus(false); R3BMaske("Ferien", Max(Oeffnen<FerienFenster>("ferien", () => new FerienFenster())), new[] { "L" }, false); }, 0);
         Schritt("R3B_Absenzen", () => { R3BVertretungsmodus(true); R3BMaske("Absenzen", Max(FensterOeffnen("abw")!), new[] { "T" }, true); }, -1);
         Schritt("R3B_Veranstaltungen", () => { R3BVertretungsmodus(true); R3BMaske("Veranstaltungen", Max(FensterOeffnen("veranst")!), new[] { "T" }, true); }, -1);
-        Schritt("R3B_Vertretungen", () => { R3BVertretungsmodus(true); R3BMaske("Vertretungen", Max(FensterOeffnen("vertr")!), new[] { "Text" }, true); }, -1);
+        Schritt("R3B_Vertretungen", () =>
+        {
+            R3BVertretungsmodus(true);
+            // Einzelzeilen prüfen: eine zusammengefasste Veranstaltungszeile zeigt nach dem Leeren wieder den Namen der Veranstaltung
+            // (wie im Vorbild) – sonst hinge der Schritt davon ab, ob am Tag eine Veranstaltung liegt
+            var vorher = AppZustand.Einstellungen.VeranstaltungenZusammenfassen;
+            AppZustand.Einstellungen.VeranstaltungenZusammenfassen = false;
+            try { R3BMaske("Vertretungen", Max(FensterOeffnen("vertr")!), new[] { "Text" }, true); }
+            finally { AppZustand.Einstellungen.VeranstaltungenZusammenfassen = vorher; }
+        }, -1);
         Schritt("R3B_Klausuren", () =>
         {
             R3BVertretungsmodus(true);
