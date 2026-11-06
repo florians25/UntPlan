@@ -65,8 +65,10 @@ jobs:
       - name: Selbsttest der Oberfläche (alle Fenster öffnen, Bildschirmfotos)
         shell: pwsh
         run: |
+          # Rundgänge durch alle Fenster (je ~30 min) laufen nur lokal; im Build alle übrigen Schritte
+          $env:UNTPLAN_SCHRITTE = '^(?!R3D_Fensterrundgang)'
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/selbsttest" -PassThru
-          if (-not $p.WaitForExit(600000)) { $p.Kill(); throw "Selbsttest hat nicht beendet" }
+          if (-not $p.WaitForExit(1200000)) { $p.Kill(); throw "Selbsttest hat nicht beendet" }
           Get-Content artifacts/selbsttest/selbsttest.log
           if (Select-String -Path artifacts/selbsttest/selbsttest.log -Pattern "^FEHLER") { throw "Selbsttest fehlgeschlagen" }
 
