@@ -14,6 +14,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Verspätung bzw. früher gegangen an der Schülerkarte als eigene Plakette unter Bild und Name: nur Symbol und Minuten in der Statusfarbe (gelb verspätet, lila früher gegangen, rot als Fehlstunde gewertet), mit Abstand zu Name und Umschalter.
 - Kennzahlen oben (Klassenbuch, Übersicht) einen Tick weniger fett.
 
+### Web – Stundenplan-Karten
+- Kartentext nachgemessen: erste Zeile ohne zusätzliche Kontur (weniger fett), Lehrkraft und Raum in Regular statt Medium, Zeilenabstände wie in der Vorlage (erste Zeile 2px näher an den übrigen).
+
 ### Desktop – Absenzen und Vertretungen wie im Vorbild
 - Kopf nachgemessen: Rahmen „Von-Bis“ mit Datum TT.MM.JJJJ, Schloss und Bis-Datum, darunter Wochentag und kleine Pfeile; Kalenderknopf rechts neben dem Rahmen, bei den Absenzen darunter die Anzahl der Tage.
 - Absenzen: Reiter „Lehrer | Klassen | Räume“ als klassische Karteireiter auf farbigem Band, Fenstertitel „Absenzen / Standard“.
