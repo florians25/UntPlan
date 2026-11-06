@@ -772,6 +772,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
     /// <summary>Selbsttest: Reiter Lehrer (0), Klassen (1), Räume (2) wählen.</summary>
     internal void SelbsttestReiter(int i) => _tabs.SelectedIndex = i;
 
+    /// <summary>Selbsttest: Überschrift der Namensspalte (Lehrer, Klasse bzw. Raum je Reiter).</summary>
+    internal string SelbsttestNamensspalte => _g.Columns["E"]!.HeaderText;
+
     /// <summary>Selbsttest: Überschriften der sichtbaren Spalten.</summary>
     internal List<string> SelbsttestSpalten() => _g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => c.HeaderText).ToList();
 

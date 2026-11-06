@@ -2180,10 +2180,10 @@ public sealed partial class HauptFenster
             R3cPruefen(a.Von == r3cTag && a.Bis == r3cTag && a.StundeVon == 1 && a.StundeBis >= stunden.DefaultIfEmpty(1).Max(), $"Absenz nicht ganztägig: {a.Von}–{a.Bis}, {a.StundeVon}.–{a.StundeBis}. Std.");
             var vtr = dd.Vertretungen.Where(v => v.Datum == r3cTag && v.LehrerId == r3cHugo.Id && v.Art != VertretungsArt.Pausenaufsicht).ToList();
             R3cPruefen(vtr.Count == stunden.Count, $"{vtr.Count} Vertretungszeilen statt {stunden.Count} betroffener Stunden");
-            // Raum absent setzen: Reiter „Räume“, Titel „Absenzen / Raum“
+            // Raum absent setzen: Reiter „Räume“ – Namensspalte „Raum“, Titel bleibt wie im Vorbild „Absenzen / Standard“
             f.SelbsttestReiter(2);
             Warten(200);
-            R3cPruefen(f.Text == "Absenzen / Raum", "Art „Raum“: Titel " + f.Text);
+            R3cPruefen(f.SelbsttestNamensspalte == "Raum" && f.Text == "Absenzen / Standard", $"Art „Raum“: Spalte {f.SelbsttestNamensspalte}, Titel {f.Text}");
             var raum = dd.Raeume.First(r => !r.Ignorieren);
             f.SelbsttestEingeben("E", raum.Kurzname);
             Warten(300);
