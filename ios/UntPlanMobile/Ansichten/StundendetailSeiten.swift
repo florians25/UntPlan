@@ -43,6 +43,19 @@ final class Stundendaten: ObservableObject {
         return c
     }()
 
+    /// Details im Hintergrund vorladen bzw. auffrischen (Stunden von heute und morgen), damit sie beim Öffnen sofort
+    /// aktuell dastehen; beim Öffnen wird zusätzlich immer neu geladen.
+    static func vorladen(_ karten: [Karte], kollegium: Bool) async {
+        let heute = Datumsformat.iso(Date())
+        let morgen = Datumsformat.iso(Datumsformat.tage(1, nach: Date()))
+        let auswahl = karten.filter { $0.unterricht != nil && [heute, morgen].contains(String($0.datum.prefix(10))) }.prefix(16)
+        guard !auswahl.isEmpty else { return }
+        let liste = await MainActor.run { auswahl.map { fuer($0) } }
+        await withTaskGroup(of: Void.self) { gruppe in
+            for d in liste { gruppe.addTask { await d.laden(kollegium: kollegium) } }
+        }
+    }
+
     /// Daten einer Stunde – aus dem Zwischenspeicher, sonst neu.
     nonisolated static func fuer(_ karte: Karte) -> Stundendaten {
         let schluessel = "\(karte.datum)|\(karte.von)|\(karte.bis)|\(karte.unterricht.map { String($0) } ?? "-")|\(karte.fach)|\(karte.istEntfall)" as NSString

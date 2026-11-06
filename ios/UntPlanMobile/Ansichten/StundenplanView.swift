@@ -903,6 +903,10 @@ struct StundenplanView: View {
             let neuerPlan = try await zustand.api.plan(typ: t, element: e, datum: m)
             plaene[k(m)] = neuerPlan
             staende[k(m), default: 0] += 1
+            // Details der heutigen und morgigen Stunden im Hintergrund auffrischen (öffnen sofort mit aktuellem Stand)
+            let kollegium = zustand.istKollegium
+            let karten = neuerPlan.karten
+            Task(priority: .utility) { await Stundendaten.vorladen(karten, kollegium: kollegium) }
             if !neuerPlan.gesperrt, !neuerPlan.tage.isEmpty, !neuerPlan.zeitraster.isEmpty { leerVorlage = neuerPlan }
             fehler = nil
         } catch {
