@@ -266,6 +266,13 @@ public sealed class Planstunde
         while (Raeume.Count < zeilen) Raeume.Add(gemeinsam);
     }
 
+    /// <summary>
+    /// Räume aller <paramref name="zeilen"/> Kopplungszeilen als Vergleichswert: Stunden desselben Unterrichts mit anderen Räumen
+    /// (oder eine Stunde ohne Raum) bilden keinen gemeinsamen Block.
+    /// </summary>
+    public string RaumKennung(int zeilen) =>
+        string.Join(",", Enumerable.Range(0, Math.Max(1, Math.Max(zeilen, Raeume.Count))).Select(i => RaumFuerZeile(i)?.ToString() ?? "-"));
+
     public Planstunde Kopie() => new() { UnterrichtId = UnterrichtId, Tag = Tag, Stunde = Stunde, Raeume = new List<int?>(Raeume), Fixiert = Fixiert };
 }
 

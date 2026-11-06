@@ -228,4 +228,19 @@ public class KopplungRaumTests
         Assert.NotEmpty(zeilen);
         Assert.All(zeilen, z => Assert.Equal("", z.Vertreter));
     }
+
+    /// <summary>Doppelstunde: eine Stunde ohne Raum bzw. mit anderem Raum ist nicht derselbe Block; ein gemeinsamer Raum gilt für alle Zeilen.</summary>
+    [Fact]
+    public void RaumKennungTrenntStundenOhneRaum()
+    {
+        var mit = new Planstunde { UnterrichtId = 1, Stunde = 1, Raeume = new() { 5 } };
+        var ohne = new Planstunde { UnterrichtId = 1, Stunde = 2, Raeume = new() { null } };
+        var leer = new Planstunde { UnterrichtId = 1, Stunde = 2 };
+        var anderer = new Planstunde { UnterrichtId = 1, Stunde = 2, Raeume = new() { 6 } };
+        Assert.NotEqual(mit.RaumKennung(1), ohne.RaumKennung(1));
+        Assert.Equal(ohne.RaumKennung(1), leer.RaumKennung(1));
+        Assert.NotEqual(mit.RaumKennung(1), anderer.RaumKennung(1));
+        // gemeinsamer Raum einer Kopplung entspricht demselben Raum in jeder Zeile
+        Assert.Equal(new Planstunde { Raeume = new() { 5 } }.RaumKennung(2), new Planstunde { Raeume = new() { 5, 5 } }.RaumKennung(2));
+    }
 }
