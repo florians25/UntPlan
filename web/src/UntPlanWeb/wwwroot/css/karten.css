@@ -9,9 +9,12 @@
    wie der Text ihrer Zeile, gleich kräftig wie der Text daneben. */
 .std, .aufsicht, .sd-zeile, .sd-titel h2 { font-variant-numeric: lining-nums; }
 .std .zt, .tt-zeit, .tt-jetzt-zeit { font-variant-numeric: lining-nums tabular-nums; }
-.std .z1 { margin-bottom: 0; }
+/* nachgemessen an der Plan-Vorlage (Versalien 11/25/41 px unter der Kartenkante): Kopf Demi ohne zusätzliche Kontur,
+   Zeilen Regular, Kopf 1px höher und 2px näher an den Zeilen */
+.std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }
+.std .z2 { font-weight: 400; }
 .std .z2 + .z2 { margin-top: 0; }
-.std .z1 .lbl { font-size: 14px; -webkit-text-stroke: .25px currentColor; }
+.std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; }
 .std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
 .std .abw-label { font-size: 12px; line-height: 15px; padding: 0 3px; margin-top: 1px; border-radius: 1.5px; }
 
