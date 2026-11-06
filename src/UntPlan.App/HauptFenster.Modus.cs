@@ -143,7 +143,7 @@ public sealed partial class HauptFenster
         g = Gruppe(vp, "Modus");
         g.Eintraege.Add(new RibbonEintrag
         {
-            Text = "Vertretungsplanung", Symbol = "vertretung", Gross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
+            Text = "Vertretungsplanung", Symbol = "vertretung", Gross = true, ImmerGross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
             Hinweis = "Zurück zur Stundenplanung (Strg+Umschalt+V)",
         });
     }

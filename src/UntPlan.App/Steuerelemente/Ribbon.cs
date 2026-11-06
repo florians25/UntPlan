@@ -19,6 +19,8 @@ public sealed class RibbonEintrag
     public bool IstDatum { get; init; }
     /// <summary>Großer Knopf mit Pfeil, der statt eines Menüs den Monatskalender aufklappt (Kalender im Vertretungsmodus).</summary>
     public bool PfeilKalender { get; init; }
+    /// <summary>Bleibt auch bei verkleinertem Menüband ein großer Knopf (z. B. „Vertretungsplanung“ wie im Vorbild).</summary>
+    public bool ImmerGross { get; init; }
     /// <summary>Menü beim Aufklappen neu erzeugen (z. B. Stundenplanformate „im Menü“); sonst gilt <see cref="Menue"/>.</summary>
     public Func<List<RibbonEintrag?>>? MenueErzeugen { get; init; }
     internal Rectangle Bounds;
@@ -178,7 +180,7 @@ public sealed class Ribbon : Control
         var x = 6;
         foreach (var gr in seite.Gruppen)
         {
-            foreach (var e in gr.Eintraege) e.KleinDargestellt = gr.Stufe == 1 && e.Gross && !e.PfeilKalender;
+            foreach (var e in gr.Eintraege) e.KleinDargestellt = gr.Stufe == 1 && e.Gross && !e.PfeilKalender && !e.ImmerGross;
             if (gr.Stufe >= 2)
             {
                 var sammel = gr.Sammel;

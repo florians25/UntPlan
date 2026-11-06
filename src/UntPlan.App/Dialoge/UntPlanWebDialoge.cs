@@ -291,9 +291,9 @@ public sealed class UntPlanWebDialog : Dialog
         }
         PopupSchliessen();
         _fehler = false;
+        // Fortschritt nur im eigenen Fenster (UploadFortschritt); unten im Fenster kein Balken, nur die Abschlussmeldung
         _meldung.Visible = true;
-        _fortschritt.Visible = true;
-        _fortschritt.Value = Math.Clamp(wert, 0, 100);
+        _fortschritt.Visible = false;
         _meldungTitel.Visible = _meldungLink.Visible = false;
         _meldungText.ForeColor = Color.DimGray;
         _meldungText.Text = text;
