@@ -323,9 +323,9 @@ export function karteDialog(karte, kontext = {}) {
       const befreit = daten.befreit?.has(s.id);
       const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : st === 'weg' ? `<span class="sd-statusbild weg">${KREUZ}</span>`
         : st === 'frueh' ? '<span class="sd-statusbild frueh"><i class="bi bi-box-arrow-right"></i></span>' : '<span class="sd-statusbild spaet"><i class="bi bi-clock-fill"></i></span>';
-      // Verspätung / früher gegangen: eigene Zeile unter dem Namen (modernes Kartenlayout) statt einer Plakette über dem Namen
+      // Verspätung / früher gegangen: eigene Zeile unter dem Namen – nur Symbol und Minuten in der Statusfarbe (ohne Text)
       const zusatz = f && st !== 'weg'
-        ? `<span class="sd-zeitpille ${st} ${f.fehlstunden ? 'gewertet' : ''}"><span>${st === 'spaet' ? 'Verspätet' : 'Früher gegangen'}</span><b>${f.minuten} Min</b></span>`
+        ? `<span class="sd-zeitpille ${st} ${f.fehlstunden ? 'gewertet' : ''}" title="${st === 'spaet' ? 'verspätet' : 'früher gegangen'} ${f.minuten} Min."><i class="bi ${st === 'spaet' ? 'bi-clock-fill' : 'bi-box-arrow-right'}"></i><b>${f.minuten} Min.</b></span>`
         : '';
       return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
         ${status}
