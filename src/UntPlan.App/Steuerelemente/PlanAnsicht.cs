@@ -1382,6 +1382,8 @@ public sealed class PlanAnsicht : Control
     {
         const int dicke = 2;
         var r = Rectangle.Round(rf);
+        // 2 Pixel nach innen: die Trennlinie zur Stunde davor bzw. danach bleibt sichtbar (Block klar abgegrenzt)
+        r.Inflate(-2, -2);
         if (r.Width < 2 * dicke + 2 || r.Height < 2 * dicke + 2) return;
         using var gelb = new SolidBrush(Color.FromArgb(255, 255, 0));
         using var strich = new SolidBrush(farbe);

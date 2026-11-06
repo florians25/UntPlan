@@ -298,7 +298,7 @@ public sealed partial class HauptFenster : Form
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
         g = Gruppe(start, "Module");
-        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
+        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, ImmerGross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
         g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
         g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster())));
         g.Eintraege.Add(E("Kalender / Ferien", "kalender", () => Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));

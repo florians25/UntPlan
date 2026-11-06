@@ -126,6 +126,43 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         ArtSetzen(gespeichert, false);
     }
 
+    /// <summary>
+    /// Rahmen (GroupBox) und Kopfbereich darüber an die tatsächliche Höhe anpassen: Datumsfeld und Wochentagszeile mit Pfeilen
+    /// sind je nach Windows-Version und Schrift unterschiedlich hoch – nichts darf abgeschnitten oder von Reitern überdeckt werden.
+    /// </summary>
+    private void PlatzSichern()
+    {
+        if (!IsHandleCreated) return;
+        for (Control? c = this, p = Parent; p != null; c = p, p = p.Parent)
+        {
+            if (p is GroupBox gb)
+            {
+                var noetig = PointToScreen(new Point(0, Height)).Y - gb.PointToScreen(Point.Empty).Y + 7;
+                if (gb.Height < noetig) { gb.MinimumSize = new Size(gb.MinimumSize.Width, noetig); gb.Height = noetig; }
+            }
+            else if (p is FlowLayoutPanel kopf && kopf.Dock == DockStyle.Top)
+            {
+                var noetig = 0;
+                foreach (Control k in kopf.Controls) if (k.Visible) noetig = Math.Max(noetig, k.Bottom + k.Margin.Bottom);
+                noetig += kopf.Padding.Bottom + 2;
+                if (kopf.Height < noetig) { kopf.MinimumSize = new Size(kopf.MinimumSize.Width, noetig); kopf.Height = noetig; }
+                break;
+            }
+        }
+    }
+
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        if (IsHandleCreated) BeginInvoke(PlatzSichern);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        BeginInvoke(PlatzSichern);
+    }
+
     public void ArtSetzen(Zeitraumart art, bool merken = true)
     {
         Art = art;
