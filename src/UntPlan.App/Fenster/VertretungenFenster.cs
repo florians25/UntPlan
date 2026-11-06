@@ -2129,14 +2129,19 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (_g.EditingControl is not TextBox tb) throw new InvalidOperationException("kein Texteditor in der Spalte Text");
         tb.Focus();
         tb.Text = "";
-        tb.Text = "a";
-        tb.SelectionStart = 1;
+        // wie beim Tippen: Zeichen am Ende anfügen (Schreibmarke dahinter)
+        tb.AppendText("a");
         warten();
         var vorschlag = Steuerelemente.Textverlauf.SichtbareVorschlaege();
         if (!tb.Focused) return "Textverlauf: Editor ohne Fokus (Vorschlag nicht prüfbar)";
         // wie im Vorbild: kein Listenfenster – der Rest des zuletzt verwendeten Textes steht markiert hinter der Eingabe
-        if (vorschlag.Count != 1 || !tb.Text.StartsWith("a", StringComparison.Ordinal) || tb.Text.Length < 2 || tb.SelectionStart != 1 || tb.SelectionLength != tb.TextLength - 1)
+        if (vorschlag.Count != 1 || !tb.Text.StartsWith("a", StringComparison.OrdinalIgnoreCase) || tb.Text.Length < 2 || tb.SelectionStart != 1 || tb.SelectionLength != tb.TextLength - 1)
             throw new InvalidOperationException($"Textverlauf: kein markierter Vorschlag im Text („{tb.Text}“, Markierung {tb.SelectionStart}/{tb.SelectionLength}).");
+        // Weitertippen ersetzt den markierten Rest und schlägt neu vor
+        tb.SelectedText = tb.Text.Substring(1, 1);
+        warten();
+        if (tb.SelectionStart != 2 || tb.SelectionLength != tb.TextLength - 2 || tb.TextLength < 3)
+            throw new InvalidOperationException($"Textverlauf: nach dem zweiten Zeichen kein neuer Vorschlag („{tb.Text}“, Markierung {tb.SelectionStart}/{tb.SelectionLength}).");
         var text = tb.Text;
         if (!Steuerelemente.Textverlauf.VorschlagBestaetigen(tb) || tb.Text != text || tb.SelectionLength != 0)
             throw new InvalidOperationException("Textverlauf: Vorschlag ließ sich nicht wie mit Tab bestätigen.");

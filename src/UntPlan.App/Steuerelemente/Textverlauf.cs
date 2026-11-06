@@ -115,10 +115,10 @@ public static class Textverlauf
             vorher = t.Text;
             if (!b.Aktiv || t.ReadOnly || !t.Focused || Inline.Unterdrueckt) return;
             // nur beim Weiterschreiben am Ende vorschlagen (nicht beim Löschen oder Einfügen in der Mitte)
-            if (t.TextLength <= alt.Length || t.SelectionStart != t.TextLength || !t.Text.StartsWith(alt, StringComparison.Ordinal)) { Inline.Vergessen(t); return; }
+            if (t.TextLength <= alt.Length || t.SelectionStart != t.TextLength || !t.Text.StartsWith(alt, StringComparison.CurrentCultureIgnoreCase)) { Inline.Vergessen(t); return; }
             if (!AppZustand.Einstellungen.Autovervollstaendigen) return;
-            Inline.Vorschlagen(t, b.Feld());
-            vorher = t.Text;
+            // Vergleichsbasis ist der getippte Teil: das nächste Zeichen ersetzt den markierten Vorschlag und schlägt neu vor
+            vorher = Inline.Vorschlagen(t, b.Feld()) ?? t.Text;
         };
         t.KeyDown += (_, e) =>
         {
@@ -135,29 +135,35 @@ public static class Textverlauf
         public static TextBox? Aktiv;
         /// <summary>Länge des getippten Teils (davor), wenn ein Vorschlag angezeigt wird.</summary>
         private static int _getippt = -1;
+        /// <summary>Getippter Text in der eigenen Schreibweise (Esc/Entf/Enter stellen ihn wieder her).</summary>
+        private static string _eingabe = "";
         private static readonly Filter TastenFilter = new();
         private static bool _filterAn;
 
         public static bool HatVorschlag(TextBox t) =>
             ReferenceEquals(Aktiv, t) && !t.IsDisposed && _getippt >= 0 && t.SelectionStart == _getippt && t.SelectionStart + t.SelectionLength == t.TextLength && t.SelectionLength > 0;
 
-        public static void Vorschlagen(TextBox t, string feldart)
+        /// <summary>Vorschlag zeigen; liefert den getippten Teil (in der Schreibweise des Vorschlags) oder null ohne Vorschlag.</summary>
+        public static string? Vorschlagen(TextBox t, string feldart)
         {
             var eingabe = t.Text;
-            if (eingabe.Trim().Length == 0) { Vergessen(t); return; }
+            if (eingabe.Trim().Length == 0) { Vergessen(t); return null; }
             var treffer = Eingabeverlauf.Vorschlaege(Verlauf, feldart, eingabe)
                 .FirstOrDefault(v => v.StartsWith(eingabe, StringComparison.CurrentCultureIgnoreCase) && v.Length > eingabe.Length);
-            if (treffer is null) { Vergessen(t); return; }
+            if (treffer is null) { Vergessen(t); return null; }
             Unterdrueckt = true;
             try
             {
-                t.Text = eingabe + treffer[eingabe.Length..];
+                // Schreibweise des gemerkten Textes übernehmen („a“ → „Aufgaben im Buch“)
+                t.Text = treffer;
                 t.Select(eingabe.Length, t.TextLength - eingabe.Length);
             }
             finally { Unterdrueckt = false; }
             Aktiv = t;
             _getippt = eingabe.Length;
+            _eingabe = eingabe;
             if (!_filterAn) { Application.AddMessageFilter(TastenFilter); _filterAn = true; }
+            return treffer[..eingabe.Length];
         }
 
         public static bool Bestaetigen(TextBox t)
@@ -175,7 +181,7 @@ public static class Textverlauf
             try
             {
                 var n = _getippt;
-                t.Text = t.Text[..n];
+                t.Text = _eingabe.Length == n ? _eingabe : t.Text[..n];
                 t.Select(n, 0);
             }
             finally { Unterdrueckt = false; }
