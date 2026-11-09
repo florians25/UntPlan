@@ -6,6 +6,12 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Klassenbuch – Verspätung
+- Jede unterrichtende Lehrkraft kann in ihrer Stunde eine Abwesenheit in eine Verspätung (bzw. „früher gegangen“) umwandeln – bisher meldete die App „Nur die Klassenleitung oder Schulleitung kann dies ändern.“
+
+### iOS – mehrere Räume
+- Mehrere Räume wie in der Vorlage durch Komma getrennt („C009, C025“, hinzugekommener Raum grün); im Raumplan steht die Lehrkraft direkt unter der Klasse (Klasse, Lehrkraft, Fach, Raum).
+
 ### Desktop – Eingabe
 - Textvorschläge (zuletzt verwendete Texte) erscheinen nicht mehr als Liste, sondern direkt im Feld: der Rest des passenden Textes steht blau markiert hinter der Eingabe, Tab übernimmt ihn, Weitertippen, Entf oder Esc verwerfen ihn. Behebt das schwarze Feld unter der Eingabe.
 - Absenzen: Reiter „Lehrer | Klassen | Räume“ so groß wie im Vertretungsvorschlag.

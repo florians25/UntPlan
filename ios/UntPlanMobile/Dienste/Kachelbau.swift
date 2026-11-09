@@ -717,7 +717,8 @@ enum Kachelbau {
         let klasseOben = klassenAbwesend && typ == "klasse"
         let erste = typ == "klasse" ? "lehrer" : "klasse"
         let letzte = typ == "klasse" ? "klasse" : "lehrer"
-        let reihenfolge = klasseOben ? ["klasse", "lehrer", "fach", "raum"] : [erste, "fach", "raum", letzte]
+        // Raumplan wie in der Vorlage: Klasse, Lehrkraft, Fach, Raum („FIS4F / WE / DEU“, mehrere Räume darunter)
+        let reihenfolge = klasseOben || typ == "raum" ? ["klasse", "lehrer", "fach", "raum"] : [erste, "fach", "raum", letzte]
         // Offene Vertretung (Karte „offen“ bzw. Lehrkraft ohne neuen Wert, alter Wert gesetzt): alte Lehrkraft
         // immer durchgestrichen in grüner Plakette
         let lehrerOffen = art != .entfall && k.istOffeneVertretung
@@ -858,7 +859,8 @@ enum Kachelbau {
                     let markiert = k.raeume.contains(where: \.geaendert)
                     zeile.teile = jetzt.enumerated().map { j, r in
                         let neu = geaendertWert && (markiert ? neue.contains(r.uppercased()) : true)
-                        return Kachelteil(text: r, stil: neu ? .plakette : .text, trenner: j < jetzt.count - 1 ? " " : "")
+                        // wie in der Vorlage durch Komma und Leerzeichen getrennt („C009, [C025]“)
+                        return Kachelteil(text: r, stil: neu ? .plakette : .text, trenner: j < jetzt.count - 1 ? ", " : "")
                     }
                     hatListe = true
                 } else {
