@@ -372,7 +372,9 @@ public sealed partial class Klassenbuchdienst
             var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", LesenFehlzeit, Db.P("@i", id));
             if (f is null) continue;
             if (f.SchuelerId != schuelerId) throw new ArgumentException("Die Fehlzeiten gehören zu einer anderen Schülerin bzw. einem anderen Schüler.");
-            if (!IstKlassenleitung(b, s, f.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann dies ändern.");
+            // die unterrichtende Lehrkraft darf die Fehlzeiten ihrer eigenen Stunde ersetzen (z. B. abwesend → verspätet); weitere nur die Klassenleitung
+            var eigeneStunde = karte != null && tag is DateOnly td && f.Datum == Plandienst.Iso(td) && f.Stunde >= karte.Von && f.Stunde <= karte.Bis;
+            if (!kl && !eigeneStunde && !IstKlassenleitung(b, s, f.Klasse)) throw new UnauthorizedAccessException("Nur die Klassenleitung oder Schulleitung kann dies ändern.");
             res[f.Id] = f;
         }
         var gruppen = res.Values.Select(f => f.Gruppe).Where(g => g.Length > 0).ToHashSet();

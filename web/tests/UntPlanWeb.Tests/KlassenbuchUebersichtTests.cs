@@ -52,4 +52,36 @@ public class KlassenbuchUebersichtTests
         var st = tag["stunden"]!.AsArray().First(x => x!["von"]!.GetValue<int>() == k.Von && x["unterricht"]!.GetValue<int>() == k.Unterricht)!;
         Assert.Equal((1, 0, 1, "Seite 12"), (st["abwesend"]!.GetValue<int>(), st["entschuldigt"]!.GetValue<int>(), st["eintraege"]!.GetValue<int>(), st["hausaufgaben"]!.GetValue<string>()));
     }
+
+    [Fact]
+    public async Task Unterrichtende_Lehrkraft_wandelt_Abwesenheit_ihrer_Stunde_in_Verspaetung()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var plan = s.Dienst<Plandienst>();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var k = plan.Karten(stand, Mittwoch, Elementtyp.Klasse, "7a").Where(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0)
+            .OrderBy(x => x.Von).First(x => x.Lehrer[0].K != "LAN");
+        var lehrer = await s.AlsAsync(k.Lehrer[0].K.ToLowerInvariant(), "lehrer", k.Lehrer[0].K);
+        var sid = stand.Schueler.First(x => x.Klasse == "7a").Id;
+        var (beginn, ende) = (Klassenbuchdienst.StundenZeit(stand, k.Von).Item1, Klassenbuchdienst.StundenZeit(stand, k.Bis).Item2);
+        string Url() => $"/api/app/klassenbuch/anwesenheit?datum={k.Datum}&stunde={k.Von}&unterricht={k.Unterricht}";
+        // erst als abwesend erfasst …
+        await Testserver.JsonAsync(await lehrer.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new
+        {
+            schuelerIds = new[] { sid }, von = $"{k.Datum}T{beginn:HH:mm}", bis = $"{k.Datum}T{ende:HH:mm}", grund = "", text = "", status = (string?)null,
+            datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht,
+        }));
+        var ids = (await Testserver.HolenAsync(lehrer, Url()))["fehlzeiten"]!.AsArray().Select(f => f!["id"]!.GetValue<int>()).ToList();
+        Assert.NotEmpty(ids);
+        // … dann kommt die Schülerin 10 Minuten zu spät: die Lehrkraft (ohne Klassenleitung) ersetzt ihre eigene Fehlzeit durch eine Verspätung
+        var antwort = await lehrer.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new
+        {
+            schuelerIds = new[] { sid }, von = $"{k.Datum}T{beginn:HH:mm}", bis = $"{k.Datum}T{beginn.AddMinutes(10):HH:mm}", grund = "", text = "", status = (string?)null,
+            datum = k.Datum, stunde = k.Von, unterricht = k.Unterricht, ersetzen = ids,
+        });
+        Assert.Equal(HttpStatusCode.OK, antwort.StatusCode);
+        var f = (await Testserver.HolenAsync(lehrer, Url()))["fehlzeiten"]!.AsArray().Single()!;
+        Assert.Equal("verspaetet", f["art"]!.GetValue<string>());
+        Assert.Equal(10, f["minuten"]!.GetValue<int>());
+    }
 }
