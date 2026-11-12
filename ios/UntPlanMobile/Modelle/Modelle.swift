@@ -1343,13 +1343,24 @@ struct Fehlzeiteintrag: Decodable, Sendable {
         text = c.text(.text)
     }
 
-    /// „Abwesend (verspätet)“, „Abwesend (fehlt)“ bzw. „Abwesend (vorzeitig)“ wie in der Vorlage.
+    /// Wie in der Vorlage: „Abwesend (fehlt)“, bei Verspätung „gekommen um 10:35 (fehlt)“, bei vorzeitigem Gehen
+    /// „gegangen um 12:20 (fehlt)“ – die Uhrzeit ist das Ende bzw. der Beginn der Abwesenheit in dieser Stunde.
     var statustext: String {
         switch art {
-        case "verspaetet": return "Abwesend (verspätet)"
-        case "vorzeitig": return "Abwesend (vorzeitig)"
+        case "verspaetet":
+            let z = Self.uhrzeit(ende)
+            return z.isEmpty ? "Abwesend (verspätet)" : "gekommen um \(z) (fehlt)"
+        case "vorzeitig":
+            let z = Self.uhrzeit(beginn)
+            return z.isEmpty ? "Abwesend (vorzeitig)" : "gegangen um \(z) (fehlt)"
         default: return "Abwesend (fehlt)"
         }
+    }
+
+    /// „HH:mm“ aus „HH:mm“, „HH:mm:ss“ bzw. „yyyy-MM-ddTHH:mm“.
+    private static func uhrzeit(_ wert: String) -> String {
+        let teil = wert.split(separator: "T").last.map(String.init) ?? wert
+        return teil.count >= 5 && teil.contains(":") ? String(teil.prefix(5)) : ""
     }
 }
 
