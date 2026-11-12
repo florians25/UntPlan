@@ -386,12 +386,19 @@ struct KachelzeileView: View {
     var body: some View {
         Group {
             if zeile.nurText && !aussehen.durchgestrichen {
+                // erst etwas kleiner, dann erst kürzen (z. B. mehrere Lehrkräfte einer Kopplung: alle sichtbar)
                 Text(zeile.text)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
             } else {
                 ViewThatFits(in: .horizontal) {
                     teileReihe(kuerzbar: false)
+                    // Kopplung: alle Lehrkräfte (bzw. Räume) vollständig – lieber etwas kleiner als hintere Kürzel abgeschnitten
+                    teileReihe(kuerzbar: false)
+                        .font(.system(size: schrift * 0.88, weight: oben ? .semibold : .regular))
+                    teileReihe(kuerzbar: false)
+                        .font(.system(size: schrift * 0.78, weight: oben ? .semibold : .regular))
                     teileReihe(kuerzbar: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -469,7 +476,8 @@ struct KachelzeileView: View {
                 Text(t.text)
                     .truncationMode(.tail)
             case .plakette:
-                Plakettenwert(text: t.text, kuerzbar: kuerzbar, zeilenHoehe: zeilenHoehe)
+                // „Online“ immer ausgeschrieben (nie „On…“)
+                Plakettenwert(text: t.text, kuerzbar: kuerzbar && t.text != "Online", zeilenHoehe: zeilenHoehe)
             case .weg:
                 // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
