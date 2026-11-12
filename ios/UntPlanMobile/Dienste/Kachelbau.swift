@@ -888,9 +888,11 @@ enum Kachelbau {
                     }
                 }
             }
+            // Online-Stunde: statt des Raums steht „Online“ ausgeschrieben als Label (nie gekürzt), dazu das Online-Zeichen unten
+            if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" {
+                zeile.teile = [Kachelteil(text: "Online", stil: .plakette)]
+            }
             if zeile.teile.isEmpty || zeile.text.trimmingCharacters(in: .whitespaces).isEmpty { continue }
-            // Online-Stunde: keine Raumzeile (kein Raum-Label) – nur das Online-Zeichen unten auf der Karte
-            if schluessel == "raum" && k.online && art != .entfall && k.status != "abwesend" { continue }
 
             // Vertretungskachel im eigenen Lehrerplan: das eigene Kürzel steht als grünes Label (ich halte diese Stunde) –
             // ausdrücklicher Wunsch, wie vor Sprint 27; nicht bei einer reinen Raumänderung und nicht, wenn nur Klassen fehlen
