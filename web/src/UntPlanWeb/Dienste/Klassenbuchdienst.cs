@@ -465,7 +465,9 @@ public sealed partial class Klassenbuchdienst
     {
         var f = _db.Einzel("SELECT * FROM fehlzeiten WHERE id = @i", LesenFehlzeit, Db.P("@i", id));
         if (f is null) return false;
-        if (!IstKlassenleitung(b, s, f.Klasse) && !Ci.Equals(f.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Keine Berechtigung.");
+        // Klassenleitung, wer sie eingetragen hat, und jede Lehrkraft, in deren Plan die Stunde steht (auch als Vertretung)
+        var eigeneStunde = DateOnly.TryParse(f.Datum, out var fd) && DarfSchreiben(b, s, fd, f.Stunde, f.Unterricht);
+        if (!IstKlassenleitung(b, s, f.Klasse) && !Ci.Equals(f.Lehrer, b.LehrerKuerzel ?? "") && !eigeneStunde) throw new UnauthorizedAccessException("Keine Berechtigung.");
         Einstellungen().LoeschenPruefen(b, f.Erstellt, _uhr.Jetzt);
         return _db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", id)) > 0;
     }

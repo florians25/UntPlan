@@ -747,7 +747,7 @@ public sealed partial class HauptFenster
             // Freitext „Text“: Vorschläge aus den zuletzt verwendeten Texten
             var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
             Warten(400);
-            log.Add("INFO  " + f.SelbsttestTextverlauf(() => Warten(300)));
+            log.Add("INFO  " + f.SelbsttestTextverlauf(() => Warten(300), () => Foto(Path.Combine(ordner, "18e1_Textvorschlag_im_Feld.png"))));
         }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);

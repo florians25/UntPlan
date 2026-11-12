@@ -2112,7 +2112,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Selbsttest: Textspalte „Text“ schlägt beim Tippen die zuletzt verwendeten Texte vor (Anfang vor „enthält“).</summary>
-    internal string SelbsttestTextverlauf(Action warten)
+    internal string SelbsttestTextverlauf(Action warten, Action? foto = null)
     {
         _offen.Checked = _kollisionen.Checked = false;
         warten();
@@ -2143,11 +2143,16 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (tb.SelectionStart != 2 || tb.SelectionLength != tb.TextLength - 2 || tb.TextLength < 3)
             throw new InvalidOperationException($"Textverlauf: nach dem zweiten Zeichen kein neuer Vorschlag („{tb.Text}“, Markierung {tb.SelectionStart}/{tb.SelectionLength}).");
         var text = tb.Text;
+        foto?.Invoke();
+        // Eingabefeld nie schwarz (Windows zeichnet leere/durchsichtige Farben schwarz)
+        var hinter = tb.BackColor;
+        if (hinter.IsEmpty || hinter.A < 255 || hinter.ToArgb() == Color.Black.ToArgb())
+            throw new InvalidOperationException($"Textverlauf: Eingabefeld mit Vorschlag hat keinen hellen Hintergrund ({hinter}).");
         if (!Steuerelemente.Textverlauf.VorschlagBestaetigen(tb) || tb.Text != text || tb.SelectionLength != 0)
             throw new InvalidOperationException("Textverlauf: Vorschlag ließ sich nicht wie mit Tab bestätigen.");
         _g.CancelEdit();
         _g.EndEdit();
-        return $"Textverlauf: „a“ → Vorschlag „{text}“ markiert im Text, mit Tab bestätigt";
+        return $"Textverlauf: „a“ → Vorschlag „{text}“ markiert im Text, mit Tab bestätigt; Feldfarbe {hinter.R},{hinter.G},{hinter.B}";
     }
 
     internal string SelbsttestListenbreite(Action warten)
