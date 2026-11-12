@@ -109,6 +109,8 @@ public static partial class Ui
             var y = anker.Bottom + 2 + _hinweisFenster.Height > bereich.Bottom ? anker.Top - _hinweisFenster.Height - 2 : anker.Bottom + 2;
             _hinweisFenster.Location = new Point(x, y);
             _hinweisFenster.Show();
+            // sofort zeichnen (ein nicht aktiviertes Fenster bliebe sonst bis zur nächsten Nachricht schwarz)
+            _hinweisFenster.Refresh();
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException or System.ComponentModel.Win32Exception) { }
     }
@@ -124,6 +126,7 @@ public static partial class Ui
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.Manual;
             TopMost = true;
+            DoubleBuffered = true;
             BackColor = Color.FromArgb(255, 255, 225);
             Padding = new Padding(1);
             var l = new Label

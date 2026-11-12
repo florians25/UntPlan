@@ -136,6 +136,16 @@ public static partial class Ui
         _ => Color.White,
     };
 
+    /// <summary>Bearbeitungsfelder, die gegen schwarzen Hintergrund geschützt sind (je Feld nur einmal anmelden).</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, object> SchwarzSchutzTabelle = new();
+    private static class SchwarzSchutz
+    {
+        public static bool Add(Control c) => SchwarzSchutzTabelle.TryAdd(c, new object());
+    }
+
+    /// <summary>Für ein Eingabefeld ungeeignete Hintergrundfarbe: leer, durchsichtig oder Schwarz (so zeichnet Windows „leer“).</summary>
+    private static bool Ungueltig(Color c) => c.IsEmpty || c.A < 255 || c.ToArgb() == Color.Black.ToArgb();
+
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
         RasterFarben(g);
@@ -201,6 +211,26 @@ public static partial class Ui
         // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
         // mit der aktuellen Zelle hell orange
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        // Eingabefeld nie schwarz: Windows zeichnet das Bearbeitungsfeld (und die Fläche dahinter) mit der Zellfarbe – ist sie leer
+        // oder durchsichtig (Alpha < 255), wird daraus Schwarz. Dann die normale Zellfarbe verwenden.
+        g.EditingControlShowing += (_, e) =>
+        {
+            var ersatz = Ungueltig(g.DefaultCellStyle.BackColor) ? Color.White : g.DefaultCellStyle.BackColor;
+            if (e.CellStyle is { } st && Ungueltig(st.BackColor)) st.BackColor = ersatz;
+            if (Ungueltig(e.Control.BackColor)) e.Control.BackColor = e.CellStyle?.BackColor is { A: 255 } b && b.ToArgb() != Color.Black.ToArgb() ? b : ersatz;
+            if (e.Control.Parent is { } panel && Ungueltig(panel.BackColor)) panel.BackColor = e.Control.BackColor;
+            // auch später (Neuaufbau, Formatänderung während der Eingabe): ein schwarz gewordenes Feld sofort wieder in Zellfarbe
+            if (SchwarzSchutz.Add(e.Control))
+                e.Control.BackColorChanged += (o, _) =>
+                {
+                    if (o is not Control c || c.IsDisposed || !Ungueltig(c.BackColor) || c.Parent is not DataGridView and not Panel) return;
+                    var tab = c.Parent as DataGridView ?? c.Parent?.Parent as DataGridView;
+                    var zelle = tab?.CurrentCell;
+                    var farbe = zelle?.InheritedStyle.BackColor is { A: 255 } z && z.ToArgb() != Color.Black.ToArgb() ? z : Color.White;
+                    c.BackColor = farbe;
+                    if (c.Parent is Panel p && Ungueltig(p.BackColor)) p.BackColor = farbe;
+                };
+        };
         g.CellPainting += (_, e) =>
         {
             // Überschrift ohne „…“: zu lange Texte werden wie im Vorbild einfach am Spaltenrand abgeschnitten

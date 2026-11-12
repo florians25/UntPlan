@@ -332,6 +332,8 @@ function menue() {
       ...(b.rolle === 'admin' ? [{ nav: 'mitteilungen-einstellungen', href: '#/mitteilungen/einstellungen', text: 'Einstellungen', icon: 'verwaltung' }] : []),
     ] },
   ];
+  // Lehrkräfte ohne Leitungsfunktion: kein Menüpunkt „Übersicht“ (nur Schulleitung und Administration)
+  if (k && b.rolle === 'lehrer') m.splice(m.findIndex(x => x.id === 'uebersicht'), 1);
   const plaene = [];
   if (b.element) plaene.push({ nav: 'plan-mein', href: '#/plan/mein', text: 'Mein Stundenplan', icon: 'meinplan' });
   plaene.push({ nav: 'plan-klasse', href: '#/plan/klasse', text: 'Klasse', icon: 'klasse' });

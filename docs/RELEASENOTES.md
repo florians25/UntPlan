@@ -6,6 +6,19 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ## Neu in dieser Version
 
+### Desktop
+- Eingabefelder in Tabellen werden nie mehr schwarz (auch nicht mit Textvorschlag im Feld).
+
+### Klassenbuch – Rechte
+- Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
+
+### Web
+- Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
+
+### iOS
+- Stunden sind immer antippbar (eine abgebrochene Wischbewegung sperrt das Antippen nicht mehr).
+- Schülerliste wie in der Vorlage: Trennlinie unter dem Buchstaben statt zwischen den Zeilen, Verspätung mit gelbem Symbol und „gekommen um 10:35 (fehlt)“ bzw. „gegangen um … (fehlt)“.
+
 ### Klassenbuch – Verspätung
 - Jede unterrichtende Lehrkraft kann in ihrer Stunde eine Abwesenheit in eine Verspätung (bzw. „früher gegangen“) umwandeln – bisher meldete die App „Nur die Klassenleitung oder Schulleitung kann dies ändern.“
 

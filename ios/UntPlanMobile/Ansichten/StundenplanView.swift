@@ -818,6 +818,7 @@ struct StundenplanView: View {
                     // Ab jetzt ist es eine Wisch- bzw. Scrollbewegung: kein Antippen einer Stunde auslösen
                     tippsperre.wischt = true
                 }
+                tippsperre.bewegt()
                 if richtung == .waagrecht {
                     verschiebung = wert.translation.width
                 }
@@ -2065,11 +2066,22 @@ struct RasterSeite: View, Equatable {
 /// Sperre für das Antippen von Stunden: während einer Wisch- bzw. Scrollbewegung und kurz danach (Nachlauf) öffnet ein
 /// Antippen keine Details. Referenztyp ohne Beobachtung – Änderungen zeichnen nichts neu.
 final class Tippsperre {
-    var wischt = false
-    var scrollt = false
+    /// Wisch- bzw. Scrollbewegung läuft (mit Zeitpunkt der letzten Meldung – eine abgebrochene Geste meldet kein Ende).
+    var wischt = false { didSet { if wischt { zuletzt = Date() } } }
+    var scrollt = false { didSet { if scrollt { zuletzt = Date() } } }
+    private var zuletzt = Date.distantPast
     private var bis = Date.distantPast
 
-    var gesperrt: Bool { wischt || scrollt || Date() < bis }
+    /// Gesperrt nur während einer gemeldeten Bewegung (höchstens 0,8 s nach der letzten Meldung) und im kurzen Nachlauf –
+    /// Stunden bleiben so immer antippbar, auch wenn das System eine Geste ohne Ende-Meldung abbricht.
+    var gesperrt: Bool {
+        let jetzt = Date()
+        if (wischt || scrollt) && jetzt.timeIntervalSince(zuletzt) > 0.8 { wischt = false; scrollt = false }
+        return wischt || scrollt || jetzt < bis
+    }
+
+    /// Bewegung läuft weiter (jede Änderung der Geste).
+    func bewegt() { zuletzt = Date() }
 
     /// Bewegung beendet: noch `nachlauf` Sekunden gesperrt.
     func bewegungEnde(nachlauf: TimeInterval) {

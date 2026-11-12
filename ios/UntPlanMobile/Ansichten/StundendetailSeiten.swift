@@ -1941,11 +1941,22 @@ struct SchuelerSeite: View {
                                     }
                                     .listRowInsets(EdgeInsets())
                                     .listRowBackground(Farben.blatt)
+                                    // wie in der Vorlage: keine Linien zwischen den Zeilen, nur unter dem Buchstaben
+                                    .listRowSeparator(.hidden)
                                 }
                             } header: {
-                                Text(gruppe.buchstabe)
-                                    .font(.system(size: 12, weight: .regular))
-                                    .foregroundStyle(Farben.gedaempft)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(gruppe.buchstabe)
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundStyle(Farben.gedaempft)
+                                        .padding(.top, 8)
+                                        .padding(.bottom, 10)
+                                    Rectangle()
+                                        .fill(Farben.trennlinie)
+                                        .frame(height: 1)
+                                }
+                                .padding(.trailing, 4)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                             }
                             .id(gruppe.buchstabe)
                         }
@@ -2025,6 +2036,10 @@ struct SchuelerSeite: View {
             Group {
                 if speichert == s.id {
                     ProgressView()
+                } else if let f, f.art == "verspaetet" || f.art == "vorzeitig" {
+                    // Verspätung bzw. vorzeitig gegangen: gelbe Uhr mit Pfeil (wie in der Vorlage)
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundStyle(Color(hexWert: 0xF2B705))
                 } else if f != nil {
                     Image(systemName: "clock")
                         .foregroundStyle(Farben.entfallRand)

@@ -42,7 +42,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($f in Get-ChildItem artifacts/fotos -Filter *.png | Where-Object { $_.Name -match '^(17_Vertretungen|19_Absenzen|R3B_Absenzen|R3B_Vertretungen)\.png$' }) {
+          foreach ($f in Get-ChildItem artifacts/fotos -Filter *.png | Where-Object { $_.Name -match '^(17_Vertretungen|18e1_Textvorschlag_im_Feld|R3B_Absenzen)\.png$' }) {
             $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
             Write-Output "BILD-ANFANG $($f.Name)"
             for ($i = 0; $i -lt $b.Length; $i += 4000) { Write-Output ("B64 " + $b.Substring($i, [Math]::Min(4000, $b.Length - $i))) }
