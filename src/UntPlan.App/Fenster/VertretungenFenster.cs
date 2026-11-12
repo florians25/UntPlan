@@ -2148,6 +2148,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var hinter = tb.BackColor;
         if (hinter.IsEmpty || hinter.A < 255 || hinter.ToArgb() == Color.Black.ToArgb())
             throw new InvalidOperationException($"Textverlauf: Eingabefeld mit Vorschlag hat keinen hellen Hintergrund ({hinter}).");
+        // auch die Fläche um das Eingabefeld (Bearbeitungs-Panel) nie schwarz
+        var rand = _g.EditingPanel.BackColor;
+        if (rand.IsEmpty || rand.A < 255 || rand.ToArgb() == Color.Black.ToArgb())
+            throw new InvalidOperationException($"Textverlauf: Rand um das Eingabefeld ist schwarz bzw. leer ({rand}).");
         if (!Steuerelemente.Textverlauf.VorschlagBestaetigen(tb) || tb.Text != text || tb.SelectionLength != 0)
             throw new InvalidOperationException("Textverlauf: Vorschlag ließ sich nicht wie mit Tab bestätigen.");
         _g.CancelEdit();

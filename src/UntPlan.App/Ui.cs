@@ -218,7 +218,17 @@ public static partial class Ui
             var ersatz = Ungueltig(g.DefaultCellStyle.BackColor) ? Color.White : g.DefaultCellStyle.BackColor;
             if (e.CellStyle is { } st && Ungueltig(st.BackColor)) st.BackColor = ersatz;
             if (Ungueltig(e.Control.BackColor)) e.Control.BackColor = e.CellStyle?.BackColor is { A: 255 } b && b.ToArgb() != Color.Black.ToArgb() ? b : ersatz;
-            if (e.Control.Parent is { } panel && Ungueltig(panel.BackColor)) panel.BackColor = e.Control.BackColor;
+            // Fläche hinter dem Eingabefeld (Bearbeitungs-Panel der Tabelle) immer in der Feldfarbe – sonst schwarzer Rand ums Feld
+            void PanelFaerben()
+            {
+                if (g.IsDisposed || g.EditingPanel is not { } ep) return;
+                var feld = g.EditingControl is { } ec && !Ungueltig(ec.BackColor) ? ec.BackColor : ersatz;
+                if (ep.BackColor != feld) ep.BackColor = feld;
+            }
+            PanelFaerben();
+            if (g.IsHandleCreated) g.BeginInvoke(PanelFaerben);
+            if (g.EditingPanel is { } panel && SchwarzSchutz.Add(panel))
+                panel.BackColorChanged += (_, _) => { if (Ungueltig(panel.BackColor) || (g.EditingControl is { } ec2 && panel.BackColor != ec2.BackColor && !Ungueltig(ec2.BackColor))) PanelFaerben(); };
             // auch später (Neuaufbau, Formatänderung während der Eingabe): ein schwarz gewordenes Feld sofort wieder in Zellfarbe
             if (SchwarzSchutz.Add(e.Control))
                 e.Control.BackColorChanged += (o, _) =>
