@@ -774,11 +774,7 @@ enum Kachelbau {
                         return c == .orderedSame ? a.offset < b.offset : c == .orderedAscending
                     }.map(\.element)
                     let mehrere = teile.count > 1
-                    // im eigenen Lehrerplan steht das eigene Kürzel nicht in der Liste (Vorlage BON: „[ERL] ,H…“) – außer als Label
-                    if typ == "lehrer" && !ich.isEmpty && mehrere {
-                        let ohneMich = teile.filter { !(gleich($0.text, ich) && $0.stil == .text) }
-                        if !ohneMich.isEmpty { teile = ohneMich }
-                    }
+                    // auch im eigenen Lehrerplan stehen alle Lehrkräfte der Kopplung – das eigene Kürzel eingeschlossen (Wunsch: kein Kürzel fehlt)
                     if mehrere {
                         // Mehrere Lehrkräfte immer durch Komma getrennt (ohne Leerzeichen: „CS,SZ“) – nie „alt | neu“
                         for j in teile.indices { teile[j].trenner = j < teile.count - 1 ? "," : "" }
