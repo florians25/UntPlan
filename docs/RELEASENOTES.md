@@ -16,6 +16,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Kopplungen als eine Karte: Zeilen desselben Unterrichts zur selben Zeit (auch in verschiedenen Räumen) stehen nicht mehr als schmale Karten nebeneinander, sondern als eine Karte mit allen Lehrkräften, Klassen und Räumen.
 - Kopplungen: kein Kürzel fehlt mehr – passt die Liste der Lehrkräfte (bzw. Klassen) nicht in die Karte, bricht sie nach einem Komma in die nächste Zeile um (gleiche Schriftgröße); im eigenen Lehrerplan steht auch das eigene Kürzel.
 - Online-Stunden: „Online“ steht ausgeschrieben als Label auf der Karte (nie mit „…“ gekürzt).
 - Stunden sind immer antippbar (eine abgebrochene Wischbewegung sperrt das Antippen nicht mehr).
