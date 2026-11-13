@@ -14,7 +14,6 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 
 ### Web
 - Startseite „Heute“: Lehrstoff in einer eigenen Spalte (neben Status und Klassenbuch).
-- Entfall-Karten wie in der Vorlage: Text grau, Durchstreichung als dünne dunkle Linie durch die Mitte.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
