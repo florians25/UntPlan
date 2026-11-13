@@ -139,6 +139,14 @@
 .aufsicht.entfall, .aufsicht.entfall.vergangen:not(.vertretung):not(.vertreten) { background: var(--u-rot-hell); color: var(--tt-text, #24323d); box-shadow: var(--u-schatten-karte); opacity: 1; filter: none; }
 .aufsicht.entfall .auf-text { text-decoration: line-through; text-decoration-thickness: .75px; }
 
+/* ------------------------------------------------------------------ Durchgestrichene Labels wie in der Vorlage
+   Linie (1px, Textfarbe) genau auf halber Versalhöhe durch die Kürzel im Label – unabhängig von der Durchstreich-Position der
+   Schrift (als Unterstreichung mit negativem Abstand zur Grundlinie, ohne Aussparungen) */
+.std .lbl.weg, .std.lehrer-abwesend .lbl.weg, .std-lbl.weg, .v-lbl.weg {
+  text-decoration-line: underline; text-decoration-style: solid; text-decoration-skip-ink: none; text-decoration-thickness: 1px;
+  text-underline-position: auto; text-underline-offset: calc(-.5cap - .5px);
+}
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
