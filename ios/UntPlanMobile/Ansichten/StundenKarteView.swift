@@ -949,6 +949,7 @@ struct Kachelfluss: Layout {
 }
 
 extension Kachelzeile {
-    /// Liste mehrerer Lehrkräfte bzw. Klassen (Kopplung): darf auf der Karte umbrechen statt gekürzt zu werden.
-    var umbrechbar: Bool { (schluessel == "lehrer" || schluessel == "klasse") && teile.count > 1 }
+    /// Liste mehrerer Lehrkräfte (Kopplung): darf auf der Karte umbrechen statt gekürzt zu werden. Mehrere Klassen stehen
+    /// immer nebeneinander in einer Zeile („ET13,INF13“).
+    var umbrechbar: Bool { schluessel == "lehrer" && teile.count > 1 }
 }
