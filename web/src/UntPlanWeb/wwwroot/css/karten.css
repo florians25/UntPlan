@@ -139,12 +139,6 @@
 .aufsicht.entfall, .aufsicht.entfall.vergangen:not(.vertretung):not(.vertreten) { background: var(--u-rot-hell); color: var(--tt-text, #24323d); box-shadow: var(--u-schatten-karte); opacity: 1; filter: none; }
 .aufsicht.entfall .auf-text { text-decoration: line-through; text-decoration-thickness: .75px; }
 
-/* ------------------------------------------------------------------ Entfall wie in der Vorlage (nachgemessen)
-   Text grau (#77787e), Durchstreichung als dünne dunkle Linie (#414d55, 1px) durch die Mitte der Zeichen */
-.std.entfall :is(.z1, .z2, .zt), .std.abwesend:not(.lehrer-abwesend) :is(.z1, .z2, .zt) {
-  color: #77787e; text-decoration-color: #414d55; text-decoration-thickness: 1px;
-}
-
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
