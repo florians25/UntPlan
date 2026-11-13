@@ -226,44 +226,6 @@ struct Tagesbelegung {
 // MARK: - Kachelbau
 
 enum Kachelbau {
-    /// Karten desselben Unterrichts (gleicher Tag, gleiche Stunden, gleiches Fach, laufend bzw. geändert) zu einer Karte vereinen:
-    /// Lehrkräfte, Klassen, Mitklassen und Räume jeweils ohne Doppelte in der Reihenfolge der Daten. Entfälle, Prüfungen,
-    /// Veranstaltungen und verlegte Stunden bleiben eigene Karten.
-    static func kopplungenZusammenfassen(_ karten: [Karte]) -> [Karte] {
-        func laeuft(_ k: Karte) -> Bool { ["regulaer", "geaendert", "offen"].contains(k.status) }
-        func schluessel(_ k: Karte) -> String? {
-            guard let u = k.unterricht, !k.fach.isEmpty, laeuft(k), k.verlegungRoh.isEmpty else { return nil }
-            return "\(k.datum)|\(k.von)|\(k.bis)|\(u)|\(k.fach.lowercased())"
-        }
-        func vereinen(_ a: [Wert], _ b: [Wert]) -> [Wert] {
-            var res = a
-            for w in b where !res.contains(where: { $0.k.lowercased() == w.k.lowercased() && ($0.alt ?? "").lowercased() == (w.alt ?? "").lowercased() }) {
-                res.append(w)
-            }
-            return res
-        }
-        var ergebnis: [Karte] = []
-        var index: [String: Int] = [:]
-        for k in karten {
-            guard let s = schluessel(k) else { ergebnis.append(k); continue }
-            if let i = index[s] {
-                var m = ergebnis[i]
-                m.lehrer = vereinen(m.lehrer, k.lehrer)
-                m.klassen = vereinen(m.klassen, k.klassen)
-                m.mitklassen = vereinen(m.mitklassen, k.mitklassen)
-                m.raeume = vereinen(m.raeume, k.raeume)
-                if k.status == "offen" || (k.status == "geaendert" && m.status == "regulaer") { m.status = k.status }
-                m.vertretungOffen = m.vertretungOffen || k.vertretungOffen
-                m.online = m.online && k.online
-                ergebnis[i] = m
-            } else {
-                index[s] = ergebnis.count
-                ergebnis.append(k)
-            }
-        }
-        return ergebnis
-    }
-
     /// Kacheln eines Tages.
     static func tag(_ tag: Tageskopf, plan: Wochenplan, raster: [Rasterzeit], typ: String, element: String, jetzt: Date) -> [Kachel] {
         guard !tag.frei, let erste = raster.first, let letzte = raster.last else { return [] }
@@ -273,9 +235,6 @@ enum Kachelbau {
         if typ == "raum" && !ich.isEmpty {
             karten = karten.filter { !ausRaumGenommen($0, raum: ich) }
         }
-        // Kopplung wie in der Vorlage: alle Zeilen desselben Unterrichts zur selben Zeit (auch in verschiedenen Räumen) als EINE Karte
-        // mit allen Lehrkräften, Klassen und Räumen – nie schmale Karten nebeneinander
-        karten = kopplungenZusammenfassen(karten)
         var kacheln = karten.compactMap { ausKarte($0, typ: typ, ich: ich, raster: raster) }
         // Bereitschaft im Lehrerplan: hält die Lehrkraft darin eine Vertretung, entfällt nur diese Stunde der Bereitschaft
         if typ == "lehrer" {
