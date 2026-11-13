@@ -13,6 +13,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Durchgestrichene Labels (z. B. abwesende Lehrkraft, entfernter Raum) wie in der Vorlage: Linie genau mittig durch die Kürzel im Label.
 - Startseite „Heute“: Lehrstoff in einer eigenen Spalte (neben Status und Klassenbuch).
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
