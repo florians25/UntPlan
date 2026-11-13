@@ -102,11 +102,13 @@ export async function zeigen(seite, kontext) {
     const kb = [
       mitKb ? (s.geprueft ? '<span class="nl-chip gruen" data-hover="Abwesenheiten kontrolliert" data-hover-art="dunkel"><i class="bi bi-check2" aria-hidden="true"></i>Anwesenheit</span>'
         : '<span class="nl-chip grau" data-hover="Abwesenheiten noch nicht kontrolliert" data-hover-art="dunkel">Anwesenheit offen</span>') : '',
-      s.unterricht && !entfall && s.status !== 'abwesend' && s.lehrstoff ? `<span class="hu-stoff" data-hover="${e(s.lehrstoff)}" data-hover-art="dunkel"><i class="bi bi-card-text" aria-hidden="true"></i>${e(s.lehrstoff)}</span>`
-        : mitKb ? '<span class="nl-chip gelb">Kein Lehrstoff</span>' : '',
       s.hausaufgabe ? `<span class="nl-chip grau" data-hover="${e(s.hausaufgabe)}" data-hover-art="dunkel"><i class="bi bi-house" aria-hidden="true"></i>Hausaufgabe</span>` : '',
       s.hausaufgabeFaellig ? '<span class="nl-chip lila" data-hover="Zu dieser Stunde ist eine Hausaufgabe fällig" data-hover-art="dunkel">HA fällig</span>' : '',
     ].filter(Boolean).join('');
+    // Lehrstoff in eigener Spalte (Kollegium): Text der Stunde bzw. „Kein Lehrstoff“
+    const stoff = s.unterricht && !entfall && s.status !== 'abwesend' && s.lehrstoff
+      ? `<span class="hu-stoff" data-hover="${e(s.lehrstoff)}" data-hover-art="dunkel">${e(s.lehrstoff)}</span>`
+      : mitKb ? '<span class="nl-chip gelb">Kein Lehrstoff</span>' : '';
     return `<tr class="${entfall ? 'entfall' : ''}" data-i="${i}" tabindex="0">
       <td class="hu-zeit"><span class="nl-name">${e(s.beginn)}</span><span class="nl-unter">${e(s.ende)}</span></td>
       <td class="hu-std nl-unter">${s.stunde}.</td>
@@ -115,7 +117,7 @@ export async function zeigen(seite, kontext) {
       <td class="hu-wert">${wert(s.raeume, entfall) || '–'}</td>
       ${mitLehrkraft ? `<td class="hu-wert">${wert(s.lehrer, entfall, 4, '|') || '–'}</td>` : ''}
       <td><span class="nl-chips">${statusLabels(s)}</span></td>
-      ${ich.kollegium ? `<td><span class="nl-chips hu-kb">${kb}</span></td>` : ''}
+      ${ich.kollegium ? `<td class="hu-lehrstoff">${stoff}</td><td><span class="nl-chips hu-kb">${kb}</span></td>` : ''}
       <td class="hu-info">${info ? `<i class="bi bi-info-circle" data-hover="${e(info)}" data-hover-art="dunkel" aria-label="Info"></i>` : ''}</td></tr>`;
   };
   seite.innerHTML = `
@@ -136,7 +138,7 @@ export async function zeigen(seite, kontext) {
       ${mitStunden ? `<section class="heute-karte">
         <header>${ich.kollegium ? 'Mein nächster Unterricht' : 'Nächster Unterricht'}${anderTag ? ` <span class="h-tag">${e(WOCHENTAGE[(new Date(d.tag + 'T12:00').getDay() + 6) % 7])}, ${datumDe(d.tag)}</span>` : ''}</header>
         ${stunden.length ? `<div class="nl-tabelle heute-unterricht"><table><thead><tr>
-              <th>Uhrzeit</th><th>Std.</th><th>Fach</th><th>Klasse</th><th>Raum</th>${mitLehrkraft ? '<th>Lehrkraft</th>' : ''}<th>Status</th>${ich.kollegium ? '<th>Klassenbuch</th>' : ''}<th><span class="visually-hidden">Info</span></th></tr></thead><tbody>
+              <th>Uhrzeit</th><th>Std.</th><th>Fach</th><th>Klasse</th><th>Raum</th>${mitLehrkraft ? '<th>Lehrkraft</th>' : ''}<th>Status</th>${ich.kollegium ? '<th>Lehrstoff</th><th>Klassenbuch</th>' : ''}<th><span class="visually-hidden">Info</span></th></tr></thead><tbody>
             ${stunden.map(zeile).join('')}</tbody></table></div>`
           : `<div class="heute-nachrichten"><div class="leer">${d.frei ? `Heute ist unterrichtsfrei (${e(d.frei)}).` : 'In den nächsten Tagen ist kein Unterricht eingetragen.'}</div></div>`}
       </section>` : ''}
