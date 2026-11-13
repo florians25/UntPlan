@@ -1791,7 +1791,8 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .heute-unterricht .hu-fach .hu-wert { font-weight: 600; }
 .heute-unterricht .hu-fach .nl-unter { display: block; line-height: 1.2; }
 .heute-unterricht .hu-kb { flex-wrap: nowrap; align-items: center; }
-.heute-unterricht .hu-stoff { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #67747e; font-size: .8rem; }
+.heute-unterricht .hu-lehrstoff { min-width: 140px; max-width: 320px; }
+.heute-unterricht .hu-stoff { display: block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #414d55; font-size: .875rem; }
 .heute-unterricht .hu-stoff .bi { color: #0f7b47; }
 .heute-unterricht .nl-chip .bi { font-size: .85em; }
 .heute-unterricht .hu-info { width: 1%; color: #67747e; }
