@@ -150,7 +150,7 @@ public sealed class Rueckmeldungsdienst
     /// <summary>Raum ist in allen Stunden frei (kein Unterricht laut Plan, keine andere Buchung/Vormerkung)?</summary>
     public bool RaumFrei(Stand s, DateOnly d, string raum, int von, int bis, int? ohneUnterricht = null)
     {
-        var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d, s).Where(r => ohneUnterricht is null || r.Unterricht != ohneUnterricht))
+        var belegt = Plandienst.MitRaumaenderungen(_plan.Rohstunden(s, d), Vorgemerkt(d, s)).Where(r => ohneUnterricht is null || r.Unterricht != ohneUnterricht)
             .Any(r => r.Stunde >= von && r.Stunde <= bis && r.Status != "entfall" && r.Raeume.Any(x => Plandienst.RaumListe(x).Contains(raum, Ci)) && (ohneUnterricht is null || r.Unterricht != ohneUnterricht));
         var gesperrt = s.Paket.Absenzen.Any(a => a.Art == "raum" && Ci.Equals(a.Element, raum) && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab) &&
                                                  d >= av && d <= ab && a.StundeVon <= bis && (a.StundeBis >= von || a.StundeBis < a.StundeVon));
@@ -395,7 +395,7 @@ public sealed class Rueckmeldungsdienst
         r = r.Select(x => s.Raeume[x].Kurz).ToList();
         k = k.Select(x => s.Klassen[x].Kurz).ToList();
         // Räume müssen frei sein – belegt nur durch den Unterricht der eigenen Klassen zählt nicht (die Prüfung findet dort statt)
-        var belegt = _plan.Rohstunden(s, d).Concat(Vorgemerkt(d, s))
+        var belegt = Plandienst.MitRaumaenderungen(_plan.Rohstunden(s, d), Vorgemerkt(d, s))
             .Where(x => x.Stunde >= v && x.Stunde <= bi && x.Status != "entfall" && !x.Klassen.Any(kl => k.Contains(kl, Ci)))
             .SelectMany(x => x.Raeume.SelectMany(Plandienst.RaumListe)).ToHashSet(Ci);
         if (!einst.Raumkonflikt && r.FirstOrDefault(belegt.Contains) is { } voll) throw new ArgumentException($"Raum {voll} ist in dieser Zeit schon belegt.");

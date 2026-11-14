@@ -316,6 +316,28 @@ public sealed class Plandienst
     private static IReadOnlyList<string> KlassenOderKopplung(Stand s, int? unterricht, IReadOnlyList<string> klassen) =>
         klassen.Count > 0 || unterricht is not int u ? klassen : KopplungsKlassen(s).TryGetValue(u, out var k) ? k : klassen;
 
+    /// <summary>
+    /// Belegung mit vorgemerkten Raumänderungen (noch nicht übernommene Raumbuchung zu einem Unterricht): die Raumliste der Buchung gilt
+    /// für den ganzen Unterricht in dieser Stunde – Räume laut Plan, die darin nicht mehr vorkommen, werden frei (z. B. andere Lehrkraft
+    /// bucht für ihre Stunde einen anderen Raum: der ursprüngliche Raum steht wieder zur Buchung bereit). Liefert Plan und Vormerkungen.
+    /// </summary>
+    public static List<Rohstunde> MitRaumaenderungen(IEnumerable<Rohstunde> plan, IEnumerable<Rohstunde> vorgemerkt)
+    {
+        var vm = vorgemerkt.ToList();
+        var aenderungen = vm.Where(v => v.Status == "vorgemerkt" && v.Unterricht.HasValue && IstBuchung(v.Art)).ToList();
+        var res = plan.Select(r =>
+        {
+            if (r.Unterricht is not int u || r.Status == "vorgemerkt") return r;
+            var neu = aenderungen.LastOrDefault(v => v.Unterricht == u && v.Stunde == r.Stunde);
+            if (neu is null) return r;
+            var liste = neu.Raeume.SelectMany(RaumListe).Where(x => x.Length > 0).ToList();
+            if (liste.Count == 0) return r;
+            return r with { Raeume = r.Raeume.Select(x => string.Join(",", RaumListe(x).Where(y => liste.Contains(y, Ci)))).Where(x => x.Length > 0).ToList() };
+        }).ToList();
+        res.AddRange(vm);
+        return res;
+    }
+
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
         Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur, x.Veranstaltung);
