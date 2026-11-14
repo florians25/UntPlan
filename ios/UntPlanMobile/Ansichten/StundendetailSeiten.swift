@@ -1915,30 +1915,43 @@ struct SchuelerSeite: View {
                                     let abwesend = fehlzeit != nil
                                     // während der laufenden Stunde: nach rechts „Verspätet“ (gelb) – die Person kommt jetzt
                                     let kommtJetzt = abwesend && daten.laeuftGerade
-                                    WischZeile(rechtsMoeglich: bearbeitbar && abwesend,
-                                               linksMoeglich: abwesend ? darfEntschuldigen(s) : bearbeitbar,
-                                               rechts: {
-                                                   Task {
-                                                       await ausfuehren(s) {
-                                                           if kommtJetzt { try await daten.verspaetetSetzen(s) } else { try await daten.anwesendSetzen(s) }
-                                                       }
-                                                   }
-                                               },
-                                               links: {
-                                                   if let f = fehlzeit {
-                                                       entschuldigung = Entschuldigungsauftrag(
-                                                           ziel: .fehlzeit(id: f.id, klasse: s.klasse, datum: daten.karte.datum),
-                                                           name: s.anzeige, klasse: s.klasse)
-                                                   } else {
-                                                       Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
-                                                   }
-                                               },
-                                               rechtsAktion: kommtJetzt ? .verspaetet : .anwesend,
-                                               linksAktion: abwesend ? .entschuldigen : .abwesend) {
-                                        zeile(s)
-                                            .padding(.leading, 16)
-                                            .padding(.trailing, 26)
-                                    }
+                                    let rechtsAktion: Wischaktion = kommtJetzt ? .verspaetet : .anwesend
+                                    let linksAktion: Wischaktion = abwesend ? .entschuldigen : .abwesend
+                                    // Wischen mit den Wischaktionen des Systems (ganz durchwischen löst aus): sie vertragen sich mit
+                                    // dem Scrollen der Liste und dem seitlichen Blättern der Stunden – nichts hängt, Tippen bleibt sicher
+                                    zeile(s)
+                                        .padding(.leading, 16)
+                                        .padding(.trailing, 26)
+                                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                            if bearbeitbar && abwesend {
+                                                Button {
+                                                    Task {
+                                                        await ausfuehren(s) {
+                                                            if kommtJetzt { try await daten.verspaetetSetzen(s) } else { try await daten.anwesendSetzen(s) }
+                                                        }
+                                                    }
+                                                } label: {
+                                                    Label(rechtsAktion.text, systemImage: rechtsAktion.symbol)
+                                                }
+                                                .tint(rechtsAktion.farbe)
+                                            }
+                                        }
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                            if abwesend ? darfEntschuldigen(s) : bearbeitbar {
+                                                Button {
+                                                    if let f = fehlzeit {
+                                                        entschuldigung = Entschuldigungsauftrag(
+                                                            ziel: .fehlzeit(id: f.id, klasse: s.klasse, datum: daten.karte.datum),
+                                                            name: s.anzeige, klasse: s.klasse)
+                                                    } else {
+                                                        Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                    }
+                                                } label: {
+                                                    Label(linksAktion.text, systemImage: linksAktion.symbol)
+                                                }
+                                                .tint(linksAktion.farbe)
+                                            }
+                                        }
                                     .listRowInsets(EdgeInsets())
                                     .listRowBackground(Farben.blatt)
                                     // wie in der Vorlage: keine Linien zwischen den Zeilen, nur unter dem Buchstaben

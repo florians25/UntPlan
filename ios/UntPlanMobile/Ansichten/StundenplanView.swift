@@ -812,7 +812,8 @@ struct StundenplanView: View {
                 if richtung == nil {
                     let dx = abs(wert.translation.width)
                     let dy = abs(wert.translation.height)
-                    guard dx > 6 || dy > 6 else { return }
+                    // erst ab 18 pt eine Wisch- bzw. Scrollbewegung: ein Antippen mit leicht verrutschtem Finger öffnet die Stunde
+                    guard dx > 18 || dy > 18 else { return }
                     richtung = dx > dy * 1.2 ? .waagrecht : .senkrecht
                     if richtung == .waagrecht { senkrechtGesperrt = true }
                     // Ab jetzt ist es eine Wisch- bzw. Scrollbewegung: kein Antippen einer Stunde auslösen
@@ -828,7 +829,8 @@ struct StundenplanView: View {
                 richtung = nil
                 senkrechtGesperrt = false
                 // Kurzes Nachlaufen (Senkrecht: Schwung des Scrollens, solange keine Scrollphase gemeldet wird)
-                tippsperre.bewegungEnde(nachlauf: war == .senkrecht ? 0.35 : 0.15)
+                // nur nach einer echten Wisch- bzw. Scrollbewegung kurz sperren – ein Antippen bleibt immer ein Antippen
+                if war != nil { tippsperre.bewegungEnde(nachlauf: war == .senkrecht ? 0.35 : 0.15) }
                 guard war == .waagrecht, !blaettert else { return }
                 let w = max(seitenBreite, 1)
                 let dx = wert.translation.width
