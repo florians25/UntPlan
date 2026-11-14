@@ -19,6 +19,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Schülerliste: Wischen nach rechts/links mit den Wischaktionen des Systems – das Scrollen der Liste und das seitliche Blättern zwischen Stunden hängen nicht mehr.
+- Stunden im Plan lassen sich immer antippen: kleine Fingerbewegungen beim Tippen gelten nicht mehr als Wischen und sperren das Öffnen nicht.
 - Kopplungen: kein Kürzel fehlt mehr – passt die Liste der Lehrkräfte nicht in die Karte, bricht sie nach einem Komma in die nächste Zeile um (gleiche Schriftgröße); mehrere Klassen stehen nebeneinander in einer Zeile; im eigenen Lehrerplan steht auch das eigene Kürzel.
 - Online-Stunden: „Online“ steht ausgeschrieben als Label auf der Karte (nie mit „…“ gekürzt).
 - Stunden sind immer antippbar (eine abgebrochene Wischbewegung sperrt das Antippen nicht mehr).
