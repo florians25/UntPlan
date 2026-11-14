@@ -1100,18 +1100,41 @@ public static class Vertretungen
     }
 
     /// <summary>
+    /// Unterricht, mit dem ein Sondereinsatz kollidiert (gleiche Lehrkraft bzw. Klasse in derselben Stunde): je Stunde der betroffene
+    /// Unterricht und was beim Auflösen damit geschähe (offene Vertretung bzw. Entfall) – für die Rückfrage vor dem Anlegen.
+    /// </summary>
+    public static List<(int Stunde, TagesEintrag Eintrag, bool Lehrer, bool Klasse, VertretungsArt Folge)> SondereinsatzKollisionen(Schuldatei d, DateOnly datum,
+        int stundeVon, int stundeBis, IReadOnlyList<int> klassenIds, IReadOnlyList<int> lehrerIds)
+    {
+        var res = new List<(int, TagesEintrag, bool, bool, VertretungsArt)>();
+        var tag = Kalender.TagIndex(d, datum);
+        var tp = Tagesplan.Berechnen(d, datum);
+        for (var s = stundeVon; s <= Math.Max(stundeVon, stundeBis); s++)
+            foreach (var e in tp.Stunde(s).Where(e => e.Findetstatt && e.Regel != null && e.Status != TagesStatus.Zusaetzlich))
+            {
+                var l = e.LehrerIds.Intersect(lehrerIds).Any();
+                var k = e.KlassenIds.Intersect(klassenIds).Any();
+                if (!l && !k) continue;
+                var folge = k ? VertretungsArt.Entfall : Regel(d, e.KlassenIds, tag, s) == VertretungsRegel.Entfall ? VertretungsArt.Entfall : VertretungsArt.Vertretung;
+                res.Add((s, e, l, k, folge));
+            }
+        return res;
+    }
+
+    /// <summary>
     /// Sondereinsatz (zusätzlicher Unterricht) für einen Stundenbereich. Kollidierender Unterricht der Lehrer wird
     /// laut Vertretungszeitraster zur offenen Vertretung bzw. zum Entfall, kollidierender Unterricht der Klassen entfällt.
     /// </summary>
     public static List<Vertretung> Sondereinsatz(Schuldatei d, DateOnly datum, int stundeVon, int stundeBis, IReadOnlyList<int> klassenIds, IReadOnlyList<int> lehrerIds,
-        int? fachId, int? raumId, string text, string schuelergruppe = "", int? vormerkungId = null, string benutzer = "")
+        int? fachId, int? raumId, string text, string schuelergruppe = "", int? vormerkungId = null, string benutzer = "", bool kollisionenAufloesen = true)
     {
         var neu = new List<Vertretung>();
         var tag = Kalender.TagIndex(d, datum);
         for (var s = stundeVon; s <= Math.Max(stundeVon, stundeBis); s++)
         {
             var tp = Tagesplan.Berechnen(d, datum);
-            foreach (var e in tp.Stunde(s).Where(e => e.Findetstatt && e.Regel != null && e.Status != TagesStatus.Zusaetzlich).ToList())
+            // ohne Auflösen bleibt der Unterricht der Stunde unverändert (Kollision bleibt sichtbar und wird später bearbeitet)
+            foreach (var e in tp.Stunde(s).Where(e => kollisionenAufloesen && e.Findetstatt && e.Regel != null && e.Status != TagesStatus.Zusaetzlich).ToList())
             {
                 var lehrerBetroffen = e.LehrerIds.Intersect(lehrerIds).Any();
                 var klasseBetroffen = e.KlassenIds.Intersect(klassenIds).Any();

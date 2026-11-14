@@ -270,4 +270,30 @@ public class DesktopSprintTests
         Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag && v.Art == VertretungsArt.Sondereinsatz && v.VertreterId == lehrer.Id);
         Assert.Empty(Verlegungsaufhebung.SondereinsaetzeImZeitraum(d, gespeichert[0]));
     }
+
+    [Fact]
+    public void SondereinsatzMitKollisionWirdAbgefragtUndKannBelassenWerden()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var tp = Tagesplan.Berechnen(d, tag);
+        // Stunde, in der die Lehrkraft schon unterrichtet
+        var e = tp.Eintraege.First(x => x.Findetstatt && x.Regel?.LehrerId is int && x.Vertretung is null);
+        var lehrer = e.Regel!.LehrerId!.Value;
+        var andereKlasse = d.Klassen.First(k => !e.KlassenIds.Contains(k.Id)).Id;
+        var kollisionen = Vertretungen.SondereinsatzKollisionen(d, tag, e.Stunde, e.Stunde, new[] { andereKlasse }, new[] { lehrer });
+        Assert.Contains(kollisionen, k => k.Lehrer && k.Eintrag.Regel?.Unterricht.Id == e.Regel.Unterricht.Id);
+
+        // belassen: der vorhandene Unterricht bleibt unverändert (keine offene Vertretung, kein Entfall)
+        var vorher = d.Vertretungen.Count;
+        var neu = Vertretungen.Sondereinsatz(d, tag, e.Stunde, e.Stunde, new[] { andereKlasse }, new[] { lehrer }, null, null, "Zusatz", kollisionenAufloesen: false);
+        Assert.Single(neu);
+        Assert.Equal(vorher + 1, d.Vertretungen.Count);
+        Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag && v.Stunde == e.Stunde && v.UnterrichtId == e.Regel.Unterricht.Id);
+
+        // auflösen (bisheriges Verhalten): der Unterricht der Lehrkraft wird zur Vertretung bzw. entfällt
+        var d2 = Testdaten.Verplant();
+        Vertretungen.Sondereinsatz(d2, tag, e.Stunde, e.Stunde, new[] { andereKlasse }, new[] { lehrer }, null, null, "Zusatz");
+        Assert.Contains(d2.Vertretungen, v => v.Datum == tag && v.Stunde == e.Stunde && v.UnterrichtId == e.Regel.Unterricht.Id && v.Text == "wegen Sondereinsatz");
+    }
 }

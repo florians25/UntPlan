@@ -460,10 +460,12 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
             if (_typ == ElementTyp.Lehrer) lehrer = _id;
             var etwas = _typ == ElementTyp.Klasse ? lehrer.HasValue || fach.HasValue || raum.HasValue : klassen.Count > 0 || fach.HasValue || raum.HasValue;
             if (!etwas) return;
-            if (lehrer is int l && Stundenaenderung.LehrerKonflikt(D, c.Datum, c.Stunde, l, null) is { } konflikt &&
-                !Ui.Frage(Stundenaenderung.KonfliktText(D, l, c.Datum, c.Stunde, konflikt) + "\n\nSondereinsatz trotzdem anlegen? (Der Unterricht wird zur Vertretung bzw. entfällt.)")) { LupeFuellen(); return; }
+            // Kollision mit vorhandenem Unterricht (Lehrkraft bzw. Klasse): fragen – auflösen, belassen oder abbrechen
+            var lehrerListe = lehrer is int x0 ? new[] { x0 } : Array.Empty<int>();
+            if (SondereinsatzDialog.KollisionenAbfragen(this, new[] { (c.Datum, c.Stunde, c.Stunde, (IReadOnlyList<int>)klassen, (IReadOnlyList<int>)lehrerListe) }) is not bool aufloesen)
+            { LupeFuellen(); return; }
             Aendern("Sondereinsatz", AenderungsArt.Vertretung, d =>
-                Vertretungen.Sondereinsatz(d, c.Datum, c.Stunde, c.Stunde, klassen, lehrer is int x ? new[] { x } : Array.Empty<int>(), fach, raum, text, "", null, AppZustand.Benutzer));
+                Vertretungen.Sondereinsatz(d, c.Datum, c.Stunde, c.Stunde, klassen, lehrerListe, fach, raum, text, "", null, AppZustand.Benutzer, aufloesen));
             Neuaufbau();
             return;
         }
