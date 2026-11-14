@@ -295,6 +295,11 @@ final class ApiClient: @unchecked Sendable {
         let _: BeliebigeAntwort = try await anfrage("POST", "/abwesenheiten/loeschen", koerper: try encoder.encode(IdsDaten(ids: ids)))
     }
 
+    /// POST /abwesenheiten/zusammenfassen – Abwesenheiten einer Person zu einer gebündelten Fehlzeit zusammenfassen (Klassenleitung).
+    func abwesenheitenZusammenfassen(_ ids: [Int]) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/abwesenheiten/zusammenfassen", koerper: try encoder.encode(IdsDaten(ids: ids)))
+    }
+
     /// GET /abwesenheitsgruende?art=abwesenheit
     func abwesenheitsgruende() async throws -> [Abwesenheitsgrund] {
         let liste: [Vielleicht<Abwesenheitsgrund>] = try await anfrage("GET", "/abwesenheitsgruende", parameter: ["art": "abwesenheit"])

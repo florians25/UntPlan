@@ -27,6 +27,8 @@ enum Startziel: Hashable {
     case sprechtag(Int)
     /// Entschuldigungen (Klassenleitung: Abwesenheiten der eigenen Klassen; Fachlehrkraft: eigene Fehlstunden)
     case entschuldigungen
+    /// Klassenleitung: Übersicht der eigenen Klasse(n) mit den Abwesenheiten
+    case klassenleitung
 }
 
 /// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
@@ -102,6 +104,9 @@ struct StartView: View {
                         .environmentObject(zustand)
                 case .entschuldigungen:
                     EntschuldigungenView()
+                        .environmentObject(zustand)
+                case .klassenleitung:
+                    KlassenleitungView()
                         .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
@@ -397,6 +402,9 @@ struct StartView: View {
         ]
         if zustand.istKollegium {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
+            if zustand.entschuldigungsrechte?.klassenleitung == true {
+                liste.append(Listeneintrag(ziel: .klassenleitung, titel: "Klassenleitung", symbol: "person.crop.rectangle", zahl: 0))
+            }
             if zustand.entschuldigungsrechte?.irgendwas == true {
                 liste.append(Listeneintrag(ziel: .entschuldigungen, titel: "Entschuldigungen", symbol: "checkmark.seal", zahl: 0))
             }
@@ -679,6 +687,7 @@ struct StartlisteView: View {
         case .aenderungen: return "Änderungen heute"
         case .sprechtag: return "Sprechtag"
         case .entschuldigungen: return "Entschuldigungen"
+        case .klassenleitung: return "Klassenleitung"
         }
     }
 
@@ -691,7 +700,7 @@ struct StartlisteView: View {
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
-                case .sprechtag, .entschuldigungen: EmptyView()
+                case .sprechtag, .entschuldigungen, .klassenleitung: EmptyView()
                 }
             }
         }

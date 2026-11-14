@@ -19,6 +19,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Start → „Klassenleitung“: Übersicht der eigenen Klasse mit „Abwesenheiten“ und der Zahl der unentschuldigten Abwesenheiten. Die Abwesenheiten stehen als Karten (Datum und Zeit, Art, Status) unter UNENTSCHULDIGT bzw. ENTSCHULDIGT; „nicht entschuldigt“ rutscht rot markiert nach unten, „entschuldigt“ ist grün markiert. Antippen öffnet die Entschuldigung.
+- „Bündeln“: mehrere Abwesenheiten einer Person zu einer gebündelten Fehlzeit zusammenfassen, die dann als Ganzes entschuldigt oder nicht entschuldigt wird. Zeitraum über den Filter oben rechts (30, 90 oder 180 Tage).
 - Schülerliste: Wischen nach rechts/links mit den Wischaktionen des Systems – das Scrollen der Liste und das seitliche Blättern zwischen Stunden hängen nicht mehr.
 - Stunden im Plan lassen sich immer antippen: kleine Fingerbewegungen beim Tippen gelten nicht mehr als Wischen und sperren das Öffnen nicht.
 - Kopplungen: kein Kürzel fehlt mehr – passt die Liste der Lehrkräfte nicht in die Karte, bricht sie nach einem Komma in die nächste Zeile um (gleiche Schriftgröße); mehrere Klassen stehen nebeneinander in einer Zeile; im eigenen Lehrerplan steht auch das eigene Kürzel.
