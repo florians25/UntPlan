@@ -845,3 +845,487 @@ struct EntschuldigungenView: View {
         }
     }
 }
+
+// MARK: - Klassenleitung
+
+/// Zeitraum der Klassenleitungs-Ansichten (Filter oben rechts).
+enum KlassenleitungZeitraum: Int, CaseIterable, Hashable {
+    case tage30 = 30
+    case tage90 = 90
+    case tage180 = 180
+
+    var titel: String {
+        switch self {
+        case .tage30: return "Letzte 30 Tage"
+        case .tage90: return "Letzte 90 Tage"
+        case .tage180: return "Letzte 180 Tage"
+        }
+    }
+
+    var von: Date { Datumsformat.tage(-rawValue, nach: Date()) }
+}
+
+/// Kopf der Klassenleitungs-Seiten: Titel mit Klasse(n) und darunter der Zeitraum (wie in der Vorlage).
+private struct KlassenleitungKopf: View {
+    let titel: String
+    let von: Date
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(titel)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Farben.tinte2)
+            Text("\(Datumsformat.anzeige(von, "dd.MM.yyyy")) - \(Datumsformat.anzeige(Date(), "dd.MM.yyyy"))")
+                .font(.system(size: 11.5))
+                .foregroundStyle(Farben.gedaempft)
+        }
+        .lineLimit(1)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Weiße Karte mit Schatten auf grauem Grund (Start → Klassenleitung, Abwesenheiten).
+private struct KlassenleitungKarte<Inhalt: View>: View {
+    @ViewBuilder let inhalt: Inhalt
+
+    var body: some View {
+        inhalt
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .shadow(color: Farben.kartenSchattenWeich, radius: 2.5, x: 0, y: 1)
+    }
+}
+
+/// Start → „Klassenleitung“: „Klassenleitung (07a)“ mit Zeitraum, darunter die Karte „Abwesenheiten“ mit der Zahl der
+/// unentschuldigten (noch offenen bzw. nicht entschuldigten) Abwesenheiten.
+struct KlassenleitungView: View {
+    @EnvironmentObject var zustand: AppZustand
+    @State private var zeitraum: KlassenleitungZeitraum = .tage30
+    @State private var abwesenheiten: [EntschuldigungsAbwesenheit]? = nil
+    @State private var fehler: String? = nil
+
+    private var klassen: [String] { zustand.entschuldigungsrechte?.klassen ?? [] }
+
+    private var titel: String {
+        klassen.isEmpty ? "Klassenleitung" : "Klassenleitung (\(klassen.joined(separator: ", ")))"
+    }
+
+    private var unentschuldigt: Int {
+        (abwesenheiten ?? []).filter { $0.stand != .entschuldigt }.count
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if let fehler {
+                    Fehlerhinweis(text: fehler)
+                }
+                NavigationLink {
+                    KlassenleitungAbwesenheitenView(zeitraum: $zeitraum, klassen: klassen)
+                        .environmentObject(zustand)
+                } label: {
+                    KlassenleitungKarte {
+                        HStack(spacing: 12) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 17, weight: .light))
+                                .foregroundStyle(Farben.tinte2)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Abwesenheiten")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(Farben.tinte)
+                                Group {
+                                    if abwesenheiten == nil {
+                                        Text("Wird geladen …")
+                                    } else if unentschuldigt == 0 {
+                                        Text("Keine unentschuldigten Abwesenheiten")
+                                    } else {
+                                        Text("\(unentschuldigt) unentschuldigte Abwesenheit\(unentschuldigt == 1 ? "" : "en")")
+                                    }
+                                }
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(Farben.gedaempft)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 15, weight: .light))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+        }
+        .background(Farben.grund.ignoresSafeArea())
+        .navigationTitle("Klassenleitung")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) { KlassenleitungKopf(titel: titel, von: zeitraum.von) }
+            ToolbarItem(placement: .topBarTrailing) { KlassenleitungFilter(zeitraum: $zeitraum) }
+        }
+        .refreshable { await laden() }
+        .task { await laden() }
+        .onChange(of: zeitraum) { _, _ in Task { await laden() } }
+    }
+
+    private func laden() async {
+        _ = await zustand.entschuldigungsrechteLaden()
+        do {
+            abwesenheiten = try await zustand.api.entschuldigungsAbwesenheiten(von: Datumsformat.iso(zeitraum.von), bis: Datumsformat.iso(Date()),
+                                                                              klasse: nil, status: nil)
+            fehler = nil
+        } catch {
+            if let text = zustand.fehlertext(error) { fehler = text }
+            if abwesenheiten == nil { abwesenheiten = [] }
+        }
+    }
+}
+
+/// Trichter oben rechts: Zeitraum wählen.
+private struct KlassenleitungFilter: View {
+    @Binding var zeitraum: KlassenleitungZeitraum
+
+    var body: some View {
+        Menu {
+            Picker("Zeitraum", selection: $zeitraum) {
+                ForEach(KlassenleitungZeitraum.allCases, id: \.self) { z in
+                    Text(z.titel).tag(z)
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 16, weight: .regular))
+                .foregroundStyle(Farben.tinte2)
+        }
+        .accessibilityLabel("Zeitraum")
+    }
+}
+
+/// Klassenleitung → „Abwesenheiten (07a)“: alle Abwesenheiten der eigenen Klasse(n) als Karten (stunden- und tageweise
+/// sowie Verspätungen). Abschnitt UNENTSCHULDIGT: offene oben, „nicht entschuldigt“ (rote Markierung) nach unten sortiert;
+/// Abschnitt ENTSCHULDIGT mit grüner Markierung. Antippen öffnet die Entschuldigung (entschuldigt / nicht entschuldigt).
+/// „Bündeln“: mehrere Abwesenheiten einer Person zu einer gebündelten Fehlzeit zusammenfassen, die dann als Ganzes
+/// entschuldigt oder nicht entschuldigt wird.
+struct KlassenleitungAbwesenheitenView: View {
+    @Binding var zeitraum: KlassenleitungZeitraum
+    let klassen: [String]
+
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.horizontalSizeClass) private var groessenklasse
+    @State private var abwesenheiten: [EntschuldigungsAbwesenheit]? = nil
+    @State private var fehler: String? = nil
+    @State private var suche = ""
+    @State private var auftrag: Entschuldigungsauftrag? = nil
+    @State private var buendeln = false
+    @State private var auswahl: Set<String> = []
+    @State private var arbeitet = false
+
+    private var titel: String {
+        klassen.isEmpty ? "Abwesenheiten" : "Abwesenheiten (\(klassen.joined(separator: ", ")))"
+    }
+
+    private var gefiltert: [EntschuldigungsAbwesenheit] {
+        let b = suche.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (abwesenheiten ?? []).filter { a in
+            b.isEmpty || [a.schueler, a.klasse, a.grund, a.text].contains { $0.localizedCaseInsensitiveContains(b) }
+        }
+    }
+
+    /// Neueste zuerst (wie vom Server geliefert); „nicht entschuldigt“ nach unten.
+    private var unentschuldigt: [EntschuldigungsAbwesenheit] {
+        let l = gefiltert.filter { $0.stand != .entschuldigt }
+        return l.filter { $0.stand == .offen } + l.filter { $0.stand == .unentschuldigt }
+    }
+
+    private var entschuldigt: [EntschuldigungsAbwesenheit] {
+        gefiltert.filter { $0.stand == .entschuldigt }
+    }
+
+    private var gewaehlt: [EntschuldigungsAbwesenheit] {
+        (abwesenheiten ?? []).filter { auswahl.contains($0.id) }
+    }
+
+    /// Bündeln nur bei mindestens zwei Abwesenheiten derselben Person.
+    private var buendelbar: Bool {
+        let g = gewaehlt
+        return g.count >= 2 && Set(g.map(\.schuelerId)).count == 1 && g.allSatisfy(\.darf)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if let fehler {
+                        Fehlerhinweis(text: fehler)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                    }
+                    if abwesenheiten == nil {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                    } else if gefiltert.isEmpty {
+                        Text(suche.isEmpty ? "Keine Abwesenheiten im Zeitraum." : "Keine Treffer.")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.gedaempft)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                    } else {
+                        abschnitt("Unentschuldigt", unentschuldigt)
+                        abschnitt("Entschuldigt", entschuldigt)
+                    }
+                }
+                .padding(.bottom, 16)
+            }
+            .scrollIndicators(.hidden)
+            if buendeln {
+                buendelLeiste
+            } else {
+                Suchleiste(text: $suche, platzhalter: "Suchen")
+                    .padding(.bottom, 6)
+            }
+        }
+        .background(Farben.grund.ignoresSafeArea())
+        .navigationTitle("Abwesenheiten")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) { KlassenleitungKopf(titel: titel, von: zeitraum.von) }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(buendeln ? "Fertig" : "Bündeln") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        buendeln.toggle()
+                        auswahl = []
+                    }
+                }
+                .font(.system(size: 16))
+                .tint(Farben.akzent)
+                if !buendeln { KlassenleitungFilter(zeitraum: $zeitraum) }
+            }
+        }
+        .detailPraesentation(item: $auftrag, breit: groessenklasse == .regular, art: .formular) { a in
+            EntschuldigenView(auftrag: a) {
+                Task { await laden() }
+            }
+            .environmentObject(zustand)
+        }
+        .refreshable { await laden() }
+        .task { if abwesenheiten == nil { await laden() } }
+        .onChange(of: zeitraum) { _, _ in Task { await laden() } }
+    }
+
+    // MARK: Abschnitte und Karten
+
+    @ViewBuilder
+    private func abschnitt(_ titel: String, _ liste: [EntschuldigungsAbwesenheit]) -> some View {
+        if !liste.isEmpty {
+            Text(titel.uppercased())
+                .font(.system(size: 11.5))
+                .tracking(0.2)
+                .foregroundStyle(Farben.gedaempft)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 6)
+            VStack(spacing: 10) {
+                ForEach(liste) { a in
+                    Button {
+                        antippen(a)
+                    } label: {
+                        karte(a)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu { kontextmenue(a) }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func antippen(_ a: EntschuldigungsAbwesenheit) {
+        if buendeln {
+            guard a.darf else { return }
+            if auswahl.contains(a.id) { auswahl.remove(a.id) } else { auswahl.insert(a.id) }
+        } else {
+            auftrag = Entschuldigungsauftrag(ziel: .abwesenheit(a), name: a.schueler, klasse: a.klasse)
+        }
+    }
+
+    @ViewBuilder
+    private func kontextmenue(_ a: EntschuldigungsAbwesenheit) -> some View {
+        Button {
+            auftrag = Entschuldigungsauftrag(ziel: .abwesenheit(a), name: a.schueler, klasse: a.klasse)
+        } label: {
+            Label("Entschuldigung …", systemImage: "checkmark.seal")
+        }
+        if a.darf {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    buendeln = true
+                    auswahl = [a.id]
+                }
+            } label: {
+                Label("Bündeln …", systemImage: "square.stack")
+            }
+        }
+    }
+
+    private func karte(_ a: EntschuldigungsAbwesenheit) -> some View {
+        KlassenleitungKarte {
+            HStack(spacing: 10) {
+                if buendeln {
+                    Image(systemName: auswahl.contains(a.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 21, weight: .light))
+                        .foregroundStyle(auswahl.contains(a.id) ? Farben.akzent : Farben.gedaempft)
+                        .opacity(a.darf ? 1 : 0.35)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(a.schueler)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Farben.tinte)
+                            .lineLimit(1)
+                        if klassen.count != 1, !a.klasse.isEmpty {
+                            Text(a.klasse)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                    }
+                    .padding(.bottom, 1)
+                    ForEach(Array(zeitzeilen(a).enumerated()), id: \.offset) { z in
+                        kleineZeile(z.element.symbol, z.element.text, Farben.gedaempft)
+                    }
+                    kleineZeile("info.circle", artText(a), Farben.gedaempft)
+                    statuszeile(a)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !buendeln {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .light))
+                        .foregroundStyle(Farben.gedaempft)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .overlay {
+            if auswahl.contains(a.id) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Farben.akzent, lineWidth: 1.5)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(auswahl.contains(a.id) ? .isSelected : [])
+    }
+
+    private func kleineZeile(_ symbol: String, _ text: String, _ farbe: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 10.5))
+                .frame(width: 13)
+            Text(text)
+                .font(.system(size: 12))
+                .lineLimit(1)
+        }
+        .foregroundStyle(farbe)
+    }
+
+    /// Ein Tag: „Di., 14.02.2023, 08:31 - 15:50“; über mehrere Tage (gebündelt): Beginn und Ende in zwei Zeilen.
+    private func zeitzeilen(_ a: EntschuldigungsAbwesenheit) -> [(symbol: String, text: String)] {
+        func tag(_ d: String) -> String { Datumsformat.anzeige(d, "EE, dd.MM.yyyy") }
+        if a.bisDatum.isEmpty || a.bisDatum == a.vonDatum {
+            return [("calendar", "\(tag(a.vonDatum)), \(Detailmass.uhrzeit(a.vonZeit)) - \(Detailmass.uhrzeit(a.bisZeit))")]
+        }
+        return [("arrow.right.to.line", "\(tag(a.vonDatum)), \(Detailmass.uhrzeit(a.vonZeit))"),
+                ("arrow.left.to.line", "\(tag(a.bisDatum)), \(Detailmass.uhrzeit(a.bisZeit))")]
+    }
+
+    /// Grund bzw. Art: „Abwesend“, „Verspätet“, „Vorzeitig gegangen“ (mit Grund, falls angegeben).
+    private func artText(_ a: EntschuldigungsAbwesenheit) -> String {
+        let art: String
+        switch a.art {
+        case "verspaetet": art = "Verspätet"
+        case "vorzeitig": art = "Vorzeitig gegangen"
+        default: art = "Abwesend"
+        }
+        let g = a.grund.trimmingCharacters(in: .whitespaces)
+        return g.isEmpty || g.caseInsensitiveCompare(art) == .orderedSame ? art : "\(art) · \(g)"
+    }
+
+    @ViewBuilder
+    private func statuszeile(_ a: EntschuldigungsAbwesenheit) -> some View {
+        switch a.stand {
+        case .entschuldigt:
+            kleineZeile("checkmark.circle", "entschuldigt", Farben.gruen)
+        case .unentschuldigt:
+            kleineZeile("xmark.circle", "nicht entschuldigt", Farben.entfallRand)
+        case .offen:
+            if a.mehrdeutig {
+                kleineZeile("circle.lefthalf.filled", "teilweise entschuldigt", Farben.orange)
+            }
+        }
+    }
+
+    // MARK: Bündeln
+
+    private var buendelLeiste: some View {
+        let g = gewaehlt
+        let hinweis: String? = g.count >= 2 && Set(g.map(\.schuelerId)).count > 1 ? "Nur Abwesenheiten derselben Person bündeln." : nil
+        return VStack(spacing: 6) {
+            if let hinweis {
+                Text(hinweis)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Farben.entfallRand)
+            }
+            Button {
+                Task { await zusammenfassen() }
+            } label: {
+                HStack(spacing: 8) {
+                    if arbeitet { ProgressView().tint(.white) }
+                    Label(g.count < 2 ? "Abwesenheiten auswählen" : "Bündeln (\(g.count))", systemImage: "square.stack")
+                }
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 22)
+                .frame(height: 46)
+                .background(buendelbar ? Farben.entschuldigen : Farben.zahlPlakette, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(!buendelbar || arbeitet)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func zusammenfassen() async {
+        let ids = gewaehlt.flatMap(\.ids)
+        guard buendelbar, !ids.isEmpty else { return }
+        arbeitet = true
+        defer { arbeitet = false }
+        do {
+            try await zustand.api.abwesenheitenZusammenfassen(ids)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                buendeln = false
+                auswahl = []
+            }
+            await laden()
+        } catch {
+            fehler = zustand.fehlertext(error) ?? "Bündeln fehlgeschlagen."
+        }
+    }
+
+    private func laden() async {
+        do {
+            abwesenheiten = try await zustand.api.entschuldigungsAbwesenheiten(von: Datumsformat.iso(zeitraum.von), bis: Datumsformat.iso(Date()),
+                                                                              klasse: nil, status: nil)
+            fehler = nil
+        } catch {
+            if let text = zustand.fehlertext(error) { fehler = text }
+            if abwesenheiten == nil { abwesenheiten = [] }
+        }
+    }
+}
