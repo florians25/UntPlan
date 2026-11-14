@@ -207,9 +207,7 @@ struct KachelView: View {
                                 titelFarbe: kachel.art == .termin && eintrag.offset == 0 ? Farben.terminTitel : nil,
                                 zeilenHoehe: zeilenHoehe)
                     .padding(.trailing, frei)
-                    // umbrechende Liste (Kopplung): so hoch wie nötig, sonst genau eine Zeilenhöhe
-                    .frame(minHeight: zeilenHoehe, maxHeight: eintrag.element.umbrechbar ? nil : zeilenHoehe, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: eintrag.element.umbrechbar)
+                    .frame(height: zeilenHoehe, alignment: .leading)
                     // Untere Zeilen (Labels) einen Hauch höher, die erste Zeile bleibt
                     .offset(y: eintrag.offset == 0 ? 0 : -Self.untereZeilenHub)
             }
@@ -387,14 +385,12 @@ struct KachelzeileView: View {
 
     var body: some View {
         Group {
-            if zeile.umbrechbar {
-                // Liste mehrerer Werte (z. B. Lehrkräfte einer Kopplung): passt sie nicht in die Breite, bricht sie nach einem
-                // Komma in die nächste Zeile um – kein Kürzel fehlt, die Schrift bleibt gleich groß
-                ViewThatFits(in: .horizontal) {
-                    teileReihe(kuerzbar: false)
-                    teileFluss()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if zeile.abschneiden {
+                // Liste mehrerer Lehrkräfte (Kopplung, Konferenz) wie in der Vorlage: eine Zeile in voller Länge, am Kartenrand
+                // abgeschnitten – kein Umbruch, kein „…“, gleiche Schriftgröße
+                teileReihe(kuerzbar: false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipped()
             } else if zeile.nurText && !aussehen.durchgestrichen {
                 Text(zeile.text)
                     .lineLimit(1)
@@ -463,33 +459,6 @@ struct KachelzeileView: View {
         .lineLimit(1)
         .fixedSize(horizontal: !kuerzbar, vertical: false)
         .frame(maxWidth: kuerzbar ? .infinity : nil, alignment: .leading)
-    }
-
-    /// Alle Teile mit Umbruch: je Teil (mit seinem Komma) ein Baustein, Zeilenhöhe wie die Karte.
-    private func teileFluss() -> some View {
-        let anzahl = zeile.teile.count
-        return Kachelfluss(zeilenHoehe: zeilenHoehe) {
-            ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
-                HStack(spacing: 0) {
-                    teil(eintrag.element, kuerzbar: false)
-                        .padding(.leading, eintrag.offset == 0 && istLabel(eintrag.element) ? -Plakettenwert.vorsprung : 0)
-                    if labelNachbar(eintrag.offset) {
-                        Color.clear.frame(width: Self.labelAbstand, height: 1)
-                    } else if !eintrag.element.trenner.isEmpty {
-                        if istLabel(eintrag.element) && eintrag.element.trenner.hasPrefix(",") {
-                            Color.clear.frame(width: Self.nachLabel, height: 1)
-                        }
-                        Text(eintrag.element.trenner)
-                            .strikethrough(aussehen.durchgestrichen)
-                        if eintrag.offset + 1 < anzahl && istLabel(zeile.teile[eintrag.offset + 1]) && eintrag.element.trenner.hasSuffix(",") {
-                            Color.clear.frame(width: Self.vorLabel, height: 1)
-                        }
-                    }
-                }
-                .lineLimit(1)
-                .fixedSize()
-            }
-        }
     }
 
     @ViewBuilder
@@ -908,48 +877,8 @@ struct Hausaufgabenzeichen: View {
 }
 
 
-/// Fließlayout für die Teile einer Kartenzeile: nebeneinander, bei fehlendem Platz in der nächsten Zeile (gleiche Zeilenhöhe).
-struct Kachelfluss: Layout {
-    var zeilenHoehe: CGFloat
-
-    private func zeilen(_ breiten: [CGFloat], max: CGFloat) -> [[Int]] {
-        var ergebnis: [[Int]] = [[]]
-        var x: CGFloat = 0
-        for (i, b) in breiten.enumerated() {
-            if x > 0 && x + b > max + 0.5 {
-                ergebnis.append([])
-                x = 0
-            }
-            ergebnis[ergebnis.count - 1].append(i)
-            x += b
-        }
-        return ergebnis
-    }
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let breiten = subviews.map { $0.sizeThatFits(.unspecified).width }
-        let max = proposal.width ?? breiten.reduce(0, +)
-        let z = zeilen(breiten, max: max)
-        let breite = z.map { $0.reduce(0) { $0 + breiten[$1] } }.max() ?? 0
-        return CGSize(width: min(max, breite), height: CGFloat(z.count) * zeilenHoehe)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let groessen = subviews.map { $0.sizeThatFits(.unspecified) }
-        let z = zeilen(groessen.map(\.width), max: bounds.width)
-        for (n, reihe) in z.enumerated() {
-            var x = bounds.minX
-            for i in reihe {
-                let y = bounds.minY + CGFloat(n) * zeilenHoehe + (zeilenHoehe - groessen[i].height) / 2
-                subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(groessen[i]))
-                x += groessen[i].width
-            }
-        }
-    }
-}
-
 extension Kachelzeile {
-    /// Liste mehrerer Lehrkräfte (Kopplung): darf auf der Karte umbrechen statt gekürzt zu werden. Mehrere Klassen stehen
-    /// immer nebeneinander in einer Zeile („ET13,INF13“).
-    var umbrechbar: Bool { schluessel == "lehrer" && teile.count > 1 }
+    /// Liste mehrerer Lehrkräfte (Kopplung, Konferenz): steht in einer Zeile und wird am Kartenrand abgeschnitten statt
+    /// gekürzt oder umgebrochen (wie in der Vorlage).
+    var abschneiden: Bool { schluessel == "lehrer" && teile.count > 1 }
 }

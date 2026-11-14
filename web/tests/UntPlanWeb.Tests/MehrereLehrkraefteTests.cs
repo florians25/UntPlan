@@ -135,6 +135,26 @@ public class MehrereLehrkraefteTests
         Assert.Equal("BRN", k.Lehrer.Single(w => w.K == "CEL").Alt);
     }
 
+    [Theory]
+    [InlineData("SN")]
+    [InlineData("SZ")]
+    [InlineData("CS")]
+    public void Teilnehmer_der_Zusatzstunde_der_eine_Kollegin_vertritt_steht_doppelt(string plan)
+    {
+        // Konferenz als Zusatzstunde: SN nimmt regulär teil UND vertritt CS → SN schlicht und als Label (CS selbst steht nicht da)
+        var s = new Stand(new WebPaket
+        {
+            Zeitraster = new WebZeitraster { TageProWoche = 5, Stunden = { new WebStundenzeit(2, "2.", "08:50", "09:35") } },
+            Tage = { new WebTag { Datum = "2026-10-14", Unterrichtstag = true, Stunden = { Zusatz("SN"), Zusatz("SZ"),
+                new WebStunde { Stunde = 2, Fach = "ZKonf", Lehrer = { "SN" }, Raeume = { "A101" }, Status = "zusaetzlich", Vertretung = 6 } } } },
+            Vertretungen = { new WebVertretung { Id = 6, Datum = "2026-10-14", Stunde = 2, Art = "Vertretung", Lehrer = "CS", Vertreter = "SN", Fach = "ZKonf" } },
+        }, "2026-10-14 07:00:00");
+        var k = Assert.Single(new Plandienst().Karten(s, Tag, Elementtyp.Lehrer, plan));
+        Assert.Contains(k.Lehrer, w => w.K == "SN" && string.IsNullOrEmpty(w.Alt));
+        Assert.Contains(k.Lehrer, w => w.K == "SN" && w.Alt == "CS");
+        Assert.Contains(k.Lehrer, w => w.K == "SZ");
+    }
+
     [Fact]
     public void Gekoppelte_Klassen_stehen_in_ihrer_Reihenfolge()
     {

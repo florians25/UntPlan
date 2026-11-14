@@ -111,9 +111,14 @@ public class AufsichtZusatzTests
     [Fact]
     public void ZusatzLehrer_ohne_Platzhalter_und_ohne_Doppelte()
     {
+        // CS nimmt teil UND vertritt SN: CS schlicht und als Vertretung (SN ist keine Teilnehmerin)
         var l = Plandienst.ZusatzLehrer(new[] { new Wert("CS"), new Wert("GA"), new Wert("CS", "SN", true), new Wert("---") });
-        Assert.Equal(new[] { "CS", "GA", "SN" }, l.Select(w => w.K));
-        Assert.All(l, w => Assert.True(w.Plus));
+        Assert.Equal(new[] { ("CS", (string?)null), ("GA", null), ("CS", "SN") }, l.Select(w => (w.K, w.Alt)));
+        Assert.All(l, w => Assert.True(w.Neu));
+        // Vertretung durch eine sonst nicht beteiligte Lehrkraft: wie bisher alle als „+“
+        var m = Plandienst.ZusatzLehrer(new[] { new Wert("GA"), new Wert("KLE", "BEC", true) });
+        Assert.Equal(new[] { "GA", "KLE", "BEC" }, m.Select(w => w.K));
+        Assert.All(m, w => Assert.True(w.Plus));
         Assert.Equal(new[] { Plandienst.OhneLehrkraftZusatz }, Plandienst.ZusatzLehrer(new[] { new Wert("---") }).Select(w => w.K));
     }
 

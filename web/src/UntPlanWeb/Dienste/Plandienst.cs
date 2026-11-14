@@ -494,7 +494,7 @@ public sealed class Plandienst
                 if (ReferenceEquals(x, r)) { liste.AddRange(k.Lehrer); continue; }
                 WebVertretung? xv = x.Vertretung is int xid && s.Vertretungen.TryGetValue(xid, out var xvx) ? xvx : null;
                 foreach (var l in x.Lehrer.Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++") && !Ci.Equals(l, kurz)))
-                    liste.Add(xv != null && x.Status == "vertreten" && xv.Lehrer.Length > 0 && Ci.Equals(xv.Vertreter, l) && !Ci.Equals(xv.Lehrer, l) ? new Wert(l, xv.Lehrer, true) : new Wert(l));
+                    liste.Add(xv != null && x.Status is "vertreten" or "zusaetzlich" && xv.Lehrer.Length > 0 && Ci.Equals(xv.Vertreter, l) && !Ci.Equals(xv.Lehrer, l) ? new Wert(l, xv.Lehrer, true) : new Wert(l));
             }
             var lehrer = LehrerEinmal(liste);
             if (lehrer.Count <= k.Lehrer.Count) return k;
@@ -594,13 +594,19 @@ public sealed class Plandienst
             {
                 Klassen = g.SelectMany(k => k.Klassen).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
                 // ohne Lehrkräfte kein Platzhalter („---“)
-                Lehrer = g.SelectMany(k => k.Lehrer).Where(w => !IstPlatzhalter(w.K) && (w.K.Length > 0 || (!string.IsNullOrEmpty(w.Alt) && !IstPlatzhalter(w.Alt)))).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
+                // Jede Lehrkraft je Rolle einmal: vertritt eine Teilnehmerin zusätzlich eine abwesende Kollegin, steht sie schlicht UND als
+                // Vertretung da; abwesende Lehrkräfte (ohne Kürzel) je Person einmal
+                Lehrer = LehrerEinmal(g.SelectMany(k => k.Lehrer).Where(w => !IstPlatzhalter(w.K) && (w.K.Length > 0 || (!string.IsNullOrEmpty(w.Alt) && !IstPlatzhalter(w.Alt)))))
+                    .DistinctBy(w => w.K.Length > 0 ? "\u0001" + w.K.ToLowerInvariant() + "\u0001" + (w.Alt ?? "").ToLowerInvariant() : (w.Alt ?? "").ToLowerInvariant()).ToList(),
                 Raeume = g.SelectMany(k => k.Raeume).DistinctBy(w => w.K.ToLowerInvariant()).ToList(),
             }).ToList();
         einzel = einzel.Where(k => k.Status != "veranstaltung").Concat(veranstaltungen.Select(k => RaeumeHinzugefuegt(MitTermin(s, d, k, l => Abwesend(l, k.Von))))).ToList();
         // Veranstaltung der Klassen erst nach dem Zusammenfassen der Kopplungen: entfällt nur, wenn alle Klassen der gemeinsamen Karte teilnehmen
         // Klassenabwesenheit je Stunde vor dem Zusammenfassen zu Blöcken: deckt die Absenz nur einen Teil eines Blocks, wird nur dieser Teil markiert
-        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, Kopplungen(einzel)), typ, kurz), zeiten));
+        // Zusatzstunden: Vertretungen erst jetzt (nach dem Zusammenfassen) auflösen – siehe ZusatzLehrer
+        var gekoppelt = Kopplungen(einzel).Select(k => k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null
+            && k.Lehrer.Any(w => w.K.Length > 0 && !string.IsNullOrEmpty(w.Alt)) ? k with { Lehrer = ZusatzLehrer(k.Lehrer) } : k).ToList();
+        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten));
     }
 
     /// <summary>
@@ -1471,7 +1477,8 @@ public sealed class Plandienst
             VerlegungsSeite = !verlegungsZeile ? null : v!.Nach.Trim().Length > 0 == v.VertrVon.Trim().Length > 0 ? null : v.Nach.Trim().Length > 0 ? "von" : "nach",
         };
         // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
-        if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer) };
+        // (Vertretungen bleiben vorerst als Label: erst nach dem Zusammenfassen mehrerer Zeilen steht fest, ob die Vertretung selbst teilnimmt)
+        if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer, vertretungBehalten: true) };
         return karte.Verlegung is null ? karte : VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten);
     }
 
@@ -1600,11 +1607,28 @@ public sealed class Plandienst
     /// Lehrkräfte einer zusätzlichen Unterrichtsstunde: alle Beteiligten (auch ein als „ersetzt“ gemeldeter alter Wert) je einmal als
     /// hinzugekommener Wert ({ k, neu } → „+CS“) – nie durchgestrichen und nie „alt → neu“. Ohne Lehrkraft: „---“.
     /// </summary>
-    public static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer)
+    public static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer, bool vertretungBehalten = false)
     {
-        var alle = lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Select(x => x.Trim())
-            .Where(x => x.Length > 0 && x is not ("---" or "???" or "+" or "+++")).Distinct(Ci).ToList();
-        return alle.Count == 0 ? new List<Wert> { new(OhneLehrkraftZusatz) } : alle.Select(x => new Wert(x, null, true)).ToList();
+        static bool Platzhalter(string x) => x is "---" or "???" or "+" or "+++";
+        var liste = lehrer.ToList();
+        // Vertretung durch eine Lehrkraft, die selbst regulär teilnimmt (z. B. SN vertritt CS in der Konferenz): SN steht schlicht UND als
+        // Vertretung (Label) da – die vertretene Lehrkraft ist keine Teilnehmerin. Sonst wie bisher alle Beteiligten als „+“
+        static bool Vertretung(Wert w) => w.K.Trim().Length > 0 && !Platzhalter(w.K.Trim()) && (w.Alt ?? "").Trim().Length > 0
+            && !Platzhalter(w.Alt!.Trim()) && !Ci.Equals(w.K.Trim(), w.Alt.Trim());
+        var vertretungen = liste.Where(w => Vertretung(w) && (vertretungBehalten || liste.Any(x => !ReferenceEquals(x, w) && Ci.Equals(x.K.Trim(), w.K.Trim()) && string.IsNullOrEmpty(x.Alt)))).ToList();
+        var res = new List<Wert>();
+        foreach (var w in liste)
+        {
+            if (vertretungen.Contains(w))
+            {
+                if (!res.Any(x => Ci.Equals(x.K, w.K.Trim()) && Ci.Equals(x.Alt, w.Alt!.Trim()))) res.Add(new Wert(w.K.Trim(), w.Alt!.Trim(), true));
+                continue;
+            }
+            foreach (var x in new[] { w.K, w.Alt ?? "" }.Select(x => x.Trim()))
+                if (x.Length > 0 && !Platzhalter(x) && !vertretungen.Any(v => Ci.Equals(v.Alt!.Trim(), x)) && !res.Any(r => Ci.Equals(r.K, x) && r.Alt is null))
+                    res.Add(new Wert(x, null, true));
+        }
+        return res.Count == 0 ? new List<Wert> { new(OhneLehrkraftZusatz) } : LehrerEinmal(res);
     }
 
     /// <summary>Nimmt eine Abwesenheit (Lehrkraft) bzw. Veranstaltung am Tag d die Pause nach Stunde <paramref name="nach"/> ein?</summary>
