@@ -7,6 +7,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Sondereinsatz (zusätzliche Stunde): kollidiert er mit vorhandenem Unterricht der Lehrkraft bzw. Klasse, fragt UntPlan nach – auflisten der betroffenen Stunden, dann „Auflösen (Vertretung/Entfall)“, „Unterricht belassen“ oder „Abbrechen“. Der ursprüngliche Unterricht wird nicht mehr ungefragt zur offenen Vertretung.
 - Eingabefelder in Tabellen werden nie mehr schwarz – weder das Feld noch der Rand darum (auch nicht mit Textvorschlag im Feld).
 
 ### Klassenbuch – Rechte

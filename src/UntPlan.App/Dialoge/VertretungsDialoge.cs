@@ -450,10 +450,38 @@ public static class SondereinsatzDialog
             eintraege.Add((dd, sv, sb, l, k, fach, raum, r.Cells["G"].Value?.ToString() ?? "", r.Cells["T"].Value?.ToString() ?? ""));
         }
         if (eintraege.Count == 0) { Ui.Info("Es wurde kein Sondereinsatz eingegeben (Lehrer oder Klassen fehlen)."); return; }
+        // Kollisionen vorher abfragen: kollidierender Unterricht der Lehrkräfte bzw. Klassen wird nie stillschweigend zur offenen
+        // Vertretung bzw. zum Entfall
+        if (KollisionenAbfragen(owner, eintraege.Select(e => (e.Datum, e.Von, e.Bis, (IReadOnlyList<int>)e.K, (IReadOnlyList<int>)e.L))) is not bool aufloesen) return;
         Ausfuehren(eintraege.Count > 1 ? $"Sondereinsätze ({eintraege.Count})" : "Sondereinsatz", x =>
         {
-            foreach (var e in eintraege) Vertretungen.Sondereinsatz(x, e.Datum, e.Von, e.Bis, e.K, e.L, e.F, e.R, e.T, e.G, null, AppZustand.Benutzer);
+            foreach (var e in eintraege) Vertretungen.Sondereinsatz(x, e.Datum, e.Von, e.Bis, e.K, e.L, e.F, e.R, e.T, e.G, null, AppZustand.Benutzer, aufloesen);
         });
+    }
+
+    /// <summary>
+    /// Vor dem Anlegen von Sondereinsätzen: Kollisionen mit vorhandenem Unterricht (gleiche Lehrkraft bzw. Klasse) auflisten und fragen,
+    /// ob dieser Unterricht zur offenen Vertretung bzw. zum Entfall wird oder unverändert bleibt. null = abgebrochen; true = auflösen;
+    /// false = Unterricht belassen (ohne Kollision: true).
+    /// </summary>
+    public static bool? KollisionenAbfragen(IWin32Window? owner, IEnumerable<(DateOnly Datum, int Von, int Bis, IReadOnlyList<int> Klassen, IReadOnlyList<int> Lehrer)> einsaetze)
+    {
+        var d = AppZustand.D;
+        var ix = AppZustand.Doc.Index;
+        var kollisionen = einsaetze.SelectMany(e => Vertretungen.SondereinsatzKollisionen(d, e.Datum, e.Von, e.Bis, e.Klassen, e.Lehrer)
+            .Select(k => (e.Datum, k.Stunde, k.Eintrag, k.Lehrer, k.Klasse, k.Folge))).ToList();
+        if (kollisionen.Count == 0) return true;
+        string Text((DateOnly Datum, int Stunde, TagesEintrag Eintrag, bool Lehrer, bool Klasse, VertretungsArt Folge) k)
+        {
+            var wer = string.Join(", ", new[] { k.Lehrer ? string.Join(",", k.Eintrag.LehrerIds.Select(ix.KLehrer)) : "", k.Klasse ? ix.KKlassen(k.Eintrag.KlassenIds) : "" }.Where(x => x.Length > 0));
+            var fach = k.Eintrag.FachId is int fid ? d.Faecher.FirstOrDefault(x => x.Id == fid)?.Kurzname ?? "" : "";
+            var folge = k.Folge == VertretungsArt.Entfall ? "entfällt" : "wird offene Vertretung";
+            return $"• {Format.Datum(k.Datum)}, {k.Stunde}. Std.: {fach} {ix.KKlassen(k.Eintrag.KlassenIds)} – {wer} hat bereits Unterricht ({folge})";
+        }
+        var liste = string.Join("\n", kollisionen.Take(12).Select(Text)) + (kollisionen.Count > 12 ? $"\n… und {kollisionen.Count - 12} weitere" : "");
+        var wahl = Ui.Auswahl($"Der Sondereinsatz kollidiert mit vorhandenem Unterricht:\n\n{liste}\n\nWie soll mit diesem Unterricht verfahren werden?",
+            "Sondereinsatz – Kollision", new[] { "Auflösen (Vertretung/Entfall)", "Unterricht belassen", "Abbrechen" }, 0, null, owner);
+        return wahl switch { 0 => true, 1 => false, _ => null };
     }
 
     /// <summary>Sondereinsatz / Stunde ändern für eine Kopplungszeile (siehe <see cref="StundeAendernDialog"/>).</summary>
