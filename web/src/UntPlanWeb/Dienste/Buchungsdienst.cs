@@ -358,7 +358,8 @@ public sealed class Buchungsdienst
     {
         var res = new List<Belegt>();
         var paket = _plan.Rohstunden(s, d);
-        foreach (var r in paket.Concat(_rm.Vorgemerkt(d, s, mitBuchungen: false)))
+        // vorgemerkte Raumänderungen eines Unterrichts geben dessen bisherigen Raum frei
+        foreach (var r in Plandienst.MitRaumaenderungen(paket, _rm.Vorgemerkt(d, s, mitBuchungen: false)))
         {
             if (r.Status == "entfall" || r.Art == "KlausurLoeschen") continue;
             if (ohneUnterricht is int ou && r.Unterricht == ou) continue;
