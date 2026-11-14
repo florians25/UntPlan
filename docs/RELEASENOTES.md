@@ -23,7 +23,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - „Bündeln“: mehrere Abwesenheiten einer Person zu einer gebündelten Fehlzeit zusammenfassen, die dann als Ganzes entschuldigt oder nicht entschuldigt wird. Zeitraum über den Filter oben rechts (30, 90 oder 180 Tage).
 - Schülerliste: Wischen nach rechts/links mit den Wischaktionen des Systems – das Scrollen der Liste und das seitliche Blättern zwischen Stunden hängen nicht mehr.
 - Stunden im Plan lassen sich immer antippen: kleine Fingerbewegungen beim Tippen gelten nicht mehr als Wischen und sperren das Öffnen nicht.
-- Kopplungen: kein Kürzel fehlt mehr – passt die Liste der Lehrkräfte nicht in die Karte, bricht sie nach einem Komma in die nächste Zeile um (gleiche Schriftgröße); mehrere Klassen stehen nebeneinander in einer Zeile; im eigenen Lehrerplan steht auch das eigene Kürzel.
+- Kopplungen und Konferenzen: die Lehrkräfte stehen wie in der Vorlage in einer Zeile und werden am Kartenrand abgeschnitten (kein Umbruch, kein „…“); mehrere Klassen stehen nebeneinander in einer Zeile; im eigenen Lehrerplan steht auch das eigene Kürzel.
+- Vertritt eine Lehrkraft, die selbst an der Zusatzstunde bzw. Konferenz teilnimmt, eine Kollegin (z. B. SN für CS), steht sie zweimal auf der Karte: schlicht für die eigene Teilnahme und als grünes Label für die Vertretung.
 - Online-Stunden: „Online“ steht ausgeschrieben als Label auf der Karte (nie mit „…“ gekürzt).
 - Stunden sind immer antippbar (eine abgebrochene Wischbewegung sperrt das Antippen nicht mehr).
 - Schülerliste wie in der Vorlage: Trennlinie unter dem Buchstaben statt zwischen den Zeilen, Verspätung mit gelbem Symbol und „gekommen um 10:35 (fehlt)“ bzw. „gegangen um … (fehlt)“.
