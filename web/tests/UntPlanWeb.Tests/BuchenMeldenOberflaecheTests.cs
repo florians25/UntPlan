@@ -107,8 +107,10 @@ public class BuchenMeldenOberflaecheTests
         // Auswahl-Pillen sind native Selects in .nl-pille – die einheitliche Auswahl-Komponente legt sich darüber
         Assert.Contains("<label class=\"nl-pille rw-pille", rw);
         var sd = Datei("js", "stundendetails.js");
-        Assert.Contains("import { raumwahl, raumListe } from './raumwahl.js';", sd);
-        Assert.Contains("const liste = raumListe(ziel, {", sd);
+        // Stundendetails (Raum ersetzen/hinzufügen) wie in der Vorlage: Suchpille, Chips Gebäude/Abteilung, nur freie Räume
+        Assert.Contains("import { raumwahl } from './raumwahl.js';", sd);
+        Assert.Contains("placeholder=\"Suchen Sie einen Raum\"", sd);
+        Assert.Contains("${chip('gebaeude', 'Gebäude')}${chip('abteilung', 'Abteilung')}", sd);
         Assert.Contains("/api/app/buchen/raumstatus?datum=${k.datum}&von=${k.von}&bis=${k.bis}", sd);
         Assert.DoesNotContain("sd-filterpille wahl", sd);
         Assert.DoesNotContain("data-abteilung aria-label=\"Abteilung\"", sd);

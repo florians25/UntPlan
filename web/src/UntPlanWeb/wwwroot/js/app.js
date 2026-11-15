@@ -344,7 +344,10 @@ function menue() {
     plaene.push({ nav: 'tag-klasse', href: '#/tag/klasse', text: 'Tag - Klassen', icon: 'tagklassen' });
     plaene.push({ nav: 'tag-lehrer', href: '#/tag/lehrer', text: 'Tag - Lehrkräfte', icon: 'taglehrer' });
     plaene.push({ nav: 'tag-raum', href: '#/tag/raum', text: 'Tag - Räume', icon: 'tagraeume' });
-    plaene.push({ nav: 'vertretungen', href: '#/vertretungen', text: 'Vertretungsplan', icon: 'vertretungen' });
+    // wie in der Vorlage: kein Vertretungsplan im Stundenplan-Menü (Seite bleibt über die Übersicht erreichbar); dafür die
+    // Stundenplaneinstellungen (Administration) direkt im Stundenplanmodul
+    plaene.push({ nav: 'vertretungen', href: '#/vertretungen', text: 'Vertretungsplan', icon: 'vertretungen', verborgen: true });
+    if (b.admin) plaene.push({ nav: 'planeinstellungen', href: '#/planeinstellungen', text: 'Einstellungen', icon: 'verwaltung' });
     m.push({ id: 'stundenplan', text: 'Stundenplan', icon: 'stundenplan', unter: plaene });
     // Unterricht wie in der Vorlage: Mein Unterricht, Klasse, Schüler*in, Prüfungen, Prüfungskalender, Aufgaben, Lehrkraft - Tag, Klasse - Tag
     m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: [
@@ -451,7 +454,6 @@ function menue() {
       { nav: 'admin-sperren', href: '#/admin/sperren', text: 'Prüfungssperren', icon: 'sperre' },
       { nav: 'admin-verspaetung', href: '#/admin/verspaetung', text: 'Verspätungen & Fehlzeiten', icon: 'abwesenheiten' },
       { nav: 'admin-ansicht', href: '#/admin/ansicht', text: 'Ansichtseinstellungen', icon: 'ansicht' },
-      { nav: 'planeinstellungen', href: '#/planeinstellungen', text: 'Stundenplaneinstellungen', icon: 'stundenplan' },
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
       { nav: 'admin-protokoll', href: '#/admin/protokoll', text: 'Protokoll', icon: 'protokoll' },
     ] });
