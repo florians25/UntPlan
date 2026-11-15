@@ -148,6 +148,8 @@ enum Farben {
 
     /// Runde Pill „Entschuldigen“ beim Wischen (Schüler- und Abwesenheitslisten)
     static let entschuldigen = Color(hell: 0x2E7BCF, dunkel: 0x3A86D6)
+    /// Graue Scheibe hinter dem Raumsymbol in der Raumliste (Vorlage)
+    static let raumScheibe = Color(hell: 0xC3CBD2, dunkel: 0x5E6A74)
 
     // Marker oben rechts auf den Karten (wie im Web: Prüfung gelber Kreis, Entfall rotes Dreieck, Änderung/Zusatz grün)
     static let markerGelb = Color(hell: 0xF7C600, dunkel: 0xF2C200)
