@@ -1,5 +1,6 @@
 // Administration: Synchronisation mit UntPlan, Nachrichten zum Tag, freie Tage, Import/Export, aktive Benutzer, Rechte und Rollen,
 // Benutzer, Zuordnungsgruppen, Rückmeldungen, Prüfungssperren, Ansichtseinstellungen, Monitoransichten, Protokoll.
+import { cssLaden } from './kbeinstellungen.js';
 import { e, icon, holen, senden, api, toast, dialog, bestaetigen, formularWerte, heuteIso, datumKurz, meldungText, statusMarker, leer, alarm, WOCHENTAGE } from '../ui.js';
 
 const BEREICHE = [
@@ -217,11 +218,12 @@ async function nachrichten(ziel, kontext, neu) {
 
 async function monitore(ziel, kontext, neu) {
   const [liste, anzeige] = await Promise.all([holen('/api/app/admin/monitore'), holen('/api/app/admin/einstellungen/monitor')]);
-  ziel.innerHTML = `<div class="card mb-3 u-einstellungen"><div class="card-header">Darstellung</div><div class="card-body"><form data-anzeige>
-      ${schalter('ticker', 'Nachrichten zum Tag als Laufschrift (Ticker)', anzeige)}${schalter('kopfzeile', 'Nachrichten zum Tag in der Kopfzeile', anzeige)}
-      ${schalter('nurOeffentlich', 'Nur öffentliche Nachrichten anzeigen', anzeige)}
-      <div class="row g-3 mt-1"><div class="col-sm-5"><label class="form-label">Aktualisierung [Sekunden]</label><input type="number" min="15" max="3600" class="form-control" name="aktualisierung" value="${anzeige.aktualisierung}"></div></div>
-      <button class="btn btn-primary mt-3" type="submit">Speichern</button></form></div></div>
+  cssLaden();
+  ziel.innerHTML = `<form class="pe pe-einstellungen mb-3" data-anzeige>${kasten('Darstellung', `
+      ${haken('Nachrichten zum Tag', schalter('ticker', 'Nachrichten zum Tag als Laufschrift (Ticker)', anzeige), schalter('kopfzeile', 'Nachrichten zum Tag in der Kopfzeile', anzeige),
+        schalter('nurOeffentlich', 'Nur öffentliche Nachrichten anzeigen', anzeige))}
+      ${ezeile('Aktualisierung der Monitore', zahlfeld('Sekunden', 'aktualisierung', anzeige.aktualisierung, 15, 3600))}`)}
+      <div class="pe-fuss"><button class="pe-knopf primaer" type="submit">Speichern</button></div></form>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3"><p class="small text-body-secondary mb-0">Ein Monitor zeigt den Vertretungsplan ohne Anmeldung über einen geheimen Link an, z. B. im Eingangsbereich (Browser im Vollbild).</p>
       <button class="btn btn-primary ms-auto" data-neu>${icon('plus', 'me-1')}Monitor</button></div>
     <div class="card">${liste.length ? `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Name</th><th>Version</th><th>Tage</th><th>Link</th><th></th></tr></thead><tbody>
@@ -263,9 +265,22 @@ async function protokoll(ziel) {
 
 // ------------------------------------------------------------------ Einstellungen (gemeinsame Bausteine)
 
-/** Schalter (Kontrollkästchen) für eine Einstellung. */
-const schalter = (name, text, werte) => `<div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" name="${name}" id="es-${name}" ${werte[name] ? 'checked' : ''}>
-  <label class="form-check-label" for="es-${name}">${e(text)}</label></div>`;
+// Grunddesign der Einstellungsseiten (wie Stundenplaneinstellungen): umrandete Kästen, Beschriftung links und Eingabe rechts,
+// runde orange Häkchen, Felder mit schwebendem Label, „Speichern“ als Pille unten rechts.
+
+/** Rundes Häkchen (Kontrollkästchen) für eine Einstellung. */
+const schalter = (name, text, werte) => `<label class="pe-haken"><input type="checkbox" name="${name}" ${werte[name] ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span><span>${e(text)}</span></label>`;
+/** Kasten mit Titel. */
+const kasten = (titel, inhalt) => `<section class="pe-kasten"><h3 class="pe-titel">${e(titel)}</h3>${inhalt}</section>`;
+/** Zeile: Beschriftung (mit Hilfetext) links, Eingabe rechts. */
+const ezeile = (text, wert, hilfe = '') => `<div class="pe-zeile"><div class="pe-text">${text}${hilfe ? `<small>${hilfe}</small>` : ''}</div><div class="pe-wert">${wert}</div></div>`;
+/** Häkchen untereinander in der rechten Spalte. */
+const haken = (text, ...liste) => ezeile(text, `<div class="pe-stapel">${liste.join('')}</div>`);
+/** Feld mit schwebendem Label. */
+const efeld = (label, inhalt) => `<label class="pe-feld"><span class="pe-feld-label">${e(label)}</span>${inhalt}</label>`;
+const zahlfeld = (label, name, wert, min, max) => efeld(label, `<input type="number" class="form-control" name="${name}" min="${min}" max="${max}" value="${wert ?? ''}">`);
+/** Formular einer Einstellungsseite mit „Speichern“ unten rechts. */
+const eformular = inhalt => `<form class="pe pe-einstellungen">${inhalt}<div class="pe-fuss"><button class="pe-knopf primaer" type="submit">Speichern</button></div></form>`;
 
 /** Formular einer Einstellung speichern (Kontrollkästchen als bool, Zahlen als Zahl). */
 function einstellungBinden(form, bereich, nachher) {
@@ -407,54 +422,51 @@ async function rechte(ziel, kontext, neu, weitere = []) {
 
 async function zuordnung(ziel) {
   const w = await holen('/api/app/admin/einstellungen/zuordnung');
-  ziel.innerHTML = `<div class="card u-einstellungen"><div class="card-header">Zuordnung beim Anlegen von Konten aus den Stammdaten</div><div class="card-body"><form>
-    <p class="small text-body-secondary">Bei „Konten aus Stammdaten“ (Benutzer) werden Lehrkräfte der Rolle Lehrkraft und Klassen der Rolle Klasse zugeordnet.</p>
-    <div class="mb-3"><label class="form-label">Kürzel, die der Schulleitung zugeordnet werden</label><input class="form-control" name="leitungKuerzel" value="${e(w.leitungKuerzel)}" placeholder="z. B. MUE, SCH"><div class="form-text">Mehrere Kürzel durch Komma trennen.</div></div>
-    ${schalter('klassenkonten', 'Klassenkonten standardmäßig mit anlegen', w)}
-    <button class="btn btn-primary mt-3" type="submit">Speichern</button></form></div></div>`;
+  cssLaden();
+  ziel.innerHTML = eformular(kasten('Zuordnung beim Anlegen von Konten aus den Stammdaten', `
+    ${ezeile('Kürzel, die der Schulleitung zugeordnet werden', efeld('Kürzel', `<input class="form-control" name="leitungKuerzel" value="${e(w.leitungKuerzel)}" placeholder="z. B. MUE, SCH">`),
+      'Bei „Konten aus Stammdaten“ (Benutzer) werden Lehrkräfte der Rolle Lehrkraft und Klassen der Rolle Klasse zugeordnet. Mehrere Kürzel durch Komma trennen.')}
+    ${haken('Klassenkonten', schalter('klassenkonten', 'Klassenkonten standardmäßig mit anlegen', w))}`));
   einstellungBinden(ziel.querySelector('form'), 'zuordnung');
 }
 
 async function sperren(ziel) {
   const w = await holen('/api/app/admin/einstellungen/pruefungssperren');
-  ziel.innerHTML = `<div class="card u-einstellungen"><div class="card-header">Zeitliche Einschränkungen für das Eintragen von Prüfungen</div><div class="card-body"><form>
-    ${schalter('aktiv', 'Prüfungssperren aktivieren', w)}
-    <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Höchstens Prüfungen je Klasse und Tag</label><input type="number" class="form-control" name="maxProTag" min="0" max="10" value="${w.maxProTag}"></div>
-      <div class="col-sm-6"><label class="form-label">Höchstens Prüfungen je Klasse und Woche</label><input type="number" class="form-control" name="maxProWoche" min="0" max="20" value="${w.maxProWoche}"></div></div>
-    ${schalter('leitungAusnehmen', 'Schulleitung und Administration von den Sperren ausnehmen', w)}
-    <p class="small text-body-secondary mt-2 mb-3">Gezählt werden Klausuren aus UntPlan und noch nicht übernommene Prüfungen aus UntPlanWeb. 0 = keine Grenze.</p>
-    <button class="btn btn-primary" type="submit">Speichern</button></form></div></div>`;
+  cssLaden();
+  ziel.innerHTML = eformular(kasten('Zeitliche Einschränkungen für das Eintragen von Prüfungen', `
+    ${haken('Prüfungssperren', schalter('aktiv', 'Prüfungssperren aktivieren', w), schalter('leitungAusnehmen', 'Schulleitung und Administration von den Sperren ausnehmen', w))}
+    ${ezeile('Höchstens Prüfungen je Klasse und Tag', zahlfeld('Prüfungen je Tag', 'maxProTag', w.maxProTag, 0, 10), '0 = keine Grenze.')}
+    ${ezeile('Höchstens Prüfungen je Klasse und Woche', zahlfeld('Prüfungen je Woche', 'maxProWoche', w.maxProWoche, 0, 20),
+      'Gezählt werden Klausuren aus UntPlan und noch nicht übernommene Prüfungen aus UntPlanWeb. 0 = keine Grenze.')}`));
   einstellungBinden(ziel.querySelector('form'), 'pruefungssperren');
 }
 
 async function verspaetung(ziel) {
   const w = await holen('/api/app/admin/einstellungen/verspaetung');
-  ziel.innerHTML = `<div class="card u-einstellungen"><div class="card-header">Verspätungen und vorzeitiges Gehen</div><div class="card-body"><form>
-    <div class="row g-3 mb-2">
-      <div class="col-sm-6"><label class="form-label">Stunde gilt als Fehlstunde ab</label><div class="input-group"><input type="number" class="form-control" name="abwesendAbMinuten" min="0" max="240" value="${w.abwesendAbMinuten}"><span class="input-group-text">Minuten</span></div>
-        <div class="form-text">0 = nur ganz verpasste Stunden werden Fehlstunden. Beispiel 20: Wer 20 min oder mehr zu spät kommt, fehlt in dieser Stunde.</div></div>
-      <div class="col-sm-6"><label class="form-label">Hinweis an die Klassenleitung ab</label><div class="input-group"><input type="number" class="form-control" name="hinweisAbAnzahl" min="0" max="100" value="${w.hinweisAbAnzahl}"><span class="input-group-text">Verspätungen</span></div>
-        <div class="form-text">Im Fehlzeitenbericht und in der Klassenübersicht markiert; 0 = aus.</div></div>
-    </div>
-    ${schalter('minutenUmrechnen', 'Verspätungs- und Gehminuten zu Fehlstunden zusammenrechnen', w)}
-    <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Minuten je Fehlstunde</label><input type="number" class="form-control" name="minutenProFehlstunde" min="1" max="240" value="${w.minutenProFehlstunde}"></div></div>
-    ${schalter('vorzeitigRestTag', 'Beim vorzeitigen Gehen standardmäßig für den Rest des Tages abwesend eintragen', w)}
-    <p class="small text-body-secondary mt-2 mb-3">Verspätungen werden ab der ersten, vorzeitiges Gehen bis zur letzten Stunde eines Blocks gerechnet; ganz verpasste Stunden zählen immer als Fehlstunden.
-      Der Entschuldigungsstatus bleibt beim Bearbeiten erhalten.</p>
-    <button class="btn btn-primary" type="submit">Speichern</button></form></div></div>`;
+  cssLaden();
+  ziel.innerHTML = eformular(kasten('Verspätungen und vorzeitiges Gehen', `
+    ${ezeile('Stunde gilt als Fehlstunde ab', zahlfeld('Minuten', 'abwesendAbMinuten', w.abwesendAbMinuten, 0, 240),
+      '0 = nur ganz verpasste Stunden werden Fehlstunden. Beispiel 20: Wer 20 min oder mehr zu spät kommt, fehlt in dieser Stunde.')}
+    ${ezeile('Hinweis an die Klassenleitung ab', zahlfeld('Verspätungen', 'hinweisAbAnzahl', w.hinweisAbAnzahl, 0, 100), 'Im Fehlzeitenbericht und in der Klassenübersicht markiert; 0 = aus.')}
+    ${haken('Fehlstunden', schalter('minutenUmrechnen', 'Verspätungs- und Gehminuten zu Fehlstunden zusammenrechnen', w))}
+    ${ezeile('Minuten je Fehlstunde', zahlfeld('Minuten', 'minutenProFehlstunde', w.minutenProFehlstunde, 1, 240))}
+    ${haken('Vorzeitiges Gehen', schalter('vorzeitigRestTag', 'Beim vorzeitigen Gehen standardmäßig für den Rest des Tages abwesend eintragen', w))}
+    <p class="pe-unter pe-hinweis">Verspätungen werden ab der ersten, vorzeitiges Gehen bis zur letzten Stunde eines Blocks gerechnet; ganz verpasste Stunden zählen immer als Fehlstunden.
+      Der Entschuldigungsstatus bleibt beim Bearbeiten erhalten.</p>`));
   einstellungBinden(ziel.querySelector('form'), 'verspaetung');
 }
 
 async function ansicht(ziel, kontext) {
   const w = await holen('/api/app/admin/einstellungen/ansicht');
-  ziel.innerHTML = `<div class="card u-einstellungen"><div class="card-header">Globale Einstellungen der Oberfläche</div><div class="card-body"><form>
-    ${schalter('nachrichtenAnzeigen', 'Nachrichten zum Tag auf der Startseite anzeigen', w)}
-    ${schalter('rss', 'Öffentliche Nachrichten zum Tag als RSS-Feed veröffentlichen (/rss/nachrichten.xml)', w)}
-    ${schalter('kartenZeiten', 'Uhrzeiten auf den Stundenkarten anzeigen (Voreinstellung)', w)}
-    <div class="row g-3 my-1"><div class="col-sm-6"><label class="form-label">Startseite nach der Anmeldung</label><select class="form-select" name="startseite">
-      <option value="heute" ${w.startseite === 'heute' ? 'selected' : ''}>Heute</option><option value="stundenplan" ${w.startseite === 'stundenplan' ? 'selected' : ''}>Mein Stundenplan</option></select></div></div>
-    <button class="btn btn-primary mt-2" type="submit">Speichern</button></form></div></div>
-    <div class="card u-einstellungen mt-3"><div class="card-header">Schrift</div><div class="card-body" data-schriften></div></div><div class="mt-3" data-schuelerquelle></div>`;
+  cssLaden();
+  ziel.innerHTML = `${eformular(kasten('Globale Einstellungen der Oberfläche', `
+    ${haken('Allgemeine Einstellungen', schalter('nachrichtenAnzeigen', 'Nachrichten zum Tag auf der Startseite anzeigen', w),
+      schalter('rss', 'Öffentliche Nachrichten zum Tag als RSS-Feed veröffentlichen (/rss/nachrichten.xml)', w),
+      schalter('kartenZeiten', 'Uhrzeiten auf den Stundenkarten anzeigen (Voreinstellung)', w))}
+    ${ezeile('Startseite nach der Anmeldung', efeld('Startseite', `<select class="form-select" name="startseite">
+      <option value="heute" ${w.startseite === 'heute' ? 'selected' : ''}>Heute</option><option value="stundenplan" ${w.startseite === 'stundenplan' ? 'selected' : ''}>Mein Stundenplan</option></select>`))}`))}
+    <div class="pe pe-einstellungen"><section class="pe-kasten"><h3 class="pe-titel">Schrift</h3><div class="pe-zeile pe-voll" data-schriften></div></section></div>
+    <div class="mt-3" data-schuelerquelle></div>`;
   einstellungBinden(ziel.querySelector('form'), 'ansicht', () => kontext.sitzungNeu());
   import('./import.js').then(m => m.quelleKarte(ziel.querySelector('[data-schuelerquelle]'))).catch(() => { /* ohne Schülerquelle */ });
   schriften(ziel.querySelector('[data-schriften]'));
