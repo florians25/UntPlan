@@ -388,6 +388,40 @@ public class PlanKorrekturenEndeZuEndeTests
     }
 
     /// <summary>
+    /// Verlegung in eine andere Stunde mit anderem Raum (Raum beim Verlegen gewählt): der Raum der Zielstunde ist der Soll-Raum – kein
+    /// Raum-Label gegenüber dem Raum der Ursprungsstunde. Eine spätere Raumänderung der Zielstunde erscheint als Raumänderung.
+    /// </summary>
+    [Fact]
+    public async Task Verlegung_Raum_der_Zielstunde_ist_Soll_Raum()
+    {
+        var d = Demo.NeueDatei("Testschule", "GY");
+        var bu = new Fach { Id = d.NeueId(), Kurzname = "BU" };
+        d.Faecher.Add(bu);
+        var kl = new Klasse { Id = d.NeueId(), Kurzname = "BSO1" };
+        var le = new Lehrer { Id = d.NeueId(), Kurzname = "SPA" };
+        var ra = new[] { "SPO1", "SPO2", "SPO3" }.Select(k => new Raum { Id = d.NeueId(), Kurzname = k, Buchbar = true }).ToArray();
+        d.Klassen.Add(kl); d.Lehrer.Add(le); d.Raeume.AddRange(ra);
+        var u = new Unterricht { Id = d.NeueId(), Wochenstunden = 1, Zeilen = { new Kopplungszeile { LehrerId = le.Id, FachId = bu.Id, KlassenIds = { kl.Id }, FachraumId = ra[0].Id } } };
+        d.Unterrichte.Add(u);
+        d.Stundenplan.Add(new Planstunde { UnterrichtId = u.Id, Tag = (int)Freitag.DayOfWeek - 1, Stunde = Std + 2, Raeume = { ra[0].Id } });
+        Vertretungen.Verlegen(d, u.Id, 0, Freitag, Std + 2, Freitag, Std);
+        var zv = d.Vertretungen.Single(x => x.Datum == Freitag && x.Stunde == Std && !x.IstEntfall);
+        Verlegungsraeume.RaumSetzen(d, zv, ra[1].Id, RaumBelegtLoesung.Kollision);
+        await using var s = await HochladenAsync(d, Freitag.AddDays(-4));
+        var c = await s.AlsAsync("admin");
+        foreach (var (typ, el) in new[] { ("klasse", "BSO1"), ("lehrer", "SPA"), ("raum", "SPO2") })
+        {
+            var k = Assert.Single(await KartenAsync(c, typ, el, Freitag, Std));
+            Assert.Equal("SPO2", L(k, "raeume"));
+        }
+        // spätere Raumänderung der Zielstunde: SPO2 → SPO3 als Raumänderung
+        Raumvertretungen.Zuordnen(d, zv, ra[2].Id, false, RaumKollisionsLoesung.OhneKollision);
+        await ErneutAsync(s, d, Freitag.AddDays(-4), 2);
+        var neu = Assert.Single(await KartenAsync(c, "klasse", "BSO1", Freitag, Std));
+        Assert.Equal("SPO2→SPO3", L(neu, "raeume"));
+    }
+
+    /// <summary>
     /// Konferenz als Kopplung ohne Klassen (CS, SN, SZ), Doppelstunde; SZ fehlt und SN – selbst Teilnehmer – vertritt SZ (Desktop: Tausch).
     /// In allen drei Lehrerplänen: CS, SN schlicht und SN als Label (für SZ).
     /// </summary>

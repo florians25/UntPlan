@@ -529,6 +529,10 @@ export function karteDialog(karte, kontext = {}) {
     const teile = [];
     const unterricht = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
     if (unterricht && !istEntfall()) teile.push(onlineHtml(ein));
+    // Räume der Stunde immer (wie in der Vorlage); Ersetzen/Löschen/„+“ nur, wo eine Raumänderung erlaubt ist
+    if (!darfRaum() && kollegium && unterricht && !istEntfall() && kuerzel(k.raeume.filter(w => w.k)).length)
+      teile.push(`<div class="sd-detail sd-raeume">${maskeIcon('shared_roomEntity.svg')}<div class="d-flex flex-wrap align-items-center gap-2">
+        ${kuerzel(k.raeume.filter(w => w.k)).map(x => `<span class="sd-chipknopf nur-lesen">${e(x)}</span>`).join('')}</div></div>`);
     if (darfRaum()) {
       const raeume = kuerzel(k.raeume.filter(w => w.k));
       teile.push(`<div class="sd-detail sd-raeume">${maskeIcon('shared_roomEntity.svg')}<div class="d-flex flex-wrap align-items-center gap-2">
@@ -582,7 +586,7 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1">
         ${onlineSchalter(online, 'data-online')}
         ${online ? `<div class="sd-online-feld">
-          <input type="url" class="form-control sd-notiz sd-eingabe" id="sd-online-link" data-online-link inputmode="url" maxlength="1000" placeholder="Url hier eingeben" value="${e(link)}" aria-label="Link zum Online-Unterricht (Videokonferenz)">
+          <div class="sd-eingabe-huelle"><input type="url" class="form-control sd-notiz sd-eingabe" id="sd-online-link" data-online-link inputmode="url" maxlength="1000" placeholder="Url hier eingeben" value="${e(link)}" aria-label="Link zum Online-Unterricht (Videokonferenz)"><div class="sd-eingabe-knoepfe d-none" data-knoepfe><button type="button" class="sd-pille klein" data-abbrechen-eingabe>Abbrechen</button><button type="button" class="sd-pille klein primaer" data-speichern-eingabe>Speichern</button></div></div>
           <div class="invalid-feedback d-block d-none" data-online-fehler>Bitte einen gültigen Link mit http:// oder https:// angeben.</div>
           ${beitreten ? `<div class="mt-2">${beitreten}</div>` : ''}</div>` : ''}</div></div>`;
   }
@@ -591,7 +595,7 @@ export function karteDialog(karte, kontext = {}) {
     const ic = maskeIcon('klassenbuch/common-file-text.svg');
     if (!daten.darf) return wert || hinweis ? `<div class="sd-detail">${ic}<div><div class="sd-detail-titel">${titel}</div>${wert ? `<p class="sd-text">${e(wert)}</p>` : ''}${hinweis}</div></div>` : '';
     return `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div>${hinweis}
-      <textarea class="form-control sd-notiz sd-eingabe" rows="2" data-notiz="${feld}" ${einzel ? `placeholder="Nur für die ${einzel}. Stunde"` : ''} aria-label="${titel}">${e(wert ?? '')}</textarea></div></div>`;
+      <div class="sd-eingabe-huelle"><textarea class="form-control sd-notiz sd-eingabe" rows="2" data-notiz="${feld}" ${einzel ? `placeholder="Nur für die ${einzel}. Stunde"` : ''} aria-label="${titel}">${e(wert ?? '')}</textarea><div class="sd-eingabe-knoepfe d-none" data-knoepfe><button type="button" class="sd-pille klein" data-abbrechen-eingabe>Abbrechen</button><button type="button" class="sd-pille klein primaer" data-speichern-eingabe>Speichern</button></div></div></div></div>`;
   }
 
   // ---------------------------------------------------------------- Prüfung erstellen
@@ -1003,43 +1007,49 @@ export function karteDialog(karte, kontext = {}) {
         if (ev.target.checked && !daten.eintrag.onlineLink) box.querySelector('[data-online-link]')?.focus();
       } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, true); }
     });
-    // Wie in der Vorlage: Link und Notizen ohne eigene Knöpfe – gespeichert wird beim Verlassen des Feldes (bzw. Enter beim Link),
-    // Esc verwirft die Eingabe. Kein Neuzeichnen nach dem Speichern, damit der Fokus im nächsten Feld bleibt.
-    const linkFeld = q('[data-online-link]');
-    if (linkFeld) {
-      let gespeichert = linkFeld.value;
-      const linkSpeichern = async () => {
-        const link = linkFeld.value.trim();
-        if (link === gespeichert.trim()) return;
-        const gueltig = !link || sichererLink(link);
-        linkFeld.classList.toggle('is-invalid', !gueltig);
-        box.querySelector('[data-online-fehler]')?.classList.toggle('d-none', gueltig);
-        if (!gueltig) return;
-        try {
-          await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: true, onlineLink: link, ...eb() }, 'PUT');
-          onlineMerken(true, link);
-          gespeichert = link;
-          toast(link ? 'Link zum Online-Unterricht gespeichert.' : 'Link zum Online-Unterricht entfernt.');
-        } catch (err) { toast(err.message, true); }
+    // Wie in der Vorlage: beim Bearbeiten orange umrandet, darunter rechts „Abbrechen“ und „Speichern“; Esc verwirft, beim Link speichert
+    // auch Enter. Verlässt man das Feld ohne Änderung, verschwinden die Knöpfe wieder (mit Änderung bleiben sie stehen).
+    const eingabeBinden = (feld, speichern) => {
+      const huelle = feld.closest('.sd-eingabe-huelle');
+      const knoepfe = huelle.querySelector('[data-knoepfe]');
+      let gespeichert = feld.value;
+      const zeigen = an => knoepfe.classList.toggle('d-none', !an);
+      const abbrechen = () => { feld.value = gespeichert; feld.classList.remove('is-invalid'); box.querySelector('[data-online-fehler]')?.classList.add('d-none'); zeigen(false); feld.blur(); };
+      const sichern = async () => {
+        if (feld.value === gespeichert) { zeigen(false); feld.blur(); return; }
+        if (await speichern(feld.value)) { gespeichert = feld.value; zeigen(false); feld.blur(); }
       };
-      linkFeld.addEventListener('blur', linkSpeichern);
-      linkFeld.addEventListener('keydown', ev => {
-        if (ev.key === 'Enter') { ev.preventDefault(); linkFeld.blur(); }
-        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); linkFeld.value = gespeichert; linkFeld.classList.remove('is-invalid'); linkFeld.blur(); }
+      feld.addEventListener('focus', () => zeigen(true));
+      huelle.addEventListener('focusout', ev => { if (!huelle.contains(ev.relatedTarget) && feld.value === gespeichert) zeigen(false); });
+      // Mausklick auf die Knöpfe nimmt dem Feld nicht vorher den Fokus
+      knoepfe.addEventListener('mousedown', ev => ev.preventDefault());
+      knoepfe.querySelector('[data-speichern-eingabe]').onclick = sichern;
+      knoepfe.querySelector('[data-abbrechen-eingabe]').onclick = abbrechen;
+      feld.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); abbrechen(); }
+        if (ev.key === 'Enter' && feld.tagName === 'INPUT') { ev.preventDefault(); sichern(); }
       });
-    }
-    alle('[data-notiz]', t => {
-      let gespeichert = t.value;
-      t.addEventListener('blur', async () => {
-        if (t.value === gespeichert) return;
-        const feld = t.dataset.notiz, wert = t.value;
-        if (await eintragSpeichern({ [feld]: wert })) {
-          gespeichert = wert;
-          if (!einzel) k = { ...k, [feld === 'notiz' ? 'notizLehrer' : 'notizSchueler']: wert };
-        }
-      });
-      t.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); t.value = gespeichert; t.blur(); } });
+    };
+    const linkFeld = q('[data-online-link]');
+    if (linkFeld) eingabeBinden(linkFeld, async wert => {
+      const link = wert.trim();
+      const gueltig = !link || sichererLink(link);
+      linkFeld.classList.toggle('is-invalid', !gueltig);
+      box.querySelector('[data-online-fehler]')?.classList.toggle('d-none', gueltig);
+      if (!gueltig) return false;
+      try {
+        await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: true, onlineLink: link, ...eb() }, 'PUT');
+        onlineMerken(true, link);
+        toast(link ? 'Link zum Online-Unterricht gespeichert.' : 'Link zum Online-Unterricht entfernt.');
+        return true;
+      } catch (err) { toast(err.message, true); return false; }
     });
+    alle('[data-notiz]', t => eingabeBinden(t, async wert => {
+      const feld = t.dataset.notiz;
+      if (!await eintragSpeichern({ [feld]: wert })) return false;
+      if (!einzel) k = { ...k, [feld === 'notiz' ? 'notizLehrer' : 'notizSchueler']: wert };
+      return true;
+    }));
   }
 
   // ---------------------------------------------------------------- Raumbuchung am Desktop (Ersetzen, Löschen, zusätzlicher Raum)

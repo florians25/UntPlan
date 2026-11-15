@@ -936,6 +936,7 @@ public static class Vertretungen
                 ziel.VertreterId = ZielLehrer(d, tpNach, ziel.LehrerId, nachStunde);
                 if (ziel.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt) ziel.Art = ziel.VertreterId is null ? VertretungsArt.Verlegt : VertretungsArt.Verlegung;
                 ziel.VertretungsraumId = ZielRaum(tpNach, nachStunde, ziel.VertretungsraumId ?? ziel.RaumId, e.Unterricht, zeile, d);
+                ziel.ZielraumId = ziel.VertretungsraumId;
                 if (quelle != null) { quelle.NachDatum = nachDatum; quelle.NachStunde = nachStunde; }
                 Markieren(ziel, benutzer);
                 continue;
@@ -967,6 +968,7 @@ public static class Vertretungen
             };
             z.VertreterId = ZielLehrer(d, tpNach, lehrer, nachStunde) ?? (vertreterVorher is int vv && LehrerBelegt(d, tpNach, vv, nachStunde) is null ? vv : null);
             z.VertretungsraumId = ZielRaum(tpNach, nachStunde, q.VertretungsraumId ?? q.RaumId, e.Unterricht, zeile, d);
+            z.ZielraumId = z.VertretungsraumId;
             // Lehrkraft ist an der Zielposition nicht verfügbar: „verlegt“ – offene Vertretung
             if (z.VertreterId is null && zielArt == VertretungsArt.Verlegung) z.Art = VertretungsArt.Verlegt;
             d.Vertretungen.Add(z);
@@ -2063,6 +2065,16 @@ public sealed record PlanZeile(DateOnly Datum, int Stunde, string Klassen, strin
 /// <summary>Ausgabe des Vertretungsplans (Aushang, Monitor, HTML, Portal).</summary>
 public static class Vertretungsplan
 {
+    /// <summary>
+    /// Bisheriger (Soll-)Raum einer Zeile: bei der Zielstunde einer Verlegung der Raum, den die Verlegung ihr gibt (wie in der Vorlage –
+    /// nur eine spätere Raumänderung ist eine Raumänderung); ältere Verlegungen ohne gemerkten Zielraum: der aktuelle Raum. Sonst der Raum
+    /// des Unterrichts.
+    /// </summary>
+    public static int? SollRaum(Vertretung v) =>
+        v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch
+            ? v.ZielraumId ?? v.VertretungsraumId ?? v.RaumId
+            : v.RaumId;
+
     public static string ArtText(VertretungsArt a) => a switch
     {
         VertretungsArt.Vertretung => "Vertretung",
@@ -2180,7 +2192,7 @@ public static class Vertretungsplan
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
                 v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : v.Art == VertretungsArt.Veranstaltung ? "" : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),
-                v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(v.RaumId),
+                v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(SollRaum(v)),
                 v.IstEntfall ? "" : v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) :
                 string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => ix.KRaum(x))),
                 ArtText(d, v.Art), v.Text, v.NeueKlassenIds, v.LehrerId, v.VertreterId,

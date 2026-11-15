@@ -309,3 +309,4 @@
 .pe-haken input[type=checkbox]:checked + .pe-kreis, .kbe-schalter:not(.pe-schalter) input:checked + .kbe-schiene {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23f56b2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4.3 8.2l2.5 2.5 4.9-5.2'/%3E%3C/svg%3E"); }
 .pe-haken input[type=radio]:checked + .pe-kreis { border-width: 5px; }
+.pe-reiter button.an::after, .kbe-reiter button.an::after { border-radius: 3px 3px 0 0; }
