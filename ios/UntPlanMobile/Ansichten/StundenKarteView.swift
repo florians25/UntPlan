@@ -386,11 +386,15 @@ struct KachelzeileView: View {
     var body: some View {
         Group {
             if zeile.abschneiden {
-                // Liste mehrerer Lehrkräfte (Kopplung, Konferenz) wie in der Vorlage: eine Zeile in voller Länge, am Kartenrand
-                // abgeschnitten – kein Umbruch, kein „…“, gleiche Schriftgröße
-                teileReihe(kuerzbar: false)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .clipped()
+                // Liste mehrerer Lehrkräfte (Kopplung, Konferenz): eine Zeile, kein Umbruch, gleiche Schriftgröße. Passt sie nicht,
+                // stehen so viele ganze Kürzel wie möglich und dahinter „…“ (nie ein halb abgeschnittenes Kürzel oder Label)
+                ViewThatFits(in: .horizontal) {
+                    ForEach(Array(stride(from: zeile.teile.count, through: 1, by: -1)), id: \.self) { n in
+                        teileReihe(kuerzbar: false, anzahl: n)
+                    }
+                    teileReihe(kuerzbar: true, anzahl: 1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else if zeile.nurText && !aussehen.durchgestrichen {
                 Text(zeile.text)
                     .lineLimit(1)
@@ -429,16 +433,24 @@ struct KachelzeileView: View {
     }
 
     /// Alle Teile nebeneinander ohne Umbruch. Kürzbar: jeder Teil darf mit „…“ enden, vordere Teile haben Vorrang.
+    /// Teile der Zeile in einer Reihe; mit `anzahl` nur die ersten Teile und dahinter „…“.
     @ViewBuilder
-    private func teileReihe(kuerzbar: Bool) -> some View {
+    private func teileReihe(kuerzbar: Bool, anzahl gezeigt: Int? = nil) -> some View {
         let anzahl = zeile.teile.count
+        let n = min(gezeigt ?? anzahl, anzahl)
         HStack(spacing: 0) {
-            ForEach(Array(zeile.teile.enumerated()), id: \.offset) { eintrag in
+            ForEach(Array(zeile.teile.prefix(n).enumerated()), id: \.offset) { eintrag in
                 HStack(spacing: 0) {
                     teil(eintrag.element, kuerzbar: kuerzbar)
                         // Label vorn: Fläche ragt nach links, die Schrift bleibt bündig mit den anderen Zeilen
                         .padding(.leading, eintrag.offset == 0 && istLabel(eintrag.element) ? -Plakettenwert.vorsprung : 0)
-                    if labelNachbar(eintrag.offset) {
+                    if eintrag.offset == n - 1 && n < anzahl {
+                        // gekürzt: „…“ statt Trenner, nach einem Label mit kleinem Abstand
+                        if istLabel(eintrag.element) { Color.clear.frame(width: Self.labelAbstand, height: 1) }
+                        Text("…")
+                            .strikethrough(aussehen.durchgestrichen)
+                            .fixedSize()
+                    } else if labelNachbar(eintrag.offset) {
                         Color.clear
                             .frame(width: Self.labelAbstand, height: 1)
                     } else if !eintrag.element.trenner.isEmpty {

@@ -107,6 +107,41 @@ public class MehrereLehrkraefteTests
         Assert.Equal(new[] { ("CS", (string?)null), ("SZ", null), ("CS", "SN") }, k.Lehrer.Select(w => (w.K, w.Alt)));
     }
 
+    // Doppelstunde (7.–8.): CS, SN und SZ nehmen teil, SZ fehlt, SN – selbst Teilnehmer – vertritt SZ
+    private static Stand KonferenzBlockMitVertretung(bool zusatz = false)
+    {
+        var stunden = new List<WebStunde>();
+        foreach (var nr in new[] { 7, 8 })
+        {
+            WebStunde K(string l) => new() { Stunde = nr, Unterricht = zusatz ? null : 9, Fach = "ZKonf", Lehrer = { l }, Raeume = { "ZBesp" }, Status = zusatz ? "zusaetzlich" : "regulaer" };
+            stunden.Add(K("CS"));
+            stunden.Add(K("SN"));
+            stunden.Add(new WebStunde { Stunde = nr, Unterricht = zusatz ? null : 9, Fach = "ZKonf", Lehrer = { "SN" }, LehrerAlt = { "SZ" }, Raeume = { "ZBesp" }, Status = zusatz ? "zusaetzlich" : "vertreten", Vertretung = nr });
+        }
+        var paket = new WebPaket
+        {
+            Zeitraster = new WebZeitraster { TageProWoche = 5, Stunden = { new WebStundenzeit(7, "7.", "13:15", "14:00"), new WebStundenzeit(8, "8.", "14:00", "14:45") } },
+            Tage = { new WebTag { Datum = "2026-10-14", Unterrichtstag = true, Stunden = stunden } },
+            Vertretungen = {
+                new WebVertretung { Id = 7, Datum = "2026-10-14", Stunde = 7, Art = "Tausch", Lehrer = "SZ", Vertreter = "SN", Fach = "ZKonf", Raum = "ZBesp", NeuerRaum = "ZBesp" },
+                new WebVertretung { Id = 8, Datum = "2026-10-14", Stunde = 8, Art = "Tausch", Lehrer = "SZ", Vertreter = "SN", Fach = "ZKonf", Raum = "ZBesp", NeuerRaum = "ZBesp" } },
+        };
+        return new Stand(paket, "2026-10-14 07:00:00");
+    }
+
+    [Theory]
+    [InlineData("CS", false)]
+    [InlineData("SN", false)]
+    [InlineData("SZ", false)]
+    [InlineData("CS", true)]
+    [InlineData("SN", true)]
+    [InlineData("SZ", true)]
+    public void Vertretende_Teilnehmerin_im_Block_steht_schlicht_und_als_Label(string plan, bool zusatz)
+    {
+        var k = Assert.Single(new Plandienst().Karten(KonferenzBlockMitVertretung(zusatz), Tag, Elementtyp.Lehrer, plan));
+        Assert.Equal(new[] { ("CS", (string?)null), ("SN", null), ("SN", "SZ") }, k.Lehrer.Select(w => (w.K, w.Alt)));
+    }
+
     [Fact]
     public void Abwesende_Lehrkraft_sieht_auf_ihrer_Karte_alle_Kollegen()
     {

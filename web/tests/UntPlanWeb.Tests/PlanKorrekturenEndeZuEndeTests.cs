@@ -387,6 +387,37 @@ public class PlanKorrekturenEndeZuEndeTests
         Assert.Equal(new[] { "INF13" }, meldung.Klassen);
     }
 
+    /// <summary>
+    /// Konferenz als Kopplung ohne Klassen (CS, SN, SZ), Doppelstunde; SZ fehlt und SN – selbst Teilnehmer – vertritt SZ (Desktop: Tausch).
+    /// In allen drei Lehrerplänen: CS, SN schlicht und SN als Label (für SZ).
+    /// </summary>
+    [Fact]
+    public async Task Konferenz_Teilnehmer_vertritt_abwesende_Kollegin()
+    {
+        var d = Demo.NeueDatei("Testschule", "GY");
+        var zk = new Fach { Id = d.NeueId(), Kurzname = "ZKonf" };
+        d.Faecher.Add(zk);
+        var le = new[] { "CS", "SN", "SZ" }.Select(k => new Lehrer { Id = d.NeueId(), Kurzname = k }).ToArray();
+        var ra = new Raum { Id = d.NeueId(), Kurzname = "ZBesp" };
+        d.Lehrer.AddRange(le);
+        d.Raeume.Add(ra);
+        var u = new Unterricht { Id = d.NeueId(), Wochenstunden = 2, Zeilen = le.Select(l => new Kopplungszeile { LehrerId = l.Id, FachId = zk.Id, FachraumId = ra.Id }).ToList() };
+        d.Unterrichte.Add(u);
+        foreach (var st in new[] { Std, Std + 1 })
+            d.Stundenplan.Add(new Planstunde { UnterrichtId = u.Id, Tag = (int)Freitag.DayOfWeek - 1, Stunde = st, Raeume = { ra.Id } });
+        d.Abwesenheiten.Add(new Abwesenheit { Id = d.NeueId(), Art = AbwesenheitsArt.Lehrer, ElementId = le[2].Id, Von = Freitag, Bis = Freitag });
+        Vertretungen.Aktualisieren(d, Freitag);
+        foreach (var v in d.Vertretungen.Where(x => x.Datum == Freitag).ToList()) Vertretungen.VertreterSetzen(d, v, le[1].Id);
+        foreach (var z in Vertretungsplan.Zeilen(d, Freitag)) _aus.WriteLine($"Desktop-Zeile: {z.Stunde} {z.Art} {z.Lehrer}->{z.Vertreter}");
+        await using var s = await HochladenAsync(d, Freitag.AddDays(-4));
+        var c = await s.AlsAsync("admin");
+        foreach (var l in new[] { "CS", "SN", "SZ" })
+        {
+            var k = Assert.Single(await KartenAsync(c, "lehrer", l, Freitag, Std));
+            Assert.Equal("CS,SN,SZ→SN", L(k, "lehrer"));
+        }
+    }
+
     // ------------------------------------------------------------------ 6) Fachänderung
 
     public enum Fachfall { VertretungMitAnderemFach, StundeAendernBeiAbwesenheit, StundeAendernOhneAbwesenheit }

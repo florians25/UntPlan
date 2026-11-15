@@ -1284,7 +1284,10 @@ public sealed class Plandienst
         var klassen = k.Klassen.Count > 0 ? k.Klassen : t.Klassen.Select(x => new Wert(x)).ToList();
         // alle teilnehmenden Lehrkräfte der Veranstaltung (nicht nur die des angezeigten Plans)
         // (ohne abwesende Lehrkräfte – sie nehmen nicht teil)
-        var lehrer = k.Lehrer.Concat(t.Lehrer.Where(l => !abwesend(l) && !k.Lehrer.Any(w => Ci.Equals(w.K, l))).Select(l => new Wert(l))).ToList();
+        // Steht eine Teilnehmerin nur als Vertretung (Label) auf der Karte, kommt sie zusätzlich schlicht dazu: SN nimmt regulär teil UND
+        // vertritt SZ → „SN, [SN]“ (schlicht vor dem Label)
+        var lehrer = LehrerEinmal(k.Lehrer.Concat(t.Lehrer.Where(l => !abwesend(l) && !k.Lehrer.Any(w => Ci.Equals(w.K, l) && string.IsNullOrEmpty(w.Alt)))
+            .Select(l => new Wert(l))));
         return k with { Raeume = raeume, Klassen = klassen, Lehrer = lehrer };
     }
 
