@@ -271,6 +271,7 @@ struct EntschuldigenView: View {
             .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .disabled(gesperrt)
             .padding(.horizontal, 16)
+        grundBlock
         if !istLeitung {
             Text("Der Text ist für Lehrkräfte sichtbar, die ebenfalls eine Fehlstunde in dieser Abwesenheit haben.")
                 .font(.system(size: 12))
@@ -327,10 +328,8 @@ struct EntschuldigenView: View {
 
     /// Entschuldigungsstatus als Zeile mit Pfeil (Vorlage „Offen >“); Auswahl über ein Menü.
     private var statusZeile: some View {
-        Menu {
-            Picker("Entschuldigungsstatus", selection: $status) {
-                ForEach(statusAuswahl, id: \.0) { s in Text(s.1).tag(s.0) }
-            }
+        NavigationLink {
+            StatusWahlSeite(auswahl: $status, liste: statusAuswahl)
         } label: {
             HStack {
                 Text(status.anzeige)
@@ -346,9 +345,24 @@ struct EntschuldigenView: View {
             .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .contentShape(Rectangle())
         }
-        .tint(Color.primary)
+        .buttonStyle(.plain)
         .disabled(gesperrt)
         .opacity(gesperrt ? 0.6 : 1)
+    }
+
+    /// Abwesenheitsgrund (nur Anzeige, wie unten im Dialog der Vorlage).
+    @ViewBuilder
+    private var grundBlock: some View {
+        if case .leitung(let a) = inhalt, !a.grund.isEmpty {
+            Feldtitel(text: "ABWESENHEITSGRUND")
+            Text(a.grund)
+                .font(.system(size: 17))
+                .foregroundStyle(Farben.tinte)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .padding(.horizontal, 16)
+        }
     }
 
     private var sperrhinweis: String? {
@@ -1100,7 +1114,8 @@ struct KlassenleitungAbwesenheitenView: View {
     @State private var abwesenheiten: [EntschuldigungsAbwesenheit]? = nil
     @State private var fehler: String? = nil
     @State private var suche = ""
-    @State private var status: Statusfilter = .alle
+    /// Wie in der Vorlage zunächst nur die offenen Abwesenheiten
+    @State private var status: Statusfilter = .offen
     @State private var auftrag: Entschuldigungsauftrag? = nil
     @State private var buendeln = false
     @State private var auswahl: Set<String> = []
@@ -1205,8 +1220,10 @@ struct KlassenleitungAbwesenheitenView: View {
                 filterKapsel("Zeitbereich", aktiv: false)
             }
             Menu {
-                Picker("Status", selection: $status) {
-                    ForEach(Statusfilter.allCases, id: \.self) { f in Text(f == .alle ? "Alle" : f.titel).tag(f) }
+                Section("Status wählen") {
+                    Picker("Status", selection: $status) {
+                        ForEach(Statusfilter.allCases, id: \.self) { f in Text(f == .alle ? "Alle" : f.titel).tag(f) }
+                    }
                 }
             } label: {
                 filterKapsel(status.titel, aktiv: status != .alle)
@@ -1449,5 +1466,58 @@ struct KlassenleitungAbwesenheitenView: View {
             if let text = zustand.fehlertext(error) { fehler = text }
             if abwesenheiten == nil { abwesenheiten = [] }
         }
+    }
+}
+
+
+/// „Entschuldigungsstatus wählen“ (Vorlage): Liste der Status, der gewählte mit orangem Häkchen; Antippen wählt und geht zurück.
+struct StatusWahlSeite: View {
+    @Binding var auswahl: Entschuldigungsstatus
+    let liste: [(Entschuldigungsstatus, String)]
+    @Environment(\.dismiss) private var zurueck
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(liste, id: \.0) { s in
+                    Button {
+                        auswahl = s.0
+                        zurueck()
+                    } label: {
+                        HStack {
+                            Text(s.0 == .offen ? "Offen" : s.1.lowercased())
+                                .font(.system(size: 17))
+                                .foregroundStyle(Farben.tinte)
+                            Spacer(minLength: 0)
+                            if s.0 == auswahl {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundStyle(Farben.hakenAktiv)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 48)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(ZeilenKnopfStil())
+                    .accessibilityAddTraits(s.0 == auswahl ? .isSelected : [])
+                }
+            }
+        }
+        .background(Farben.blatt.ignoresSafeArea())
+        .navigationTitle("Entschuldigungsstatus wählen")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+    }
+}
+
+/// Startseite → „Abwesenheiten“ (Klassenleitung): die Abwesenheitsliste direkt, mit eigenem Zeitbereich.
+struct KlassenAbwesenheitenStart: View {
+    @EnvironmentObject var zustand: AppZustand
+    @State private var zeitraum: KlassenleitungZeitraum = .tage30
+
+    var body: some View {
+        KlassenleitungAbwesenheitenView(zeitraum: $zeitraum, klassen: zustand.entschuldigungsrechte?.klassen ?? [])
+            .environmentObject(zustand)
     }
 }
