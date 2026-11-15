@@ -192,3 +192,19 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
   text-decoration: none;
 }
 .btn-link, .btn-link:hover, .btn-link:focus-visible { text-decoration: none; }
+
+/* ------------------------------------------------------------------ Grunddesign (wie Stundenplaneinstellungen): runde orange Häkchen
+   Kontrollkästchen und Schalter überall als runde Häkchen (weiß, orange Rand und Haken), Auswahlpunkte orange gefüllt. */
+.form-check-input[type="checkbox"] { width: 18px; height: 18px; border: 1.5px solid #9aa3ab; border-radius: 50%; background-color: #fff; }
+.form-check-input[type="checkbox"]:checked { background-color: #fff; border-color: var(--u-akzent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23f56b2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4.5 8.3l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
+  background-size: 14px; background-position: center; }
+.form-check-input[type="radio"] { width: 18px; height: 18px; border: 1.5px solid #9aa3ab; background-color: #fff; }
+.form-check-input[type="radio"]:checked { background-color: #fff; background-image: none; border: 5px solid var(--u-akzent); }
+.form-check-input:focus { box-shadow: none; }
+.form-check-input:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.form-switch { padding-left: 1.75em; }
+.form-switch .form-check-input, .form-switch .form-check-input:focus { width: 18px; height: 18px; margin-left: -1.75em; margin-top: .15em; border-radius: 50%; background-image: none; background-position: center; }
+.form-switch .form-check-input:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23f56b2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4.5 8.3l2.4 2.4 4.6-5'/%3E%3C/svg%3E");
+  background-size: 14px; background-position: center; }
