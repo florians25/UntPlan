@@ -30,7 +30,7 @@ public static class SprechtagApi
     public sealed record RaumDaten(string? Lehrer, string? Raum, bool? Online = null, string? Link = null);
     public sealed record WarteDaten(string? Lehrer, int SchuelerId);
     public sealed record SperrDaten(string? Lehrer, List<string>? Beginne, bool Gesperrt);
-    public sealed record EinladungDaten(string? Lehrer, List<int>? SchuelerIds, string? Text);
+    public sealed record EinladungDaten(string? Lehrer, List<int>? SchuelerIds, string? Text, bool? Verpflichtend = null);
     public sealed record TerminDaten(string? Lehrer, int SchuelerId, string? Beginn, string? Bemerkung);
     public sealed record VerschiebeDaten(string? Beginn, string? Bemerkung);
     public sealed record BuchDaten(string? Lehrer, int SchuelerId, string? Beginn);
@@ -327,7 +327,7 @@ public static class SprechtagApi
                 zeitfenster = d.Raster(t, kurz).Select(x => new { x.Beginn, x.Ende, x.Status, termin = x.Termin is null ? null : TerminJson(s, bd, x.Termin) }),
                 einladungen = einladungen.Select(e => new
                 {
-                    e.Id, schueler = SchuelerJson(s, e.SchuelerId), e.Erstellt, e.Benachrichtigt,
+                    e.Id, schueler = SchuelerJson(s, e.SchuelerId), e.Erstellt, e.Benachrichtigt, e.Verpflichtend, e.Text,
                     termin = termine.FirstOrDefault(x => Ci.Equals(x.Lehrer, kurz) && x.SchuelerId == e.SchuelerId)?.Beginn,
                 }),
             });
@@ -373,7 +373,7 @@ public static class SprechtagApi
             var b = Ich(c);
             var t = Sichtbar(d, b, id);
             var kurz = Lehrkraft(b, t, daten.Lehrer);
-            var (neu, benachrichtigt, ohne) = d.Einladen(p.Aktuell, t, b, kurz, daten.SchuelerIds ?? new(), daten.Text);
+            var (neu, benachrichtigt, ohne) = d.Einladen(p.Aktuell, t, b, kurz, daten.SchuelerIds ?? new(), daten.Text, daten.Verpflichtend ?? false);
             prot.Schreiben(b.Login, "Sprechtag: Einladungen", $"{t.Name} {kurz}: {neu} neu, {benachrichtigt} Konten benachrichtigt");
             return Results.Json(new { neu, benachrichtigt, ohneKonto = ohne });
         });
@@ -530,7 +530,7 @@ public static class SprechtagApi
                         return new
                         {
                             l.Kurz, l.Name, l.Faecher, l.Klassenleitung, l.Raum, abgesagt = lk?.Abgesagt.Length > 0,
-                            eingeladen = einladung != null, einladungText = einladung?.Text ?? "",
+                            eingeladen = einladung != null, einladungText = einladung?.Text ?? "", verpflichtend = einladung?.Verpflichtend ?? false,
                             termin = termin is null ? null : new { termin.Id, termin.Beginn, termin.Ende },
                             dauer = Sprechtagdienst.DauerVon(t, l.Kurz), online = lk?.Online == true,
                             ausgebucht = termin is null && lk?.Abgesagt.Length == 0 && !raster.Any(x => x.Status == "frei"),

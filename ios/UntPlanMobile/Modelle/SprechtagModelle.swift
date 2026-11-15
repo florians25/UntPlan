@@ -358,6 +358,8 @@ struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
     var abgesagt: Bool
     var eingeladen: Bool
     var einladungText: String
+    /// Einladung mit Priorität „verpflichtend“ (sonst „erwünscht“)
+    var verpflichtend: Bool
     var termin: SprechtagTerminKurz?
     var zeitfenster: [SprechtagFreiesFenster]
     var dauer: Int
@@ -367,7 +369,7 @@ struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
     var id: String { kurz }
 
     enum CodingKeys: String, CodingKey {
-        case kurz, name, faecher, klassenleitung, raum, abgesagt, eingeladen, einladungText, termin, zeitfenster
+        case kurz, name, faecher, klassenleitung, raum, abgesagt, eingeladen, einladungText, verpflichtend, termin, zeitfenster
         case dauer, online, ausgebucht
     }
 
@@ -383,6 +385,7 @@ struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
         abgesagt = c.wahr(.abgesagt)
         eingeladen = c.wahr(.eingeladen)
         einladungText = c.text(.einladungText)
+        verpflichtend = c.wahr(.verpflichtend)
         termin = c.optional(.termin)
         zeitfenster = c.liste(.zeitfenster)
         dauer = c.zahl(.dauer) ?? 0

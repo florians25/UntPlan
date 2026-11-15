@@ -198,6 +198,25 @@ public class SprechtagTests
     }
 
     [Fact]
+    public async Task Verpflichtende_Einladung_mit_Prioritaet()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var kind = stand.Schueler.First(x => x.Klasse == "7a");
+        var admin = await s.AlsAsync("admin");
+        var lan = await s.AlsAsync("lan", "lehrer", "LAN");
+        var (eltern, elternId) = await ElternAsync(s, admin, "eltern-v", kind.Id);
+        var id = await AnlegenAsync(admin, Daten(anmeldungVon: "2026-10-16T08:00", einladungBis: "2026-10-15T20:00"));
+        string Url(string pfad = "") => $"/api/app/sprechtag/{id}{pfad}";
+        await Testserver.JsonAsync(await lan.PostAsJsonAsync(Url("/einladungen"), new { schuelerIds = new[] { kind.Id }, verpflichtend = true }));
+        var einladung = Assert.Single((await Testserver.HolenAsync(lan, Url("/lehrkraft")))["einladungen"]!.AsArray())!;
+        Assert.True(einladung["verpflichtend"]!.GetValue<bool>());
+        Assert.StartsWith("Verpflichtende Einladung", s.Dienst<Mitteilungsdienst>().Posteingang(elternId).Single().Betreff);
+        var lanZeile = (await Testserver.HolenAsync(eltern, Url("/eltern")))["kinder"]![0]!["lehrkraefte"]!.AsArray().Single(l => l!["kurz"]!.GetValue<string>() == "LAN")!;
+        Assert.True(lanZeile["verpflichtend"]!.GetValue<bool>());
+    }
+
+    [Fact]
     public async Task Einladungen_per_Mitteilung_und_Anmeldephase()
     {
         await using var s = await Testserver.StartenAsync();

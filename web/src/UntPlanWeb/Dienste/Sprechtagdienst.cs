@@ -90,8 +90,8 @@ public sealed record SprechtagWarteplatz(int Id, int SprechtagId, string Lehrer,
 public sealed record SprechtagTermin(int Id, int SprechtagId, string Lehrer, string Beginn, string Ende, int SchuelerId, int? BenutzerId, string Bemerkung,
     string Quelle, string Erstellt);
 
-/// <summary>Einladung einer Lehrkraft an die Erziehungsberechtigten einer Schülerin bzw. eines Schülers.</summary>
-public sealed record SprechtagEinladung(int Id, int SprechtagId, string Lehrer, int SchuelerId, string Text, string Erstellt, int Benachrichtigt);
+/// <summary>Einladung einer Lehrkraft an die Erziehungsberechtigten einer Schülerin bzw. eines Schülers; Priorität „erwünscht“ bzw. „verpflichtend“.</summary>
+public sealed record SprechtagEinladung(int Id, int SprechtagId, string Lehrer, int SchuelerId, string Text, string Erstellt, int Benachrichtigt, bool Verpflichtend = false);
 
 /// <summary>Zeitfenster einer Lehrkraft: <c>frei</c>, <c>gebucht</c> oder <c>gesperrt</c>.</summary>
 public sealed record SprechtagSlot(string Beginn, string Ende, string Status, SprechtagTermin? Termin);
@@ -896,14 +896,15 @@ public sealed class Sprechtagdienst
     // ------------------------------------------------------------------------------------------ Einladungen
 
     public List<SprechtagEinladung> Einladungen(int id) => _db.Liste("SELECT * FROM sprechtag_einladungen WHERE sprechtag_id = @id ORDER BY id",
-        r => new SprechtagEinladung(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("schueler_id"), r.Text("text"), r.Text("erstellt"), r.Zahl("benachrichtigt")),
+        r => new SprechtagEinladung(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("schueler_id"), r.Text("text"), r.Text("erstellt"), r.Zahl("benachrichtigt"), r.Zahl("verpflichtend") != 0),
         Db.P("@id", id));
 
     /// <summary>
     /// Einladungen versenden: je Schüler*in eine Einladung und eine Mitteilung an alle Elternkonten des Kindes (bereits eingeladene werden
     /// übersprungen). Liefert die Zahl neuer Einladungen, benachrichtigter Konten und der Kinder ohne Elternkonto.
     /// </summary>
-    public (int Neu, int Benachrichtigt, List<string> OhneKonto) Einladen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, IEnumerable<int> schuelerIds, string? text)
+    public (int Neu, int Benachrichtigt, List<string> OhneKonto) Einladen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, IEnumerable<int> schuelerIds, string? text,
+        bool verpflichtend = false)
     {
         var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
         if (!t.Sichtbar) throw new ArgumentException("Der Sprechtag ist noch nicht freigegeben.");
@@ -929,12 +930,12 @@ public sealed class Sprechtagdienst
             {
                 var von = Zeitpunkt(t.AnmeldungVon);
                 var bis = Zeitpunkt(t.AnmeldungBis);
-                var nachricht = $"{lehrerName} lädt Sie zum Sprechtag „{t.Name}“ am {Plandienst.Wochentage[Plandienst.TagIndex(datum)]}, {datum:dd.MM.yyyy} zu einem Gespräch über " +
+                var nachricht = $"{lehrerName} lädt Sie zum Sprechtag „{t.Name}“ am {Plandienst.Wochentage[Plandienst.TagIndex(datum)]}, {datum:dd.MM.yyyy} zu einem {(verpflichtend ? "verpflichtenden " : "")}Gespräch über " +
                     $"{k.Vorname} {k.Name} (Klasse {k.Klasse}) ein.\n\nBitte buchen Sie im Anmeldezeitraum vom {von:dd.MM.yyyy HH:mm} bis {bis:dd.MM.yyyy HH:mm} Uhr " +
                     "unter „Sprechtag“ einen freien Termin." + (Beteiligt(t, l.Lehrer)?.Raum is { Length: > 0 } raum ? $"\nRaum: {raum}" : "") + (zusatz.Length > 0 ? $"\n\n{zusatz}" : "");
                 try
                 {
-                    _mitteilungen.Benachrichtigen(ich, eltern.Select(e => e.Id), $"Einladung zum Sprechtag: {k.Vorname} {k.Name}", nachricht);
+                    _mitteilungen.Benachrichtigen(ich, eltern.Select(e => e.Id), $"{(verpflichtend ? "Verpflichtende " : "")}Einladung zum Sprechtag: {k.Vorname} {k.Name}", nachricht);
                     gesendet = eltern.Count;
                 }
                 catch (ArgumentException) { gesendet = 0; }
@@ -942,8 +943,9 @@ public sealed class Sprechtagdienst
             if (gesendet == 0) ohne.Add($"{k.Vorname} {k.Name} ({k.Klasse})");
             try
             {
-                _db.Ausfuehren("INSERT INTO sprechtag_einladungen (sprechtag_id, lehrer, schueler_id, text, erstellt, benachrichtigt) VALUES (@s, @l, @k, @t, @z, @b)",
-                    Db.P("@s", t.Id), Db.P("@l", l.Lehrer), Db.P("@k", k.Id), Db.P("@t", zusatz), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@b", gesendet));
+                _db.Ausfuehren("INSERT INTO sprechtag_einladungen (sprechtag_id, lehrer, schueler_id, text, erstellt, benachrichtigt, verpflichtend) VALUES (@s, @l, @k, @t, @z, @b, @v)",
+                    Db.P("@s", t.Id), Db.P("@l", l.Lehrer), Db.P("@k", k.Id), Db.P("@t", zusatz), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@b", gesendet),
+                    Db.P("@v", verpflichtend ? 1 : 0));
                 neu++;
                 benachrichtigt += gesendet;
             }

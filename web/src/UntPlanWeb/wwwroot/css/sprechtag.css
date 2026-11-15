@@ -41,7 +41,7 @@
 .st-raum .u-feld { max-width: 280px; }
 .st-einladen-felder { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; align-items: end; margin-bottom: 14px; }
 .st-einladen-felder .st-textfeld { grid-column: 1 / -1; }
-.st-einladen-felder .nl-hinzu { grid-column: 1 / -1; justify-self: start; }
+.st-einladen-felder .st-einladen-knoepfe { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; justify-self: start; }
 @media (max-width: 575.98px) { .st-einladen-felder { grid-template-columns: minmax(0, 1fr); } }
 .st-einladungen { max-height: 420px; overflow-y: auto; }
 .st-n { font-size: .95rem; }
@@ -143,3 +143,29 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 .st-ankuendigung b { font-weight: 500; color: var(--u-titel); }
 .st-start-chip { margin-left: 6px; vertical-align: middle; height: 20px; font-size: .72rem; }
 .st-link { font-size: .85rem; overflow-wrap: anywhere; }
+
+/* Eltern: „Termine wählen“ als Raster (Zeitfenster × Lehrkräfte) im neuen Design */
+.st-ansicht { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 12px; }
+.st-wahl { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; padding: 12px 16px 16px; align-items: start; }
+@media (max-width: 767.98px) { .st-wahl { grid-template-columns: minmax(0, 1fr); } }
+.st-matrix { overflow-x: auto; }
+.st-matrix table { border-collapse: separate; border-spacing: 3px; }
+.st-matrix th { font-weight: 500; font-size: .8125rem; color: #24323d; text-align: center; padding: 4px 6px; white-space: nowrap; }
+.st-matrix thead th { border-radius: 8px 8px 0 0; }
+.st-matrix thead th.gebucht { background: #e3f4ea; }
+.st-matrix thead th i { margin-left: 4px; font-size: .75rem; }
+.st-matrix thead th i.rot { color: #d1343b; } .st-matrix thead th i.lila { color: #7c5cc4; }
+.st-matrix th.st-mzeit { color: #67747e; font-weight: 500; text-align: right; padding-right: 8px; }
+.st-matrix td { padding: 0; }
+.st-zelle { display: flex; align-items: center; justify-content: center; width: 52px; height: 30px; border: 0; border-radius: 8px; background: #eef0f3; color: #fff; }
+.st-zelle.frei { background: #f2f4f6; box-shadow: inset 0 0 0 1px #dfe3e8; cursor: pointer; transition: background .12s, box-shadow .12s; }
+.st-zelle.frei:hover, .st-zelle.frei:focus-visible { background: #e3f4ea; box-shadow: inset 0 0 0 1.5px #1f9d55; outline: none; }
+.st-zelle.gebucht { background: #1f9d55; cursor: pointer; font-size: 1rem; }
+.st-zelle.gebucht:disabled { cursor: default; }
+.st-zelle.leer { background: #e4e7ea; opacity: .55; }
+.st-zelle.konflikt { background: repeating-linear-gradient(135deg, #f2f4f6 0 6px, #e4e7ea 6px 12px); }
+.st-wahl-termine { background: #f7f8fa; border-radius: 12px; padding: 12px 14px; }
+.st-wahl-termine h3 { font-size: .875rem; font-weight: 500; color: #24323d; margin: 0 0 8px; }
+.st-wahl-termin { display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 8px; font-size: .8125rem; padding: 6px 0; border-top: 1px solid #e4e7ea; }
+.st-wahl-termin:first-of-type { border-top: 0; }
+.st-wahl-termin .nl-unter { grid-column: 2; }
