@@ -120,3 +120,16 @@
 .kbe-max input[type="number"] { width: 76px; }
 .kbe-zwischen { font-size: .85rem; color: var(--u-grau); }
 @media (max-width: 575.98px) { .kbe-max > span:first-child { width: 100%; } .kbe-reiter { border-radius: 14px; } }
+
+/* Stundenplaneinstellungen: Elemente auf dem Stundenkärtchen, Tage, Stundenbeschriftung */
+.pf-elemente { display: flex; flex-direction: column; gap: 8px; }
+.pf-element { display: grid; grid-template-columns: 24px minmax(0, 1.4fr) minmax(0, 1fr) auto auto; align-items: center; gap: 8px; max-width: 640px; }
+.pf-element .form-select { height: 36px; }
+.pf-nr { font-size: .85rem; color: var(--u-grau); text-align: right; }
+.pf-tage { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.pf-tage button { width: 40px; height: 34px; border: 1px solid var(--u-linie); border-radius: 999px; background: #fff; color: var(--u-titel); font-size: .85rem; }
+.pf-tage button.an { background: var(--u-akzent); border-color: var(--u-akzent); color: #fff; }
+.pf-checks { display: flex; flex-direction: column; gap: 6px; font-size: .9rem; }
+.pf-checks label { display: inline-flex; align-items: center; gap: 8px; }
+.pf-liste td { vertical-align: middle; }
+@media (max-width: 575.98px) { .pf-element { grid-template-columns: 20px minmax(0, 1fr) auto auto; } .pf-element [data-e-name] { grid-column: 2; } }

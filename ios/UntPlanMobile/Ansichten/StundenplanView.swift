@@ -1535,8 +1535,8 @@ struct Rasterrahmen: Equatable {
         self.tagesansicht = tagesansicht
         self.kompakt = kompakt
         self.untenFrei = untenFrei
-        // Stundennummern („1.“) immer (ausdrücklicher Wunsch), wie in den dunklen Vorlagen
-        self.stundenNummern = true
+        // Stundennummern („1.“) immer (ausdrücklicher Wunsch), wie in den dunklen Vorlagen – außer das Stundenplanformat blendet sie aus
+        self.stundenNummern = leitplan.format?.stundennummer ?? true
     }
 
     static func == (l: Rasterrahmen, r: Rasterrahmen) -> Bool {

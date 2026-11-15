@@ -36,6 +36,7 @@ const ANSICHTEN = {
   sprechtag: () => import('./ansichten/sprechtag.js'),
   hinweise: () => import('./ansichten/hinweise.js'),
   kbeinstellungen: () => import('./ansichten/kbeinstellungen.js'),
+  planeinstellungen: () => import('./ansichten/planeinstellungen.js'),
 };
 
 const app = document.getElementById('app');
@@ -450,6 +451,7 @@ function menue() {
       { nav: 'admin-sperren', href: '#/admin/sperren', text: 'Prüfungssperren', icon: 'sperre' },
       { nav: 'admin-verspaetung', href: '#/admin/verspaetung', text: 'Verspätungen & Fehlzeiten', icon: 'abwesenheiten' },
       { nav: 'admin-ansicht', href: '#/admin/ansicht', text: 'Ansichtseinstellungen', icon: 'ansicht' },
+      { nav: 'planeinstellungen', href: '#/planeinstellungen', text: 'Stundenplaneinstellungen', icon: 'stundenplan' },
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
       { nav: 'admin-protokoll', href: '#/admin/protokoll', text: 'Protokoll', icon: 'protokoll' },
     ] });
@@ -783,7 +785,7 @@ const WEISSER_KOPF = {
   abwesenheiten: { suche: true, h: [60, 110, 174] }, fehlzeiten: { suche: true, h: [112, 112, 314] }, eintraege: { suche: true, h: [60, 60, 142] },
   dienste: { suche: true, h: [60, 60, 192] }, befreiungen: { suche: true, titel: 'Befreiungen vom Unterricht', h: [60, 60, 142] },
   berichte: { suche: true, h: [80, 134, 200] }, entschuldigen: { suche: true, titel: 'Fehlzeiten', h: [60, 110, 174] },
-  kbeinstellungen: { suche: false, titel: 'Klassenbuch-Einstellungen' }, 'kbeinstellungen-unterricht': { suche: false, titel: 'Unterricht-Einstellungen' },
+  kbeinstellungen: { suche: false, titel: 'Klassenbuch-Einstellungen' }, planeinstellungen: { suche: false, titel: 'Stundenplaneinstellungen' }, 'kbeinstellungen-unterricht': { suche: false, titel: 'Unterricht-Einstellungen' },
 };
 const kopfStufe = () => innerWidth >= 1300 ? 0 : innerWidth >= 768 ? 1 : 2;
 const kopfSchluessel = nav => `untplan:kopfhoehe:${nav}:${kopfStufe()}`;

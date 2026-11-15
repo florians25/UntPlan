@@ -430,8 +430,9 @@ public class KartenSprint27Tests
         Assert.Contains("const klassenTeil = alleKlassen.length ? wertKopf(alleKlassen, 6,", sd);
         // Uhrzeiten auf den Karten: links nur Stundennummern
         var js = Datei("js", "plangitter.js");
-        Assert.Contains("if (!kartenZeiten) html += `<div class=\"tt-zeit beginn\"", js);
-        Assert.Contains("if (!kartenZeiten) html += `<div class=\"tt-zeit ende\"", js);
+        Assert.Contains("if (mitZeiten) html += `<div class=\"tt-zeit beginn\"", js);
+        Assert.Contains("if (mitZeiten) html += `<div class=\"tt-zeit ende\"", js);
+        Assert.Contains("const mitZeiten = !kartenZeiten && plan.format?.zeiten !== false;", js);
         var css = Datei("css", "karten.css");
         Assert.Contains(".std.vorgemerkt, .std.lehrer-abwesend, .std.bereitschaft { background: #f1f5f8 !important; }", css);
         Assert.Contains(".tt .aufsicht::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; }", css);

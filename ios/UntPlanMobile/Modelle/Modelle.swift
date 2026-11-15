@@ -619,6 +619,30 @@ struct Zeit: Decodable, Identifiable, Sendable {
 }
 
 /// GET /api/app/plan?typ=…&element=…&datum=…
+/// Stundenplanformat (Administration → Stundenplaneinstellungen): Elemente auf dem Kärtchen und Anzeigeoptionen.
+struct Planformat: Decodable, Sendable, Hashable {
+    struct Element: Decodable, Sendable, Hashable {
+        var art: String
+        var name: String
+    }
+    var name: String
+    var details: Bool
+    var zeiten: Bool
+    var stundennummer: Bool
+    var elemente: [Element]
+
+    enum CodingKeys: String, CodingKey { case name, details, zeiten, stundennummer, elemente }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        details = (try? c.decode(Bool.self, forKey: .details)) ?? true
+        zeiten = (try? c.decode(Bool.self, forKey: .zeiten)) ?? true
+        stundennummer = (try? c.decode(Bool.self, forKey: .stundennummer)) ?? true
+        elemente = (try? c.decode([Element].self, forKey: .elemente)) ?? []
+    }
+}
+
 struct Wochenplan: Decodable, Sendable {
     var typ: String
     var element: String
@@ -636,8 +660,12 @@ struct Wochenplan: Decodable, Sendable {
     /// Eigene Abwesenheiten im eigenen Plan (nil = älterer Server ohne das Feld – dann aus Tageshinweisen bzw.
     /// „Meine Abwesenheiten“)
     var abwesenheiten: [PlanAbwesenheit]?
+    /// Stundenplanformat der Administration (nil = Standarddarstellung)
+    var format: Planformat?
+    /// Langnamen je Art („klasse“, „lehrer“, „raum“, „fach“) und Kürzel – nur mit Format
+    var langnamen: [String: [String: String]]
 
-    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten, gesperrt, sperrhinweis, abwesenheiten }
+    enum CodingKeys: String, CodingKey { case typ, element, name, montag, woche, zeitraster, tage, karten, aufsichten, gesperrt, sperrhinweis, abwesenheiten, format, langnamen }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -658,6 +686,8 @@ struct Wochenplan: Decodable, Sendable {
         } else {
             abwesenheiten = nil
         }
+        format = try? c.decodeIfPresent(Planformat.self, forKey: .format)
+        langnamen = (try? c.decodeIfPresent([String: [String: String]].self, forKey: .langnamen)) ?? [:]
         if gesperrt {
             karten = []
             aufsichten = []

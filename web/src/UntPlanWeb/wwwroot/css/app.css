@@ -658,6 +658,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .tt-liste .eintrag { display: flex; gap: .75rem; align-items: stretch; }
 .tt-liste .zeit { width: 64px; flex: none; font-size: 12px; color: var(--u-grau-2); padding-top: 8px; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .tt-liste .zeit b { display: block; color: #414d55; font-size: 13px; font-weight: 600; }
+.std.ohne-details { cursor: default; }
 .tt-liste .std { position: relative; flex: 1; min-width: 0; min-height: 52px; box-shadow: none; border: 1px solid #e3e7eb; }
 .tt-liste .std.geaendert, .tt-liste .std.offen, .tt-liste .std.entfall, .tt-liste .std.klausur, .tt-liste .std.veranstaltung, .tt-liste .std.abwesend { border-color: transparent; }
 .tt-liste .aufsicht { position: relative; left: auto; right: auto; flex: 1; height: 30px; font-size: 12px; box-shadow: none; border: 1px solid #e3e7eb; }

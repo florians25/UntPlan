@@ -92,6 +92,7 @@ public sealed record Karte(
         get
         {
             var m = new List<string>();
+            if (OhneMarker) return m;
             var verlegung = Verlegung;
             if (verlegung == "von") m.Add("verlegungVon");
             else if (verlegung == "nach") m.Add("verlegungNach");
@@ -116,6 +117,8 @@ public sealed record Karte(
     /// (Klassenbuch). Sind alle Klassen abwesend, entfällt die Stunde („Klasse abwesend“).
     /// </summary>
     public List<string> AbwesendeKlassen { get; init; } = new();
+    /// <summary>Stundenplanformat ohne Hervorhebung: keine Symbole oben rechts.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool OhneMarker { get; init; }
     /// <summary>Hinweis zur abwesenden Klasse für Details bzw. Entfall, z. B. „abwesend“ bzw. „abwesend – Exkursion“ (Grund nur fürs Kollegium).</summary>
     public string AbwesendText { get; init; } = "";
     /// <summary>
@@ -197,6 +200,10 @@ public sealed record Wochenplan(string Typ, string Element, string Name, string 
 {
     /// <summary>Woche außerhalb des Planfensters der Rolle: leeres Raster (keine Karten, Aufsichten, Hinweise) mit <see cref="Sperrhinweis"/>.</summary>
     public bool Gesperrt { get; init; }
+    /// <summary>Zugeordnetes Stundenplanformat (null = Standarddarstellung), siehe <see cref="Planformatdienst"/>.</summary>
+    public Planformat? Format { get; init; }
+    /// <summary>Langnamen der Elemente im Plan je Art (klasse, lehrer, raum, fach) – nur mit Format.</summary>
+    public Dictionary<string, Dictionary<string, string>>? Langnamen { get; init; }
     public string? Sperrhinweis { get; init; }
     /// <summary>
     /// Eigene Abwesenheiten im eigenen Plan („Mein Stundenplan“): Lehrkraft (Absenzen aus UntPlan) bzw. Schüler*in (Abwesenheiten aus dem

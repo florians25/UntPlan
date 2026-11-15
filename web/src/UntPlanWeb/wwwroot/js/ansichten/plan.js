@@ -242,7 +242,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeiten, aufsichten: einst.aufsichten })}
       ${legendeHtml(aus, einst)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
-    kartenBinden(inhalt, plan.karten, kontext, typ);
+    kartenBinden(inhalt, plan.karten, kontext, typ, plan.format);
     legendeBinden(inhalt, aus, einst, () => zeichnen(true));
     if (menueOffen) inhalt.querySelector('[data-legende-menue]')?.classList.remove('d-none');
   };

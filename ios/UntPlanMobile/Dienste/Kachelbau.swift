@@ -169,7 +169,9 @@ struct Kachel: Identifiable {
     var stamm: UUID? = nil
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
-    var antippbar: Bool { art != .ganztagTermin }
+    var antippbar: Bool { art != .ganztagTermin && !ohneDetails }
+    /// Stundenplanformat ohne „Zugriff auf Stundendetails“: die Stunde lässt sich nicht öffnen
+    var ohneDetails = false
 
     var dauer: Int { max(1, bis - von + 1) }
 
@@ -296,7 +298,46 @@ enum Kachelbau {
         for i in kacheln.indices {
             kacheln[i].vergangen = istVergangen(kacheln[i], jetzt: jetzt)
         }
+        // Stundenplanformat der Administration: Zeilen in dessen Reihenfolge und Namensform
+        if let format = plan.format, !format.elemente.isEmpty {
+            for i in kacheln.indices where kacheln[i].art != .aufsicht && kacheln[i].art != .termin && kacheln[i].art != .ganztagTermin {
+                kacheln[i].zeilen = formatZeilen(kacheln[i], format: format, namen: plan.langnamen)
+            }
+        }
+        if plan.format?.details == false {
+            for i in kacheln.indices where kacheln[i].art != .aufsicht { kacheln[i].ohneDetails = true }
+        }
         return kacheln
+    }
+
+    /// Kachelzeilen nach Stundenplanformat: je Element (Klasse, Lehrkraft, Fach, Raum, Notizen) die vorhandene Zeile – Labels bleiben –,
+    /// Kürzel durch Langname bzw. „Langname (Kurzname)“ ersetzt; das erste Element fett oben. Ohne passende Zeile bleibt die Kachel unverändert.
+    static func formatZeilen(_ kachel: Kachel, format: Planformat, namen: [String: [String: String]]) -> [Kachelzeile] {
+        let vorhanden = kachel.zeilen
+        func benannt(_ zeile: Kachelzeile, art: String, form: String) -> Kachelzeile {
+            guard form != "kurz", let tabelle = namen[art] else { return zeile }
+            var z = zeile
+            z.teile = z.teile.map { t in
+                var n = t
+                if let lang = tabelle[t.text] ?? tabelle.first(where: { $0.key.caseInsensitiveCompare(t.text) == .orderedSame })?.value {
+                    n.text = form == "lang" ? lang : "\(lang) (\(t.text))"
+                }
+                return n
+            }
+            return z
+        }
+        var neu: [Kachelzeile] = []
+        for el in format.elemente {
+            if el.art == "notiz" {
+                let notiz = kachel.karte?.notizSchueler.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !notiz.isEmpty { neu.append(Kachelzeile(schluessel: "notiz", teile: [Kachelteil(text: notiz)])) }
+                continue
+            }
+            if let z = vorhanden.first(where: { $0.schluessel == el.art }) { neu.append(benannt(z, art: el.art, form: el.name)) }
+        }
+        guard !neu.isEmpty else { return vorhanden }
+        for i in neu.indices { neu[i].fett = i == 0 }
+        return neu
     }
 
     // MARK: Karte → Kachel
