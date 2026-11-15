@@ -14,6 +14,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Tag - Klassen/Lehrkräfte/Räume wie in der Vorlage: je Element eine Spalte mit senkrechter Zeitachse und denselben Karten wie im Wochenplan (waagrecht scrollbar); oben links blendet ein runder Knopf leere Spalten aus bzw. ein („Leere Spalten anzeigen“), die Wahl bleibt gespeichert.
+- Nebeneinanderstehende Knöpfe sind immer gleich groß (z. B. „Filter zurücksetzen“ neben „Raum buchen“, „Export“ neben „Neue Buchung“).
+- Gekürzte Texte auf den Karten, die beim Überfahren vollständig erscheinen, sind währenddessen leicht grau hinterlegt.
 - Einstellungsseiten nutzen die volle Seitenbreite; der Haken sitzt genau mittig im orangen Kreis (auch bei allen übrigen Häkchen).
 - Stundenplan-Menü wie in der Vorlage: kein „Vertretungsplan“ mehr (die Seite bleibt über die Übersicht erreichbar); dafür „Einstellungen“ (Stundenplaneinstellungen, Administration) direkt im Stundenplanmodul statt unter Administration.
 - Zugriff ent-/sperren: derselbe Schalter wie „Findet online statt“ (grau aus, orange an).

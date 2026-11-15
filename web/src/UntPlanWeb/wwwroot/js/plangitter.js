@@ -518,7 +518,8 @@ const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e
 export const tagKopf = (i, iso) => { const [, m, t] = iso.split('-'); return `${WOCHENTAGE_KURZ[i] ?? ''} ${t}.${m}.`; };
 
 /** Wochenraster als HTML. plan: Antwort von /api/app/plan; gewaehlterTag: Index für die Mobilansicht. */
-export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false } = {}) {
+export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false, ecke = '' } = {}) {
+  // Tagesansicht (Tag - Klassen/Lehrkräfte/Räume): je Element eine Spalte (t.spalte, Beschriftung t.titel); Karten über k.spalte
   const alle = plan.zeitraster.filter(z => z.beginn && z.ende);
   if (!alle.length) return '<div class="alert alert-secondary">Kein Zeitraster übertragen.</div>';
   // Raster immer vollständig (alle Stunden des Zeitrasters), wie im Original
@@ -536,9 +537,11 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
   const hinweise = t => t.hinweise.filter(h => !/^(abwesend|raum gesperrt|klasse abwesend)\b/i.test(h));
   const mitLeiste = tage.some(t => hinweise(t).length);
 
-  let html = `<div class="tt" style="--tage:${tage.length}"><div class="tt-ecke"></div>`;
+  const spaltenModus = tage.some(t => t.spalte);
+  let html = `<div class="tt ${spaltenModus ? 'tt-spalten' : ''}" style="--tage:${tage.length}"><div class="tt-ecke">${ecke}</div>`;
   tage.forEach((t, i) => {
-    html += `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''} ${i === plan.tage.length - 1 ? 'letzter' : ''}">${e(tagKopf(i, t.datum))}</div>`;
+    html += spaltenModus ? `<div class="tt-tag ${i === tage.length - 1 ? 'letzter' : ''}" title="${e(t.name || t.titel)}">${e(t.titel)}</div>`
+      : `<div class="tt-tag ${t.datum === heute ? 'heute' : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''} ${i === plan.tage.length - 1 ? 'letzter' : ''}">${e(tagKopf(i, t.datum))}</div>`;
   });
   if (mitLeiste) {
     html += '<div class="tt-ecke"></div>';
@@ -569,7 +572,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false 
     if (t.frei) html += freiUeberlagerung(t);
     // eigene Abwesenheit: graue Fläche hinter den Stunden (wird nach den Karten berechnet und hier eingefügt)
     const vorKarten = html.length, belegt = [];
-    const karten = plan.karten.filter(k => k.datum === t.datum && index.has(k.von));
+    const karten = plan.karten.filter(k => (t.spalte ? k.spalte === t.spalte : k.datum === t.datum) && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
       .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: ['aenderung'],
@@ -652,8 +655,11 @@ function hoverZeigen(ziel, anker = ziel) {
   clearTimeout(hoverTimer);
   if (!hoverEl) { hoverEl = document.createElement('div'); hoverEl.className = 'u-hover-label'; hoverEl.setAttribute('role', 'tooltip'); document.body.append(hoverEl); }
   if (hoverZiel === ziel && hoverEl.style.display && hoverEl.style.display !== 'none') return;   // ruhig stehen lassen, kein Flackern beim Bewegen
+  hoverZiel?.classList.remove('hover-markiert');
   hoverZiel = ziel;
   const zeile = ziel.classList.contains('z1') || ziel.classList.contains('z2');
+  // gekürzter Text mit Hover: während des Hovers leicht hinterlegt (wie in der Vorlage)
+  if (zeile) ziel.classList.add('hover-markiert');
   let pillen = null;
   if (zeile && ziel.dataset.pillen) try { pillen = JSON.parse(ziel.dataset.pillen); } catch { pillen = null; }
   if (!pillen && ziel.dataset.hoverPillen) pillen = ziel.dataset.hoverPillen.split(',').map(t => ({ t }));
@@ -679,7 +685,7 @@ function hoverZeigen(ziel, anker = ziel) {
 }
 function hoverVerbergen(sofort = false) {
   clearTimeout(hoverTimer);
-  const weg = () => { if (hoverEl) hoverEl.style.display = 'none'; hoverZiel = null; };
+  const weg = () => { if (hoverEl) hoverEl.style.display = 'none'; hoverZiel?.classList.remove('hover-markiert'); hoverZiel = null; };
   if (sofort) weg(); else hoverTimer = setTimeout(weg, 80);
 }
 /** Kartenzeile gekürzt (Text bzw. Werteliste endet mit „…“)? */

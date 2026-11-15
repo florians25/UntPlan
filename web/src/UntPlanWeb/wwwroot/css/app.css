@@ -2003,3 +2003,12 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-marke b { font-size: 21px; font-weight: 500; line-height: 1.2; }
 .u-leiste .u-marke small { display: block; margin-top: 2px; font-size: 14.2px; text-transform: none; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
 .u-leiste:not(.mit-unter) .u-jahrzeile { padding-top: 15px; padding-bottom: 13px; }
+
+/* Tag - Klassen/Lehrkräfte/Räume wie in der Vorlage: Elemente als Spalten (mind. 140 px, waagrecht scrollbar), Knopf „leere Spalten“ oben links */
+.tag-huelle { overflow-x: auto; padding-bottom: 8px; }
+.tag-huelle .tt.tt-spalten { grid-template-columns: 54px repeat(var(--tage), minmax(140px, 1fr)); min-width: calc(54px + var(--spalten) * 152px); }
+.tt-spalten .tt-tag { font-size: 1rem; font-weight: 500; color: #8a96a1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-spalten > .tt-ecke { display: flex; align-items: center; justify-content: center; }
+.tt-leer-knopf { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: #8a96a1; font-size: 1rem; cursor: pointer; }
+.tt-leer-knopf:hover, .tt-leer-knopf.aus { background: #dfe3e7; color: #414d55; }
+.tag-filter { width: 200px; border-radius: 999px; }

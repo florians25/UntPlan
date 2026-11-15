@@ -208,3 +208,7 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .form-switch .form-check-input:checked {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23f56b2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4.3 8.2l2.5 2.5 4.9-5.2'/%3E%3C/svg%3E");
   background-size: 14px; background-position: center; }
+
+/* Nebeneinanderstehende Knöpfe immer gleich groß: ein Umrissknopf neben einem orangen Hauptknopf übernimmt dessen Höhe und Schrift */
+:has(> .nl-hinzu) > .nl-knopf { height: 42px; padding: 0 22px; font-size: 1rem; }
+:has(> .nl-hinzu) > .nl-hinzu, :has(> .nl-hinzu) > .nl-knopf { flex: none; }
