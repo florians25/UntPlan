@@ -38,17 +38,6 @@ public class PdfAusrichtungTests
         await using var s = await Testserver.StartenAsync();
         var admin = await s.AlsAsync("admin");
         var lan = await s.AlsAsync("lan", "lehrer", "LAN");
-        var id = (await Testserver.JsonAsync(await admin.PostAsJsonAsync("/api/app/sprechtag", new
-        {
-            name = "Sprechtag", datum = "2026-10-21", beginn = "15:00", ende = "16:00", dauer = 10, pausen = Array.Empty<object>(),
-            anmeldungVon = "2026-10-10T08:00", anmeldungBis = "2026-10-20T18:00", sichtbar = true, raumwahl = false, hinweis = "",
-            lehrkraefte = new object[] { new { lehrer = "LAN", raum = "" } },
-        })))["id"]!.GetValue<int>();
-        // Terminplan der Lehrkraft: Vorgabe hoch; Gesamtplan der Administration: Vorgabe quer; jeweils umschaltbar
-        Assert.True(Hoch(await lan.GetByteArrayAsync($"/api/app/sprechtag/{id}/plan.pdf?leer=true")));
-        Assert.True(Quer(await lan.GetByteArrayAsync($"/api/app/sprechtag/{id}/plan.pdf?leer=true&ausrichtung=quer")));
-        Assert.True(Quer(await admin.GetByteArrayAsync($"/api/app/sprechtag/{id}/plan.pdf")));
-        Assert.True(Hoch(await admin.GetByteArrayAsync($"/api/app/sprechtag/{id}/plan.pdf?ausrichtung=hoch")));
         // Berichte: Vorgabe quer, hoch auf Wunsch
         var art = (await Testserver.HolenAsync(lan, "/api/app/berichte/liste")).AsArray().Select(x => x!["id"]!.GetValue<string>()).First(a => a != "entschuldigungsschreiben");
         var r = await lan.GetAsync($"/api/app/berichte/erstellen/{art}?klasse=7a&format=pdf&ausrichtung=hoch");

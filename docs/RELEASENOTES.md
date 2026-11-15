@@ -15,6 +15,15 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ### Klassenbuch – Rechte
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
+### Sprechtag (neu, ersetzt das bisherige Modul)
+- Übersicht „Sprechtage“ mit Karten je Schuljahr (Phase, Datum, Anmeldezeitraum; Löschen, Duplizieren, Bearbeiten) und „Neuer Sprechtag“ mit Auswahl des Schuljahres. Das Info-Symbol am Schuljahr erklärt die acht Phasen: Entwurf → Verwaltung LK → 1. Anmeldephase → 1. Anmeldephase beendet → 2. Anmeldephase → Anmeldung geschlossen → In Durchführung → Abgeschlossen.
+- Konfiguration in drei Schritten, laufend als Entwurf gespeichert: 1. Name, Dauer der Zeitblöcke, Online-Sprechtag; 2. Abschnitte (auch an mehreren Tagen) und die beiden Anmeldephasen (priorisiert/allgemein); 3. Rechte der Lehrkräfte (Räume wählen, Abwesenheiten, Termine bearbeiten & absagen, Termine buchen) und Buchungsregeln (Blöcke bis zur Pause, höchstens Blöcke je Schüler*in und Lehrkraft, gesperrte Blöcke zwischen zwei Terminen). „Veröffentlichen“ prüft alles und benachrichtigt die Lehrkräfte.
+- Verwaltung für die Administration: Lehrkräfte mit Suche und Filtern „Kein Raum“/„Keine Termine“, je Abschnitt Raumwahl (Gebäude | Raum) und „+“ für Einladung senden, Termin buchen, Abwesenheit eintragen; Drucken. Lehrkräfte sehen „Meine Termine“.
+- Abwesenheiten sagen überschneidende Termine automatisch ab (mit Benachrichtigung). Einladungen ohne Uhrzeit – die Eltern wählen selbst; Terminanfragen mit fester Uhrzeit nehmen sie an oder lehnen sie ab („Terminiert“ → „Versendet“ → „Akzeptiert“).
+- Erziehungsberechtigte: in der 1. Anmeldephase nur mit Einladung, ab der 2. frei bei allen Lehrkräften ihres Kindes; Terminanfragen, „Meine Termine“ nach Datum, Zeit ändern und Absagen. Schüler*innen haben keinen Zugriff mehr.
+- Erinnerungen an fehlende Räume vor der 1. Anmeldephase, Versand der Einladungen zu deren Beginn, Hinweis auf ungenutzte Einladungen zur 2. Phase; unbeantwortete Anfragen werden beim Abschluss abgesagt.
+- Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
+
 ### Web
 - Nach einem Update auf dem Server lädt die Seite beim nächsten Seitenwechsel automatisch neu – ein offener Tab zeigt nie mehr alten Code bzw. alte Stile (z. B. noch automatisches Speichern oder schmale Einstellungsseiten).
 - Notizen und Link zum Online-Unterricht speichern nur über „Speichern“ (kein automatisches Speichern).

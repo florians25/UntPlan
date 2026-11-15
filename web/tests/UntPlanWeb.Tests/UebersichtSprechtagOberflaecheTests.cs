@@ -64,26 +64,4 @@ public class UebersichtSprechtagOberflaecheTests
         // Schrift nur Regular/Medium
         Assert.DoesNotMatch(@"font-weight:\s*[6-9]00", css);
     }
-
-    [Fact]
-    public void Sprechtag_Kopf_und_Karten_haben_gleiche_Hoehen()
-    {
-        var js = Datei("js", "ansichten", "sprechtag.js");
-        var css = Datei("css", "sprechtag.css");
-        // Kopf: oben Datum, Pill und Phasentext auf einer Linie, darunter Zeiten und Zusatz
-        Assert.Contains("<div class=\"st-kopf-zeile\"><b class=\"st-kopf-datum\">${e(t.datumText)}</b>${statusChip(t, familie)}", js);
-        Assert.Contains("<div class=\"st-kopf-zeile st-kopf-unter\">", js);
-        Assert.Contains(".st-kopf-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 28px;", css);
-        // doppeltes Datum in „Meine Termine“ entfällt, Knöpfe im Kopf auf einer Linie
-        Assert.DoesNotContain("st-tag", js);
-        Assert.Contains("<span class=\"st-kopf-knoepfe\">", js);
-        // gleich hohe Kartenköpfe, gleiche Innenabstände, bündige Spalten, gleich hohe Zeilen
-        Assert.Contains(".st-karte > header { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; height: 36px; margin: 0 0 16px;", css);
-        Assert.Contains("border-radius: 10px; padding: 20px; margin-bottom: 16px;", css);
-        Assert.Contains(".st-raster { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: stretch;", css);
-        Assert.Contains(".st-links > .st-karte:last-child { flex: 1; }", css);
-        Assert.Contains(".st-einladungen td, .st-zeitraster td { height: 48px; white-space: nowrap; }", css);
-        Assert.Contains(".st-flach td { vertical-align: middle; height: 56px;", css);
-        Assert.DoesNotMatch(@"font-weight:\s*[6-9]00", css);
-    }
 }
