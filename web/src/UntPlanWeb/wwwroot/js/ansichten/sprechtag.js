@@ -159,7 +159,7 @@ async function formular(seite, kontext, id) {
   const t = vorhanden?.sprechtag ?? {
     name: 'Elternsprechtag', datum: '', beginn: '15:00', ende: '19:00', dauer: 10, pausen: [], zeitbloecke: [{ von: '15:00', bis: '17:00' }, { von: '17:15', bis: '19:00' }],
     einladungBis: '', anmeldungVon: '', anmeldungBis: '', sichtbar: false, raumwahl: false, hinweis: '', ort: '', lehrkraefte: [], reihe: [],
-    optionen: { puffer: 0, maxTermineFamilie: 0, warteliste: false, erinnerungStunden: 24, sichtbarEltern: true, sichtbarSchueler: true, ankuendigen: true },
+    optionen: { puffer: 0, maxTermineFamilie: 0, warteliste: false, erinnerungStunden: 24, sichtbarEltern: true, sichtbarSchueler: true, ankuendigen: true, abwesenheitLehrkraft: true, paralleleTermine: false },
   };
   const o = t.optionen ?? {};
   const gewaehlt = new Map(t.lehrkraefte.map(l => [l.lehrer, l]));
@@ -211,6 +211,8 @@ async function formular(seite, kontext, id) {
       <div class="row g-3">
         <div class="col-md-6">${schalter('raumwahl', t.raumwahl, 'Lehrkräfte dürfen ihren <b>Raum</b> bzw. ihren Online-Link <b>selbst wählen</b>')}</div>
         <div class="col-md-6">${schalter('warteliste', o.warteliste, '<b>Warteliste</b> bei ausgebuchten Lehrkräften (Mitteilung, sobald ein Termin frei wird)')}</div>
+        <div class="col-md-6">${schalter('abwesenheitLehrkraft', o.abwesenheitLehrkraft ?? true, '<b>Abwesenheitseingabe</b> durch die Lehrkraft erlauben (Zeitfenster selbst sperren)')}</div>
+        <div class="col-md-6">${schalter('paralleleTermine', o.paralleleTermine ?? false, 'Familien dürfen <b>parallele Termine</b> buchen (z. B. Geschwister bei verschiedenen Lehrkräften)')}</div>
         <div class="col-md-6"><label class="form-label" for="st-erinnerung">Erinnerung an Termine</label><select class="form-select" id="st-erinnerung" name="erinnerungStunden">
           ${[[0, 'keine Erinnerung'], [2, '2 Stunden vorher'], [24, '1 Tag vorher'], [48, '2 Tage vorher'], [72, '3 Tage vorher'], [168, '1 Woche vorher']].map(([w, x]) => `<option value="${w}" ${w === (o.erinnerungStunden ?? 0) ? 'selected' : ''}>${x}</option>`).join('')}</select>
           <div class="form-text">Mitteilung an Familien und Lehrkräfte mit Termin.</div></div>
@@ -335,7 +337,7 @@ async function formular(seite, kontext, id) {
       optionen: {
         puffer: Number(form.puffer.value) || 0, maxTermineFamilie: Number(form.maxTermineFamilie.value) || 0, warteliste: form.warteliste.checked,
         erinnerungStunden: Number(form.erinnerungStunden.value) || 0, sichtbarEltern: form.sichtbarEltern.checked, sichtbarSchueler: form.sichtbarSchueler.checked,
-        ankuendigen: form.ankuendigen.checked,
+        ankuendigen: form.ankuendigen.checked, abwesenheitLehrkraft: form.abwesenheitLehrkraft.checked, paralleleTermine: form.paralleleTermine.checked,
       },
       weitereTage: id ? null : tage,
       lehrkraefte: gewaehlteZeilen().map(tr => ({
@@ -470,7 +472,7 @@ async function lehrkraft(seite, kontext, id, lehrer) {
     const x = z.termin;
     const status = z.status === 'gebucht' ? '' : z.status === 'gesperrt' ? '<span class="st-abwesend">abwesend</span>' : '<span class="nl-unter">frei</span>';
     return `<tr class="st-${z.status}" data-beginn="${z.beginn}">
-      <td class="nl-wahl">${z.status === 'gebucht' ? '' : `<input type="checkbox" class="nl-rund" data-fenster="${z.beginn}" aria-label="Zeitfenster ${z.beginn} wählen">`}</td>
+      <td class="nl-wahl">${z.status === 'gebucht' || d.sperrenErlaubt === false ? '' : `<input type="checkbox" class="nl-rund" data-fenster="${z.beginn}" aria-label="Zeitfenster ${z.beginn} wählen">`}</td>
       <td><span class="st-zeit">${e(z.beginn)}</span></td>
       <td>${x ? `<span class="nl-name st-n">${e(schuelerName(x.schueler))}</span>` : status}</td>
       <td>${x ? e(x.schueler.klasse) : ''}</td>
@@ -479,8 +481,8 @@ async function lehrkraft(seite, kontext, id, lehrer) {
         ? `<button type="button" class="nl-icon sichtbar" data-verschieben="${x.id}" title="Verschieben" aria-label="Termin verschieben"><i class="bi bi-arrow-left-right"></i></button>
            <button type="button" class="nl-icon sichtbar rot" data-storno="${x.id}" title="Absagen" aria-label="Termin absagen"><i class="bi bi-x-lg"></i></button>`
         : z.status === 'frei' ? `<button type="button" class="nl-icon sichtbar" data-eintragen="${z.beginn}" title="Termin eintragen" aria-label="Termin um ${z.beginn} eintragen"><i class="bi bi-plus-lg"></i></button>
-           <button type="button" class="nl-icon sichtbar" data-sperren="${z.beginn}" title="Sperren (abwesend)" aria-label="Zeitfenster ${z.beginn} sperren"><i class="bi bi-lock"></i></button>`
-          : `<button type="button" class="nl-icon sichtbar" data-freigeben="${z.beginn}" title="Freigeben" aria-label="Zeitfenster ${z.beginn} freigeben"><i class="bi bi-unlock"></i></button>`}</td></tr>`;
+           ${d.sperrenErlaubt === false ? '' : `<button type="button" class="nl-icon sichtbar" data-sperren="${z.beginn}" title="Sperren (abwesend)" aria-label="Zeitfenster ${z.beginn} sperren"><i class="bi bi-lock"></i></button>`}`
+          : d.sperrenErlaubt === false ? '' : `<button type="button" class="nl-icon sichtbar" data-freigeben="${z.beginn}" title="Freigeben" aria-label="Zeitfenster ${z.beginn} freigeben"><i class="bi bi-unlock"></i></button>`}</td></tr>`;
   };
 
   seite.innerHTML = `${kopfInfo(t, `<span>· ${e(d.lehrer.name)}${d.lehrer.raum ? ` · Raum ${e(d.lehrer.raum)}` : ''}</span>`)}
@@ -508,9 +510,9 @@ async function lehrkraft(seite, kontext, id, lehrer) {
             <a class="nl-knopf" href="${BASIS}/${id}/plan.pdf?leer=true${qa}" data-pdf="hoch" target="_blank" rel="noopener" title="Alle Zeitfenster als PDF, z. B. zum Aushang an der Tür">${icon('printer')}Aushang</a></span></header>
         <div class="nl-tabelle st-zeitraster"><table><thead><tr><th class="nl-wahl"><span class="visually-hidden">Wahl</span></th><th>Termin</th><th>Schüler*in</th><th>Klasse</th><th>Hinweis</th><th></th></tr></thead>
           <tbody>${d.zeitfenster.map(zeile).join('')}</tbody></table>
-          <div class="nl-fuss"><span class="nl-unter" data-gewaehlt>Zeitfenster wählen, um sie zu sperren (abwesend) oder freizugeben.</span>
+          ${d.sperrenErlaubt === false ? '<div class="nl-fuss"><span class="nl-unter"><i class="bi bi-lock"></i> Abwesenheiten am Sprechtag trägt die Administration ein.</span></div></div>' : `<div class="nl-fuss"><span class="nl-unter" data-gewaehlt>Zeitfenster wählen, um sie zu sperren (abwesend) oder freizugeben.</span>
             <button type="button" class="nl-knopf rot ms-auto" data-sammel="sperren" disabled>${icon('schloss')}Sperren</button>
-            <button type="button" class="nl-knopf gruen" data-sammel="freigeben" disabled><i class="bi bi-unlock"></i>Freigeben</button></div></div>
+            <button type="button" class="nl-knopf gruen" data-sammel="freigeben" disabled><i class="bi bi-unlock"></i>Freigeben</button></div></div>`}
       </section>
     </div>`;
 
@@ -568,9 +570,11 @@ async function lehrkraft(seite, kontext, id, lehrer) {
     gew.forEach(c => c.closest('tr').classList.add('nl-gewaehlt'));
     seite.querySelectorAll('[data-fenster]:not(:checked)').forEach(c => c.closest('tr').classList.remove('nl-gewaehlt'));
     const status = gew.map(c => c.closest('tr').className);
-    seite.querySelector('[data-sammel="sperren"]').disabled = !status.some(s => s.includes('st-frei'));
-    seite.querySelector('[data-sammel="freigeben"]').disabled = !status.some(s => s.includes('st-gesperrt'));
-    seite.querySelector('[data-gewaehlt]').textContent = gew.length ? `${gew.length} Zeitfenster gewählt` : 'Zeitfenster wählen, um sie zu sperren (abwesend) oder freizugeben.';
+    const sp = seite.querySelector('[data-sammel="sperren"]'), fr = seite.querySelector('[data-sammel="freigeben"]'), gw = seite.querySelector('[data-gewaehlt]');
+    if (!sp || !fr || !gw) return;
+    sp.disabled = !status.some(s => s.includes('st-frei'));
+    fr.disabled = !status.some(s => s.includes('st-gesperrt'));
+    gw.textContent = gew.length ? `${gew.length} Zeitfenster gewählt` : 'Zeitfenster wählen, um sie zu sperren (abwesend) oder freizugeben.';
   };
   seite.querySelectorAll('[data-fenster]').forEach(c => c.onchange = auswahlNeu);
   seite.querySelectorAll('[data-sammel]').forEach(b => b.onclick = () => {

@@ -51,6 +51,10 @@ public sealed record SprechtagOptionen
     public bool Ankuendigen { get; init; } = true;
     /// <summary>Reihe mehrtägiger Sprechtage (Id des ersten Tages; 0 = keine Reihe).</summary>
     public int Reihe { get; init; }
+    /// <summary>Abwesenheitseingabe durch die Lehrkraft (Zeitfenster selbst sperren bzw. freigeben); aus = nur die Administration.</summary>
+    public bool AbwesenheitLehrkraft { get; init; } = true;
+    /// <summary>Parallele Termine: Familien dürfen sich überschneidende Termine (z. B. für Geschwister bei verschiedenen Lehrkräften) buchen.</summary>
+    public bool ParalleleTermine { get; init; }
 }
 
 /// <summary>
@@ -532,7 +536,8 @@ public sealed class Sprechtagdienst
         if (termine.Any(x => Ci.Equals(x.Lehrer, lehrer) && x.SchuelerId == schuelerId))
             throw new ArgumentException($"Für {Name(s, schuelerId)} gibt es bei dieser Lehrkraft bereits einen Termin (ein Termin je Lehrkraft und Kind).");
         var (konten, kinder) = Familie(schuelerId, konto);
-        var konflikt = termine.FirstOrDefault(x => Ueberschneidung(x.Beginn, x.Ende, beginn, ende) && (kinder.Contains(x.SchuelerId) || (x.BenutzerId is int b && konten.Contains(b))));
+        var konflikt = t.Optionen.ParalleleTermine ? null
+            : termine.FirstOrDefault(x => Ueberschneidung(x.Beginn, x.Ende, beginn, ende) && (kinder.Contains(x.SchuelerId) || (x.BenutzerId is int b && konten.Contains(b))));
         if (konflikt != null)
             throw new ArgumentException($"Überschneidung: Um {konflikt.Beginn} Uhr ist bereits ein Termin bei {LehrerName(s, konflikt.Lehrer)} für {Name(s, konflikt.SchuelerId)} eingetragen.");
     }

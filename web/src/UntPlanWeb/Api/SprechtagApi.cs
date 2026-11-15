@@ -324,6 +324,7 @@ public static class SprechtagApi
                 darfRaum = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl,
                 raeume = Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || t.Raumwahl ? (s?.Paket.Elemente.Raeume ?? new()).OrderBy(r => r.Kurz, Ci).Select(r => new { r.Kurz, r.Name }).ToList<object>() : new List<object>(),
                 einladenMoeglich = t.Sichtbar && uhr.Jetzt <= Sprechtagdienst.EinladungEnde(t),
+                sperrenErlaubt = t.Optionen.AbwesenheitLehrkraft || Rechtedienst.Darf(b, Recht.SprechtagVerwalten),
                 zeitfenster = d.Raster(t, kurz).Select(x => new { x.Beginn, x.Ende, x.Status, termin = x.Termin is null ? null : TerminJson(s, bd, x.Termin) }),
                 einladungen = einladungen.Select(e => new
                 {
@@ -348,6 +349,8 @@ public static class SprechtagApi
             var b = Ich(c);
             var t = Sichtbar(d, b, id);
             var kurz = Lehrkraft(b, t, daten.Lehrer);
+            if (!t.Optionen.AbwesenheitLehrkraft && !Rechtedienst.Darf(b, Recht.SprechtagVerwalten))
+                throw new UnauthorizedAccessException("Abwesenheiten am Sprechtag trägt die Administration ein.");
             return Results.Json(new { geaendert = d.SperrenSetzen(t, kurz, daten.Beginne ?? new(), daten.Gesperrt) });
         });
 
@@ -510,7 +513,7 @@ public static class SprechtagApi
             var eltern = b.Rolle == Rollen.Eltern;
             // eigene Familie: Termine aller eigenen Kinder und eigene Buchungen (für Überschneidungen)
             var meine = termine.Where(x => b.SchuelerIds.Contains(x.SchuelerId) || x.BenutzerId == b.Id).ToList();
-            bool Konflikt(string beginn, string ende) => meine.Any(x => Sprechtagdienst.Minuten(x.Beginn) < Sprechtagdienst.Minuten(ende) && Sprechtagdienst.Minuten(beginn) < Sprechtagdienst.Minuten(x.Ende));
+            bool Konflikt(string beginn, string ende) => !t.Optionen.ParalleleTermine && meine.Any(x => Sprechtagdienst.Minuten(x.Beginn) < Sprechtagdienst.Minuten(ende) && Sprechtagdienst.Minuten(beginn) < Sprechtagdienst.Minuten(x.Ende));
             var kinder = b.SchuelerIds.Select(i => s?.Schueler.FirstOrDefault(x => x.Id == i)).Where(x => x != null).Select(x => x!).ToList();
             var gebuchtFamilie = kinder.Count == 0 ? 0 : d.FamilienTermine(t, kinder[0].Id, b.Id);
             return Results.Json(new
