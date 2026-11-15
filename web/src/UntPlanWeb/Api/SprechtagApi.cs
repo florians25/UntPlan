@@ -16,7 +16,8 @@ namespace UntPlanWeb.Api;
 /// <item>Lehrkraft bzw. Administration (mit <c>lehrer</c>): <c>PUT /{id}/raum</c>, <c>POST /{id}/abwesenheit</c>, <c>DELETE /{id}/abwesenheit/{aid}</c>,
 /// <c>GET /{id}/schueler</c>, <c>POST /{id}/einladung</c>, <c>POST /{id}/termin</c>.</item>
 /// <item>Termine: <c>PUT /{id}/termin/{tid}</c> (ändern), <c>POST /{id}/termin/{tid}/absagen</c>, <c>/annehmen</c>, <c>/ablehnen</c>.</item>
-/// <item>Erziehungsberechtigte: <c>GET /{id}/frei</c>, <c>POST /{id}/buchen</c>.</item>
+/// <item>Erziehungsberechtigte: <c>GET /{id}/frei</c>, <c>POST /{id}/buchen</c>, <c>GET /{id}/elternplan.pdf</c>.</item>
+/// <item>PDF: <c>GET /{id}/plan.pdf</c> (Lehrkraft bzw. Gesamtplan; <c>leer=true</c> mit freien Zeilen, <c>ausrichtung=hoch|quer</c>).</item>
 /// </list>
 /// </summary>
 public static class SprechtagApi
@@ -90,6 +91,8 @@ public static class SprechtagApi
     }
 
     // ------------------------------------------------------------------------------------------ JSON
+
+    private static string Schule(Einstellungen e, Paketdienst p) => e.Schulname.Length > 0 ? e.Schulname : p.Aktuell?.Paket.Schule.Name ?? "";
 
     private static string Datum(string iso) => DateOnly.TryParse(iso, Inv, out var d) ? d.ToString("dd.MM.yyyy", Inv) : "";
     private static string Wochentag(string iso) => DateOnly.TryParse(iso, Inv, out var d) ? Plandienst.Wochentage[Plandienst.TagIndex(d)] : "";
@@ -436,6 +439,80 @@ public static class SprechtagApi
             }
             else l = Lehrkraft(b, lehrer);
             return Results.Json(d.Frei(p.Aktuell, t, l, abschnitt, kind, ausser).Select(z => new { z.Von, z.Bis }));
+        });
+
+        // ---------------------------------------------------------------- PDF
+
+        // Terminplan: Lehrkraft (eigener; Administration mit lehrer=) bzw. Gesamtplan aller Lehrkräfte (Administration ohne lehrer);
+        // leer=true listet alle Zeitblöcke (freie Zeilen zum Eintragen). Ausrichtung: Lehrkraft hoch, Gesamtplan quer (umschaltbar).
+        api.MapGet("/{id:int}/plan.pdf", (int id, string? lehrer, bool? leer, string? ausrichtung, HttpContext c, Sprechtagdienst d, Paketdienst p, Einstellungen e) =>
+        {
+            var b = Ich(c);
+            if (b.Rolle == Rollen.Eltern) throw new UnauthorizedAccessException("Nur für Lehrkräfte und Administration.");
+            var t = Sichtbar(d, b, id);
+            var s = p.Aktuell;
+            var alle = Sprechtagdienst.IstVerwaltung(b) && string.IsNullOrWhiteSpace(lehrer);
+            var termine = d.Termine(t.Id).Where(x => x.Aktiv && x.HatZeit).ToList();
+            var abw = d.Abwesenheiten(t.Id);
+            var raeume = d.Raeume(t.Id);
+            var liste = alle
+                ? (s?.Lehrer.Keys ?? Enumerable.Empty<string>()).Where(l => l is not ("---" or "???") && (termine.Any(x => Ci.Equals(x.Lehrer, l)) || leer == true))
+                    .OrderBy(l => Sprechtagdienst.LehrerName(s, l), De).ToList()
+                : new List<string> { Lehrkraft(b, lehrer) };
+            var zeilen = new List<IReadOnlyList<string>>();
+            foreach (var kurz in liste)
+                for (var i = 0; i < t.K.Abschnitte.Count; i++)
+                {
+                    var a = t.K.Abschnitte[i];
+                    var raum = t.K.Online ? "online" : d.Raum(raeume, kurz, i);
+                    var eintraege = termine.Where(x => Ci.Equals(x.Lehrer, kurz) && x.Abschnitt == i).Select(x =>
+                    {
+                        var k = s?.Schueler.FirstOrDefault(y => y.Id == x.SchuelerId);
+                        return (Von: x.Beginn, Zeile: new List<string> { $"{x.Beginn}–{x.Ende}", k is null ? "Unbekannt" : $"{k.Name}, {k.Vorname}", k?.Klasse ?? "",
+                            StatusText(d.Phase(t), x), t.K.Online && x.Link.Length > 0 ? $"{x.Anmerkung} {x.Link}".Trim() : x.Anmerkung, raum });
+                    }).ToList();
+                    eintraege.AddRange(abw.Where(x => Ci.Equals(x.Lehrer, kurz) && x.Abschnitt == i).Select(x =>
+                        (Von: x.Beginn, Zeile: new List<string> { $"{x.Beginn}–{x.Ende}", "– abwesend –", "", "Abwesend", x.Anmerkung, raum })));
+                    if (leer == true)
+                        foreach (var z in Sprechtagdienst.Bloecke(t, a).Where(z => !eintraege.Any(x => Sprechtagdienst.Minuten(x.Von) <= Sprechtagdienst.Minuten(z.Von)
+                                     && Sprechtagdienst.Minuten(z.Von) < Sprechtagdienst.Minuten(x.Zeile[0].Split('–')[1]))))
+                            eintraege.Add((Von: z.Von, Zeile: new List<string> { $"{z.Von}–{z.Bis}", "", "", "", "", raum }));
+                    foreach (var x in eintraege.OrderBy(x => x.Von, StringComparer.Ordinal))
+                    {
+                        var zeile = x.Zeile;
+                        zeile.Insert(0, $"{Datum(a.Datum)} {a.Name}");
+                        if (alle) zeile.Insert(0, Sprechtagdienst.LehrerTitel(s, kurz));
+                        zeilen.Add(zeile);
+                    }
+                }
+            var spalten = new List<string> { "Abschnitt", "Zeit", "Schüler*in", "Klasse", "Status", "Anmerkung", "Raum" };
+            if (alle) spalten.Insert(0, "Lehrkraft");
+            var titel = alle ? $"Terminplan {t.K.Name}" : $"Terminplan {Sprechtagdienst.LehrerTitel(s, liste[0])}";
+            var pdf = PdfBericht.Erzeugen(Schule(e, p), titel, $"{t.K.Name} · {Sprechtagdienst.DatumText(t)}", spalten, zeilen,
+                leer == true ? "Freie Zeilen: Erziehungsberechtigte ohne Termin können sich hier spontan eintragen." : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false,
+                PdfBericht.Hochformat(ausrichtung, !alle));
+            return Results.File(pdf, "application/pdf", $"sprechtag-{t.Id}{(alle ? "" : "-" + liste[0].ToLowerInvariant())}.pdf");
+        });
+
+        // Eigene bestätigte Termine der Erziehungsberechtigten (hoch)
+        api.MapGet("/{id:int}/elternplan.pdf", (int id, string? ausrichtung, HttpContext c, Sprechtagdienst d, Paketdienst p, Einstellungen e) =>
+        {
+            var b = Ich(c);
+            if (b.Rolle != Rollen.Eltern) throw new UnauthorizedAccessException("Nur für Erziehungsberechtigte.");
+            var t = Sichtbar(d, b, id);
+            var s = p.Aktuell;
+            var raeume = d.Raeume(t.Id);
+            var zeilen = d.Termine(t.Id).Where(x => x.Status == "bestaetigt" && x.HatZeit && b.SchuelerIds.Contains(x.SchuelerId))
+                .OrderBy(x => t.K.Abschnitte[x.Abschnitt].Datum, StringComparer.Ordinal).ThenBy(x => x.Beginn, StringComparer.Ordinal).Select(x =>
+                {
+                    var k = s?.Schueler.FirstOrDefault(y => y.Id == x.SchuelerId);
+                    var ort = t.K.Online ? (x.Link.Length > 0 ? $"online: {x.Link}" : "online") : d.Raum(raeume, x.Lehrer, x.Abschnitt) is { Length: > 0 } r ? r : "Unbekannter Raum";
+                    return (IReadOnlyList<string>)new List<string> { $"{Wochentag(t.K.Abschnitte[x.Abschnitt].Datum)}, {Datum(t.K.Abschnitte[x.Abschnitt].Datum)}", $"{x.Beginn}–{x.Ende}",
+                        Sprechtagdienst.LehrerTitel(s, x.Lehrer), ort, k is null ? "" : $"{k.Vorname} {k.Name}", k?.Klasse ?? "" };
+                }).ToList();
+            var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.K.Name} · {Sprechtagdienst.DatumText(t)}",
+                new[] { "Datum", "Zeit", "Lehrkraft", "Raum", "Kind", "Klasse" }, zeilen, null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, PdfBericht.Hochformat(ausrichtung, true));
+            return Results.File(pdf, "application/pdf", $"sprechtag-{t.Id}-termine.pdf");
         });
 
         api.MapPost("/{id:int}/buchen", (int id, BuchDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p) =>

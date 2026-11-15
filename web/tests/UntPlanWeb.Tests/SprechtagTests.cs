@@ -345,6 +345,34 @@ public class SprechtagTests
     }
 
     [Fact]
+    public async Task Terminplaene_als_Pdf()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var admin = await s.AlsAsync("admin");
+        var lan = await s.AlsAsync("lan", "lehrer", "LAN");
+        var id = await VeroeffentlichtAsync(admin);
+        string Url(string pfad = "") => $"/api/app/sprechtag/{id}{pfad}";
+        var kinder = (await Testserver.HolenAsync(lan, Url("/schueler"))).AsArray().Select(x => x!["id"]!.GetValue<int>()).ToList();
+        await Testserver.JsonAsync(await lan.PostAsJsonAsync(Url("/termin"), new { abschnitt = 0, beginn = "15:00", ende = "15:10", schuelerId = kinder[0] }));
+        await Testserver.JsonAsync(await lan.PostAsJsonAsync(Url("/abwesenheit"), new { abschnitt = 0, beginn = "15:30", ende = "15:40", anmerkung = "Pause" }));
+        static void IstPdf(byte[] b) => Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(b, 0, 4));
+        // Lehrkraft: eigener Plan (mit freien Zeilen), keine fremden; Administration: Gesamtplan und je Lehrkraft
+        IstPdf(await lan.GetByteArrayAsync(Url("/plan.pdf")));
+        IstPdf(await lan.GetByteArrayAsync(Url("/plan.pdf?leer=true&ausrichtung=quer")));
+        await FehlerAsync(await lan.GetAsync(Url("/plan.pdf?lehrer=FIS")), HttpStatusCode.Forbidden);
+        IstPdf(await admin.GetByteArrayAsync(Url("/plan.pdf")));
+        IstPdf(await admin.GetByteArrayAsync(Url("/plan.pdf?leer=true")));
+        IstPdf(await admin.GetByteArrayAsync(Url("/plan.pdf?lehrer=LAN&leer=true")));
+        // Eltern: eigene bestätigte Termine; kein Lehrerplan
+        s.Dienst<Uhr>().Fest = new DateTime(2026, 10, 22, 10, 0, 0);
+        var (eltern, _) = await ElternAsync(s, admin, "eltern-a", kinder[1]);
+        await Testserver.JsonAsync(await eltern.PostAsJsonAsync(Url("/buchen"), new { lehrer = "LAN", abschnitt = 0, beginn = "15:10", schuelerId = kinder[1] }));
+        IstPdf(await eltern.GetByteArrayAsync(Url("/elternplan.pdf")));
+        await FehlerAsync(await eltern.GetAsync(Url("/plan.pdf")), HttpStatusCode.Forbidden);
+        await FehlerAsync(await lan.GetAsync(Url("/elternplan.pdf")), HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public void Oberflaeche_nach_Vorlage()
     {
         string Datei(params string[] teile) => File.ReadAllText(Path.Combine(new[] { Wurzel(), "src", "UntPlanWeb", "wwwroot" }.Concat(teile).ToArray()));
@@ -353,7 +381,8 @@ public class SprechtagTests
         foreach (var text in new[] { "Neuer Sprechtag", "Schuljahr auswählen", "Statusinformationen", "1. Allgemeine Informationen", "2. Zeiträume festlegen",
             "3. Buchungsregeln und Rechte", "Sprechtag in Abschnitte gliedern", "Anmeldephasen festlegen", "Berechtigungen für Lehrkräfte", "Buchungsregeln",
             "Veröffentlichen", "Lehrkräfte suchen", "Kein Raum", "Keine Termine", "Einladung senden", "Termin buchen", "Abwesenheit eintragen", "Meine Termine",
-            "Terminanfragen", "Ihre bestätigten Gesprächstermine.", "Unbekannter Raum", "Als Entwurf gespeichert", "Gebäude | Raum" })
+            "Terminanfragen", "Ihre bestätigten Gesprächstermine.", "Unbekannter Raum", "Als Entwurf gespeichert", "Gebäude | Raum",
+            "Gesamtplan (PDF)", "Mein Terminplan (PDF)", "Terminplan drucken (PDF)", "/elternplan.pdf" })
             Assert.Contains(text, js);
         // Schüler*innen haben keinen Zugriff (Menü nur für Kollegium und Eltern)
         Assert.Contains("if (k || b.rolle === 'eltern') m.push({ id: 'sprechtag'", Datei("js", "app.js"));

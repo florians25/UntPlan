@@ -7,10 +7,19 @@
 //   (Einladung senden, Termin buchen, Abwesenheit eintragen); „Meine Termine“ für Lehrkräfte.
 // - Erziehungsberechtigte: Hinweis zur Phase, Terminanfragen und Einladungen, „Meine Termine“ nach Datum, freie Buchung ab der 2. Anmeldephase.
 // - startkarte(): Hinweis „Sprechtag“ auf der Startseite.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, fehler } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, fehler, herunterladen } from '../ui.js';
 import { cssLaden } from './kbeinstellungen.js';
 
 const BASIS = '/api/app/sprechtag';
+
+/** PDF vom Server laden und speichern (Terminplan, Gesamtplan, Elternplan). */
+async function pdf(pfad, name) {
+  try {
+    const r = await fetch(`${BASIS}${pfad}`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+    if (!r.ok) throw new Error((await r.text().catch(() => '')) || 'PDF konnte nicht erstellt werden.');
+    herunterladen(name, await r.blob(), 'application/pdf');
+  } catch (err) { fehler(err); }
+}
 
 function stileLaden() {
   cssLaden();
@@ -407,7 +416,7 @@ async function verwaltung(seite, kontext, d) {
 
   const zeichnen = () => {
     const druck = (admin && t.bearbeitbar ? `<a class="st-rund" href="#/sprechtag/${t.id}/bearbeiten" title="Bearbeiten" aria-label="Sprechtag bearbeiten">${bi('pencil')}</a>` : '')
-      + (admin && !t.konfig.online ? `<button type="button" class="st-rund" data-drucken title="Drucken" aria-label="Drucken">${bi('printer')}</button>` : '');
+      + `<button type="button" class="st-rund" data-drucken title="Drucken (PDF)" aria-label="Drucken (PDF)">${bi('printer')}</button>`;
     if (admin) {
       const liste = d.lehrkraefte.filter(passend);
       seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} · ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
@@ -426,7 +435,7 @@ async function verwaltung(seite, kontext, d) {
         </div></div>`;
     } else {
       const l = d.lehrkraefte[0];
-      seite.innerHTML = `<div class="st">${kopf(t, { unter: `<div class="st-kopf-unter">${e(t.datumText)} · ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
+      seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} · ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
         <div class="st-innen">
           <h2 class="st-titel">Meine Termine</h2>
           <p class="st-text">Hier sehen Sie Ihre Termine und Abwesenheiten für den Sprechtag.${t.konfig.online ? ' Dies ist ein Online-Sprechtag. Je nach Berechtigung müssen den Einladungen Meeting-Links hinzugefügt werden.' : ''}</p>
@@ -449,10 +458,15 @@ async function verwaltung(seite, kontext, d) {
     seite.querySelectorAll('[data-auf]').forEach(b => {
       b.onclick = () => { const k = b.dataset.auf; if (offen.has(k)) offen.delete(k); else offen.add(k); zeichnen(); };
     });
-    seite.querySelector('[data-drucken]')?.addEventListener('click', () => {
-      d.lehrkraefte.forEach(l => offen.add(l.kurz));
-      zeichnen();
-      setTimeout(() => window.print(), 50);
+    seite.querySelector('[data-drucken]')?.addEventListener('click', ev => {
+      const datei = `sprechtag-${t.id}`;
+      menue(ev.currentTarget, admin ? [
+        ['Gesamtplan (PDF)', () => pdf(`/${t.id}/plan.pdf`, `${datei}.pdf`)],
+        ['Gesamtplan mit freien Zeilen (PDF)', () => pdf(`/${t.id}/plan.pdf?leer=true`, `${datei}-alle.pdf`)],
+      ] : [
+        ['Mein Terminplan (PDF)', () => pdf(`/${t.id}/plan.pdf`, `${datei}.pdf`)],
+        ['Terminplan mit freien Zeilen (PDF)', () => pdf(`/${t.id}/plan.pdf?leer=true`, `${datei}-alle.pdf`)],
+      ]);
     });
     seite.querySelectorAll('[data-raum]').forEach(s => {
       s.onchange = async () => {
@@ -466,8 +480,9 @@ async function verwaltung(seite, kontext, d) {
         const i = Number(b.dataset.abschnitt);
         const punkte = [];
         if (!['phase1_beendet', 'geschlossen', 'durchfuehrung'].includes(t.phase)) punkte.push(['Einladung senden', () => einladungPanel(l)]);
-        if (d.rechte.buchen && !['durchfuehrung'].includes(t.phase)) punkte.push(['Termin buchen', () => terminPanel(l, i)]);
+        if (d.rechte.buchen && t.phase !== 'durchfuehrung') punkte.push(['Termin buchen', () => terminPanel(l, i)]);
         if (d.rechte.abwesenheiten) punkte.push(['Abwesenheit eintragen', () => abwesenheitPanel(l, i)]);
+        if (admin) punkte.push(['Terminplan drucken (PDF)', () => pdf(`/${t.id}/plan.pdf?lehrer=${encodeURIComponent(l.kurz)}&leer=true`, `sprechtag-${t.id}-${l.kurz.toLowerCase()}.pdf`)]);
         menue(b, punkte);
       };
     });
@@ -655,7 +670,8 @@ async function eltern(seite, kontext, d) {
     const tage = {};
     for (const x of d.termine) (tage[x.datum] ??= { text: `${x.wochentag}, ${x.datumText}`, liste: [] }).liste.push(x);
     const offen = !['geschlossen', 'durchfuehrung', 'abgeschlossen'].includes(t.phase);
-    seite.innerHTML = `<div class="st">${kopf(t, { unter: `<div class="st-kopf-unter">${e(t.datumText)}</div>`, pilleAn: false })}
+    const druck = d.termine.length ? `<button type="button" class="st-rund" data-elternplan title="Meine Termine als PDF" aria-label="Meine Termine als PDF">${bi('printer')}</button>` : '';
+    seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)}</div>`, pilleAn: false })}
       <div class="st-innen"><div class="st-eltern">
         ${d.hinweis ? `<div class="st-banner">${bi('info-circle-fill')}<div><b>${e(d.hinweis)}</b>${t.phase === 'phase1' ? '<p>Derzeit können Termine nur mit einer Einladung gebucht werden. Die freie Buchung ist ab der nächsten Anmeldephase möglich.</p>' : ''}</div></div>` : ''}
         ${d.einladungen.length || d.anfragen.length ? `<h2 class="st-gruppe">Terminanfragen</h2>
@@ -672,6 +688,7 @@ async function eltern(seite, kontext, d) {
   };
 
   const binden = () => {
+    seite.querySelector('[data-elternplan]')?.addEventListener('click', () => pdf(`/${t.id}/elternplan.pdf`, `sprechtag-${t.id}-termine.pdf`));
     seite.querySelectorAll('[data-einladung]').forEach(b => {
       b.onclick = () => { const x = d.einladungen.find(y => y.id === Number(b.dataset.einladung)); buchenPanel(x.lehrer, x.lehrerTitel, x.schueler.id, x.id); };
     });
