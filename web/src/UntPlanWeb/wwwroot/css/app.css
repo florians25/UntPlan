@@ -2018,3 +2018,20 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-nav .u-nav-punkt .u-nav-sym { color: #67747e; }
 .u-leiste .u-nav .u-nav-punkt.aktiv, .u-leiste .u-nav .u-nav-punkt.aktiv .u-nav-sym { color: #fe6033; }
 .u-leiste .u-nav .u-nav-punkt:hover, .u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
+
+/* Startseite „Mein nächster Unterricht“ auf kleineren Monitoren: die Lehrstoff-Spalte nimmt nur den Restplatz und kürzt mit „…“
+   (vollständig im Hover), alle anderen Spalten bleiben vollständig; im Notfall waagrecht scrollbar statt abgeschnitten */
+.nl-tabelle.heute-unterricht { overflow-x: auto; }
+.heute-unterricht td.hu-lehrstoff { width: 100%; min-width: 120px; max-width: 0; }
+.heute-unterricht .hu-stoff { max-width: 100%; }
+.heute-unterricht .hu-lehrstoff .nl-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1500px) {
+  .heute-unterricht th, .heute-unterricht td { padding-left: 8px; padding-right: 8px; }
+  .heute-unterricht .hu-fach { padding-left: 18px; }
+  .heute-unterricht .hu-balken { left: 6px; }
+}
+@media (max-width: 1300px) {
+  .heute-unterricht .hu-fach .nl-unter { display: none; }
+  .heute-unterricht td.hu-lehrstoff { min-width: 90px; }
+  .heute-unterricht .hu-kb .nl-chip { padding-left: 8px; padding-right: 8px; }
+}
