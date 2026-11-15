@@ -22,6 +22,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Schülerliste (Anwesenheitskontrolle) wie im Vorlage-Video: nach links wischen setzt „abwesend“ (rot), ein zweites Mal nach links während der laufenden Stunde „verspätet“ (gelbes Uhr-Symbol, „gekommen um …“); daneben „Verspätet“ bzw. „Entschuldigen“ als weitere Wischaktion. Nach rechts wischen setzt wieder „anwesend“.
 - Startseite (Klassenleitung): eigener Punkt „Abwesenheiten“ mit der Zahl der offenen Abwesenheiten; die Liste startet wie in der Vorlage gefiltert auf „Offen“ (Menü „Status wählen“: Alle, Offen, Unentschuldigt, Entschuldigt). Im Dialog öffnet „Entschuldigungsstatus“ die Seite „Entschuldigungsstatus wählen“ (gewählter Status mit orangem Haken); unten steht der Abwesenheitsgrund.
 - Raum ersetzen/hinzufügen wie in der Vorlage: Titel „R1BK ersetzen“, Suchfeld, Kapsel „Abteilung“, je Raum eine graue Scheibe mit Raumsymbol und das Kürzel.
 - Klassenleitung → Abwesenheiten wie in der Vorlage: Suchfeld, Filter „Zeitbereich“ und „Status“, Gruppen „Offen“, „Unentschuldigt“, „Entschuldigt“; je Zeile Avatar, Name, Klasse, Datum und Zeit, Grund und rechts ein roter bzw. grüner Rand. „Abwesenheit bearbeiten“ mit START/ENDE, Zeile „Entschuldigungsstatus“ und „Text für Entschuldigung“.

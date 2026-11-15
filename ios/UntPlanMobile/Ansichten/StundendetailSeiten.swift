@@ -1913,43 +1913,70 @@ struct SchuelerSeite: View {
                                     // – bei abwesenden Schüler*innen nach links: „Entschuldigen“ (Klassenleitung bzw. Fachlehrkraft)
                                     let fehlzeit = daten.fehlzeit(s)
                                     let abwesend = fehlzeit != nil
-                                    // während der laufenden Stunde: nach rechts „Verspätet“ (gelb) – die Person kommt jetzt
-                                    let kommtJetzt = abwesend && daten.laeuftGerade
-                                    let rechtsAktion: Wischaktion = kommtJetzt ? .verspaetet : .anwesend
-                                    let linksAktion: Wischaktion = abwesend ? .entschuldigen : .abwesend
-                                    // Wischen mit den Wischaktionen des Systems (ganz durchwischen löst aus): sie vertragen sich mit
-                                    // dem Scrollen der Liste und dem seitlichen Blättern der Stunden – nichts hängt, Tippen bleibt sicher
+                                    // Wie im Vorlage-Video: nach links wischen setzt „abwesend“ (rot), ein zweites Mal nach links
+                                    // während der laufenden Stunde „verspätet“ (gelb, „gekommen um …“). Daneben bleibt bei abwesenden
+                                    // Schüler*innen „Entschuldigen“; nach rechts wischen setzt wieder „anwesend“ (grün).
+                                    let schonVerspaetet = fehlzeit?.art == "verspaetet"
+                                    let verspaetetMoeglich = bearbeitbar && daten.laeuftGerade && !schonVerspaetet
+                                    // Wischen mit den Wischaktionen des Systems (ganz durchwischen löst die äußere Aktion aus): sie
+                                    // vertragen sich mit dem Scrollen der Liste und dem seitlichen Blättern der Stunden
                                     zeile(s)
                                         .padding(.leading, 16)
                                         .padding(.trailing, 26)
                                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                                             if bearbeitbar && abwesend {
                                                 Button {
-                                                    Task {
-                                                        await ausfuehren(s) {
-                                                            if kommtJetzt { try await daten.verspaetetSetzen(s) } else { try await daten.anwesendSetzen(s) }
-                                                        }
-                                                    }
+                                                    Task { await ausfuehren(s) { try await daten.anwesendSetzen(s) } }
                                                 } label: {
-                                                    Label(rechtsAktion.text, systemImage: rechtsAktion.symbol)
+                                                    Label(Wischaktion.anwesend.text, systemImage: Wischaktion.anwesend.symbol)
                                                 }
-                                                .tint(rechtsAktion.farbe)
+                                                .tint(Wischaktion.anwesend.farbe)
                                             }
                                         }
                                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                            if abwesend ? darfEntschuldigen(s) : bearbeitbar {
-                                                Button {
-                                                    if let f = fehlzeit {
+                                            if !abwesend {
+                                                if bearbeitbar {
+                                                    // äußere Aktion (ganz durchwischen): abwesend
+                                                    Button {
+                                                        Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                    } label: {
+                                                        Label(Wischaktion.abwesend.text, systemImage: Wischaktion.abwesend.symbol)
+                                                    }
+                                                    .tint(Wischaktion.abwesend.farbe)
+                                                    if verspaetetMoeglich {
+                                                        Button {
+                                                            Task {
+                                                                await ausfuehren(s) {
+                                                                    try await daten.abwesendSetzen(s)
+                                                                    try await daten.verspaetetSetzen(s)
+                                                                }
+                                                            }
+                                                        } label: {
+                                                            Label(Wischaktion.verspaetet.text, systemImage: Wischaktion.verspaetet.symbol)
+                                                        }
+                                                        .tint(Wischaktion.verspaetet.farbe)
+                                                    }
+                                                }
+                                            } else {
+                                                if verspaetetMoeglich {
+                                                    // zweites Wischen nach links: die Person kommt jetzt (verspätet)
+                                                    Button {
+                                                        Task { await ausfuehren(s) { try await daten.verspaetetSetzen(s) } }
+                                                    } label: {
+                                                        Label(Wischaktion.verspaetet.text, systemImage: Wischaktion.verspaetet.symbol)
+                                                    }
+                                                    .tint(Wischaktion.verspaetet.farbe)
+                                                }
+                                                if let f = fehlzeit, darfEntschuldigen(s) {
+                                                    Button {
                                                         entschuldigung = Entschuldigungsauftrag(
                                                             ziel: .fehlzeit(id: f.id, klasse: s.klasse, datum: daten.karte.datum),
                                                             name: s.anzeige, klasse: s.klasse)
-                                                    } else {
-                                                        Task { await ausfuehren(s) { try await daten.abwesendSetzen(s) } }
+                                                    } label: {
+                                                        Label(Wischaktion.entschuldigen.text, systemImage: Wischaktion.entschuldigen.symbol)
                                                     }
-                                                } label: {
-                                                    Label(linksAktion.text, systemImage: linksAktion.symbol)
+                                                    .tint(Wischaktion.entschuldigen.farbe)
                                                 }
-                                                .tint(linksAktion.farbe)
                                             }
                                         }
                                     .listRowInsets(EdgeInsets())
@@ -2180,7 +2207,7 @@ struct Wischaktion {
     static let abwesend = Wischaktion(symbol: "clock", text: "Abwesend", farbe: Farben.entfallRand)
     static let entschuldigen = Wischaktion(symbol: "checkmark.seal", text: "Entschuldigen", farbe: Farben.entschuldigen)
     /// Während der laufenden Stunde: die abwesende Person kommt (gelb wie im Original)
-    static let verspaetet = Wischaktion(symbol: "clock.badge.checkmark", text: "Verspätet", farbe: Color(hexWert: 0xF2B705))
+    static let verspaetet = Wischaktion(symbol: "clock.arrow.circlepath", text: "Verspätet", farbe: Color(hexWert: 0xF2B705))
 }
 
 /// Sperre der Knöpfe in einer Wischzeile: solange (und kurz nachdem) waagrecht gewischt wird, reagieren die Knöpfe
