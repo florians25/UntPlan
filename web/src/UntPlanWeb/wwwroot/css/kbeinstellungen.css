@@ -236,3 +236,68 @@
   .pe-panel-rumpf { padding: 16px; }
 }
 @media (max-width: 575.98px) { .pe-element { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 28px; gap: 4px; } }
+
+/* ------------------------------------------------------------------ Grunddesign aller Einstellungsseiten (wie Stundenplaneinstellungen)
+   Administration (admin.js): .pe-einstellungen; Klassenbuch-/Unterricht-Einstellungen und Notenschemen (.kbe-*) angeglichen:
+   Unterstrich-Reiter, umrandete Kästen ohne Symbol, Beschriftung links und Eingabe rechts, runde orange Häkchen, Pillen-Knöpfe. */
+.pe-einstellungen { padding-bottom: 0; }
+.pe-einstellungen .pe-kasten { max-width: 760px; }
+.pe-voll { display: block; }
+.pe-voll .table { font-size: .875rem; }
+.pe-hinweis { margin: 4px 14px 10px; }
+
+/* Reiter: unterstrichen statt Segment-Pillen, ohne Symbole */
+.kbe-reiter { gap: 4px 8px; padding: 0; background: none; border: 0; border-bottom: 1px solid var(--u-linie); border-radius: 0; width: auto; margin: 0 0 20px; }
+.kbe-reiter button { position: relative; height: 44px; padding: 0 12px; border-radius: 0; font-size: .95rem; color: var(--u-text); }
+.kbe-reiter button i { display: none; }
+.kbe-reiter button:hover { background: none; color: var(--u-titel); }
+.kbe-reiter button.an { background: none; color: var(--u-akzent); }
+.kbe-reiter button.an::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--u-akzent); }
+.kbe-reiter button:focus-visible { outline-offset: -2px; }
+
+/* Kästen: dünn umrandet, Titel ohne Symbol und ohne Trennlinie */
+.kbe-karte { max-width: 760px; border: 1px solid var(--u-linie); border-radius: 8px; }
+.kbe-karte > header { padding: 14px 14px 4px; border-bottom: 0; }
+.kbe-karte > header h2 { font-size: 1rem; font-weight: 500; line-height: 1.4; }
+.kbe-symbol { display: none; }
+.kbe-rumpf { padding: 0 0 6px; }
+
+/* Zeilen: Beschriftung links (normal), Eingabe rechts – gleich breite Spalten */
+.kbe-zeile { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; padding: 10px 14px; }
+.kbe-zeile + .kbe-zeile { border-top: 0; }
+.kbe-label { padding-top: 0; font-size: .875rem; font-weight: 400; color: var(--u-text); line-height: 1.45; }
+.kbe-zeile .form-control, .kbe-zeile .form-select { min-height: 40px; font-size: .9rem; border-color: #c9d0d6; border-radius: 4px; background-color: #fff; }
+.kbe-zeile .form-control:focus, .kbe-zeile .form-select:focus { border-color: var(--u-akzent); box-shadow: none; }
+
+/* Schalter → runde orange Häkchen in der rechten Spalte (der Schalter „Alle Tage des Zeitrasters“ bleibt ein Schalter) */
+.kbe-schalterzeile { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; }
+.kbe-schalterzeile > * { grid-column: 2; }
+.kbe-schalterzeile .kbe-hilfe { margin-left: 28px; }
+.kbe-schalter:not(.pe-schalter) { gap: 10px; align-items: flex-start; }
+.kbe-schalter:not(.pe-schalter) .kbe-schiene { width: 18px; height: 18px; margin-top: 1px; border: 1.5px solid #9aa3ab; border-radius: 50%; background: #fff; transition: none; }
+.kbe-schalter:not(.pe-schalter) .kbe-schiene::after { display: none; left: 5px; top: 1.5px; width: 5px; height: 9px; border: solid var(--u-akzent); border-width: 0 2px 2px 0; border-radius: 0;
+  background: none; box-shadow: none; transform: rotate(45deg); transition: none; }
+.kbe-schalter:not(.pe-schalter) input:checked + .kbe-schiene { border-color: var(--u-akzent); background: #fff; }
+.kbe-schalter:not(.pe-schalter) input:checked + .kbe-schiene::after { display: block; transform: rotate(45deg); }
+.kbe-schalter:not(.pe-schalter) .kbe-schalter-text { font-size: .875rem; font-weight: 400; line-height: 1.35; }
+
+/* Auswahlpunkte: rund, orange gefüllt wie „Zeitraster“ */
+.kbe-radio input { appearance: none; width: 18px; height: 18px; border: 1.5px solid #9aa3ab; border-radius: 50%; background: #fff; flex: none; }
+.kbe-radio input:checked { border: 5px solid var(--u-akzent); }
+.kbe-radio input:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.kbe-radio { font-size: .875rem; }
+
+/* Leiste unten: nur Pillen-Knöpfe rechts */
+.kbe-leiste .nl-knopf { height: 40px; padding: 0 24px; border: 1px solid #c9d0d6; font-size: .9rem; font-weight: 500; }
+.kbe-leiste .nl-knopf.nw-primaer { border-color: var(--u-akzent); }
+.kbe-leiste .nl-knopf.nw-primaer:disabled { background: #e6e8eb; border-color: #e6e8eb; color: #9aa3ab; opacity: 1; }
+@media (max-width: 767.98px) {
+  .kbe-schalterzeile { grid-template-columns: minmax(0, 1fr); }
+  .kbe-schalterzeile > * { grid-column: 1; }
+}
+.kbe-leiste { max-width: 760px; padding: 12px 0; background: none; border: 0; border-radius: 0; box-shadow: none; pointer-events: none; }
+.kbe-leiste > * { pointer-events: auto; }
+.kbe-leiste { padding: 10px 14px; background: var(--u-flaeche, #fff); border: 1px solid var(--u-linie); border-radius: 8px; box-shadow: var(--u-schatten); pointer-events: auto; }
+.kbe-zahl input { width: 130px; height: 40px; }
+.pe-einstellungen .pe-fuss { max-width: 760px; }
+.pe-haken b { font-weight: 500; }

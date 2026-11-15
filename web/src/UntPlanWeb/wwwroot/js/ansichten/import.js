@@ -1,5 +1,6 @@
 // Administration → Import → Schüler*innen: CSV/TXT hochladen (Trennzeichen und Kodierung automatisch), Vorschau, Spaltenzuordnung mit
 // Vorlagen, Abgleich-Modus, Trockenlauf mit Ergebnisliste und Übernahme (optional mit Konten). Dazu die Quelle der Schülerdaten.
+import { cssLaden } from './kbeinstellungen.js';
 import { e, icon, holen, senden, api, toast, dialog, bestaetigen, alarm, heuteIso, herunterladen } from '../ui.js';
 
 const STATUS = { neu: ['gruen', 'neu'], geaendert: ['orange', 'geändert'], unveraendert: ['', 'unverändert'], uebersprungen: ['', 'übersprungen'], fehler: ['rot', 'Fehler'], ausgetreten: ['lila', 'ausgetreten'] };
@@ -26,10 +27,13 @@ function stil() {
 /** Karte „Quelle der Schülerdaten“ (auch unter Administration → Ansichtseinstellungen). */
 export async function quelleKarte(box, nachher) {
   const q = await holen('/api/app/admin/schuelerimport/quelle');
-  box.innerHTML = `<div class="card u-einstellungen mb-3"><div class="card-header">Quelle der Schülerdaten</div><div class="card-body">
-    ${Object.entries(QUELLE).map(([id, t]) => `<div class="form-check"><input class="form-check-input" type="radio" name="si-quelle" id="si-q-${id}" value="${id}" ${q.quelle === id ? 'checked' : ''}>
-      <label class="form-check-label" for="si-q-${id}"><b>${t}</b> – ${id === 'export' ? 'Schüler*innen kommen mit jeder Übertragung aus der Desktop-App; Änderungen in UntPlanWeb ergänzen sie.' : 'Schüler*innen werden in UntPlanWeb gepflegt (Schülerverwaltung, CSV-Import); der Export überschreibt sie nicht.'}</label></div>`).join('')}
-    <p class="small text-body-secondary mt-2 mb-0">Beim Wechsel zur Web-Verwaltung werden die bisher übertragenen Schüler*innen übernommen.</p></div></div>`;
+  cssLaden();
+  // Grunddesign der Einstellungsseiten: umrandeter Kasten, runde orange Auswahlpunkte
+  box.innerHTML = `<div class="pe pe-einstellungen mb-3"><section class="pe-kasten"><h3 class="pe-titel">Quelle der Schülerdaten</h3>
+    <div class="pe-zeile"><div class="pe-text">Woher die Schüler*innen kommen<small>Beim Wechsel zur Web-Verwaltung werden die bisher übertragenen Schüler*innen übernommen.</small></div>
+      <div class="pe-wert pe-stapel">${Object.entries(QUELLE).map(([id, t]) => `<label class="pe-haken"><input type="radio" name="si-quelle" id="si-q-${id}" value="${id}" ${q.quelle === id ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span>
+        <span><b>${t}</b> – ${id === 'export' ? 'Schüler*innen kommen mit jeder Übertragung aus der Desktop-App; Änderungen in UntPlanWeb ergänzen sie.' : 'Schüler*innen werden in UntPlanWeb gepflegt (Schülerverwaltung, CSV-Import); der Export überschreibt sie nicht.'}</span></label>`).join('')}</div></div>
+  </section></div>`;
   box.querySelectorAll('[name=si-quelle]').forEach(r => r.onchange = async () => {
     if (!await bestaetigen('Quelle der Schülerdaten', `Quelle auf „${QUELLE[r.value]}“ umstellen?`, 'Umstellen')) { box.querySelector(`#si-q-${q.quelle}`).checked = true; return; }
     try {
