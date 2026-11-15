@@ -511,16 +511,18 @@ struct Listenzeile: View {
     var zahl: Int? = nil
     var pfeil: Bool = true
     var titelFarbe: Color = Farben.tinte
+    /// Startseite (Vorlage nachgemessen): Titel 17 pt, Symbol 22 pt, Text 55 pt vom Rand, Pfeil 17 pt
+    var gross: Bool = false
 
     var body: some View {
-        HStack(spacing: 13) {
+        HStack(spacing: gross ? 11 : 13) {
             Image(systemName: symbol)
-                .font(.system(size: 19, weight: .light))
+                .font(.system(size: gross ? 22 : 19, weight: .light))
                 .foregroundStyle(Farben.gedaempft)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(titel)
-                    .font(.system(size: 16))
+                    .font(.system(size: gross ? 17 : 16))
                     .foregroundStyle(titelFarbe)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
@@ -538,13 +540,13 @@ struct Listenzeile: View {
             }
             if pfeil {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.system(size: gross ? 17 : 15, weight: .regular))
                     .foregroundStyle(Farben.gedaempft)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .frame(minHeight: 50)
+        .frame(minHeight: gross ? 51 : 50)
         .contentShape(Rectangle())
     }
 }
