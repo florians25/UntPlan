@@ -266,6 +266,9 @@ public sealed partial class Klassenbuchdienst
             throw new UnauthorizedAccessException($"Abwesenheiten, die länger als {Recht.RueckwirkendTage} Tage zurückliegen, darf Ihr Konto nicht bearbeiten.");
     }
 
+    /// <summary>Karte einer Stunde (auch entfallen bzw. fremder Unterricht) – für die Schülerliste in den Stundendetails.</summary>
+    public Karte? StundeKarte(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht) => KarteZu(b, s, d, stunde, unterricht);
+
     private Karte? KarteZu(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null, int? einzelstunde = null) =>
         (Waehlen(_plan.Karten(s, d, Elementtyp.Lehrer, b.LehrerKuerzel ?? ""), stunde, unterricht, lehrerHinweis)
          ?? Waehlen(s.Paket.Elemente.Klassen.SelectMany(k => _plan.Karten(s, d, Elementtyp.Klasse, k.Kurz)), stunde, unterricht, lehrerHinweis)) is { } gefunden

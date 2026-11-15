@@ -147,6 +147,61 @@
   text-underline-position: auto; text-underline-offset: calc(-.5cap - .5px);
 }
 
+/* Notizen und Link in den Stundendetails wie in der Vorlage: ruhiges Feld, beim Bearbeiten nur orange Umrandung (gespeichert wird beim Verlassen) */
+.sd-eingabe { min-height: 56px; padding: 10px 16px; border: 1px solid #c9ced4; border-radius: 4px; font-size: .875rem; box-shadow: none; resize: vertical; }
+input.sd-eingabe { min-height: 56px; }
+.sd-eingabe:focus { border-color: var(--u-akzent); box-shadow: none; }
+.sd-online-feld { max-width: none; }
+/* Lehrstoff direkt auf der Seite (wie in der Vorlage) */
+.sd-lehrstoff-klick { display: block; width: 100%; padding: 4px 0; border: 0; background: none; text-align: left; font: inherit; font-size: .875rem; color: #b9a3ae; cursor: text; }
+.sd-lehrstoff-klick.mit-text { color: var(--u-text); white-space: pre-wrap; }
+.sd-lehrstoff-klick:hover { color: var(--u-titel); }
+.sd-lehrstoff-inline input.sd-eingabe { min-height: 34px; padding: 4px 10px; border-color: #b8c4cc; border-radius: 0; }
+.sd-lehrstoff-knoepfe { display: flex; gap: 6px; margin-top: 4px; }
+.sd-lehrstoff-knoepfe .sd-pille.primaer:disabled { background: #e6e8eb; border-color: #e6e8eb; color: #9aa3ab; }
+/* Stundendetails → Reiter „Schüler*innen“ (Entfall bzw. fremder Unterricht) im neuen Design */
+.sl-blatt { font-size: .875rem; }
+.sl-kopf { margin: 0 0 12px; color: var(--u-grau); font-size: .85rem; }
+.sl-tabelle th { font-weight: 500; font-size: .85rem; padding: 10px 12px; }
+.sl-tabelle td { padding: 8px 12px; font-size: .875rem; color: var(--u-text); }
+.sl-tabelle td.nl-name { font-size: .875rem; font-weight: 500; color: var(--u-titel); }
+.sl-tabelle .nr { width: 56px; color: var(--u-grau); }
+.sl-mails { margin: 14px 0 4px; }
+.sl-mails summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--u-text); font-weight: 500; }
+.sl-mails p { margin: 8px 0; color: var(--u-text); word-break: break-all; }
+.sl-menue { position: absolute; right: 0; top: 38px; z-index: 5; display: flex; flex-direction: column; min-width: 160px; padding: 4px 0; background: #fff; border: 1px solid var(--u-linie); border-radius: 8px; box-shadow: var(--u-schatten); }
+.sl-menue button { padding: 8px 14px; border: 0; background: none; text-align: left; font-size: .875rem; color: var(--u-text); }
+.sl-menue button:hover { background: var(--u-hover); }
+
+/* Stundendetails → Raum ersetzen/hinzufügen wie in der Vorlage */
+.rv { max-width: 920px; margin: 0 auto; padding-top: 8px; }
+.rv-suche { display: flex; align-items: center; gap: 12px; height: 52px; margin: 0 0 24px; padding: 0 18px; border-radius: 999px; background: #eef0f2; color: #5f6b76; cursor: text; }
+.rv-suche input { flex: 1; min-width: 0; border: 0; background: none; outline: 0; font: inherit; font-size: .95rem; color: var(--u-titel); }
+.rv-suche input::-webkit-search-cancel-button { display: none; }
+.rv-suche input::placeholder { color: #6f7a84; }
+.rv-leeren { border: 0; background: none; padding: 0; color: #5f6b76; font-size: 1.15rem; line-height: 1; cursor: pointer; }
+.rv-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.rv-chipbox { position: relative; }
+.rv-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border: 1px solid #8a96a1; border-radius: 999px; background: #fff; color: #5f6b76; font: inherit; font-size: .85rem; cursor: pointer; }
+.rv-chip.an { border-color: #3d4a54; background: #3d4a54; color: #fff; font-weight: 500; }
+.rv-chip i { font-size: .75rem; }
+.rv-menue { position: absolute; left: 0; top: 0; z-index: 10; display: flex; flex-direction: column; min-width: 260px; max-height: 240px; overflow-y: auto; padding: 4px 0 6px; border-radius: 8px; background: #3d4a54; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+.rv-menue button { padding: 8px 16px; border: 0; background: none; color: #fff; font-size: .85rem; font-weight: 500; text-align: left; }
+.rv-menue button:hover, .rv-menue button.an { background: #5d6a74; }
+.rv-menue .rv-menue-kopf { display: flex; justify-content: space-between; align-items: center; color: #aab4bc; }
+.rv-liste { display: flex; flex-direction: column; }
+.rv-zeile { display: grid; grid-template-columns: 46px minmax(0, 1fr) 24px; align-items: center; gap: 16px; min-height: 72px; padding: 8px 8px; border: 0; border-bottom: 1px solid var(--u-linie); background: none; text-align: left; font: inherit; cursor: pointer; }
+.rv-zeile:hover { background: var(--u-hover); }
+.rv-scheibe { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #c9cfd5; }
+.rv-scheibe .u-sym { width: 22px; height: 22px; background-color: #fff; }
+.rv-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.rv-kurz { font-size: .9rem; font-weight: 500; color: var(--u-titel); }
+.rv-geb { display: inline-block; max-width: 100%; padding: 1px 10px; border-radius: 999px; background: #3d4a54; color: #fff; font-size: .75rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-radio { width: 20px; height: 20px; border: 1.5px solid #8a96a1; border-radius: 50%; }
+.rv-zeile.an .rv-radio { border: 6px solid var(--u-akzent); }
+.rv-zeile:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.rv-leer { padding: 24px 8px; color: var(--u-grau); }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die

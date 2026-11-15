@@ -301,3 +301,11 @@
 .kbe-zahl input { width: 130px; height: 40px; }
 .pe-einstellungen .pe-fuss { max-width: 760px; }
 .pe-haken b { font-weight: 500; }
+
+/* Volle Seitenbreite für alle Einstellungsseiten; Haken als SVG exakt mittig im Kreis */
+.pe, .kbe, .pe-kasten, .pe-einstellungen .pe-kasten, .kbe-karte, .kbe-leiste, .pe-einstellungen .pe-fuss { max-width: none; }
+.pe-kreis, .kbe-schalter:not(.pe-schalter) .kbe-schiene { box-sizing: border-box; width: 18px; height: 18px; background-position: center; background-repeat: no-repeat; background-size: 14px; }
+.pe-haken input[type=checkbox]:checked + .pe-kreis::after, .kbe-schalter:not(.pe-schalter) input:checked + .kbe-schiene::after { display: none; content: none; }
+.pe-haken input[type=checkbox]:checked + .pe-kreis, .kbe-schalter:not(.pe-schalter) input:checked + .kbe-schiene {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23f56b2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' d='M4.3 8.2l2.5 2.5 4.9-5.2'/%3E%3C/svg%3E"); }
+.pe-haken input[type=radio]:checked + .pe-kreis { border-width: 5px; }

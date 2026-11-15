@@ -10,7 +10,7 @@ import { e, heuteIso, holen, senden, toast, WOCHENTAGE } from './ui.js';
 import { kbDialog, kbBestaetigen as bestaetigen, stufe, fussUebernehmen } from './kbdialog.js';
 import * as sitz from './ansichten/sitzplan.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from './hausaufgabe.js';
-import { raumwahl, raumListe } from './raumwahl.js';
+import { raumwahl } from './raumwahl.js';
 
 // Prüfungsarten und Notenschemen aus den Stammdaten (einmal je Sitzung geladen; bis dahin der Grundbestand)
 let PRUEFUNGSARTEN = ['Klassenarbeit', 'Klausur', 'Test', 'Abschlussprüfung', 'Präsentation', 'Referat', 'Vergleichsarbeit'].map(name => ({ name, schema: '' }));
@@ -115,6 +115,7 @@ export function karteDialog(karte, kontext = {}) {
   const abwAuswahl = new Set();
   let offen = null;          // geöffneter Editor: 'thema', 'hausaufgaben', 'vermerk', 'ticket', 'abw:<id>'
   let hwBearbeiten = null;   // Id der bearbeiteten Hausaufgabe
+  let lehrstoffInline = false; // Lehrstoff direkt auf der Seite bearbeiten (Klick auf den Text bzw. „Klicken Sie hier …“)
   let sortierung = 'name';
   let raumModus = null;      // Raumwahl: { art: 'ersetzen' | 'hinzufuegen', raum, gewaehlt, filter }
   const raumFilter = {};     // Filter der Raumliste (Suche, Gebäude, Abteilung, Kapazität, nur freie) – bleibt für das Fenster erhalten
@@ -122,7 +123,10 @@ export function karteDialog(karte, kontext = {}) {
   let einzel = null;
 
   const istEntfall = () => k.status === 'entfall' || (k.status === 'abwesend' && kontext.typ !== 'lehrer' && (kontext.typ === 'raum' || !(k.lehrerAbwesend || k.klasseAbwesend)));
-  const mitKlassenbuch = () => kollegium && k.unterricht && !['entfall', 'abwesend', 'vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
+  // Reiter „Klassenbuch“ nur für Lehrkräfte dieses Unterrichts (bzw. Administration); bei Entfall oder fremdem Unterricht stattdessen
+  // „Details“ und „Schüler*innen“ (Schülerliste) wie in der Vorlage
+  const mitKlassenbuch = () => kollegium && k.unterricht && !['entfall', 'abwesend', 'vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status) && !!daten?.darf;
+  const mitSchuelerliste = () => kollegium && k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status) && !mitKlassenbuch();
   // Prüfung auch in Vertretungs- und Zusatzstunden (ohne eigenen Unterricht), nur nicht in entfallenen Stunden oder Veranstaltungen
   const darfPruefung = () => kollegium && kuerzel(k.klassen).length && k.datum >= heuteIso() && !['entfall', 'abwesend', 'veranstaltung', 'vorgemerkt'].includes(k.status);
   const darfRaum = () => darfPruefung() && k.unterricht && (daten?.darf || ich.admin);
@@ -225,7 +229,8 @@ export function karteDialog(karte, kontext = {}) {
     const pille = istEntfall() ? '' : k.status === 'klausur' ? 'Prüfung' : k.zusaetzlich || k.verlegung === 'nach' ? 'Zusätzl. Unterrichtsstunde' : '';
     const leiste = istEntfall();
     const reiterListe = reiter === 'pruefung' ? [['pruefung', 'Prüfung erstellen']] : reiter === 'raum' ? [['raum', raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen']]
-      : [...(mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch']] : []), ['details', 'Details']];
+      : mitKlassenbuch() ? [['klassenbuch', 'Klassenbuch'], ['details', 'Details']]
+      : [['details', 'Details'], ...(mitSchuelerliste() ? [['schueler', 'Schüler*innen']] : [])];
     // Original: roter Balken „ENTFÄLLT“ ganz oben über dem Titel, darunter Kopf und Reiter grau
     return `${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}<div class="sd-kopf ${leiste ? 'grau' : ''}">
         <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
@@ -285,7 +290,7 @@ export function karteDialog(karte, kontext = {}) {
     if (beendet || !el.isConnected) return;
     const scroll = box.querySelector('.sd-rumpf')?.scrollTop ?? 0;
     box.innerHTML = `<div class="modal-header p-0 d-block border-0">${kopf()}</div>
-      <div class="modal-body sd-rumpf">${reiter === 'klassenbuch' ? klassenbuchHtml() : reiter === 'pruefung' ? pruefungHtml() : reiter === 'raum' ? '<div data-raumwahl></div>' : detailsHtml()}</div>
+      <div class="modal-body sd-rumpf">${reiter === 'klassenbuch' ? klassenbuchHtml() : reiter === 'schueler' ? schuelerlisteHtml() : reiter === 'pruefung' ? pruefungHtml() : reiter === 'raum' ? '<div data-raumwahl></div>' : detailsHtml()}</div>
       <div class="modal-footer p-0 d-block">${fuss()}</div>`;
     box.querySelector('.sd-rumpf').scrollTop = scroll;
     binden();
@@ -370,12 +375,42 @@ export function karteDialog(karte, kontext = {}) {
     return (daten.einzelEintraege ?? []).filter(x => x[feld]).map(x => `<p class="sd-text sd-ebene"><span class="sd-ebene-marke">${x.einzelstunde ?? x.stunde}. Stunde</span>${e(x[feld])}</p>`).join('');
   }
 
+  /** Reiter „Schüler*innen“ (Entfall bzw. fremder Unterricht) im neuen Design: Abschnitt mit Anzahl, ruhige Tabelle, E-Mail-Adressen, Berichte. */
+  function schuelerlisteHtml() {
+    const sl = daten.schuelerliste;
+    if (!sl) return '<div class="py-5 text-center text-body-secondary">Wird geladen …</div>';
+    const ic = maskeIcon('klassenbuch/chair-1.svg');
+    if (sl.fehler) return abschnitt(ic, 'Schüler*innen im Unterricht', null, '', `<p class="sd-text">${e(sl.fehler)}</p>`);
+    const g = x => ({ m: 'männlich', w: 'weiblich', d: 'divers' })[String(x || '').toLowerCase()] ?? (x || '');
+    const mails = sl.schueler.filter(x => x.email).map(x => x.email);
+    const berichte = `<span class="position-relative"><button type="button" class="sd-pille klein" data-sl-berichte aria-haspopup="menu">Berichte <i class="bi bi-chevron-down"></i></button>
+      <span class="sl-menue d-none" data-sl-menue role="menu"><button type="button" role="menuitem" data-sl-drucken>Drucken</button><button type="button" role="menuitem" data-sl-csv>CSV-Export</button></span></span>`;
+    const inhalt = `<div class="sl-blatt">
+        <p class="sl-kopf">Lehrkraft: ${e(sl.lehrer.join(', '))} · Fach: ${e(sl.fach || '')} · Klasse: ${e(sl.klassen.join(', '))}</p>
+        <div class="nl-tabelle sl-tabelle"><table><thead><tr><th class="nr">Nr.</th><th>Familienname</th><th>Vorname</th><th>Geschlecht</th><th>Klasse</th></tr></thead>
+          <tbody>${sl.schueler.map((x, i) => `<tr><td class="nr">${i + 1}</td><td class="nl-name">${e(x.name)}</td><td>${e(x.vorname)}</td><td>${e(g(x.geschlecht))}</td><td><span class="nl-tag">${e(x.klasse)}</span></td></tr>`).join('')
+            || '<tr><td colspan="5" class="text-body-secondary">Keine Schüler*innen</td></tr>'}</tbody></table></div>
+        <details class="sl-mails"><summary><i class="bi bi-envelope" aria-hidden="true"></i>E-Mail-Adressen (${mails.length})</summary>${mails.length
+          ? `<p>${e(mails.join('; '))}</p><a class="sd-pille klein" href="mailto:?bcc=${encodeURIComponent(mails.join(','))}">E-Mail an alle</a>` : '<p>Keine E-Mail-Adressen hinterlegt.</p>'}</details>
+      </div>`;
+    return abschnitt(ic, 'Schüler*innen im Unterricht', sl.schueler.length, berichte, inhalt);
+  }
+
   function lehrstoffHtml() {
     const wert = daten.eintrag?.thema;
     const stift = daten.darf ? '<button type="button" class="sd-stift" data-bearbeiten="thema" title="Lehrstoff bearbeiten" aria-label="Lehrstoff bearbeiten"><i class="bi bi-pencil"></i></button>' : '';
     const zusatz = [daten.eintrag?.lehrform ? `Lehrform: ${daten.eintrag.lehrform}` : '', daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : ''].filter(Boolean).join(' · ');
     const hinweis = ebenenHinweis('thema');
-    const inhalt = (wert ? `<p class="sd-text">${e(wert)}</p>` : einzel && hinweis ? '' : `<p class="sd-text text-body-tertiary">${einzel ? 'Kein Lehrstoff für diese Stunde eingetragen' : 'Kein Lehrstoff eingetragen'}</p>`)
+    // wie in der Vorlage: Lehrstoff direkt auf der Seite eingeben – Klick auf den Text bzw. den Hinweis öffnet ein Eingabefeld mit
+    // „Speichern“ (erst nach einer Änderung aktiv) und „Abbrechen“; der Stift öffnet weiterhin den Dialog (Lehrstoff aus Vorwochen, Lehrform)
+    const text = daten.darf
+      ? (lehrstoffInline
+        ? `<div class="sd-lehrstoff-inline"><input class="form-control sd-eingabe" data-lehrstoff-feld maxlength="2000" value="${e(wert ?? '')}" aria-label="Lehrstoff">
+            <div class="sd-lehrstoff-knoepfe"><button type="button" class="sd-pille klein primaer" data-lehrstoff-speichern disabled>Speichern</button>
+            <button type="button" class="sd-pille klein" data-lehrstoff-abbrechen>Abbrechen</button></div></div>`
+        : `<button type="button" class="sd-lehrstoff-klick ${wert ? 'mit-text' : ''}" data-lehrstoff-inline>${wert ? e(wert) : 'Klicken Sie hier, um den Lehrstoff einzugeben.'}</button>`)
+      : '';
+    const inhalt = (text || (wert ? `<p class="sd-text">${e(wert)}</p>` : einzel && hinweis ? '' : `<p class="sd-text text-body-tertiary">${einzel ? 'Kein Lehrstoff für diese Stunde eingetragen' : 'Kein Lehrstoff eingetragen'}</p>`))
       + (zusatz ? `<p class="sd-text small text-body-secondary mt-1">${e(zusatz)}</p>` : '') + hinweis;
     return abschnitt(maskeIcon('klassenbuch/common-file-text.svg'), 'Lehrstoff', null, stift, inhalt);
   }
@@ -547,10 +582,7 @@ export function karteDialog(karte, kontext = {}) {
     return `<div class="sd-detail sd-online">${ic}<div class="flex-grow-1">
         ${onlineSchalter(online, 'data-online')}
         ${online ? `<div class="sd-online-feld">
-          <label class="form-label small mb-1" for="sd-online-link">Link zum Online-Unterricht (Videokonferenz)</label>
-          <div class="d-flex flex-wrap gap-2 align-items-center">
-            <input type="url" class="form-control form-control-sm" id="sd-online-link" data-online-link inputmode="url" maxlength="1000" placeholder="https://…" value="${e(link)}">
-            <button type="button" class="sd-pille klein primaer" data-online-speichern>Speichern</button></div>
+          <input type="url" class="form-control sd-notiz sd-eingabe" id="sd-online-link" data-online-link inputmode="url" maxlength="1000" placeholder="Url hier eingeben" value="${e(link)}" aria-label="Link zum Online-Unterricht (Videokonferenz)">
           <div class="invalid-feedback d-block d-none" data-online-fehler>Bitte einen gültigen Link mit http:// oder https:// angeben.</div>
           ${beitreten ? `<div class="mt-2">${beitreten}</div>` : ''}</div>` : ''}</div></div>`;
   }
@@ -559,8 +591,7 @@ export function karteDialog(karte, kontext = {}) {
     const ic = maskeIcon('klassenbuch/common-file-text.svg');
     if (!daten.darf) return wert || hinweis ? `<div class="sd-detail">${ic}<div><div class="sd-detail-titel">${titel}</div>${wert ? `<p class="sd-text">${e(wert)}</p>` : ''}${hinweis}</div></div>` : '';
     return `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div>${hinweis}
-      <textarea class="form-control sd-notiz" rows="2" data-notiz="${feld}" ${einzel ? `placeholder="Nur für die ${einzel}. Stunde"` : ''}>${e(wert ?? '')}</textarea>
-      <div class="sd-notiz-knoepfe d-none" data-notiz-knoepfe="${feld}"><button type="button" class="sd-pille klein" data-notiz-abbrechen="${feld}">Abbrechen</button><button type="button" class="sd-pille klein primaer" data-notiz-speichern="${feld}">Speichern</button></div></div></div>`;
+      <textarea class="form-control sd-notiz sd-eingabe" rows="2" data-notiz="${feld}" ${einzel ? `placeholder="Nur für die ${einzel}. Stunde"` : ''} aria-label="${titel}">${e(wert ?? '')}</textarea></div></div>`;
   }
 
   // ---------------------------------------------------------------- Prüfung erstellen
@@ -680,14 +711,42 @@ export function karteDialog(karte, kontext = {}) {
         zeichnen();
       });
     }
-    alle('[data-reiter]', b => b.onclick = () => { if (reiter === 'pruefung' || reiter === 'raum') return; reiter = b.dataset.reiter; offen = null; zeichnen(); });
+    alle('[data-reiter]', b => b.onclick = async () => {
+      if (reiter === 'pruefung' || reiter === 'raum') return;
+      reiter = b.dataset.reiter; offen = null;
+      if (reiter === 'schueler' && !daten.schuelerliste) {
+        zeichnen();
+        try { daten.schuelerliste = await holen(`/api/app/klassenbuch/schuelerliste?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}`); }
+        catch (err) { daten.schuelerliste = { fehler: err.message, schueler: [], lehrer: [], klassen: [] }; }
+      }
+      zeichnen();
+    });
+    q('[data-sl-berichte]')?.addEventListener('click', ev => { ev.stopPropagation(); box.querySelector('[data-sl-menue]')?.classList.toggle('d-none'); });
+    q('[data-sl-drucken]')?.addEventListener('click', () => {
+      const t = box.querySelector('.sl-blatt');
+      const w = window.open('', '_blank');
+      if (!w) return;
+      w.document.write(`<!doctype html><meta charset="utf-8"><title>Schüler*innen im Unterricht</title><style>body{font:13px sans-serif;margin:24px}table{border-collapse:collapse}th,td{padding:4px 10px;text-align:left;border-bottom:1px solid #ddd}details{display:none}</style><h3>Schüler*innen im Unterricht</h3>${t.innerHTML}`);
+      w.document.close(); w.focus(); w.print();
+    });
+    q('[data-sl-csv]')?.addEventListener('click', () => {
+      const sl = daten.schuelerliste;
+      const zeilen = [['Nr', 'Familienname', 'Vorname', 'Geschlecht', 'Klasse', 'Eintrittsdatum', 'Austrittsdatum'], ...sl.schueler.map((x, i) => [i + 1, x.name, x.vorname, x.geschlecht, x.klasse, '', ''])];
+      const csv = '\ufeff' + zeilen.map(z => z.map(v => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = `schueler-${klassenListe().join('-')}-${k.datum}.csv`;
+      document.body.append(a); a.click(); a.remove();
+    });
     alle('[data-blaettern]', b => b.onclick = async () => {
       const x = liste[liste.indexOf(k) + Number(b.dataset.blaettern)];
       if (!x) return;
-      k = x; einzel = null; auswahl.clear(); abwAuswahl.clear(); offen = null; hwBearbeiten = null; pruefungSchueler = null;
+      k = x; einzel = null; auswahl.clear(); abwAuswahl.clear(); offen = null; hwBearbeiten = null; pruefungSchueler = null; lehrstoffInline = false;
       box.querySelector('.sd-rumpf').innerHTML = '<div class="py-5"></div>';
       await laden();
       if (reiter === 'klassenbuch' && !mitKlassenbuch()) reiter = 'details';
+      if (reiter === 'schueler' && !mitSchuelerliste()) reiter = 'details';
+      if (reiter === 'schueler') daten.schuelerliste = await holen(`/api/app/klassenbuch/schuelerliste?datum=${k.datum}&stunde=${k.von}&unterricht=${k.unterricht}`).catch(err => ({ fehler: err.message, schueler: [], lehrer: [], klassen: [] }));
       zeichnen();
     });
     q('[data-pruefung]')?.addEventListener('click', async () => {
@@ -830,6 +889,31 @@ export function karteDialog(karte, kontext = {}) {
     // Editoren schließen
     alle('[data-zu]', b => b.onclick = () => { offen = null; hwBearbeiten = null; zeichnen(); });
 
+    // Lehrstoff direkt auf der Seite
+    alle('[data-lehrstoff-inline]', b => b.onclick = () => {
+      lehrstoffInline = true; zeichnen();
+      const f = box.querySelector('[data-lehrstoff-feld]');
+      f?.focus(); f?.setSelectionRange(f.value.length, f.value.length);
+    });
+    const lf = q('[data-lehrstoff-feld]');
+    if (lf) {
+      const start = lf.value;
+      const sp = box.querySelector('[data-lehrstoff-speichern]');
+      const abbrechen = () => { lehrstoffInline = false; zeichnen(); };
+      const speichern = async () => {
+        if (lf.value === start) return abbrechen();
+        sp.disabled = true;
+        if (await eintragSpeichern({ thema: lf.value })) { lehrstoffInline = false; zeichnen(); } else sp.disabled = false;
+      };
+      lf.addEventListener('input', () => { sp.disabled = lf.value === start; });
+      lf.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); speichern(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); abbrechen(); }
+      });
+      sp.onclick = speichern;
+      box.querySelector('[data-lehrstoff-abbrechen]').onclick = abbrechen;
+    }
+
     // Lehrstoff (Dialog), Hausaufgaben-Editor öffnen
     alle('[data-bearbeiten]', b => b.onclick = () => {
       if (b.dataset.bearbeiten === 'thema') {
@@ -919,29 +1003,42 @@ export function karteDialog(karte, kontext = {}) {
         if (ev.target.checked && !daten.eintrag.onlineLink) box.querySelector('[data-online-link]')?.focus();
       } catch (err) { ev.target.checked = !ev.target.checked; toast(err.message, true); }
     });
-    q('[data-online-speichern]')?.addEventListener('click', async () => {
-      const feld = box.querySelector('[data-online-link]'), fehler = box.querySelector('[data-online-fehler]');
-      const link = feld.value.trim();
-      const gueltig = !link || sichererLink(link);
-      feld.classList.toggle('is-invalid', !gueltig);
-      fehler.classList.toggle('d-none', gueltig);
-      if (!gueltig) return feld.focus();
-      try {
-        await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: true, onlineLink: link, ...eb() }, 'PUT');
-        onlineMerken(true, link);
-        toast(link ? 'Link zum Online-Unterricht gespeichert.' : 'Link zum Online-Unterricht entfernt.');
-        zeichnen();
-      } catch (err) { toast(err.message, true); }
-    });
-    q('[data-online-link]')?.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); box.querySelector('[data-online-speichern]')?.click(); } });
-    alle('[data-notiz]', t => t.oninput = () => box.querySelector(`[data-notiz-knoepfe="${t.dataset.notiz}"]`)?.classList.remove('d-none'));
-    alle('[data-notiz-abbrechen]', b => b.onclick = () => zeichnen());
-    alle('[data-notiz-speichern]', b => b.onclick = async () => {
-      const feld = b.dataset.notizSpeichern;
-      if (await eintragSpeichern({ [feld]: box.querySelector(`[data-notiz="${feld}"]`).value })) {
-        if (!einzel) k = { ...k, [feld === 'notiz' ? 'notizLehrer' : 'notizSchueler']: box.querySelector(`[data-notiz="${feld}"]`).value };
-        zeichnen();
-      }
+    // Wie in der Vorlage: Link und Notizen ohne eigene Knöpfe – gespeichert wird beim Verlassen des Feldes (bzw. Enter beim Link),
+    // Esc verwirft die Eingabe. Kein Neuzeichnen nach dem Speichern, damit der Fokus im nächsten Feld bleibt.
+    const linkFeld = q('[data-online-link]');
+    if (linkFeld) {
+      let gespeichert = linkFeld.value;
+      const linkSpeichern = async () => {
+        const link = linkFeld.value.trim();
+        if (link === gespeichert.trim()) return;
+        const gueltig = !link || sichererLink(link);
+        linkFeld.classList.toggle('is-invalid', !gueltig);
+        box.querySelector('[data-online-fehler]')?.classList.toggle('d-none', gueltig);
+        if (!gueltig) return;
+        try {
+          await senden('/api/app/klassenbuch/online', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, online: true, onlineLink: link, ...eb() }, 'PUT');
+          onlineMerken(true, link);
+          gespeichert = link;
+          toast(link ? 'Link zum Online-Unterricht gespeichert.' : 'Link zum Online-Unterricht entfernt.');
+        } catch (err) { toast(err.message, true); }
+      };
+      linkFeld.addEventListener('blur', linkSpeichern);
+      linkFeld.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') { ev.preventDefault(); linkFeld.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); linkFeld.value = gespeichert; linkFeld.classList.remove('is-invalid'); linkFeld.blur(); }
+      });
+    }
+    alle('[data-notiz]', t => {
+      let gespeichert = t.value;
+      t.addEventListener('blur', async () => {
+        if (t.value === gespeichert) return;
+        const feld = t.dataset.notiz, wert = t.value;
+        if (await eintragSpeichern({ [feld]: wert })) {
+          gespeichert = wert;
+          if (!einzel) k = { ...k, [feld === 'notiz' ? 'notizLehrer' : 'notizSchueler']: wert };
+        }
+      });
+      t.addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); t.value = gespeichert; t.blur(); } });
     });
   }
 
@@ -984,21 +1081,70 @@ export function karteDialog(karte, kontext = {}) {
    * Kapazität und „Nur freie“ (einheitliche Auswahl-Pillen); je Raum Kapazität und Status frei/belegt zur Zeit der Stunde – wählbar sind
    * freie buchbare Räume und die ursprünglichen Räume der Stunde.
    */
+  /**
+   * Raum ersetzen bzw. hinzufügen wie in der Vorlage: graue Suchpille „Suchen Sie einen Raum“, Filter-Chips „Gebäude“ und „Abteilung“
+   * (gewählt dunkel gefüllt, Auswahlmenü dunkel), darunter nur die freien Räume – je Zeile graue Scheibe mit Raumsymbol, Kürzel,
+   * Gebäude als dunkle Pille und rechts ein Auswahlkreis. Speichern/Abbrechen unten.
+   */
   async function raumWahl(ziel) {
     ziel.innerHTML = '<div class="py-2"></div>';
     let raeume;
     try { raeume = await holen(`/api/app/buchen/raumstatus?datum=${k.datum}&von=${k.von}&bis=${k.bis}${k.unterricht ? `&unterricht=${k.unterricht}` : ''}`); }
     catch (err) { ziel.innerHTML = `<p class="small text-danger mt-2">${e(err.message)}</p>`; return; }
     const aktuell = kuerzel(k.raeume.filter(w => w.k));
-    raeume = raeume.filter(r => (r.buchbar || r.eigen) && !aktuell.includes(r.kurz));
-    raumModus.filter ??= {};
-    const liste = raumListe(ziel, {
-      raeume, titel: raumModus.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen', gewaehlt: raumModus.gewaehlt, filter: raumModus.filter,
-      waehlbar: r => r.frei, zusatz: r => r.eigen ? '<span class="sd-ursprung">ursprünglicher Raum</span>' : '',
-      leerText: 'In dieser Zeit ist kein passender buchbarer Raum frei.',
-      beiWahl: kurz => { raumModus.gewaehlt = kurz; box.querySelector('[data-raum-speichern]').disabled = !kurz; },
-    });
-    liste.fokus();
+    raeume = raeume.filter(r => (r.buchbar || r.eigen) && r.frei && !aktuell.includes(r.kurz))
+      .sort((x, y) => x.kurz.localeCompare(y.kurz, 'de', { numeric: true }));
+    const f = raumModus.filter ??= {};
+    f.suche ??= ''; f.gebaeude ??= ''; f.abteilung ??= '';
+    const werte = n => [...new Set(raeume.map(r => r[n]).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de', { numeric: true }));
+    const chip = (n, titel) => {
+      const liste = werte(n);
+      if (!liste.length && !f[n]) return '';
+      return `<span class="rv-chipbox"><button type="button" class="rv-chip ${f[n] ? 'an' : ''}" data-rv-chip="${n}" aria-haspopup="listbox" aria-expanded="false">${e(f[n] || titel)}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+        <span class="rv-menue d-none" data-rv-menue="${n}" role="listbox"><button type="button" class="rv-menue-kopf" data-rv-wert="" data-rv-n="${n}">${e(f[n] || titel)}<i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+          <button type="button" data-rv-wert="" data-rv-n="${n}">${e(titel)}</button>${liste.map(w => `<button type="button" class="${w === f[n] ? 'an' : ''}" data-rv-wert="${e(w)}" data-rv-n="${n}">${e(w)}</button>`).join('')}</span></span>`;
+    };
+    const zeilen = () => {
+      const q = f.suche.toLowerCase();
+      const sichtbar = raeume.filter(r => (!q || `${r.kurz} ${r.name ?? ''}`.toLowerCase().includes(q)) && (!f.gebaeude || r.gebaeude === f.gebaeude) && (!f.abteilung || r.abteilung === f.abteilung));
+      return sichtbar.map(r => `<button type="button" class="rv-zeile ${r.kurz === raumModus.gewaehlt ? 'an' : ''}" role="radio" aria-checked="${r.kurz === raumModus.gewaehlt}" data-rv-raum="${e(r.kurz)}" title="${e(r.name || r.kurz)}">
+          <span class="rv-scheibe" aria-hidden="true"><span class="u-sym wu" style="--wu:url(${W}shared_roomEntity.svg)"></span></span>
+          <span class="rv-text"><span class="rv-kurz">${e(r.kurz)}${r.eigen ? ' <span class="sd-ursprung">ursprünglicher Raum</span>' : ''}</span>${r.gebaeude ? `<span class="rv-geb">${e(r.gebaeude)}</span>` : ''}</span>
+          <span class="rv-radio" aria-hidden="true"></span></button>`).join('')
+        || `<p class="rv-leer">${f.suche || f.gebaeude || f.abteilung ? 'Kein freier Raum passt zur Suche.' : 'In dieser Zeit ist kein passender buchbarer Raum frei.'}</p>`;
+    };
+    const malen = () => {
+      ziel.innerHTML = `<div class="rv">
+        <label class="rv-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-rv-suche value="${e(f.suche)}" placeholder="Suchen Sie einen Raum" aria-label="Suchen Sie einen Raum">
+          <button type="button" class="rv-leeren" data-rv-leeren ${f.suche ? '' : 'hidden'} aria-label="Suche leeren"><i class="bi bi-x-circle"></i></button></label>
+        <div class="rv-chips">${chip('gebaeude', 'Gebäude')}${chip('abteilung', 'Abteilung')}</div>
+        <div class="rv-liste" role="radiogroup" aria-label="Freie Räume" data-rv-liste>${zeilen()}</div></div>`;
+      const such = ziel.querySelector('[data-rv-suche]');
+      such.oninput = () => { f.suche = such.value.trim(); ziel.querySelector('[data-rv-leeren]').hidden = !f.suche; ziel.querySelector('[data-rv-liste]').innerHTML = zeilen(); };
+      ziel.querySelector('[data-rv-leeren]').onclick = () => { f.suche = ''; malen(); ziel.querySelector('[data-rv-suche]').focus(); };
+      ziel.querySelectorAll('[data-rv-chip]').forEach(c => c.onclick = ev => {
+        ev.stopPropagation();
+        const m = ziel.querySelector(`[data-rv-menue="${c.dataset.rvChip}"]`);
+        const zu = m.classList.contains('d-none');
+        ziel.querySelectorAll('[data-rv-menue]').forEach(x => x.classList.add('d-none'));
+        m.classList.toggle('d-none', !zu);
+      });
+      ziel.querySelectorAll('[data-rv-wert]').forEach(b => b.onclick = ev => {
+        ev.stopPropagation();
+        if (!b.classList.contains('rv-menue-kopf')) f[b.dataset.rvN] = b.dataset.rvWert;
+        malen();
+      });
+      ziel.querySelector('[data-rv-liste]').onclick = ev => {
+        const z = ev.target.closest('[data-rv-raum]');
+        if (!z) return;
+        raumModus.gewaehlt = z.dataset.rvRaum;
+        ziel.querySelectorAll('[data-rv-raum]').forEach(x => { const an = x === z; x.classList.toggle('an', an); x.setAttribute('aria-checked', String(an)); });
+        box.querySelector('[data-raum-speichern]').disabled = false;
+      };
+    };
+    ziel.onclick = ev => { if (!ev.target.closest('.rv-chipbox')) ziel.querySelectorAll('[data-rv-menue]').forEach(x => x.classList.add('d-none')); };
+    malen();
+    ziel.querySelector('[data-rv-suche]')?.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------- Dialoge wie im alten Klassenbuch (Lehrstoff, Abwesenheit, Klassenbucheintrag)

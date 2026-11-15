@@ -1997,3 +1997,9 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-benutzer b { font-size: 16px; font-weight: 600; }
 .u-leiste .u-benutzer small { font-size: 14px; font-weight: 400; }
 .u-leiste .u-abmelden { font-size: 12px; font-weight: 600; }
+
+/* Seitenleiste wie in der Vorlage: Titel mittig neben dem Logo, Schulname in normaler Schreibweise einzeilig darunter */
+.u-leiste .u-marke span { margin-top: -1px; }
+.u-leiste .u-marke b { font-size: 21px; font-weight: 500; line-height: 1.2; }
+.u-leiste .u-marke small { display: block; margin-top: 2px; font-size: 14.2px; text-transform: none; letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-line-clamp: unset; }
+.u-leiste:not(.mit-unter) .u-jahrzeile { padding-top: 15px; padding-bottom: 13px; }

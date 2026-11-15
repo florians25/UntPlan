@@ -518,7 +518,7 @@ const leisteEintrag = (text, art) => `<div class="tt-ereignis ${art}" title="${e
 export const tagKopf = (i, iso) => { const [, m, t] = iso.split('-'); return `${WOCHENTAGE_KURZ[i] ?? ''} ${t}.${m}.`; };
 
 /** Wochenraster als HTML. plan: Antwort von /api/app/plan; gewaehlterTag: Index für die Mobilansicht. */
-export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false, aufsichten: aufsichtModus = 'normal' } = {}) {
+export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false } = {}) {
   const alle = plan.zeitraster.filter(z => z.beginn && z.ende);
   if (!alle.length) return '<div class="alert alert-secondary">Kein Zeitraster übertragen.</div>';
   // Raster immer vollständig (alle Stunden des Zeitrasters), wie im Original
@@ -580,8 +580,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       const { spur, anzahl } = lage.get(k);
       const breite = 100 / anzahl;
       const nr = k.ereignis ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
-      // Veranstaltungen (und bei halbierten/ausgeblendeten Aufsichten alle Karten) laufen über die Pause hinweg durch
-      for (const [von, bis] of abschnitte(k, aufbau, index, k.status === 'veranstaltung' || aufsichtModus !== 'normal')) {
+      // Pausenaufsichten immer automatisch: Blöcke laufen über die Pause hinweg durch, die Aufsicht steht dort schmal daneben
+      for (const [von, bis] of abschnitte(k, aufbau, index, true)) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“); bei zwei parallelen Stunden nur in der linken
@@ -593,9 +593,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       }
     }
     // Pausenaufsichten in der Pausenzeile
-    const aufsichten = aufsichtModus === 'aus' ? [] : plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde));
-    // durchgängige Veranstaltung über diese Pause: Aufsicht schmal daneben
-    const ueberPause = nach => aufsichtModus === 'halbiert' || alleKarten.some(k => k.status === 'veranstaltung' && k.von <= nach && k.bis > nach);
+    const aufsichten = plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde));
+    // Karte (Block, Veranstaltung) läuft über diese Pause: Aufsicht automatisch schmal daneben, sonst über die ganze Breite
+    const ueberPause = nach => alleKarten.some(k => k.von <= nach && k.bis > nach);
     const proPause = new Map();
     for (const a of aufsichten) proPause.set(a.nachStunde, [...(proPause.get(a.nachStunde) ?? []), a]);
     for (const [nach, liste] of proPause) {

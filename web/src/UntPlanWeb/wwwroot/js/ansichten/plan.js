@@ -35,7 +35,7 @@ import { kalenderBinden } from '../kalender.js';
 
 /** Einstellungen der Legende (je Gerät). */
 export function planEinstellungen() {
-  const w = { symbole: true, abwesenheiten: true, zeiten: true, aufsichten: 'normal' };
+  const w = { symbole: true, abwesenheiten: true, zeiten: true };
   try { Object.assign(w, JSON.parse(localStorage.getItem('untplan:planeinstellungen') ?? '{}')); } catch { /* privat */ }
   try { const z = localStorage.getItem('untplan:kartenzeiten'); if (z !== null && !localStorage.getItem('untplan:planeinstellungen')) w.zeiten = z === '1'; } catch { /* privat */ }
   return w;
@@ -60,8 +60,6 @@ export function legendeHtml(aus, einst, mitDruck = true, plan = null) {
         <button type="button" class="eintrag" data-einst="zeiten" role="menuitemcheckbox" aria-checked="${einst.zeiten}">${haken(einst.zeiten)}Uhrzeiten anzeigen</button>
         <div class="kopf">Anzeigen</div>
         <button type="button" class="eintrag" data-einst="abwesenheiten" role="menuitemcheckbox" aria-checked="${einst.abwesenheiten}">${haken(einst.abwesenheiten)}Abwesenheiten anzeigen</button>
-        <div class="kopf">Pausenaufsichten</div>
-        ${[['normal', 'Normal'], ['halbiert', 'Halbiert (Blöcke durchgängig)'], ['aus', 'Ausgeblendet']].map(([w, t]) => `<button type="button" class="eintrag" data-aufsichten="${w}" role="menuitemradio" aria-checked="${(einst.aufsichten ?? 'normal') === w}">${haken((einst.aufsichten ?? 'normal') === w)}${t}</button>`).join('')}
         ${plan?.formate?.length ? `<div class="kopf">Stundenplanformat</div>
           ${[{ id: 0, name: 'Standard' }, ...plan.formate].map(f => `<button type="button" class="eintrag" data-planformat="${f.id}" role="menuitemradio" aria-checked="${(plan.formatId ?? 0) === f.id}">${(plan.formatId ?? 0) === f.id ? '<i class="bi bi-record-circle-fill haken punkt"></i>' : '<i class="bi bi-circle haken leer"></i>'}${e(f.name)}</button>`).join('')}` : ''}
         <div class="kopf">Andere</div>
@@ -131,12 +129,6 @@ export function legendeBinden(wurzel, aus, einst, neuZeichnen) {
     try { localStorage.setItem('untplan:planformat', b.dataset.planformat); } catch { /* privat */ }
     // neu laden: das Format wendet der Server an (Tage, Zeiten, Aktivitäten, Hervorhebungen)
     window.dispatchEvent(new HashChangeEvent('hashchange'));
-  });
-  wurzel.querySelectorAll('[data-aufsichten]').forEach(b => b.onclick = ev => {
-    ev.stopPropagation();
-    einst.aufsichten = b.dataset.aufsichten;
-    einstellungenSpeichern(einst);
-    neuZeichnen(true);
   });
   wurzel.querySelector('[data-drucken]')?.addEventListener('click', () => { menue.classList.add('d-none'); druckenMitAusrichtung('quer', 'stundenplan'); });
   wurzel.querySelector('[data-link]').onclick = async () => {
@@ -253,7 +245,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` – ${e(langname(plan))}` : ''}</h2>
         <span class="text-body-secondary small ms-2">${wochenText(mo)}</span></div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: plan.format?.kartenZeiten || einst.zeiten, aufsichten: einst.aufsichten })}
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: plan.format?.kartenZeiten || einst.zeiten })}
       ${legendeHtml(aus, einst, true, plan)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext, typ, plan.format);

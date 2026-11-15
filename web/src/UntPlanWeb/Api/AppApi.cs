@@ -565,6 +565,26 @@ public static class AppApi
             var d = Datum(datum, uhr);
             return Results.Json(kb.Woche(Paket(p), klasse, d.AddDays(-(((int)d.DayOfWeek + 6) % 7))));
         });
+        // Schüler*innen im Unterricht (Reiter „Schüler*innen“ der Stundendetails bei Entfall bzw. fremdem Unterricht): Teilnehmer der Stunde
+        // mit Geschlecht und – soweit der Benutzer sie sehen darf (Verwaltung, Klassenleitung) – E-Mail-Adresse
+        api.MapGet("/klassenbuch/schuelerliste", (DateOnly datum, int stunde, int unterricht, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Schuelerverwaltung sv) =>
+        {
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var s = Paket(p);
+            var karte = kb.StundeKarte(b, s, datum, stunde, unterricht) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+            var angaben = sv.Liste(b, s, null).ToDictionary(x => x.Id);
+            var schueler = kb.SchuelerDerStunde(s, karte, datum).Select(x =>
+            {
+                angaben.TryGetValue(x.Id, out var z);
+                return new { x.Id, name = x.Name, x.Vorname, x.Klasse, geschlecht = z?.Geschlecht ?? "", email = z?.Email ?? "" };
+            }).ToList();
+            return Results.Json(new
+            {
+                lehrer = karte.Lehrer.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                fach = karte.Fach, klassen = karte.Klassen.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(x => x.Length > 0).Distinct().ToList(), schueler,
+            });
+        });
         api.MapGet("/klassenbuch/anwesenheit", (DateOnly datum, int stunde, int unterricht, int? einzelstunde, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
