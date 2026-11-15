@@ -195,6 +195,8 @@ public sealed record PlanAbwesenheit(string Datum, string Von, string Bis, strin
     public string Kuerzel { get; init; } = "";
 }
 
+public sealed record PlanformatKurz(int Id, string Name);
+
 public sealed record Wochenplan(string Typ, string Element, string Name, string Montag, string Woche, List<Zeit> Zeitraster, List<Tageskopf> Tage,
     List<Karte> Karten, List<Aufsicht> Aufsichten)
 {
@@ -204,6 +206,9 @@ public sealed record Wochenplan(string Typ, string Element, string Name, string 
     public Planformat? Format { get; init; }
     /// <summary>Langnamen der Elemente im Plan je Art (klasse, lehrer, raum, fach) – nur mit Format.</summary>
     public Dictionary<string, Dictionary<string, string>>? Langnamen { get; init; }
+    /// <summary>Alle Stundenplanformate (Id, Name) für die Auswahl im Menü „⋮“ und die Id des angewandten (0 = Standarddarstellung).</summary>
+    public List<PlanformatKurz>? Formate { get; init; }
+    public int FormatId { get; init; }
     public string? Sperrhinweis { get; init; }
     /// <summary>
     /// Eigene Abwesenheiten im eigenen Plan („Mein Stundenplan“): Lehrkraft (Absenzen aus UntPlan) bzw. Schüler*in (Abwesenheiten aus dem

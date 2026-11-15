@@ -256,7 +256,7 @@ public static class AppApi
             });
         });
 
-        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr, Planformatdienst pf) =>
+        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, int? format, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr, Planformatdienst pf) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
@@ -268,7 +268,11 @@ public static class AppApi
             // Notizen und fällige Hausaufgaben für die Symbole auf den Karten; eigene Abwesenheiten im eigenen Plan
             w = w with { Karten = kb.Anreichern(w.Karten, b.Kollegium), Abwesenheiten = EigeneAbwesenheiten(b, s, typ, element, tag, schueler, kb, kv) };
             // Stundenplanformat (Administration → Stundenplaneinstellungen): Tage, Zeiten, Aktivitäten, Hervorhebungen, Anordnung auf dem Kärtchen
-            return Results.Json(Planformatdienst.Anwenden(w, pf.FormatFuer(typ, b.Kollegium), s));
+            // Format: Vorgabe der Schule bzw. die eigene Wahl im Menü „⋮“ (format=0: Standarddarstellung)
+            var f = pf.Gewaehlt(format, typ, b.Kollegium);
+            if (!pf.Zuordnung().VideoLinks) w = w with { Karten = w.Karten.Select(k => k with { OnlineLink = "" }).ToList() };
+            w = Planformatdienst.Anwenden(w, f, s) with { Formate = pf.Formate().OrderBy(x => x.Name, StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true)).Select(x => new PlanformatKurz(x.Id, x.Name)).ToList(), FormatId = f?.Id ?? 0 };
+            return Results.Json(w);
         });
 
         api.MapGet("/tag", (string typ, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Uhr uhr) =>

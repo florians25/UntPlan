@@ -122,14 +122,117 @@
 @media (max-width: 575.98px) { .kbe-max > span:first-child { width: 100%; } .kbe-reiter { border-radius: 14px; } }
 
 /* Stundenplaneinstellungen: Elemente auf dem Stundenkärtchen, Tage, Stundenbeschriftung */
-.pf-elemente { display: flex; flex-direction: column; gap: 8px; }
-.pf-element { display: grid; grid-template-columns: 24px minmax(0, 1.4fr) minmax(0, 1fr) auto auto; align-items: center; gap: 8px; max-width: 640px; }
-.pf-element .form-select { height: 36px; }
-.pf-nr { font-size: .85rem; color: var(--u-grau); text-align: right; }
-.pf-tage { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.pf-tage button { width: 40px; height: 34px; border: 1px solid var(--u-linie); border-radius: 999px; background: #fff; color: var(--u-titel); font-size: .85rem; }
-.pf-tage button.an { background: var(--u-akzent); border-color: var(--u-akzent); color: #fff; }
-.pf-checks { display: flex; flex-direction: column; gap: 6px; font-size: .9rem; }
-.pf-checks label { display: inline-flex; align-items: center; gap: 8px; }
-.pf-liste td { vertical-align: middle; }
-@media (max-width: 575.98px) { .pf-element { grid-template-columns: 20px minmax(0, 1fr) auto auto; } .pf-element [data-e-name] { grid-column: 2; } }
+/* ------------------------------------------------------------------ Stundenplaneinstellungen (planeinstellungen.js) */
+.pe { max-width: 1040px; padding-bottom: 88px; }
+.pe-reiter { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 20px; border-bottom: 1px solid var(--u-linie); }
+.pe-reiter button { position: relative; height: 44px; padding: 0 12px; border: 0; background: none; color: var(--u-text); font: inherit; font-size: .95rem; font-weight: 500; cursor: pointer; }
+.pe-reiter button:hover { color: var(--u-titel); }
+.pe-reiter button.an { color: var(--u-akzent); }
+.pe-reiter button.an::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--u-akzent); }
+.pe-reiter button:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.pe-titel { margin: 0; font-size: 1rem; font-weight: 500; color: var(--u-titel); line-height: 1.4; }
+.pe-zahl { margin-left: 6px; font-size: .8rem; color: var(--u-grau); }
+
+/* Allgemein: Zeilen und umrandete Kästen */
+.pe-zeile { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px 24px; align-items: center; padding: 10px 14px; }
+.pe-allg { margin-bottom: 8px; }
+.pe-kasten { max-width: 640px; margin: 0 0 16px; padding: 14px 0 6px; background: var(--u-flaeche, #fff); border: 1px solid var(--u-linie); border-radius: 8px; }
+.pe-kasten > .pe-titel { padding: 0 14px 4px; }
+.pe-text { font-size: .875rem; color: var(--u-text); line-height: 1.45; }
+.pe-text small { display: block; margin-top: 4px; font-size: .78rem; color: var(--u-grau); }
+.pe-wert { min-width: 0; }
+.pe-fuss { position: sticky; bottom: 0; display: flex; justify-content: flex-end; margin-top: 8px; padding: 12px 0; pointer-events: none; }
+.pe-fuss > * { pointer-events: auto; }
+
+/* Eingabe mit schwebendem Label */
+.pe-feld { position: relative; display: block; margin: 0; padding-top: 7px; }
+.pe-feld-label { position: absolute; left: 9px; top: 0; z-index: 1; padding: 0 4px; background: var(--u-flaeche, #fff); font-size: .72rem; color: var(--u-grau); line-height: 1.2; }
+.pe-feld .form-select, .pe-feld .form-control { height: 40px; font-size: .9rem; border-color: #c9d0d6; border-radius: 4px; }
+.pe-feld .form-control { background: #fff; }
+.pe-feld .form-select:focus, .pe-feld .form-control:focus { border-color: var(--u-akzent); background: #fff; box-shadow: none; }
+.pe-feld:focus-within .pe-feld-label { color: var(--u-akzent); }
+.pe-feld.breit { max-width: 300px; }
+
+/* Knöpfe */
+.pe-knopf { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 24px; border: 1px solid #c9d0d6; border-radius: 999px; background: #fff;
+  color: var(--u-titel); font: inherit; font-size: .9rem; font-weight: 500; text-decoration: none; cursor: pointer; }
+.pe-knopf:hover { border-color: #8a96a1; color: var(--u-titel); }
+.pe-knopf.klein { height: 30px; padding: 0 14px; font-size: .82rem; }
+.pe-knopf.primaer { background: var(--u-akzent); border-color: var(--u-akzent); color: #fff; }
+.pe-knopf.primaer:hover { background: var(--u-akzent-dunkel); border-color: var(--u-akzent-dunkel); }
+.pe-knopf.primaer:disabled { background: #e6e8eb; border-color: #e6e8eb; color: #9aa3ab; cursor: default; }
+.pe-knopf.rot { margin-right: auto; color: #a1262b; border-color: #e8a7aa; }
+.pe-knopf:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+
+/* runde orange Häkchen und Radiopunkte */
+.pe-haken { position: relative; display: inline-flex; align-items: center; gap: 10px; margin: 0; font-size: .875rem; color: var(--u-titel); cursor: pointer; line-height: 1.35; }
+.pe-haken input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pe-kreis { position: relative; flex: none; width: 18px; height: 18px; border: 1.5px solid #9aa3ab; border-radius: 50%; background: #fff; }
+.pe-haken input:checked + .pe-kreis { border-color: var(--u-akzent); }
+.pe-haken input[type=checkbox]:checked + .pe-kreis::after { content: ""; position: absolute; left: 5px; top: 1.5px; width: 5px; height: 9px; border: solid var(--u-akzent); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.pe-haken input[type=radio]:checked + .pe-kreis { border-width: 5px; }
+.pe-haken input:focus-visible + .pe-kreis { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.pe-stapel { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; }
+
+/* Liste der Formate */
+.pe-listenkopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 10px; }
+.pe-tabelle { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--u-flaeche, #fff); }
+.pe-tabelle th { padding: 10px 14px; border-bottom: 1px solid var(--u-linie); }
+.pe-tabelle th button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit; font-size: .78rem; font-weight: 500; color: var(--u-titel); cursor: pointer; }
+.pe-tabelle td { padding: 12px 14px; border-bottom: 1px solid var(--u-linie); font-size: .875rem; color: var(--u-titel); }
+.pe-tabelle tbody tr[data-bearbeiten] { cursor: pointer; }
+.pe-tabelle tbody tr[data-bearbeiten]:hover td { background: var(--u-hover); }
+.pe-tabelle tbody tr:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
+.pe-tabelle tr.leer td { color: var(--u-grau); }
+
+/* Panel „Neues Stundenplanformat“ */
+.pe-panel-hinter { position: fixed; inset: 0; z-index: 1040; background: rgba(20, 28, 36, .25); }
+.pe-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1041; display: flex; flex-direction: column; width: min(900px, 100vw); background: #fff; box-shadow: -8px 0 24px rgba(0, 0, 0, .12); }
+.pe-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--u-linie); }
+.pe-panel > header h2 { margin: 0; font-size: 1.25rem; font-weight: 500; color: var(--u-titel); }
+.pe-x { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: var(--u-grau); font-size: 1.1rem; cursor: pointer; }
+.pe-x:hover { background: var(--u-hover); color: var(--u-titel); }
+.pe-panel-rumpf { flex: 1; overflow-y: auto; padding: 20px 24px 32px; }
+.pe-panel > footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 20px; border-top: 1px solid var(--u-linie); }
+.pe-abschnitt, .pe-paare { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 10px 32px; max-width: 760px; margin: 0 auto; padding: 12px 0; }
+.pe-paare { padding-top: 0; row-gap: 8px; align-items: center; }
+.pe-paare > span { font-size: .82rem; color: var(--u-grau); }
+.pe-unter { margin: 4px 0 0; font-size: .82rem; color: var(--u-grau); line-height: 1.45; }
+.pe-unter + .pe-unter { margin-top: 28px; }
+.pe-elementlabel + .pe-elementlabel { margin-top: 18px; }
+
+/* Anordnung auf dem Stundenkärtchen */
+.pe-elemente { display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 8px 12px; border-left: 3px solid #2fb3b0; border-radius: 4px; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
+.pe-element { display: grid; grid-template-columns: 22px minmax(0, 1.35fr) minmax(0, 1fr) 32px; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid #edf0f2; border-radius: 4px; background: #fff; }
+.pe-element.notiz { grid-template-columns: 22px minmax(0, 1fr) 32px; }
+.pe-element.zieht { opacity: .5; }
+.pe-element.ziel { border-color: #2fb3b0; }
+.pe-griff { color: #9aa3ab; cursor: grab; text-align: center; }
+.pe-pille, .pe-name { height: 32px; min-width: 0; padding: 0 28px 0 12px; border: 1px solid #c9d0d6; border-radius: 999px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23525c66' stroke-width='1.6' d='M3 6l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center / 12px;
+  appearance: none; font: inherit; font-size: .85rem; font-weight: 500; color: var(--u-titel); text-align: center; text-align-last: center; cursor: pointer; }
+.pe-name { border-color: transparent; }
+.pe-name:hover { border-color: #c9d0d6; }
+.pe-pille:focus-visible, .pe-name:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 1px; }
+.pe-weg { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: none; color: #5f6b76; cursor: pointer; }
+.pe-weg:hover:not(:disabled) { background: var(--u-hover); }
+.pe-weg:disabled { opacity: .35; cursor: default; }
+.pe-plus { height: 34px; border: 1px solid #c9d0d6; border-radius: 999px; background: #fff; font-size: 1.1rem; color: var(--u-titel); cursor: pointer; }
+.pe-plus:hover { border-color: #8a96a1; }
+
+/* Tage und Uhrzeiten */
+.pe-tagzeile { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.pe-tage { display: inline-flex; gap: 6px; }
+.pe-tage button { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 3px; background: #e2e5e8; color: #fff; font-size: .72rem; font-weight: 500; cursor: pointer; }
+.pe-tage button.an { background: var(--u-akzent); }
+.pe-tage button:disabled { background: #cfd4d8; cursor: default; }
+.pe-schalter span:last-child { font-size: .85rem; color: var(--u-titel); }
+.pe-zeiten { display: flex; gap: 20px; }
+.pe-zeiten .pe-feld { width: 130px; }
+
+@media (max-width: 767.98px) {
+  .pe-zeile, .pe-abschnitt, .pe-paare { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .pe-paare > span { margin-top: 6px; }
+  .pe-elementlabel { display: none; }
+  .pe-panel-rumpf { padding: 16px; }
+}
+@media (max-width: 575.98px) { .pe-element { grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 28px; gap: 4px; } }
