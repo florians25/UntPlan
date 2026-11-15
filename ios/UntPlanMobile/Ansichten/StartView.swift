@@ -146,13 +146,14 @@ struct StartView: View {
 
     private var schulname: some View {
         Text(zustand.schulname)
-            .font(.system(size: groessenklasse == .compact ? 32 : 30, weight: .medium))
-            .tracking(-0.6)
+            // Vorlage nachgemessen: 26 pt fett, darunter 24 pt bis zur Tageskarte
+            .font(.system(size: 26, weight: .bold))
+            .tracking(-0.3)
             .foregroundStyle(Farben.titelGrau)
             .lineLimit(2)
             .minimumScaleFactor(0.7)
             .padding(.top, 2)
-            .padding(.bottom, 16)
+            .padding(.bottom, 24)
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -234,15 +235,16 @@ struct StartView: View {
     private func tageskarte(_ h: Heute) -> some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
+                // Vorlage: Wochentag und Monat 13 pt halbfett, Tageszahl 34 pt
                 Text(Datumsformat.anzeige(h.datum, "EEEE"))
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Farben.tinte2)
                 Text(Datumsformat.anzeige(h.datum, "d"))
-                    .font(.system(size: 38, weight: .medium))
+                    .font(.system(size: 34, weight: .medium))
                     .foregroundStyle(Farben.heute)
-                    .padding(.top, -1)
+                    .padding(.top, 2)
                 Text(Datumsformat.anzeige(h.datum, "MMMM"))
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Farben.heute)
                 if !h.woche.isEmpty {
                     Text(h.woche.count == 1 ? "\(h.woche)-Woche" : h.woche)
@@ -256,7 +258,7 @@ struct StartView: View {
             }
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
-            .frame(minWidth: groessenklasse == .compact ? 64 : 84, alignment: .leading)
+            .frame(minWidth: groessenklasse == .compact ? 72 : 84, alignment: .leading)
 
             if zeigtAbwesenheit(h) {
                 abwesenheitsfeld(h)
@@ -268,7 +270,11 @@ struct StartView: View {
                 stundenspalte(h)
             }
         }
-        .padding(groessenklasse == .compact ? 14 : 16)
+        // Vorlage: 21 pt seitlich, 17 pt oben, Karte mindestens 152 pt hoch
+        .padding(.horizontal, groessenklasse == .compact ? 21 : 22)
+        .padding(.top, 17)
+        .padding(.bottom, 18)
+        .frame(minHeight: 152, alignment: .top)
         .alsKarte()
     }
 
@@ -306,13 +312,13 @@ struct StartView: View {
         return VStack(alignment: .leading, spacing: 0) {
             // Original-Widget: „Heute“ bzw. „Morgen“ (sonst Wochentag) | Anmeldename
             (Text(istHeute ? "Heute" : Datumsformat.istMorgen(h.datum) ? "Morgen" : Datumsformat.anzeige(h.datum, "EEEE"))
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Farben.tinte2)
              + Text("  |  ")
                 .font(.system(size: 12))
                 .foregroundColor(Farben.gedaempft.opacity(0.6))
              + Text(zustand.benutzer?.login ?? "Mein Stundenplan")
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Farben.tinte2))
                 .lineLimit(1)
                 .padding(.bottom, 8)
@@ -327,7 +333,7 @@ struct StartView: View {
                         NaechsteStunde(karte: karte, typ: h.typ)
                     }
                     .buttonStyle(GedruecktStil())
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 13)
                 }
                 if !rest.isEmpty || alleStunden && stunden.count > 2 {
                     Button {
@@ -410,7 +416,7 @@ struct StartView: View {
         if zustand.istKollegium {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
             if zustand.entschuldigungsrechte?.klassenleitung == true {
-                liste.append(Listeneintrag(ziel: .klassenleitung, titel: "Klassenleitung", symbol: "person.crop.rectangle", zahl: 0))
+                // „Klassenleitung“ entfällt: die Klassenleitung arbeitet über „Abwesenheiten“
                 liste.append(Listeneintrag(ziel: .klassenAbwesenheiten, titel: "Abwesenheiten", symbol: "chair", zahl: offeneAbwesenheiten))
             }
             if zustand.entschuldigungsrechte?.irgendwas == true {
@@ -443,12 +449,12 @@ struct StartView: View {
                     Button {
                         sprechtagWahl = SprechtagWahl(id: sid, titel: e.titel)
                     } label: {
-                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
+                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil, gross: true)
                     }
                     .buttonStyle(ZeilenKnopfStil())
                 } else {
                     NavigationLink(value: e.ziel) {
-                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil)
+                        Listenzeile(symbol: e.symbol, titel: e.titel, untertitel: e.untertitel, zahl: e.zahl > 0 ? e.zahl : nil, gross: true)
                     }
                     .buttonStyle(ZeilenKnopfStil())
                 }
@@ -605,13 +611,13 @@ struct NaechsteStunde: View {
         let letzte = z.count > 1 ? z[1] : []
         VStack(alignment: .leading, spacing: 1) {
             if !erste.isEmpty {
-                zeile(erste, stil: stil).font(.system(size: 15, weight: .medium))
+                zeile(erste, stil: stil).font(.system(size: 13, weight: .semibold))
             }
             Text(karte.fach.isEmpty ? karte.titel : karte.fach)
-                .font(.system(size: 15, weight: erste.isEmpty ? .medium : .regular))
+                .font(.system(size: 13, weight: erste.isEmpty ? .semibold : .regular))
                 .strikethrough(stil.durchgestrichen)
             if !letzte.isEmpty {
-                zeile(letzte, stil: stil).font(.system(size: 15))
+                zeile(letzte, stil: stil).font(.system(size: 13))
             }
         }
         .lineLimit(1)
@@ -630,7 +636,7 @@ struct NaechsteStunde: View {
                 Spacer(minLength: 2)
                 Text(karte.ende.isEmpty ? "\(karte.bis)." : karte.ende)
             }
-            .font(.system(size: 14.5).monospacedDigit())
+            .font(.system(size: 13).monospacedDigit())
             .foregroundStyle(Farben.tinte2)
             .frame(minWidth: 52, alignment: .trailing)
         }
