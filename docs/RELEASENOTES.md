@@ -14,6 +14,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Grunddesign auch beim Sprechtag und überall sonst: alle Kontrollkästchen und Schalter der Web-Oberfläche sind runde orange Häkchen, Auswahlpunkte orange gefüllt. Sprechtag: dünn umrandete Kästen ohne Symbol; „Sprechtag anlegen/bearbeiten“ mit schwebenden Labels an allen Feldern (auch Von/Bis der Zeitblöcke).
 - Alle Einstellungsseiten im Grunddesign der Stundenplaneinstellungen: Klassenbuch-, Unterricht- und Noten-Einstellungen sowie Ansichtseinstellungen, Verspätungen & Fehlzeiten, Prüfungssperren, Zuordnungsgruppen, Monitor-Darstellung und „Quelle der Schülerdaten“ – unterstrichene Reiter, dünn umrandete Kästen ohne Symbol, Beschriftung links und Eingabe rechts, runde orange Häkchen statt Schalter, runde orange Auswahlpunkte, Felder mit schwebendem Label und „Speichern“ als Pille.
 - Veranstaltung mit Termin: vertritt eine Teilnehmerin zusätzlich eine abwesende Kollegin, steht sie schlicht UND als Label auf der Karte („SN, [SN]“) – vorher fiel der schlichte Eintrag weg.
 - Stundenplan → Menü „⋮“: neuer Abschnitt „Stundenplanformat“ – „Standard“ oder eines der angelegten Formate wählen; die Wahl gilt sofort und bleibt im Browser gespeichert.

@@ -169,3 +169,23 @@ tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
 .st-wahl-termin { display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 8px; font-size: .8125rem; padding: 6px 0; border-top: 1px solid #e4e7ea; }
 .st-wahl-termin:first-of-type { border-top: 0; }
 .st-wahl-termin .nl-unter { grid-column: 2; }
+
+/* Grunddesign (wie Stundenplaneinstellungen): dünn umrandete Kästen ohne Symbol, Felder mit schwebendem Label im Formular */
+.st-karte { border-color: var(--u-linie); border-radius: 8px; }
+.st-karte > header > i { display: none; }
+.st-formular .row > [class*="col"] { position: relative; }
+.st-formular .row > [class*="col"] > .form-label { position: absolute; top: -8px; left: calc(var(--bs-gutter-x) * .5 + 9px); z-index: 1; margin: 0; padding: 0 4px;
+  background: #fff; font-size: .72rem; font-weight: 400; color: var(--u-grau); line-height: 1.2; }
+.st-formular .row > [class*="col"]:focus-within > .form-label { color: var(--u-akzent); }
+.st-formular .row { --bs-gutter-y: 1.25rem; }
+.st-formular .form-control, .st-formular .form-select { min-height: 40px; border-color: #c9d0d6; border-radius: 4px; }
+.st-formular .form-control-sm, .st-formular .form-select-sm { min-height: 32px; }
+.st-formular .form-control:focus, .st-formular .form-select:focus { border-color: var(--u-akzent); box-shadow: none; }
+.st-schalter { font-size: .875rem; }
+.st-schalter b { font-weight: 500; }
+.st-formular .row > [class*="col"] > .form-label { max-width: calc(100% - var(--bs-gutter-x) - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-formular .st-pause .u-feld { position: relative; display: block; margin: 0; padding-top: 0; }
+.st-formular .st-pause .u-feld > span { position: absolute; top: -8px; left: 9px; z-index: 1; padding: 0 4px; background: #fff; font-size: .72rem; color: var(--u-grau); line-height: 1.2; margin: 0; }
+.st-formular .st-pause .u-feld:focus-within > span { color: var(--u-akzent); }
+.st-formular .st-pausen { padding-top: 8px; }
+.st-formular .st-pause + .st-pause { margin-top: 16px; }
