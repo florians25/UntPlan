@@ -725,6 +725,36 @@ public sealed class Db
         Nr(29, """
         ALTER TABLE sprechtag_einladungen ADD COLUMN verpflichtend INTEGER NOT NULL DEFAULT 0;
         """),
+
+        // 30: Sprechtag (neu): Sprechtage mit Konfiguration (JSON: Name, Dauer, Online, Abschnitte, Anmeldephasen, Rechte, Buchungsregeln),
+        //    Raum je Lehrkraft und Abschnitt, Termine/Einladungen/Terminanfragen, Abwesenheiten, versandte Hinweise – nur Standard-SQL
+        Nr(30, """
+        CREATE TABLE st_sprechtage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, schuljahr VARCHAR(20) NOT NULL, sj_von VARCHAR(10) NOT NULL, sj_bis VARCHAR(10) NOT NULL,
+            konfig TEXT NOT NULL, veroeffentlicht VARCHAR(30) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE st_raeume (
+            sprechtag_id INTEGER NOT NULL REFERENCES st_sprechtage(id) ON DELETE CASCADE, lehrer VARCHAR(50) NOT NULL, abschnitt INTEGER NOT NULL,
+            raum VARCHAR(50) NOT NULL DEFAULT '', PRIMARY KEY (sprechtag_id, lehrer, abschnitt)
+        );
+        CREATE TABLE st_termine (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES st_sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, abschnitt INTEGER NOT NULL DEFAULT -1, beginn VARCHAR(5) NOT NULL DEFAULT '', ende VARCHAR(5) NOT NULL DEFAULT '',
+            schueler_id INTEGER NOT NULL, art VARCHAR(20) NOT NULL, status VARCHAR(20) NOT NULL, verpflichtend INTEGER NOT NULL DEFAULT 0,
+            link VARCHAR(500) NOT NULL DEFAULT '', anmerkung VARCHAR(1000) NOT NULL DEFAULT '', erstellt_von VARCHAR(60) NOT NULL DEFAULT '',
+            benutzer_id INTEGER, erstellt VARCHAR(30) NOT NULL DEFAULT '', benachrichtigt VARCHAR(30) NOT NULL DEFAULT '', grund VARCHAR(1000) NOT NULL DEFAULT ''
+        );
+        CREATE INDEX ix_st_termine ON st_termine (sprechtag_id, lehrer);
+        CREATE TABLE st_abwesenheiten (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sprechtag_id INTEGER NOT NULL REFERENCES st_sprechtage(id) ON DELETE CASCADE,
+            lehrer VARCHAR(50) NOT NULL, abschnitt INTEGER NOT NULL, beginn VARCHAR(5) NOT NULL, ende VARCHAR(5) NOT NULL,
+            anmerkung VARCHAR(255) NOT NULL DEFAULT ''
+        );
+        CREATE TABLE st_hinweise (
+            sprechtag_id INTEGER NOT NULL REFERENCES st_sprechtage(id) ON DELETE CASCADE, schluessel VARCHAR(100) NOT NULL,
+            PRIMARY KEY (sprechtag_id, schluessel)
+        );
+        """),
     };
 
 

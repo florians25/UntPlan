@@ -411,32 +411,78 @@ final class ApiClient: @unchecked Sendable {
         return liste.compactMap(\.wert).filter { $0.id > 0 }
     }
 
-    /// GET /sprechtag/{id}/lehrkraft – eigenes Zeitraster mit Terminen.
-    func sprechtagLehrkraft(_ id: Int) async throws -> SprechtagLehrkraftDaten {
-        try await anfrage("GET", "/sprechtag/\(id)/lehrkraft")
+    /// GET /sprechtag/{id} – Sprechtag mit den Daten je Rolle (Erziehungsberechtigte, Lehrkraft, Administration).
+    func sprechtag(_ id: Int) async throws -> SprechtagAnsicht {
+        try await anfrage("GET", "/sprechtag/\(id)")
     }
 
-    /// GET /sprechtag/{id}/eltern – Kinder, Lehrkräfte, freie Zeitfenster und eigene Termine.
-    func sprechtagEltern(_ id: Int) async throws -> SprechtagElternDaten {
-        try await anfrage("GET", "/sprechtag/\(id)/eltern")
+    /// GET /sprechtag/{id}/frei – freie Zeiten einer Lehrkraft im Abschnitt (Erziehungsberechtigte mit `schuelerId`,
+    /// `ausser`: Termin, der verschoben werden soll).
+    func sprechtagFrei(_ id: Int, lehrer: String?, abschnitt: Int, schuelerId: Int? = nil, ausser: Int? = nil) async throws -> [SprechtagZeit] {
+        var parameter = ["abschnitt": String(abschnitt)]
+        if let lehrer, !lehrer.isEmpty { parameter["lehrer"] = lehrer }
+        if let schuelerId { parameter["schuelerId"] = String(schuelerId) }
+        if let ausser { parameter["ausser"] = String(ausser) }
+        let liste: [Vielleicht<SprechtagZeit>] = try await anfrage("GET", "/sprechtag/\(id)/frei", parameter: parameter)
+        return liste.compactMap(\.wert).filter { !$0.von.isEmpty }
     }
 
-    /// POST /sprechtag/{id}/buchen
+    /// POST /sprechtag/{id}/buchen – Termin buchen (Erziehungsberechtigte; frei bzw. aus einer Einladung).
     func sprechtagBuchen(_ id: Int, _ daten: SprechtagBuchDaten) async throws {
         let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/buchen", koerper: try encoder.encode(daten))
     }
 
-    /// POST /sprechtag/{id}/termine/{tid}/absagen – Termin mit (optionalem) Grund absagen; die andere Seite wird benachrichtigt.
+    /// POST /sprechtag/{id}/termin/{tid}/annehmen bzw. /ablehnen – Terminanfrage beantworten (Erziehungsberechtigte).
+    func sprechtagAnfrageBeantworten(_ id: Int, termin: Int, annehmen: Bool) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/termin/\(termin)/" + (annehmen ? "annehmen" : "ablehnen"),
+                                                    koerper: Data("{}".utf8))
+    }
+
+    /// POST /sprechtag/{id}/termin/{tid}/absagen – Termin absagen bzw. Einladung zurückziehen (Grund optional);
+    /// die andere Seite wird benachrichtigt.
     func sprechtagTerminAbsagen(_ id: Int, termin: Int, grund: String?) async throws {
         let text = (grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/termine/\(termin)/absagen",
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/termin/\(termin)/absagen",
                                                     koerper: try encoder.encode(SprechtagAbsageDaten(grund: text.isEmpty ? nil : text)))
     }
 
-    /// PUT /sprechtag/{id}/sperren – Zeitfenster der eigenen Lehrkraft sperren bzw. freigeben.
-    func sprechtagSperren(_ id: Int, beginne: [String], gesperrt: Bool) async throws {
-        let _: BeliebigeAntwort = try await anfrage("PUT", "/sprechtag/\(id)/sperren",
-                                                    koerper: try encoder.encode(SprechtagSperrDaten(beginne: beginne, gesperrt: gesperrt)))
+    /// PUT /sprechtag/{id}/termin/{tid} – Zeit, Anmerkung bzw. Meeting-Link eines Termins ändern.
+    func sprechtagTerminAendern(_ id: Int, termin: Int, _ daten: SprechtagAenderDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("PUT", "/sprechtag/\(id)/termin/\(termin)", koerper: try encoder.encode(daten))
+    }
+
+    /// PUT /sprechtag/{id}/raum – Raum der Lehrkraft in einem Abschnitt setzen (leer = kein Raum).
+    func sprechtagRaum(_ id: Int, _ daten: SprechtagRaumDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("PUT", "/sprechtag/\(id)/raum", koerper: try encoder.encode(daten))
+    }
+
+    /// POST /sprechtag/{id}/abwesenheit – Abwesenheit eintragen bzw. ändern.
+    func sprechtagAbwesenheitSpeichern(_ id: Int, _ daten: SprechtagAbwesenheitDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/abwesenheit", koerper: try encoder.encode(daten))
+    }
+
+    /// DELETE /sprechtag/{id}/abwesenheit/{aid}
+    func sprechtagAbwesenheitLoeschen(_ id: Int, abwesenheit: Int) async throws {
+        let _: BeliebigeAntwort = try await anfrage("DELETE", "/sprechtag/\(id)/abwesenheit/\(abwesenheit)")
+    }
+
+    /// GET /sprechtag/{id}/schueler – Schüler*innen im Unterricht der Lehrkraft (Administration: mit `lehrer`).
+    func sprechtagSchueler(_ id: Int, lehrer: String?) async throws -> [SprechtagSchuelerWahl] {
+        var parameter: [String: String] = [:]
+        if let lehrer, !lehrer.isEmpty { parameter["lehrer"] = lehrer }
+        let liste: [Vielleicht<SprechtagSchuelerWahl>] = try await anfrage("GET", "/sprechtag/\(id)/schueler", parameter: parameter)
+        return liste.compactMap(\.wert).filter { $0.id > 0 }
+    }
+
+    /// POST /sprechtag/{id}/einladung – Einladungen ohne Uhrzeit senden; liefert die Zahl der neuen Einladungen.
+    func sprechtagEinladen(_ id: Int, _ daten: SprechtagEinladungDaten) async throws -> Int {
+        let antwort: SprechtagAnzahlAntwort = try await anfrage("POST", "/sprechtag/\(id)/einladung", koerper: try encoder.encode(daten))
+        return antwort.anzahl
+    }
+
+    /// POST /sprechtag/{id}/termin – Terminanfrage mit fester Uhrzeit anlegen (Lehrkraft bzw. Administration).
+    func sprechtagTerminAnlegen(_ id: Int, _ daten: SprechtagTerminDaten) async throws {
+        let _: BeliebigeAntwort = try await anfrage("POST", "/sprechtag/\(id)/termin", koerper: try encoder.encode(daten))
     }
 
     // MARK: Push (Vorbereitung für Sofort-Mitteilungen über APNs)

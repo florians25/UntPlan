@@ -1,191 +1,232 @@
-/* UntPlanWeb – Sprechtag (Elternsprechtag) im nl-design: Karten, Zeitraster der Lehrkraft (frei/gebucht/gesperrt), Einladungen,
-   Elternansicht, Formular der Administration und Hinweis auf der Startseite. Wird von js/ansichten/sprechtag.js geladen. */
+/* UntPlanWeb – Sprechtag im Grunddesign: Übersicht (Karten je Schuljahr), Konfiguration in drei Schritten, Verwaltung der Lehrkräfte,
+   „Meine Termine“, Ansicht der Erziehungsberechtigten, Seitenpanels und Hinweis auf der Startseite. Wird von js/ansichten/sprechtag.js geladen. */
 
-/* Karten: einheitlich 20px Innenabstand, Kopf immer 36px hoch (Symbol, Titel, Zähler, Knöpfe auf einer Linie), 16px bis zum Inhalt */
-.st-karte { display: flex; flex-direction: column; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; padding: 20px; margin-bottom: 16px; min-width: 0; }
-.st-karte > header { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; height: 36px; margin: 0 0 16px; color: var(--u-titel); min-width: 0; }
-.st-karte > header > i { font-size: 1.15rem; line-height: 1; color: var(--u-akzent); flex: none; }
-.st-karte > header h2 { font-size: 1.05rem; line-height: 1.2; font-weight: 500; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-karte > header .nl-zahl, .st-karte > header .nl-tag { flex: none; height: 28px; display: inline-flex; align-items: center; }
-.st-karte > header .st-rechts { margin-left: auto; }
-.st-kopf-knoepfe { display: flex; flex-wrap: nowrap; gap: 8px; margin-left: auto; flex: none; }
-.st-karte > header .nl-knopf { height: 32px; padding: 0 12px; }
-.st-karte > .nl-tabelle { margin: 0 -20px -20px; border: 0; border-top: 1px solid #e3e7eb; border-radius: 0 0 10px 10px; }
-.st-karte > .nl-unter { margin: -6px 0 12px; }
-@media (max-width: 575.98px) {
-  .st-karte > header { flex-wrap: wrap; height: auto; min-height: 36px; }
-  .st-kopf-knoepfe { margin-left: 0; flex-wrap: wrap; }
-}
-
-/* Kopfzeile: zwei gleich hohe Zeilen – oben Datum, Status-Pill und Phasentext auf einer Linie (vertikal mittig),
-   darunter Uhrzeit, Termindauer, Pause und Zusatz (Lehrkraft, Raum) */
-.st-kopf { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
-.st-kopf-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 28px; min-width: 0; }
-.st-kopf-datum { font-size: 1.05rem; line-height: 28px; color: var(--u-titel); font-weight: 500; }
-.st-kopf-zeile .nl-chip { height: 24px; padding: 0 10px; line-height: 1; font-weight: 500; }
-.st-kopf-phase { font-size: .85rem; color: #67747e; }
-.st-kopf-unter { min-height: 22px; gap: 4px 6px; font-size: .85rem; color: #67747e; }
-
-/* Liste */
-.st-liste tr[data-oeffnen], .nl-tabelle tr[data-lehrer][tabindex] { cursor: pointer; }
-
-/* Lehrkraft: links Raum und Einladungen, rechts das Zeitraster */
-.st-raster { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: stretch; margin-bottom: 16px; }
-@media (max-width: 1199.98px) { .st-raster { grid-template-columns: minmax(0, 1fr); } }
-/* Spalten enden bündig: rechts füllt die Karte die Zeile, links wächst die letzte Karte mit */
-.st-raster > .st-karte { margin-bottom: 0; }
-.st-links { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.st-links > .st-karte { margin-bottom: 0; }
-.st-links > .st-karte:last-child { flex: 1; }
-.st-einladen .st-einladungen { flex: 1; }
-.st-raum .u-feld { max-width: 280px; }
-.st-einladen-felder { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; align-items: end; margin-bottom: 14px; }
-.st-einladen-felder .st-textfeld { grid-column: 1 / -1; }
-.st-einladen-felder .st-einladen-knoepfe { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; justify-self: start; }
-@media (max-width: 575.98px) { .st-einladen-felder { grid-template-columns: minmax(0, 1fr); } }
-.st-einladungen { max-height: 420px; overflow-y: auto; }
-.st-n { font-size: .95rem; }
-/* gleich hohe Zeilen: alle Zellen einzeilig (lange Namen/Hinweise gekürzt) */
-.st-einladungen td, .st-zeitraster td { height: 48px; white-space: nowrap; }
-.st-zeitraster span.st-n { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-.st-zeitraster td.nl-unter { max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
-.st-zeitraster td .nl-icon { vertical-align: middle; }
-
-.st-zeitraster td { padding-top: 0; padding-bottom: 0; }
-.st-zeitraster tr.st-frei td { background: #fafbfc; }
-.st-zeitraster tr.st-gesperrt td { background: #fdf3f3; }
-.st-zeitraster tr.nl-gewaehlt td { background: #fff6f1; }
-.st-zeit { display: inline-block; min-width: 54px; padding: 3px 10px; border-radius: 999px; background: #eef1f4; color: #414d55; font-size: .85rem; font-weight: 500; text-align: center;
-  font-variant-numeric: tabular-nums; }
-tr.st-gebucht .st-zeit, .st-zeit.gebucht { background: #fde3cf; color: #8a3a0c; }
-tr.st-gesperrt .st-zeit { background: #f3d4d4; color: #8a1f24; }
-.st-abwesend { display: inline-block; padding: 3px 12px; border-radius: 6px; background: #d9363e; color: #fff; font-size: .8rem; font-weight: 500; }
-.st-zeitraster .nl-fuss { position: sticky; bottom: 0; flex-wrap: nowrap; min-height: 56px; padding-top: 0; padding-bottom: 0; }
-.st-zeitraster .nl-fuss [data-gewaehlt] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.st-zeitraster .nl-fuss .nl-knopf { flex: none; height: 32px; }
-@media (max-width: 575.98px) { .st-zeitraster .nl-fuss { flex-wrap: wrap; padding: 10px 16px; } }
-
-/* Eltern */
-.st-flach td { vertical-align: middle; height: 56px; padding-top: 0; padding-bottom: 0; }
-.st-lehrkraft { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
-.st-flach .form-select-sm, .st-flach .nl-knopf, .st-flach .nl-hinzu { height: 32px; }
-.st-buchen { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
-.st-buchen .form-select, .st-buchen .au { width: 180px; flex: none; }
-@media (max-width: 575.98px) { .st-buchen { flex-wrap: wrap; } }
-.nl-hinzu.st-klein, .nl-knopf.st-klein { height: 32px; padding: 0 14px; font-size: .9rem; }
-.st-karte .st-flach .nl-hinzu.st-klein { height: 32px; min-height: 32px; }
-
-/* Formular der Administration: zweispaltig – links die Angaben, rechts mitlaufend die Vorschau der Zeitslots */
-.st-formular { max-width: 1100px; }
-.st-formular.st-form-raster { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 16px; align-items: start; }
-.st-form-links { min-width: 0; }
-.st-form-rechts { position: sticky; top: 12px; min-width: 0; }
-.st-vorschau-karte { max-height: calc(100vh - 24px); overflow: hidden; }
-.st-vorschau-karte [data-vorschau] { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; margin: 0 -20px -20px; padding: 0 20px 20px; }
-.st-vzahlen { margin-bottom: 6px; }
-.st-vzeile { font-size: .9rem; line-height: 1.4; }
-.st-phasen { list-style: none; margin: 8px 0 4px; padding: 0; display: grid; gap: 6px; }
-.st-phasen li { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
-.st-phasen .nl-chip { min-width: 96px; justify-content: center; font-weight: 500; }
-.st-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid #e3e7eb; }
-.st-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 8px; border-radius: 8px; background: #fafbfc; border: 1px solid #eceff2; font-size: .78rem; }
-.st-slot-pause { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: #fff6f1; color: #8a3a0c; font-size: .8rem; font-weight: 500; }
-.st-weitere { display: flex; gap: 8px; }
-.st-weitere .form-control { min-width: 0; }
-.st-weiterliste { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.st-weiterliste .nl-chip { display: inline-flex; align-items: center; gap: 4px; }
-.st-chip-x { border: 0; background: none; padding: 0 0 0 2px; line-height: 1; color: inherit; }
-.st-reihe { line-height: 38px; }
-.st-lehrerwahl .st-dauerzelle { width: 130px; }
-.st-lehrerwahl .st-onlinezelle { width: 260px; }
-.st-online { display: flex; align-items: center; gap: 8px; }
-.st-online .form-control { min-width: 0; }
+/* von der Hinweise-Seite mitgenutzt */
 .st-hinweistext { white-space: pre-line; max-width: 640px; }
-@media (max-width: 1199.98px) {
-  .st-formular.st-form-raster { grid-template-columns: minmax(0, 1fr); }
-  .st-form-rechts { position: static; order: -1; }
-  .st-vorschau-karte { max-height: none; }
-  .st-slots { max-height: 220px; overflow-y: auto; }
-}
-.st-vorschau { height: 38px; }
-.st-pausen { display: flex; flex-direction: column; gap: 10px; }
-.st-pause { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
-.st-pause .u-feld { width: 140px; }
-.st-schalter { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.st-schalter { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: .875rem; }
 .st-schalter .form-check-input { margin-top: .2rem; flex: none; }
-.st-lehrerwahl { max-height: 520px; overflow-y: auto; }
-.st-lehrerwahl .st-raumzelle { width: 240px; }
-.st-lehrerwahl tr[hidden] { display: none; }
+.st-schalter b { font-weight: 500; }
 
-/* Startseite */
-.heute-karte.st-start { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
-.st-start-sym { display: inline-grid; place-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--u-akzent); color: #fff; flex: none; }
-.st-start-sym .u-sym { width: 22px; height: 22px; }
-.st-start-titel { color: var(--u-akzent); font-weight: 500; text-decoration: none; }
-.st-start-titel:hover { text-decoration: none; color: var(--u-akzent-dunkel); }
-.st-start-datum { color: var(--u-grau, #67747e); font-size: .85rem; }
-.st-start-text { font-size: .875rem; color: var(--u-text); }
-.st-start-link { font-size: .8125rem; white-space: nowrap; }
-@media (max-width: 575.98px) { .st-start-link { display: none; } }
+/* ------------------------------------------------------------------ Grundfläche */
+.u-app[data-ansicht="sprechtag"] .u-inhalt { padding: 0 !important; max-width: none; }
+.st { --st-grau: #67747e; --st-rand: #dcdfe5; min-height: 100vh; background: var(--u-grund); color: var(--u-titel); }
+.st-innen { padding: 28px 40px 40px; }
+.st-weiss { background: #fff; }
+
+/* Phasen- und Statuspillen */
+.st-pille { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 4px; font-size: .8rem; font-weight: 500; white-space: nowrap; background: #eef0f2; color: #414d55; }
+.st-pille.entwurf { background: #e8efff; color: #2f5bea; }
+.st-pille.verwaltung, .st-pille.phase1, .st-pille.phase1_beendet, .st-pille.phase2 { background: #fdf2d9; color: #a5481a; }
+.st-pille.durchfuehrung, .st-pille.gruen { background: #e2f6ec; color: #16794a; }
+.st-pille.rot { background: #fde8e8; color: #b42323; }
+
+/* ------------------------------------------------------------------ Kopf der Detailseiten */
+.st-kopf { display: flex; align-items: flex-start; gap: 18px; padding: 16px 40px 0; background: #fff; border-bottom: 1px solid var(--st-rand); }
+.st-kopf.ohne-reiter { padding-bottom: 16px; align-items: center; }
+.st-zurueck { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-top: 2px; border: 0; border-radius: 50%;
+  background: #fff; color: var(--st-grau); box-shadow: 0 2px 8px rgba(20, 30, 40, .14); font-size: 1.15rem; }
+.st-zurueck:hover { color: var(--u-titel); }
+.st-kopf-text { min-width: 0; flex: 1; }
+.st-kopf h1 { display: flex; align-items: center; gap: 14px; margin: 6px 0 2px; font-size: 1.55rem; font-weight: 500; color: var(--u-titel); }
+.st-kopf h1 .st-pille { height: 26px; font-size: .9rem; }
+.st-kopf-unter { color: var(--u-text); font-size: 1rem; }
+.st-kopf-rechts { margin-left: auto; align-self: center; display: flex; gap: 10px; }
+.st-rund { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid #c9d0d6; border-radius: 50%; background: #fff; color: var(--st-grau); }
+.st-rund:hover { border-color: #8a96a1; color: var(--u-titel); }
+.st-kopf .pe-reiter { margin: 14px 0 0; border-bottom: 0; }
+.st-kopf .pe-reiter button { height: 46px; padding: 0; margin-right: 32px; font-size: 1.05rem; color: var(--st-grau); }
+.st-kopf .pe-reiter button.an { color: var(--u-akzent); }
+.st-kopf .pe-reiter button.aus { color: #b6bec5; }
+
+/* ------------------------------------------------------------------ Übersicht */
+.st-seitenkopf { display: flex; align-items: center; gap: 16px; min-height: 88px; padding: 0 40px; background: #fff; border-bottom: 1px solid var(--st-rand); }
+.st-seitenkopf h1 { flex: 1; margin: 0; font-size: 1.55rem; font-weight: 500; color: var(--u-titel); }
+.st-seitenkopf .nl-hinzu { height: 50px; padding: 0 28px; font-size: 1.1rem; }
+.st-jahr { display: flex; align-items: center; gap: 10px; margin: 0 0 22px; font-size: 1.6rem; font-weight: 500; color: #5b6872; }
+.st-jahr + .st-karten { margin-bottom: 36px; }
+.st-info { display: inline-flex; padding: 0; border: 0; background: none; color: var(--st-grau); font-size: 1.05rem; line-height: 1; }
+.st-info:hover { color: var(--u-titel); }
+.st-karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; max-width: 1260px; }
+.st-karte { position: relative; display: flex; flex-direction: column; min-height: 230px; padding: 24px 22px 18px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); cursor: pointer; }
+.st-karte:hover { box-shadow: 0 2px 4px rgba(0, 5, 10, .08), 0 6px 16px rgba(0, 5, 10, .1); }
+.st-karte:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.st-karte h3 { margin: 10px 0 10px; font-size: 1.1rem; font-weight: 500; color: var(--u-titel); padding-right: 40px; }
+.st-karte-zeile { color: var(--st-grau); font-size: .95rem; font-weight: 500; line-height: 1.9; }
+.st-karte-pfeil { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); color: var(--st-grau); font-size: 1.25rem; }
+.st-karte-knoepfe { display: flex; gap: 18px; margin-top: auto; padding-top: 14px; }
+.st-symbol { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--st-grau); font-size: 1.2rem; }
+.st-symbol:hover { background: var(--u-hover); color: var(--u-titel); }
+.st-leer { padding: 40px; color: var(--st-grau); text-align: center; background: #fff; border-radius: 8px; max-width: 1260px; }
+
+/* ------------------------------------------------------------------ Konfiguration */
+.st-konfig { padding: 22px 40px 0; background: #fff; }
+.st-abschnitt-titel { margin: 26px 0 8px; font-size: 1.45rem; font-weight: 500; color: var(--u-titel); }
+.st-abschnitt-text { margin: 0 0 26px; color: var(--u-text); font-size: 1rem; line-height: 1.6; max-width: 1240px; }
+.st-trenner { margin: 36px 0 10px; border: 0; border-top: 1px solid var(--st-rand); opacity: 1; }
+.st-feld { position: relative; display: block; margin: 0; }
+.st-feld > span { display: block; margin: 0 0 4px 11px; font-size: .85rem; color: var(--st-grau); }
+.st-feld input, .st-feld select, .st-feld textarea { width: 100%; height: 54px; padding: 0 18px; border: 2px solid transparent; border-radius: 4px; background: #f2f4f6;
+  color: var(--u-titel); font: inherit; font-size: 1.02rem; outline: none; }
+.st-feld textarea { height: auto; min-height: 92px; padding: 14px 18px; resize: vertical; }
+.st-feld input:focus, .st-feld select:focus, .st-feld textarea:focus { border-color: var(--u-titel); background: #fff; }
+.st-feld.schmal { max-width: 335px; }
+.st-zaehler { display: block; margin-top: 4px; text-align: right; color: var(--st-grau); font-size: .8rem; }
+.st-zeile { display: flex; align-items: center; gap: 24px; }
+.st-zeile > :first-child { flex: 1; min-width: 0; }
+.st-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 340px)); gap: 18px 16px; }
+.st-raster.phase { grid-template-columns: minmax(0, 248px) minmax(0, 138px); }
+.st-box { position: relative; margin: 0 0 24px; padding: 24px 22px 22px; border: 1px solid #8a96a1; border-radius: 8px; background: #fff; }
+.st-box h4 { margin: 0 0 22px; font-size: 1.08rem; font-weight: 500; color: var(--u-titel); }
+.st-box p { margin: -10px 0 20px; color: var(--u-text); }
+.st-box-loeschen { position: absolute; right: 22px; top: 22px; display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 54px;
+  border: 1px solid #8a96a1; border-radius: 50%; background: #fff; color: var(--st-grau); font-size: 1.2rem; }
+.st-box-loeschen:hover { color: var(--u-rot); border-color: var(--u-rot); }
+.st-plus-breit { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; height: 54px; border: 0; border-radius: 999px; background: #5d707f;
+  color: #fff; font: inherit; font-size: 1.1rem; font-weight: 500; }
+.st-plus-breit:hover { background: #4d5f6c; }
+.st-recht { display: flex; align-items: center; gap: 24px; padding: 18px 0; }
+.st-recht h5 { margin: 0 0 6px; font-size: 1.1rem; font-weight: 500; color: var(--u-titel); }
+.st-recht p { margin: 0; color: var(--u-text); max-width: 880px; line-height: 1.55; }
+.st-recht > :first-child { flex: 1; min-width: 0; }
+.st-recht .st-feld { width: 355px; flex: none; }
+.st-gross-schalter .sd-schalter-spur { width: 58px; height: 32px; border-radius: 16px; }
+.st-gross-schalter .sd-schalter-spur::after { width: 26px; height: 26px; left: 3px; top: 3px; }
+.st-gross-schalter input:checked + .sd-schalter-spur::after { transform: translateX(26px); }
+.st-fuss { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin: 36px -40px 0; padding: 14px 40px;
+  background: #fff; border-top: 1px solid var(--st-rand); }
+.st-fuss-status { margin-right: auto; color: var(--st-grau); font-size: .9rem; }
+.st-knopf { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 50px; padding: 0 30px; border: 1px solid #8a96a1; border-radius: 999px;
+  background: #fff; color: #414d55; font: inherit; font-size: 1.08rem; font-weight: 500; white-space: nowrap; }
+.st-knopf:hover { border-color: #414d55; color: var(--u-titel); }
+.st-knopf.primaer { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; }
+.st-knopf.primaer:hover { filter: brightness(.95); }
+.st-knopf.klein { height: 40px; padding: 0 22px; font-size: .98rem; }
+.st-knopf:disabled { opacity: .5; pointer-events: none; }
+.st-fehler { margin: 22px 0 0; padding: 14px 18px; border-left: 4px solid var(--u-akzent); border-radius: 4px; background: #fff4ee; color: var(--u-text); }
+.st-fehler ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* ------------------------------------------------------------------ Verwaltung / Meine Termine */
+.st-titel { margin: 0 0 10px; font-size: 1.45rem; font-weight: 500; color: var(--u-titel); }
+.st-text { margin: 0 0 24px; color: var(--u-text); line-height: 1.55; max-width: 1060px; }
+.st-werkzeuge { display: flex; align-items: center; gap: 12px; margin: 0 0 34px; max-width: 1055px; }
+.st-suche { position: relative; flex: 0 1 527px; }
+.st-suche i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--st-grau); }
+.st-suche input { width: 100%; height: 44px; padding: 0 16px 0 44px; border: 1px solid #8a96a1; border-radius: 999px; background: transparent; font: inherit; color: var(--u-titel); outline: none; }
+.st-suche input:focus { border-color: var(--u-titel); background: #fff; }
+.st-filter { display: flex; gap: 10px; margin-left: auto; }
+.st-filter button { height: 36px; padding: 0 18px; border: 1px solid #8a96a1; border-radius: 999px; background: transparent; color: #414d55; font: inherit; font-weight: 500; }
+.st-filter button.an { border-color: #414d55; background: #414d55; color: #fff; }
+.st-liste { max-width: 1055px; }
+.st-lk { margin: 0 0 18px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.st-lk-kopf { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 62px; padding: 0 18px; border: 0; background: none; text-align: left; color: var(--u-titel); font: inherit; }
+.st-lk-kopf b { flex: 1; min-width: 0; font-size: 1.1rem; font-weight: 500; }
+.st-chip { display: inline-flex; align-items: center; height: 28px; padding: 0 9px; border-radius: 4px; background: #eef0f2; color: #414d55; font-size: .85rem; font-weight: 500; white-space: nowrap; }
+.st-lk-kopf .bi-chevron-down { margin-left: 14px; font-size: 1.1rem; color: var(--st-grau); transition: transform .15s; }
+.st-lk.offen .st-lk-kopf .bi-chevron-down { transform: rotate(180deg); }
+.st-abschnitt { border-top: 1px solid var(--st-rand); padding: 8px 0; }
+.st-karte-weiss { max-width: 1280px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.st-karte-weiss > .st-abschnitt:first-child { border-top: 0; }
+.st-abschnitt-kopf { display: flex; align-items: center; gap: 22px; min-height: 52px; padding: 0 18px; }
+.st-abschnitt-kopf b { font-weight: 500; font-size: 1.02rem; }
+.st-meta { display: inline-flex; align-items: center; gap: 7px; color: var(--st-grau); font-weight: 500; font-size: .95rem; white-space: nowrap; }
+.st-abschnitt-rechts { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.st-raum { position: relative; }
+.st .st-raum select { appearance: none; -webkit-appearance: none; background-image: none; height: 42px; min-width: 96px; max-width: 260px; padding: 0 42px 0 22px; border: 1px solid #8a96a1; border-radius: 999px; background: #fff;
+  color: #414d55; font: inherit; font-size: 1.02rem; font-weight: 500; cursor: pointer; outline: none; }
+.st .st-raum select:focus { border-color: var(--u-titel); }
+.st-raum .au { width: auto; min-width: 96px; }
+.st .st-raum .au-knopf { height: 42px; min-height: 42px; padding: 0 16px 0 22px; border: 1px solid #8a96a1; border-radius: 999px; font-size: 1.02rem; font-weight: 500; color: #414d55; }
+.st .st-raum .au-knopf.leer .au-wert-text { color: #414d55; }
+.st .st-feld .au-knopf { min-height: 54px; border: 2px solid transparent; background: #f2f4f6; font-size: 1.02rem; padding: 0 16px 0 18px; }
+.st-raum-text { color: var(--st-grau); font-weight: 500; }
+.st-plus { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: none;
+  color: var(--st-grau); font-size: 1.55rem; }
+.st-plus:hover { background: var(--u-hover); color: var(--u-titel); }
+.st-menue { position: absolute; z-index: 1080; min-width: 230px; padding: 8px 0; background: #fff; border-radius: 8px; box-shadow: 0 6px 24px rgba(20, 30, 40, .2); }
+.st-menue button { display: block; width: 100%; padding: 9px 22px; border: 0; background: none; text-align: left; color: var(--u-titel); font: inherit; font-size: 1.02rem; font-weight: 500; }
+.st-menue button:hover { background: var(--u-hover); }
+.st-eintrag { display: flex; align-items: center; gap: 24px; min-height: 52px; padding: 0 18px; }
+.st-eintrag .st-pille { min-width: 0; }
+.st-eintrag-zeit { width: 150px; flex: none; font-size: 1.05rem; color: var(--u-titel); white-space: nowrap; }
+.st-eintrag-name { flex: 1; min-width: 0; color: var(--u-text); font-size: 1.02rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-eintrag-name small { margin-left: 8px; color: var(--st-grau); }
+.st-eintrag .st-symbol { margin-left: auto; }
+.st-einladungen-titel { padding: 12px 18px 4px; color: var(--st-grau); font-weight: 500; font-size: .92rem; }
+
+/* ------------------------------------------------------------------ Seitenpanel */
+.st-panel-grund { position: fixed; inset: 0; z-index: 1070; background: rgba(36, 50, 61, .28); }
+.st-panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 1071; display: flex; flex-direction: column; width: min(900px, 100vw); background: #fff;
+  box-shadow: -4px 0 24px rgba(20, 30, 40, .16); animation: st-rein .18s ease-out; }
+@keyframes st-rein { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+.st-panel-kopf { display: flex; align-items: flex-start; gap: 16px; padding: 30px 38px 0; }
+.st-panel-kopf h2 { flex: 1; margin: 0; font-size: 1.9rem; font-weight: 500; color: var(--u-titel); }
+.st-panel-zu { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: var(--st-grau); font-size: 1.3rem; }
+.st-panel-zu:hover { background: var(--u-hover); color: var(--u-titel); }
+.st-panel-rumpf { flex: 1; overflow: auto; padding: 10px 38px 30px; }
+.st-panel-unter { margin: 0 0 18px; color: var(--u-text); font-size: 1.05rem; }
+.st-panel-meta { display: flex; gap: 18px; margin: 0 0 14px; }
+.st-panel-zeile { display: flex; justify-content: space-between; margin: 0 0 22px; font-weight: 500; font-size: 1.05rem; }
+.st-panel-zeile span:last-child { color: var(--st-grau); }
+.st-panel-fuss { display: flex; justify-content: flex-end; gap: 14px; padding: 16px 38px; border-top: 1px solid var(--st-rand); }
+.st-panel-fuss .links { margin-right: auto; }
+.st-phasen dt { margin: 34px 0 12px; }
+.st-phasen dd { margin: 0; color: var(--u-text); font-size: 1.05rem; line-height: 1.6; }
+.st-phasen .st-pille { height: 26px; font-size: .95rem; }
+.st-panel-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 0 0 18px; }
+.st-panel-raster .ganz { grid-column: 1 / -1; }
+.st-schueler-liste { max-height: 340px; overflow: auto; margin: 8px 0 18px; border: 1px solid var(--st-rand); border-radius: 6px; }
+.st-schueler-liste label { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-top: 1px solid #eef0f2; cursor: pointer; }
+.st-schueler-liste label:first-child { border-top: 0; }
+.st-schueler-liste label.aus { color: #9aa4ad; cursor: default; }
+.st-schueler-liste small { margin-left: auto; color: var(--st-grau); }
+.st-zeiten { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 20px; }
+.st-zeiten button { height: 40px; padding: 0 16px; border: 1px solid #c9d0d6; border-radius: 999px; background: #fff; color: var(--u-titel); font: inherit; font-weight: 500; }
+.st-zeiten button.an { border-color: var(--u-akzent); background: var(--u-akzent); color: #fff; }
+.st-zeiten-leer { color: var(--st-grau); }
+
+/* ------------------------------------------------------------------ Erziehungsberechtigte */
+.st-eltern { max-width: 760px; }
+.st-banner { display: flex; gap: 18px; margin: 0 0 30px; padding: 18px 20px; border-left: 4px solid #2f5bea; border-radius: 4px; background: #eef3ff; }
+.st-banner i { color: #2f5bea; font-size: 1.3rem; }
+.st-banner b { display: block; margin-bottom: 4px; font-weight: 500; font-size: 1.08rem; }
+.st-banner p { margin: 0; color: var(--u-text); line-height: 1.55; }
+.st-gruppe { margin: 30px 0 14px; font-size: 1.3rem; font-weight: 500; color: var(--u-titel); }
+.st-gruppe-text { margin: -8px 0 22px; color: var(--u-text); }
+.st-tag { margin: 22px 0 14px; color: #5b6872; font-size: 1.12rem; font-weight: 500; }
+.st-ekarte { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 0 0 16px; padding: 20px 22px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.st-ekarte b { font-size: 1.08rem; font-weight: 500; color: var(--u-titel); padding-right: 110px; }
+.st-ekarte .unter { color: var(--st-grau); font-weight: 500; }
+.st-ekarte .zeit { color: var(--u-titel); font-weight: 500; }
+.st-ekarte .st-pille { position: absolute; right: 22px; top: 20px; height: 28px; font-size: .92rem; }
+.st-ekarte .knoepfe { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+.st-ekarte.klickbar { cursor: pointer; }
+.st-ekarte.klickbar::after { content: "\2192"; position: absolute; right: 24px; top: 50%; color: var(--st-grau); font-size: 1.3rem; }
+.st-ekarte a { color: var(--u-akzent); }
+
+/* ------------------------------------------------------------------ Startseite */
+.st-start { display: flex; align-items: center; gap: 14px; }
+.st-start-sym { flex: none; color: var(--u-akzent); }
+.st-start-titel { font-weight: 500; color: var(--u-titel); text-decoration: none; }
+.st-start-datum { color: var(--u-grau); font-size: .875rem; }
+.st-start-text { color: var(--u-text); font-size: .875rem; }
+.st-start-link { color: var(--u-akzent); text-decoration: none; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .st-innen, .st-konfig { padding-left: 16px; padding-right: 16px; }
+  .st-kopf { padding-left: 16px; padding-right: 16px; }
+  .st-fuss { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+  .st-raster, .st-raster.phase, .st-panel-raster { grid-template-columns: minmax(0, 1fr); }
+  .st-recht { flex-wrap: wrap; }
+  .st-recht .st-feld { width: 100%; }
+  .st-werkzeuge { flex-wrap: wrap; }
+  .st-filter { margin-left: 0; }
+  .st-abschnitt-kopf, .st-eintrag { flex-wrap: wrap; gap: 8px 16px; padding-top: 8px; padding-bottom: 8px; }
+  .st-panel-kopf, .st-panel-rumpf, .st-panel-fuss { padding-left: 18px; padding-right: 18px; }
+}
 
 @media print {
-  .st-zeitraster .nl-fuss, .st-einladen-felder, .nl-icon { display: none !important; }
+  .st-kopf .st-zurueck, .st-kopf-rechts, .st-werkzeuge, .st-plus, .st-symbol { display: none !important; }
+  .st { background: #fff; }
+  .st-lk { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+  .st-lk .st-lk-rumpf { display: block !important; }
 }
-
-/* Absage: Hinweis bei abgesagter Teilnahme bzw. abgesagtem Sprechtag */
-.nl-hinweis.rot { background: #fdecec; color: #a12d31; }
-.nl-hinweis.rot .bi { color: #c8363b; }
-
-/* angekündigter Sprechtag (Familien, Startseite) und Online-Termine */
-.st-ankuendigung { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 20px; }
-.st-ankuendigung div { display: flex; flex-direction: column; gap: 2px; }
-.st-ankuendigung span { font-size: .78rem; color: #67747e; }
-.st-ankuendigung b { font-weight: 500; color: var(--u-titel); }
-.st-start-chip { margin-left: 6px; vertical-align: middle; height: 20px; font-size: .72rem; }
-.st-link { font-size: .85rem; overflow-wrap: anywhere; }
-
-/* Eltern: „Termine wählen“ als Raster (Zeitfenster × Lehrkräfte) im neuen Design */
-.st-ansicht { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 12px; }
-.st-wahl { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; padding: 12px 16px 16px; align-items: start; }
-@media (max-width: 767.98px) { .st-wahl { grid-template-columns: minmax(0, 1fr); } }
-.st-matrix { overflow-x: auto; }
-.st-matrix table { border-collapse: separate; border-spacing: 3px; }
-.st-matrix th { font-weight: 500; font-size: .8125rem; color: #24323d; text-align: center; padding: 4px 6px; white-space: nowrap; }
-.st-matrix thead th { border-radius: 8px 8px 0 0; }
-.st-matrix thead th.gebucht { background: #e3f4ea; }
-.st-matrix thead th i { margin-left: 4px; font-size: .75rem; }
-.st-matrix thead th i.rot { color: #d1343b; } .st-matrix thead th i.lila { color: #7c5cc4; }
-.st-matrix th.st-mzeit { color: #67747e; font-weight: 500; text-align: right; padding-right: 8px; }
-.st-matrix td { padding: 0; }
-.st-zelle { display: flex; align-items: center; justify-content: center; width: 52px; height: 30px; border: 0; border-radius: 8px; background: #eef0f3; color: #fff; }
-.st-zelle.frei { background: #f2f4f6; box-shadow: inset 0 0 0 1px #dfe3e8; cursor: pointer; transition: background .12s, box-shadow .12s; }
-.st-zelle.frei:hover, .st-zelle.frei:focus-visible { background: #e3f4ea; box-shadow: inset 0 0 0 1.5px #1f9d55; outline: none; }
-.st-zelle.gebucht { background: #1f9d55; cursor: pointer; font-size: 1rem; }
-.st-zelle.gebucht:disabled { cursor: default; }
-.st-zelle.leer { background: #e4e7ea; opacity: .55; }
-.st-zelle.konflikt { background: repeating-linear-gradient(135deg, #f2f4f6 0 6px, #e4e7ea 6px 12px); }
-.st-wahl-termine { background: #f7f8fa; border-radius: 12px; padding: 12px 14px; }
-.st-wahl-termine h3 { font-size: .875rem; font-weight: 500; color: #24323d; margin: 0 0 8px; }
-.st-wahl-termin { display: grid; grid-template-columns: 48px minmax(0, 1fr); column-gap: 8px; font-size: .8125rem; padding: 6px 0; border-top: 1px solid #e4e7ea; }
-.st-wahl-termin:first-of-type { border-top: 0; }
-.st-wahl-termin .nl-unter { grid-column: 2; }
-
-/* Grunddesign (wie Stundenplaneinstellungen): dünn umrandete Kästen ohne Symbol, Felder mit schwebendem Label im Formular */
-.st-karte { border-color: var(--u-linie); border-radius: 8px; }
-.st-karte > header > i { display: none; }
-.st-formular .row > [class*="col"] { position: relative; }
-.st-formular .row > [class*="col"] > .form-label { position: absolute; top: -8px; left: calc(var(--bs-gutter-x) * .5 + 9px); z-index: 1; margin: 0; padding: 0 4px;
-  background: #fff; font-size: .72rem; font-weight: 400; color: var(--u-grau); line-height: 1.2; }
-.st-formular .row > [class*="col"]:focus-within > .form-label { color: var(--u-akzent); }
-.st-formular .row { --bs-gutter-y: 1.25rem; }
-.st-formular .form-control, .st-formular .form-select { min-height: 40px; border-color: #c9d0d6; border-radius: 4px; }
-.st-formular .form-control-sm, .st-formular .form-select-sm { min-height: 32px; }
-.st-formular .form-control:focus, .st-formular .form-select:focus { border-color: var(--u-akzent); box-shadow: none; }
-.st-schalter { font-size: .875rem; }
-.st-schalter b { font-weight: 500; }
-.st-formular .row > [class*="col"] > .form-label { max-width: calc(100% - var(--bs-gutter-x) - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-formular .st-pause .u-feld { position: relative; display: block; margin: 0; padding-top: 0; }
-.st-formular .st-pause .u-feld > span { position: absolute; top: -8px; left: 9px; z-index: 1; padding: 0 4px; background: #fff; font-size: .72rem; color: var(--u-grau); line-height: 1.2; margin: 0; }
-.st-formular .st-pause .u-feld:focus-within > span { color: var(--u-akzent); }
-.st-formular .st-pausen { padding-top: 8px; }
-.st-formular .st-pause + .st-pause { margin-top: 16px; }

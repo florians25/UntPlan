@@ -1,9 +1,11 @@
 import Foundation
 
 // Modelle des Sprechtags (Elternsprechtag) – /api/app/sprechtag/…, alle Felder nachsichtig gelesen.
+// GET /sprechtag/{id} liefert je Rolle andere Daten (Erziehungsberechtigte: Kinder, Einladungen, Anfragen und Termine;
+// Lehrkraft bzw. Administration: Lehrkräfte mit Räumen, Terminen und Abwesenheiten). Schüler*innen haben keinen Zugriff.
 
-/// Status eines Sprechtags (Feld `status`, ab Sprint 27); fehlt es, aus der Phase abgeleitet.
-/// vorbereitung · angekuendigt (freigegeben, Anmeldung beginnt erst später) · anmeldung · geschlossen · vorbei · abgesagt
+/// Status eines Sprechtags (Feld `status`); fehlt es, aus der Phase abgeleitet.
+/// angekuendigt (Verwaltung LK, Anmeldung beginnt erst später) · anmeldung · geschlossen
 enum Sprechtagstatus {
     /// Status nachsichtig lesen: Groß-/Kleinschreibung, Umlaute („angekündigt“) und ältere Server (nur `phase`).
     static func lesen(_ roh: String, phase: String) -> String {
@@ -11,7 +13,11 @@ enum Sprechtagstatus {
             .replacingOccurrences(of: "ü", with: "ue")
         if s.hasPrefix("angek") { return "angekuendigt" }
         if !s.isEmpty { return s }
-        return phase == "einladung" ? "angekuendigt" : phase
+        switch phase {
+        case "einladung", "verwaltung": return "angekuendigt"
+        case "phase1", "phase1_beendet", "phase2": return "anmeldung"
+        default: return phase
+        }
     }
 }
 
@@ -24,9 +30,11 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
     var beginn: String
     var ende: String
     var ort: String
-    /// einladung, anmeldung, geschlossen, abgesagt …
+    /// entwurf, verwaltung, phase1, phase1_beendet, phase2, geschlossen, durchfuehrung …
     var phase: String
-    /// angekuendigt, anmeldung, geschlossen, vorbei, abgesagt … (siehe `Sprechtagstatus`)
+    /// Phase in Worten (z. B. „2. Anmeldephase“); leer bei älteren Servern
+    var phaseText: String
+    /// angekuendigt, anmeldung, geschlossen (siehe `Sprechtagstatus`)
     var status: String
     var text: String
     var anmeldungVonText: String
@@ -37,7 +45,7 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
     var einladungen: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, name, datum, datumText, beginn, ende, ort, phase, status, text, termine, einladungen
+        case id, name, datum, datumText, beginn, ende, ort, phase, phaseText, status, text, termine, einladungen
         case anmeldungVon, anmeldungVonText, anmeldungBis, anmeldungBisText, buchbar, online
     }
 
@@ -51,6 +59,7 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
         ende = c.text(.ende)
         ort = c.text(.ort)
         phase = c.text(.phase).lowercased()
+        phaseText = c.text(.phaseText)
         status = Sprechtagstatus.lesen(c.text(.status), phase: phase)
         text = c.text(.text)
         anmeldungVonText = c.textOderNil(.anmeldungVonText) ?? Datumsformat.anzeige(c.text(.anmeldungVon), "dd.MM.yyyy HH:mm")
@@ -74,7 +83,7 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
         if angekuendigt {
             if !text.isEmpty { return text }
             let zeit = beginn.isEmpty ? "" : (ende.isEmpty ? beginn : "\(beginn)–\(ende) Uhr")
-            var teile = ["Angekündigt: " + [tag, zeit].filter { !$0.isEmpty }.joined(separator: ", ")]
+            var teile = [(phaseText.isEmpty ? "Angekündigt" : phaseText) + ": " + [tag, zeit].filter { !$0.isEmpty }.joined(separator: ", ")]
             if !ort.isEmpty { teile.append(ort) }
             if !anmeldungVonText.isEmpty { teile.append("Anmeldung ab \(anmeldungVonText)") }
             return teile.joined(separator: " · ")
@@ -83,130 +92,103 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// Zeitblock eines Sprechtags (ohne Pausen).
-struct SprechtagZeitblock: Decodable, Hashable, Sendable {
+// MARK: - Sprechtag (Kopfdaten)
+
+/// Abschnitt eines Sprechtags (z. B. Nachmittag) mit Datum und Zeitraum.
+struct SprechtagAbschnitt: Decodable, Identifiable, Hashable, Sendable {
+    var index: Int
+    var name: String
+    /// yyyy-MM-dd
+    var datum: String
+    /// dd.MM.yyyy
+    var datumText: String
+    var wochentag: String
     var von: String
     var bis: String
 
-    enum CodingKeys: String, CodingKey { case von, bis }
+    var id: Int { index }
+
+    enum CodingKeys: String, CodingKey { case index, name, datum, datumText, wochentag, von, bis }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        index = c.zahl(.index) ?? 0
+        name = c.text(.name)
+        datum = String(c.text(.datum).prefix(10))
+        datumText = c.text(.datumText)
+        wochentag = c.text(.wochentag)
         von = c.text(.von)
         bis = c.text(.bis)
     }
+
+    /// Anzeige des Abschnitts in Auswahllisten: „Nachmittag – Freitag, 20.11.2026, 14:00–18:00 Uhr“.
+    var langText: String {
+        let tag = [wochentag, datumText].filter { !$0.isEmpty }.joined(separator: ", ")
+        let zeit = von.isEmpty ? "" : "\(von)–\(bis) Uhr"
+        let rest = [tag, zeit].filter { !$0.isEmpty }.joined(separator: ", ")
+        return [name, rest].filter { !$0.isEmpty }.joined(separator: " – ")
+    }
 }
 
-/// Optionen eines Sprechtags (nur die für die App sichtbaren).
-struct SprechtagOptionen: Decodable, Sendable {
-    var puffer: Int
-    var maxTermineFamilie: Int
-    var warteliste: Bool
-    var sichtbarSchueler: Bool
+/// Konfiguration eines Sprechtags (nur die für die App nötigen Teile).
+struct SprechtagKonfig: Decodable, Hashable, Sendable {
+    var online: Bool
+    /// Dauer eines Zeitblocks in Minuten
+    var dauer: Int
 
-    enum CodingKeys: String, CodingKey { case puffer, maxTermineFamilie, warteliste, sichtbarSchueler }
+    enum CodingKeys: String, CodingKey { case online, dauer }
+
+    init(online: Bool = false, dauer: Int = 10) {
+        self.online = online
+        self.dauer = dauer
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        puffer = c.zahl(.puffer) ?? 0
-        maxTermineFamilie = c.zahl(.maxTermineFamilie) ?? 0
-        warteliste = c.wahr(.warteliste)
-        sichtbarSchueler = c.wahr(.sichtbarSchueler)
+        online = c.wahr(.online)
+        let d = c.zahl(.dauer) ?? 10
+        dauer = d > 0 ? d : 10
     }
 }
 
-/// Kopfdaten eines Sprechtags.
-struct SprechtagInfo: Decodable, Sendable {
+/// Kopfdaten eines Sprechtags (Feld `sprechtag` in GET /sprechtag/{id}).
+struct SprechtagDaten: Decodable, Hashable, Sendable {
     var id: Int
     var name: String
-    var datum: String
-    var datumText: String
-    var beginn: String
-    var ende: String
-    var dauer: Int
     var phase: String
-    /// Status ab Sprint 27 (angekuendigt, anmeldung, …); fehlt er, aus der Phase abgeleitet
-    var status: String
-    var statusText: String
-    var ort: String
-    var abgesagt: Bool
-    var absageGrund: String
-    var hinweis: String
-    var anmeldungBis: String
-    var anmeldungVonText: String
-    var anmeldungBisText: String
-    var buchbar: Bool
-    var zeitbloecke: [SprechtagZeitblock]
-    var optionen: SprechtagOptionen?
+    var phaseText: String
+    var datumText: String
+    var konfig: SprechtagKonfig
+    var abschnitte: [SprechtagAbschnitt]
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, datum, datumText, beginn, ende, dauer, phase, abgesagt, absageGrund, hinweis, anmeldungBis
-        case status, statusText, ort, anmeldungVon, anmeldungVonText, anmeldungBisText, buchbar, zeitbloecke, optionen
-    }
+    enum CodingKeys: String, CodingKey { case id, name, phase, phaseText, datumText, konfig, abschnitte }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.zahl(.id) ?? 0
         name = c.text(.name)
-        datum = String(c.text(.datum).prefix(10))
-        datumText = c.text(.datumText)
-        beginn = c.text(.beginn)
-        ende = c.text(.ende)
-        dauer = c.zahl(.dauer) ?? 0
         phase = c.text(.phase).lowercased()
-        // „abgesagt“ kommt je nach Stand als Wahrheitswert oder als Zeitpunkt/Text
-        let roh = (c.textOderNil(.abgesagt) ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        abgesagt = (!roh.isEmpty && roh != "false" && roh != "0") || phase == "abgesagt"
-        absageGrund = c.text(.absageGrund)
-        hinweis = c.text(.hinweis)
-        anmeldungBis = c.text(.anmeldungBis)
-        status = abgesagt ? "abgesagt" : Sprechtagstatus.lesen(c.text(.status), phase: phase)
-        statusText = c.text(.statusText)
-        ort = c.text(.ort)
-        anmeldungVonText = c.textOderNil(.anmeldungVonText) ?? Datumsformat.anzeige(c.text(.anmeldungVon), "dd.MM.yyyy HH:mm")
-        anmeldungBisText = c.textOderNil(.anmeldungBisText) ?? Datumsformat.anzeige(anmeldungBis, "dd.MM.yyyy HH:mm")
-        buchbar = c.wahr(.buchbar) || status == "anmeldung"
-        zeitbloecke = c.liste(.zeitbloecke)
-        optionen = c.optional(.optionen)
+        phaseText = c.text(.phaseText)
+        datumText = c.text(.datumText)
+        konfig = c.optional(.konfig) ?? SprechtagKonfig()
+        abschnitte = c.liste(.abschnitte)
     }
 
     var titel: String { name.isEmpty ? "Sprechtag" : name }
+    var online: Bool { konfig.online }
+    var dauer: Int { konfig.dauer }
 
-    /// Angekündigt: freigegeben, die Anmeldung beginnt erst später.
-    var angekuendigt: Bool { status == "angekuendigt" }
+    /// Änderungen möglich (nicht abgeschlossen, nicht im Entwurf).
+    var laufend: Bool { phase != "abgeschlossen" && phase != "entwurf" }
 
-    /// Zeiten des Tages: mehrere Zeitblöcke („15:00–17:00, 17:30–19:00“), sonst Beginn bis Ende.
-    var zeitenText: String {
-        if zeitbloecke.count > 1 {
-            return zeitbloecke.map { "\($0.von)–\($0.bis)" }.joined(separator: ", ")
-        }
-        guard !beginn.isEmpty else { return "" }
-        return ende.isEmpty ? beginn : "\(beginn) – \(ende)"
-    }
-
-    /// Phase in Worten.
-    var phaseText: String {
-        if angekuendigt { return "Angekündigt" }
-        switch phase {
-        case "einladung": return "Einladungsphase"
-        case "anmeldung": return "Anmeldung geöffnet"
-        case "geschlossen": return "Anmeldung geschlossen"
-        case "vorbei": return "Vorbei"
-        case "abgesagt": return "Abgesagt"
-        case "vorbereitung": return "In Vorbereitung"
-        default: return phase.capitalized
-        }
-    }
-
-    /// Hinweis zur Ankündigung, z. B. „Angekündigt – Anmeldung ab Mo, 02.11.2026 08:00“.
-    var ankuendigungText: String {
-        if !statusText.isEmpty { return statusText }
-        return anmeldungVonText.isEmpty ? "Angekündigt – die Anmeldung ist noch nicht geöffnet."
-            : "Angekündigt – Anmeldung ab \(anmeldungVonText)"
+    func abschnitt(_ index: Int) -> SprechtagAbschnitt? {
+        abschnitte.first { $0.index == index }
     }
 }
 
-/// Schüler*in eines Termins.
+// MARK: - Termine
+
+/// Schüler*in eines Termins bzw. einer Einladung.
 struct SprechtagSchueler: Decodable, Hashable, Sendable {
     var id: Int
     var vorname: String
@@ -223,130 +205,110 @@ struct SprechtagSchueler: Decodable, Hashable, Sendable {
         klasse = c.text(.klasse)
     }
 
-    var anzeige: String { [vorname, name].filter { !$0.isEmpty }.joined(separator: " ") }
+    /// „Name Vorname“ wie in der Weboberfläche.
+    var anzeige: String { [name, vorname].filter { !$0.isEmpty }.joined(separator: " ") }
 }
 
-/// Gebuchter Termin (Lehrkraft-Sicht).
-struct SprechtagTermin: Decodable, Identifiable, Sendable {
+/// Termin, Einladung bzw. Terminanfrage am Sprechtag.
+/// status: einladung (ohne Uhrzeit), angefragt, bestaetigt, abgelehnt, abgesagt
+struct SprechtagTermin: Decodable, Identifiable, Hashable, Sendable {
     var id: Int
     var lehrer: String
     var lehrerName: String
+    /// „(KÜRZEL) Name“
+    var lehrerTitel: String
+    /// Abschnitt (-1 = ohne Uhrzeit, z. B. Einladung)
+    var abschnitt: Int
+    var abschnittName: String
+    var datum: String
+    var datumText: String
+    var wochentag: String
     var beginn: String
     var ende: String
     var schueler: SprechtagSchueler?
-    var bemerkung: String
-    var gebuchtVon: String
+    var art: String
+    var status: String
+    var statusText: String
+    var verpflichtend: Bool
+    var link: String
+    var anmerkung: String
+    var grund: String
+    var raum: String
+    var online: Bool
 
-    enum CodingKeys: String, CodingKey { case id, lehrer, lehrerName, beginn, ende, schueler, bemerkung, gebuchtVon }
+    enum CodingKeys: String, CodingKey {
+        case id, lehrer, lehrerName, lehrerTitel, abschnitt, abschnittName, datum, datumText, wochentag, beginn, ende
+        case schueler, art, status, statusText, verpflichtend, link, anmerkung, grund, raum, online
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.zahl(.id) ?? 0
         lehrer = c.text(.lehrer)
         lehrerName = c.text(.lehrerName)
+        let titel = c.text(.lehrerTitel)
+        lehrerTitel = titel.isEmpty ? (lehrerName.isEmpty ? lehrer : "(\(lehrer)) \(lehrerName)") : titel
+        abschnitt = c.zahl(.abschnitt) ?? -1
+        abschnittName = c.text(.abschnittName)
+        datum = String(c.text(.datum).prefix(10))
+        datumText = c.text(.datumText)
+        wochentag = c.text(.wochentag)
         beginn = c.text(.beginn)
         ende = c.text(.ende)
         schueler = c.optional(.schueler)
-        bemerkung = c.text(.bemerkung)
-        gebuchtVon = c.text(.gebuchtVon)
-    }
-}
-
-/// Zeitfenster im Raster einer Lehrkraft (Status: frei, gebucht, gesperrt).
-struct SprechtagZeitfenster: Decodable, Identifiable, Sendable {
-    var beginn: String
-    var ende: String
-    var status: String
-    var termin: SprechtagTermin?
-
-    var id: String { beginn }
-
-    enum CodingKeys: String, CodingKey { case beginn, ende, status, termin }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        beginn = c.text(.beginn)
-        ende = c.text(.ende)
-        termin = c.optional(.termin)
-        let roh = c.text(.status).lowercased()
-        status = roh.isEmpty ? (termin == nil ? "frei" : "gebucht") : roh
-    }
-
-    var gebucht: Bool { status == "gebucht" || termin != nil }
-    var gesperrt: Bool { status == "gesperrt" }
-    var frei: Bool { !gebucht && !gesperrt }
-}
-
-/// Eigene Lehrkraft am Sprechtag.
-struct SprechtagLehrkraftKopf: Decodable, Sendable {
-    var kurz: String
-    var name: String
-    var raum: String
-    var abgesagt: String
-    var absageGrund: String
-
-    enum CodingKeys: String, CodingKey { case kurz, name, raum, abgesagt, absageGrund }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        kurz = c.text(.kurz)
-        name = c.text(.name)
+        art = c.text(.art)
+        status = c.text(.status).lowercased()
+        statusText = c.text(.statusText)
+        verpflichtend = c.wahr(.verpflichtend)
+        link = Karte.linkText(c.textOderNil(.link))
+        anmerkung = c.text(.anmerkung)
+        grund = c.text(.grund)
         raum = c.text(.raum)
-        let roh = c.text(.abgesagt)
-        abgesagt = roh == "false" ? "" : roh
-        absageGrund = c.text(.absageGrund)
+        online = c.wahr(.online)
+    }
+
+    var hatZeit: Bool { !beginn.isEmpty && abschnitt >= 0 }
+    var istEinladung: Bool { status == "einladung" }
+    var bestaetigt: Bool { status == "bestaetigt" }
+
+    /// „14:00 – 14:10 Uhr“
+    var zeitText: String {
+        guard !beginn.isEmpty else { return "" }
+        return ende.isEmpty ? "\(beginn) Uhr" : "\(beginn) – \(ende) Uhr"
+    }
+
+    var schuelerName: String { schueler?.anzeige ?? "" }
+
+    /// Statustext des Servers, sonst aus dem Status abgeleitet.
+    var statusAnzeige: String {
+        if !statusText.isEmpty { return statusText }
+        switch status {
+        case "einladung": return "Eingeladen"
+        case "angefragt": return "Versendet"
+        case "bestaetigt": return "Akzeptiert"
+        case "abgelehnt": return "Abgelehnt"
+        default: return "Abgesagt"
+        }
     }
 }
 
-/// GET /api/app/sprechtag/{id}/lehrkraft
-struct SprechtagLehrkraftDaten: Decodable, Sendable {
-    var sprechtag: SprechtagInfo?
-    var lehrer: SprechtagLehrkraftKopf?
-    var zeitfenster: [SprechtagZeitfenster]
+/// Freie Zeit einer Lehrkraft (GET /sprechtag/{id}/frei).
+struct SprechtagZeit: Decodable, Identifiable, Hashable, Sendable {
+    var von: String
+    var bis: String
 
-    enum CodingKeys: String, CodingKey { case sprechtag, lehrer, zeitfenster }
+    var id: String { von }
+
+    enum CodingKeys: String, CodingKey { case von, bis }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sprechtag = c.optional(.sprechtag)
-        lehrer = c.optional(.lehrer)
-        zeitfenster = c.liste(.zeitfenster)
+        von = c.text(.von)
+        bis = c.text(.bis)
     }
 }
 
-/// Freies Zeitfenster einer Lehrkraft (Eltern-Sicht); konflikt = überschneidet sich mit einem eigenen Termin.
-struct SprechtagFreiesFenster: Decodable, Identifiable, Hashable, Sendable {
-    var beginn: String
-    var ende: String
-    var konflikt: Bool
-
-    var id: String { beginn }
-
-    enum CodingKeys: String, CodingKey { case beginn, ende, konflikt }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        beginn = c.text(.beginn)
-        ende = c.text(.ende)
-        konflikt = c.wahr(.konflikt)
-    }
-}
-
-/// Kurzform eines gebuchten Termins bei einer Lehrkraft des Kindes.
-struct SprechtagTerminKurz: Decodable, Hashable, Sendable {
-    var id: Int
-    var beginn: String
-    var ende: String
-
-    enum CodingKeys: String, CodingKey { case id, beginn, ende }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = c.zahl(.id) ?? 0
-        beginn = c.text(.beginn)
-        ende = c.text(.ende)
-    }
-}
+// MARK: - Erziehungsberechtigte
 
 /// Lehrkraft eines Kindes (Eltern-Sicht).
 struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
@@ -354,24 +316,10 @@ struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
     var name: String
     var faecher: [String]
     var klassenleitung: Bool
-    var raum: String
-    var abgesagt: Bool
-    var eingeladen: Bool
-    var einladungText: String
-    /// Einladung mit Priorität „verpflichtend“ (sonst „erwünscht“)
-    var verpflichtend: Bool
-    var termin: SprechtagTerminKurz?
-    var zeitfenster: [SprechtagFreiesFenster]
-    var dauer: Int
-    var online: Bool
-    var ausgebucht: Bool
 
     var id: String { kurz }
 
-    enum CodingKeys: String, CodingKey {
-        case kurz, name, faecher, klassenleitung, raum, abgesagt, eingeladen, einladungText, verpflichtend, termin, zeitfenster
-        case dauer, online, ausgebucht
-    }
+    enum CodingKeys: String, CodingKey { case kurz, name, faecher, klassenleitung }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -381,19 +329,13 @@ struct SprechtagKindLehrkraft: Decodable, Identifiable, Hashable, Sendable {
         let liste = c.texte(.faecher)
         faecher = liste.isEmpty ? c.text(.faecher).split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } : liste
         klassenleitung = c.wahr(.klassenleitung)
-        raum = c.text(.raum)
-        abgesagt = c.wahr(.abgesagt)
-        eingeladen = c.wahr(.eingeladen)
-        einladungText = c.text(.einladungText)
-        verpflichtend = c.wahr(.verpflichtend)
-        termin = c.optional(.termin)
-        zeitfenster = c.liste(.zeitfenster)
-        dauer = c.zahl(.dauer) ?? 0
-        online = c.wahr(.online)
-        ausgebucht = c.wahr(.ausgebucht)
     }
 
-    var anzeige: String { name.isEmpty ? kurz : name }
+    /// „(KÜRZEL) Name“
+    var titel: String { name.isEmpty ? kurz : "(\(kurz)) \(name)" }
+
+    /// „Klassenleitung, Mathematik, Physik“
+    var unterzeile: String { ([klassenleitung ? "Klassenleitung" : ""] + faecher).filter { !$0.isEmpty }.joined(separator: ", ") }
 }
 
 /// Kind mit seinen Lehrkräften (Eltern-Sicht).
@@ -415,79 +357,282 @@ struct SprechtagKind: Decodable, Identifiable, Hashable, Sendable {
         lehrkraefte = c.liste(.lehrkraefte)
     }
 
-    var anzeige: String { [vorname, name].filter { !$0.isEmpty }.joined(separator: " ") }
+    /// „Name Vorname“ wie in der Weboberfläche.
+    var anzeige: String { [name, vorname].filter { !$0.isEmpty }.joined(separator: " ") }
 }
 
-/// Termin der eigenen Familie (Eltern-Sicht).
-struct SprechtagElternTermin: Decodable, Identifiable, Sendable {
+// MARK: - Lehrkräfte und Administration
+
+/// Rechte der Lehrkräfte am Sprechtag (Administration: alle).
+struct SprechtagRechte: Decodable, Hashable, Sendable {
+    var raeume: Bool
+    var abwesenheiten: Bool
+    var bearbeiten: Bool
+    var buchen: Bool
+    var einladen: Bool
+
+    enum CodingKeys: String, CodingKey { case raeume, abwesenheiten, bearbeiten, buchen, einladen }
+
+    init() {
+        raeume = false
+        abwesenheiten = false
+        bearbeiten = false
+        buchen = false
+        einladen = false
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        raeume = c.wahr(.raeume)
+        abwesenheiten = c.wahr(.abwesenheiten)
+        bearbeiten = c.wahr(.bearbeiten)
+        buchen = c.wahr(.buchen)
+        // Einladen ist für alle Lehrkräfte freigegeben (fehlt das Feld, gilt es als erlaubt)
+        einladen = c.contains(.einladen) ? c.wahr(.einladen) : true
+    }
+}
+
+/// Abwesenheit (gesperrter Zeitraum) einer Lehrkraft in einem Abschnitt.
+struct SprechtagAbwesenheit: Decodable, Identifiable, Hashable, Sendable {
     var id: Int
+    var abschnitt: Int
     var beginn: String
     var ende: String
-    var lehrer: String
-    var lehrerName: String
-    var raum: String
-    var schueler: SprechtagSchueler?
-    var bemerkung: String
-    var eigene: Bool
-    var online: Bool
-    /// Link zum Online-Termin (nur für die eigene Familie; leer bei Präsenz)
-    var link: String
+    var anmerkung: String
 
-    enum CodingKeys: String, CodingKey { case id, beginn, ende, lehrer, lehrerName, raum, schueler, bemerkung, eigene, online, link }
+    enum CodingKeys: String, CodingKey { case id, abschnitt, beginn, ende, anmerkung }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = c.zahl(.id) ?? 0
+        abschnitt = c.zahl(.abschnitt) ?? 0
         beginn = c.text(.beginn)
         ende = c.text(.ende)
-        lehrer = c.text(.lehrer)
-        lehrerName = c.text(.lehrerName)
-        raum = c.text(.raum)
-        schueler = c.optional(.schueler)
-        bemerkung = c.text(.bemerkung)
-        eigene = c.wahr(.eigene)
-        online = c.wahr(.online)
-        link = Karte.linkText(c.textOderNil(.link))
+        anmerkung = c.text(.anmerkung)
     }
 }
 
-/// GET /api/app/sprechtag/{id}/eltern
-struct SprechtagElternDaten: Decodable, Sendable {
-    var sprechtag: SprechtagInfo?
-    var buchbar: Bool
-    var kinder: [SprechtagKind]
-    var termine: [SprechtagElternTermin]
-    /// Höchstzahl Termine je Familie (0 = unbegrenzt) und bereits gebuchte Termine der Familie
-    var maxTermine: Int
-    var gebuchtFamilie: Int
+/// Lehrkraft mit Räumen (je Abschnitt), Terminen, Einladungen und Abwesenheiten.
+struct SprechtagLehrkraft: Decodable, Identifiable, Hashable, Sendable {
+    var kurz: String
+    var name: String
+    /// „(KÜRZEL) Name“
+    var titel: String
+    /// Raum je Abschnitt (Index wie `abschnitte`)
+    var raeume: [String]
+    var keinRaum: Bool
+    var keineTermine: Bool
+    var termine: [SprechtagTermin]
+    var abwesenheiten: [SprechtagAbwesenheit]
 
-    enum CodingKeys: String, CodingKey { case sprechtag, buchbar, kinder, termine, maxTermine, gebuchtFamilie }
+    var id: String { kurz }
+
+    enum CodingKeys: String, CodingKey { case kurz, name, titel, raeume, keinRaum, keineTermine, termine, abwesenheiten }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        sprechtag = c.optional(.sprechtag)
-        buchbar = c.wahr(.buchbar)
-        kinder = c.liste(.kinder)
+        kurz = c.text(.kurz)
+        name = c.text(.name)
+        let t = c.text(.titel)
+        titel = t.isEmpty ? (name.isEmpty ? kurz : "(\(kurz)) \(name)") : t
+        raeume = c.texte(.raeume)
+        keinRaum = c.wahr(.keinRaum)
+        keineTermine = c.wahr(.keineTermine)
         termine = c.liste(.termine)
-        maxTermine = c.zahl(.maxTermine) ?? 0
-        gebuchtFamilie = c.zahl(.gebuchtFamilie) ?? termine.count
+        abwesenheiten = c.liste(.abwesenheiten)
+    }
+
+    func raum(_ abschnitt: Int) -> String {
+        abschnitt >= 0 && abschnitt < raeume.count ? raeume[abschnitt] : ""
+    }
+
+    /// Einladungen ohne Uhrzeit (die Erziehungsberechtigten wählen sie selbst).
+    var einladungen: [SprechtagTermin] { termine.filter(\.istEinladung) }
+}
+
+/// Raum zur Auswahl (Lehrkraft bzw. Administration).
+struct SprechtagRaum: Decodable, Identifiable, Hashable, Sendable {
+    var kurz: String
+    var name: String
+    var gebaeude: String
+
+    var id: String { kurz }
+
+    enum CodingKeys: String, CodingKey { case kurz, name, gebaeude }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kurz = c.text(.kurz)
+        name = c.text(.name)
+        gebaeude = c.text(.gebaeude)
     }
 }
 
-/// POST /api/app/sprechtag/{id}/buchen
-struct SprechtagBuchDaten: Encodable, Sendable {
-    var lehrer: String
-    var schuelerId: Int
-    var beginn: String
+/// Schüler*in der Lehrkraft (GET /sprechtag/{id}/schueler); vorhanden = bereits eingeladen bzw. mit Termin.
+struct SprechtagSchuelerWahl: Decodable, Identifiable, Hashable, Sendable {
+    var id: Int
+    var vorname: String
+    var name: String
+    var klasse: String
+    var vorhanden: Bool
+
+    enum CodingKeys: String, CodingKey { case id, vorname, name, klasse, vorhanden }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        vorname = c.text(.vorname)
+        name = c.text(.name)
+        klasse = c.text(.klasse)
+        vorhanden = c.wahr(.vorhanden)
+    }
+
+    var anzeige: String { [name, vorname].filter { !$0.isEmpty }.joined(separator: " ") }
 }
 
-/// POST /api/app/sprechtag/{id}/termine/{tid}/absagen
+// MARK: - GET /sprechtag/{id}
+
+/// Sprechtag mit den Daten je Rolle (`rolle`: eltern, lehrer, admin).
+struct SprechtagAnsicht: Decodable, Sendable {
+    var rolle: String
+    var sprechtag: SprechtagDaten?
+
+    // Erziehungsberechtigte
+    var hinweis: String
+    var freiBuchbar: Bool
+    /// Zeit bestätigter Termine ändern (1. und 2. Anmeldephase)
+    var aendern: Bool
+    var kinder: [SprechtagKind]
+    var einladungen: [SprechtagTermin]
+    var anfragen: [SprechtagTermin]
+    var termine: [SprechtagTermin]
+
+    // Lehrkraft bzw. Administration
+    var rechte: SprechtagRechte
+    var lehrkraefte: [SprechtagLehrkraft]
+    var raumListe: [SprechtagRaum]
+
+    enum CodingKeys: String, CodingKey {
+        case rolle, sprechtag, hinweis, freiBuchbar, aendern, kinder, einladungen, anfragen, termine, rechte, lehrkraefte, raumListe
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rolle = c.text(.rolle).lowercased()
+        sprechtag = c.optional(.sprechtag)
+        hinweis = c.text(.hinweis)
+        freiBuchbar = c.wahr(.freiBuchbar)
+        aendern = c.wahr(.aendern)
+        kinder = c.liste(.kinder)
+        einladungen = c.liste(.einladungen)
+        anfragen = c.liste(.anfragen)
+        termine = c.liste(.termine)
+        rechte = c.optional(.rechte) ?? SprechtagRechte()
+        lehrkraefte = c.liste(.lehrkraefte)
+        raumListe = c.liste(.raumListe)
+    }
+
+    var istEltern: Bool { rolle == "eltern" }
+    var istAdmin: Bool { rolle == "admin" }
+
+    func lehrkraft(_ kurz: String) -> SprechtagLehrkraft? {
+        lehrkraefte.first { $0.kurz.caseInsensitiveCompare(kurz) == .orderedSame }
+    }
+}
+
+/// Antwort von POST /sprechtag/{id}/einladung.
+struct SprechtagAnzahlAntwort: Decodable, Sendable {
+    var anzahl: Int
+
+    enum CodingKeys: String, CodingKey { case anzahl }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        anzahl = c.zahl(.anzahl) ?? 0
+    }
+}
+
+// MARK: - Anfragen
+
+/// POST /sprechtag/{id}/buchen (Erziehungsberechtigte; mit `einladungId` aus einer Einladung)
+struct SprechtagBuchDaten: Encodable, Sendable {
+    var lehrer: String
+    var abschnitt: Int
+    var beginn: String
+    var schuelerId: Int
+    var einladungId: Int?
+}
+
+/// POST /sprechtag/{id}/termin/{tid}/absagen
 struct SprechtagAbsageDaten: Encodable, Sendable {
     var grund: String?
 }
 
-/// PUT /api/app/sprechtag/{id}/sperren
-struct SprechtagSperrDaten: Encodable, Sendable {
-    var beginne: [String]
-    var gesperrt: Bool
+/// PUT /sprechtag/{id}/termin/{tid} – Zeit (Erziehungsberechtigte nur diese), Anmerkung und Meeting-Link ändern.
+struct SprechtagAenderDaten: Encodable, Sendable {
+    var abschnitt: Int
+    var beginn: String
+    var ende: String?
+    var anmerkung: String?
+    var link: String?
+}
+
+/// PUT /sprechtag/{id}/raum
+struct SprechtagRaumDaten: Encodable, Sendable {
+    var lehrer: String?
+    var abschnitt: Int
+    var raum: String
+}
+
+/// POST /sprechtag/{id}/abwesenheit (ohne `id` neu, sonst ändern)
+struct SprechtagAbwesenheitDaten: Encodable, Sendable {
+    var id: Int?
+    var lehrer: String?
+    var abschnitt: Int
+    var beginn: String
+    var ende: String
+    var anmerkung: String
+}
+
+/// POST /sprechtag/{id}/einladung
+struct SprechtagEinladungDaten: Encodable, Sendable {
+    var lehrer: String?
+    var schuelerIds: [Int]
+    var text: String?
+    var verpflichtend: Bool
+}
+
+/// POST /sprechtag/{id}/termin – Terminanfrage mit fester Uhrzeit.
+struct SprechtagTerminDaten: Encodable, Sendable {
+    var lehrer: String?
+    var abschnitt: Int
+    var beginn: String
+    var ende: String
+    var schuelerId: Int
+    var anmerkung: String?
+    var link: String?
+    var verpflichtend: Bool
+}
+
+// MARK: - Zeitrechnung
+
+/// Uhrzeiten „HH:mm“ als Minuten und zurück.
+enum Sprechtagzeit {
+    static func minuten(_ hhmm: String) -> Int {
+        let teile = hhmm.split(separator: ":")
+        guard teile.count >= 2, let h = Int(teile[0]), let m = Int(teile[1]) else { return 0 }
+        return h * 60 + m
+    }
+
+    static func text(_ minuten: Int) -> String {
+        String(format: "%02d:%02d", minuten / 60, minuten % 60)
+    }
+
+    /// Zeiten im Takt der Zeitblöcke von `von` bis einschließlich `bis`.
+    static func raster(von: String, bis: String, dauer: Int) -> [String] {
+        let start = minuten(von)
+        let ende = minuten(bis)
+        guard dauer > 0, ende > start else { return von.isEmpty ? [] : [von] }
+        return stride(from: start, through: ende, by: dauer).map { text($0) }
+    }
 }

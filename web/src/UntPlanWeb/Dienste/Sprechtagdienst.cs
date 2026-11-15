@@ -7,117 +7,79 @@ using UntPlanWeb.Daten;
 
 namespace UntPlanWeb.Dienste;
 
-/// <summary>Pause am Sprechtag (keine Termine), Uhrzeiten „HH:mm“.</summary>
-public sealed record SprechtagPause(string Von, string Bis);
+// ================================================================================================================================
+// Sprechtag (neu): Die Administration legt einen Sprechtag für ein Schuljahr an und konfiguriert ihn in drei Schritten
+// (1. Allgemeine Informationen: Name, Dauer der Zeitblöcke, Online-Sprechtag; 2. Zeiträume: Abschnitte und zwei Anmeldephasen;
+// 3. Buchungsregeln und Rechte). Nach dem Veröffentlichen durchläuft er automatisch die Phasen
+// Entwurf → Verwaltung LK → 1. Anmeldephase → 1. Anmeldephase beendet → 2. Anmeldephase → Anmeldung geschlossen → In Durchführung →
+// Abgeschlossen. Lehrkräfte (bzw. die Administration in ihrem Namen) wählen Räume je Abschnitt, tragen Abwesenheiten ein, senden
+// Einladungen (Erziehungsberechtigte wählen die Uhrzeit selbst) und legen Terminanfragen mit fester Uhrzeit an (Annehmen/Ablehnen).
+// Erziehungsberechtigte buchen in der 1. Anmeldephase nur über Einladungen bzw. Terminanfragen, ab der 2. Anmeldephase frei.
+// ================================================================================================================================
 
-/// <summary>Beteiligte Lehrkraft mit Raum.</summary>
-public sealed record SprechtagLehrkraft(string Lehrer, string Raum)
+/// <summary>Abschnitt eines Sprechtags (z. B. Nachmittag): Name, Datum (yyyy-MM-dd), Beginn und Ende (HH:mm).</summary>
+public sealed record StAbschnitt(string Name, string Datum, string Von, string Bis);
+
+/// <summary>Berechtigungen der Lehrkräfte (alle standardmäßig an).</summary>
+public sealed record StRechte(bool RaeumeWaehlen = true, bool AbwesenheitenEintragen = true, bool TermineBearbeiten = true, bool TermineBuchen = true);
+
+/// <summary>Buchungsregeln (optional): Zeitblöcke am Stück bis zur Pause, höchstens Zeitblöcke je Schüler*in und Lehrkraft, gesperrte Blöcke zwischen zwei Terminen.</summary>
+public sealed record StRegeln(int? BloeckeBisPause = null, int? MaxBloeckeProSchueler = null, int? GesperrteBloecke = null);
+
+/// <summary>Konfiguration eines Sprechtags (wird laufend gespeichert; Anmeldephasen als yyyy-MM-ddTHH:mm).</summary>
+public sealed record StKonfig
 {
-    /// <summary>Teilnahme abgesagt („yyyy-MM-dd HH:mm“; leer = nimmt teil).</summary>
-    public string Abgesagt { get; init; } = "";
-    public string AbsageGrund { get; init; } = "";
-    /// <summary>Eigene Termindauer in Minuten (0 = Termindauer des Sprechtags).</summary>
-    public int Dauer { get; init; }
-    /// <summary>Gespräche finden online statt (Link für die Familien mit Termin).</summary>
+    public string Name { get; init; } = "";
+    public int Dauer { get; init; } = 10;
     public bool Online { get; init; }
-    /// <summary>Link zur Videokonferenz (nur bei <see cref="Online"/>; nur für Familien mit Termin, Lehrkraft und Verwaltung sichtbar).</summary>
-    public string Link { get; init; } = "";
+    public List<StAbschnitt> Abschnitte { get; init; } = new();
+    public string Phase1Von { get; init; } = "";
+    public string Phase1Bis { get; init; } = "";
+    public string Phase2Von { get; init; } = "";
+    public string Phase2Bis { get; init; } = "";
+    public StRechte Rechte { get; init; } = new();
+    public StRegeln Regeln { get; init; } = new();
 }
 
-/// <summary>Zeitblock eines Sprechtags (mehrere Blöcke am Tag; Lücken zwischen den Blöcken werden zu Pausen).</summary>
-public sealed record SprechtagZeitblock(string Von, string Bis);
-
-/// <summary>
-/// Weitere Optionen eines Sprechtags (als JSON gespeichert, neue Optionen erhalten so ihren Standard).
-/// </summary>
-public sealed record SprechtagOptionen
+public sealed record Sprechtag(int Id, string Schuljahr, string SchuljahrVon, string SchuljahrBis, StKonfig K, string Veroeffentlicht, string Erstellt)
 {
-    /// <summary>Puffer in Minuten zwischen zwei Terminen (0–60).</summary>
-    public int Puffer { get; init; }
-    /// <summary>Höchstzahl der Termine je Familie an diesem Tag (0 = unbegrenzt).</summary>
-    public int MaxTermineFamilie { get; init; }
-    /// <summary>Warteliste für ausgebuchte Lehrkräfte.</summary>
-    public bool Warteliste { get; init; }
-    /// <summary>Erinnerung an Termine so viele Stunden vor Beginn (0 = keine).</summary>
-    public int ErinnerungStunden { get; init; }
-    /// <summary>Für Erziehungsberechtigte sichtbar (Ankündigung, Buchung).</summary>
-    public bool SichtbarEltern { get; init; } = true;
-    /// <summary>
-    /// Für Schüler*innen sichtbar (nur Ankündigung und eigene Termine). Standard an – auch für gespeicherte Sprechtage ohne diese Option,
-    /// damit die Ankündigung Eltern und Schüler*innen gleichermaßen erreicht.
-    /// </summary>
-    public bool SichtbarSchueler { get; init; } = true;
-    /// <summary>Schon vor dem Anmeldezeitraum allen Beteiligten ankündigen (Status „angekündigt“).</summary>
-    public bool Ankuendigen { get; init; } = true;
-    /// <summary>Reihe mehrtägiger Sprechtage (Id des ersten Tages; 0 = keine Reihe).</summary>
-    public int Reihe { get; init; }
-    /// <summary>Abwesenheitseingabe durch die Lehrkraft (Zeitfenster selbst sperren bzw. freigeben); aus = nur die Administration.</summary>
-    public bool AbwesenheitLehrkraft { get; init; } = true;
-    /// <summary>Parallele Termine: Familien dürfen sich überschneidende Termine (z. B. für Geschwister bei verschiedenen Lehrkräften) buchen.</summary>
-    public bool ParalleleTermine { get; init; }
+    public bool IstVeroeffentlicht => Veroeffentlicht.Length > 0;
 }
 
 /// <summary>
-/// Elternsprechtag: ein Tag mit Zeitfenster (von–bis), gleich langen Terminen, Pausen, Einladungsphase der Lehrkräfte, Anmeldezeitraum
-/// für Erziehungsberechtigte, beteiligten Lehrkräften (je mit Raum) und Sichtbarkeit.
+/// Termin, Einladung bzw. Terminanfrage. Art „einladung“ (ohne Uhrzeit, Erziehungsberechtigte wählen selbst) bzw. „termin“ (feste Uhrzeit).
+/// Status: einladung (offen), angefragt (Terminanfrage wartet auf Annahme), bestaetigt, abgelehnt, abgesagt.
 /// </summary>
-/// <param name="EinladungBis">Ende der Einladungsphase („yyyy-MM-ddTHH:mm“); leer = bis zum Ende des Anmeldezeitraums.</param>
-/// <param name="AnmeldungVon">Beginn des Anmeldezeitraums für Erziehungsberechtigte („yyyy-MM-ddTHH:mm“).</param>
-/// <param name="Sichtbar">Für Lehrkräfte und Erziehungsberechtigte sichtbar (sonst nur Administration).</param>
-/// <param name="Raumwahl">Lehrkräfte dürfen ihren Raum selbst wählen.</param>
-public sealed record Sprechtag(int Id, string Name, string Datum, string Beginn, string Ende, int Dauer, List<SprechtagPause> Pausen, string EinladungBis,
-    string AnmeldungVon, string AnmeldungBis, bool Sichtbar, bool Raumwahl, string Hinweis, string Erstellt)
+public sealed record StTermin(int Id, int SprechtagId, string Lehrer, int Abschnitt, string Beginn, string Ende, int SchuelerId, string Art, string Status,
+    bool Verpflichtend, string Link, string Anmerkung, string ErstelltVon, int? BenutzerId, string Erstellt, string Benachrichtigt, string Grund)
 {
-    public List<SprechtagLehrkraft> Lehrkraefte { get; init; } = new();
-    /// <summary>Ganzer Sprechtag abgesagt („yyyy-MM-dd HH:mm“; leer = findet statt).</summary>
-    public string Abgesagt { get; init; } = "";
-    public string AbsageGrund { get; init; } = "";
-    /// <summary>Ort des Sprechtags (frei, z. B. Gebäude).</summary>
-    public string Ort { get; init; } = "";
-    public SprechtagOptionen Optionen { get; init; } = new();
+    public bool Aktiv => Status is "angefragt" or "bestaetigt";
+    public bool HatZeit => Beginn.Length > 0 && Abschnitt >= 0;
 }
 
-/// <summary>
-/// Eingabe zum Anlegen bzw. Ändern eines Sprechtags. <paramref name="Zeitbloecke"/> ersetzt Beginn/Ende (Lücken werden Pausen);
-/// <paramref name="WeitereTage"/> legt beim Anlegen je Datum einen gleichen Sprechtag derselben Reihe an.
-/// </summary>
-public sealed record SprechtagDaten(string? Name, string? Datum, string? Beginn, string? Ende, int? Dauer, List<SprechtagPause>? Pausen, string? EinladungBis,
-    string? AnmeldungVon, string? AnmeldungBis, bool? Sichtbar, bool? Raumwahl, string? Hinweis, List<SprechtagLehrkraft>? Lehrkraefte,
-    string? Ort = null, SprechtagOptionen? Optionen = null, List<SprechtagZeitblock>? Zeitbloecke = null, List<string>? WeitereTage = null);
+public sealed record StAbwesenheit(int Id, int SprechtagId, string Lehrer, int Abschnitt, string Beginn, string Ende, string Anmerkung);
 
-/// <summary>Eintrag auf der Warteliste einer ausgebuchten Lehrkraft.</summary>
-public sealed record SprechtagWarteplatz(int Id, int SprechtagId, string Lehrer, int SchuelerId, int? BenutzerId, string Erstellt, string Benachrichtigt);
+public sealed record StZeit(string Von, string Bis);
 
-/// <summary>Gebuchter bzw. von der Lehrkraft eingetragener Termin.</summary>
-/// <param name="BenutzerId">Buchendes Elternkonto (leer, wenn die Lehrkraft bzw. Administration eingetragen hat).</param>
-/// <param name="Quelle"><c>eltern</c>, <c>lehrkraft</c> oder <c>verwaltung</c>.</param>
-public sealed record SprechtagTermin(int Id, int SprechtagId, string Lehrer, string Beginn, string Ende, int SchuelerId, int? BenutzerId, string Bemerkung,
-    string Quelle, string Erstellt);
-
-/// <summary>Einladung einer Lehrkraft an die Erziehungsberechtigten einer Schülerin bzw. eines Schülers; Priorität „erwünscht“ bzw. „verpflichtend“.</summary>
-public sealed record SprechtagEinladung(int Id, int SprechtagId, string Lehrer, int SchuelerId, string Text, string Erstellt, int Benachrichtigt, bool Verpflichtend = false);
-
-/// <summary>Zeitfenster einer Lehrkraft: <c>frei</c>, <c>gebucht</c> oder <c>gesperrt</c>.</summary>
-public sealed record SprechtagSlot(string Beginn, string Ende, string Status, SprechtagTermin? Termin);
-
-/// <summary>
-/// Sprechtag (Elternsprechtag): Verwaltung durch die Administration, Zeitraster und Sperren der Lehrkräfte, Einladungen über den
-/// Mitteilungsdienst, Buchungen der Erziehungsberechtigten mit Konfliktprüfung:
-/// <list type="bullet">
-/// <item>ein Termin je Lehrkraft und Kind,</item>
-/// <item>kein Zeitfenster doppelt (auch nicht gesperrte),</item>
-/// <item>keine Überschneidung bei der Familie: Termine aller Kinder der Elternkonten eines Kindes und alle Buchungen dieser Konten.</item>
-/// </list>
-/// Phasen: <c>vorbereitung</c> (nicht sichtbar), <c>einladung</c> (vor dem Anmeldezeitraum), <c>anmeldung</c>, <c>geschlossen</c> (bis zum Tag), <c>vorbei</c>.
-/// </summary>
 public sealed class Sprechtagdienst
 {
-    public const string Vorbereitung = "vorbereitung", Einladung = "einladung", Anmeldung = "anmeldung", Geschlossen = "geschlossen", Vorbei = "vorbei", Abgesagt = "abgesagt";
-    /// <summary>Status für die Anzeige: wie die Phase, aber „angekündigt“ statt „einladung“ (freigegeben, Anmeldung beginnt noch).</summary>
-    public const string Angekuendigt = "angekuendigt";
+    public const string Entwurf = "entwurf", Verwaltung = "verwaltung", Phase1 = "phase1", Phase1Beendet = "phase1_beendet", Phase2 = "phase2",
+        Geschlossen = "geschlossen", Durchfuehrung = "durchfuehrung", Abgeschlossen = "abgeschlossen";
+
+    /// <summary>Anzeigetexte der Phasen (wie in der Vorlage).</summary>
+    public static readonly IReadOnlyDictionary<string, string> PhasenText = new Dictionary<string, string>
+    {
+        [Entwurf] = "Entwurf", [Verwaltung] = "Verwaltung LK", [Phase1] = "1. Anmeldephase", [Phase1Beendet] = "1. Anmeldephase beendet",
+        [Phase2] = "2. Anmeldephase", [Geschlossen] = "Anmeldung geschlossen", [Durchfuehrung] = "In Durchführung", [Abgeschlossen] = "Abgeschlossen",
+    };
+
+    private static readonly string[] Reihenfolge = { Entwurf, Verwaltung, Phase1, Phase1Beendet, Phase2, Geschlossen, Durchfuehrung, Abgeschlossen };
+    public static int Rang(string phase) => Array.IndexOf(Reihenfolge, phase);
+
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
-    private static readonly Regex Uhrzeit = new(@"^([01]\d|2[0-3]):[0-5]\d$", RegexOptions.Compiled);
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+    private static readonly Regex Uhrzeit = new(@"^([01]\d|2[0-3]):[0-5]\d$", RegexOptions.Compiled);
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly Db _db;
     private readonly Uhr _uhr;
@@ -132,881 +94,715 @@ public sealed class Sprechtagdienst
         _db = db; _uhr = uhr; _benutzer = benutzer; _mitteilungen = mitteilungen; _paket = paket;
     }
 
-    // ------------------------------------------------------------------------------------------ Hilfen: Zeit und Phase
+    // ------------------------------------------------------------------------------------------ Zeit
 
     public static int Minuten(string hhmm) => int.Parse(hhmm[..2], Inv) * 60 + int.Parse(hhmm[3..5], Inv);
     public static string Text(int minuten) => $"{minuten / 60:00}:{minuten % 60:00}";
-
     private static DateTime? Zeitpunkt(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : DateTime.TryParse(s.Replace(' ', 'T'), Inv, DateTimeStyles.None, out var d) ? d : null;
+    private static DateTime Beginn(StAbschnitt a) => DateOnly.Parse(a.Datum, Inv).ToDateTime(TimeOnly.MinValue).AddMinutes(Minuten(a.Von));
+    private static DateTime Ende(StAbschnitt a) => DateOnly.Parse(a.Datum, Inv).ToDateTime(TimeOnly.MinValue).AddMinutes(Minuten(a.Bis));
+    private static bool Vollstaendig(StAbschnitt a) => DateOnly.TryParse(a.Datum, Inv, out _) && Uhrzeit.IsMatch(a.Von) && Uhrzeit.IsMatch(a.Bis);
+    private static bool Ueberschneidung(int von1, int bis1, int von2, int bis2) => von1 < bis2 && von2 < bis1;
 
-    /// <summary>Ende der Einladungsphase (ohne Angabe: Ende des Anmeldezeitraums).</summary>
-    public static DateTime EinladungEnde(Sprechtag t) => Zeitpunkt(t.EinladungBis) ?? Zeitpunkt(t.AnmeldungBis) ?? DateTime.MaxValue;
+    // ------------------------------------------------------------------------------------------ Laden und Speichern
 
-    public string Phase(Sprechtag t)
+    private Sprechtag Lesen(DbDataReader r) => new(r.Zahl("id"), r.Text("schuljahr"), r.Text("sj_von"), r.Text("sj_bis"),
+        JsonSerializer.Deserialize<StKonfig>(r.Text("konfig"), Json) ?? new StKonfig(), r.Text("veroeffentlicht"), r.Text("erstellt"));
+
+    public List<Sprechtag> Alle() => _db.Liste("SELECT * FROM st_sprechtage ORDER BY id", Lesen);
+    public Sprechtag? Holen(int id) => _db.Einzel("SELECT * FROM st_sprechtage WHERE id = @id", Lesen, Db.P("@id", id));
+    public Sprechtag HolenOderFehler(int id) => Holen(id) ?? throw new ArgumentException("Unbekannter Sprechtag.");
+
+    private static StTermin TerminLesen(DbDataReader r) => new(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("abschnitt"), r.Text("beginn"), r.Text("ende"),
+        r.Zahl("schueler_id"), r.Text("art"), r.Text("status"), r.Zahl("verpflichtend") == 1, r.Text("link"), r.Text("anmerkung"), r.Text("erstellt_von"),
+        r["benutzer_id"] is DBNull or null ? null : Convert.ToInt32(r["benutzer_id"]), r.Text("erstellt"), r.Text("benachrichtigt"), r.Text("grund"));
+
+    public List<StTermin> Termine(int sprechtagId) => _db.Liste("SELECT * FROM st_termine WHERE sprechtag_id = @s ORDER BY abschnitt, beginn, id", TerminLesen, Db.P("@s", sprechtagId));
+    public StTermin? Termin(int id) => _db.Einzel("SELECT * FROM st_termine WHERE id = @id", TerminLesen, Db.P("@id", id));
+
+    public List<StAbwesenheit> Abwesenheiten(int sprechtagId) => _db.Liste("SELECT * FROM st_abwesenheiten WHERE sprechtag_id = @s ORDER BY abschnitt, beginn", r =>
+        new StAbwesenheit(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("abschnitt"), r.Text("beginn"), r.Text("ende"), r.Text("anmerkung")), Db.P("@s", sprechtagId));
+
+    /// <summary>Räume je Lehrkraft und Abschnitt.</summary>
+    public Dictionary<(string Lehrer, int Abschnitt), string> Raeume(int sprechtagId) =>
+        _db.Liste("SELECT lehrer, abschnitt, raum FROM st_raeume WHERE sprechtag_id = @s", r => (r.Text("lehrer"), r.Zahl("abschnitt"), r.Text("raum")), Db.P("@s", sprechtagId))
+            .Where(x => x.Item3.Length > 0).GroupBy(x => (x.Item1.ToUpperInvariant(), x.Item2)).ToDictionary(g => g.Key, g => g.First().Item3);
+
+    public string Raum(Dictionary<(string, int), string> raeume, string lehrer, int abschnitt) => raeume.TryGetValue((lehrer.ToUpperInvariant(), abschnitt), out var r) ? r : "";
+
+    // ------------------------------------------------------------------------------------------ Phase
+
+    public string Phase(Sprechtag t) => Phase(t, _uhr.Jetzt);
+
+    public static string Phase(Sprechtag t, DateTime jetzt)
     {
-        var jetzt = _uhr.Jetzt;
-        if (t.Abgesagt.Length > 0) return Abgesagt;
-        if (!t.Sichtbar) return Vorbereitung;
-        var tagEnde = DateOnly.Parse(t.Datum, Inv).ToDateTime(TimeOnly.MinValue).AddMinutes(Minuten(t.Ende));
-        if (jetzt > tagEnde) return Vorbei;
-        if (Zeitpunkt(t.AnmeldungVon) is { } von && jetzt < von) return Einladung;
-        if (Zeitpunkt(t.AnmeldungBis) is { } bis && jetzt <= bis) return Anmeldung;
-        return Geschlossen;
+        if (!t.IstVeroeffentlicht) return Entwurf;
+        var k = t.K;
+        if (Zeitpunkt(k.Phase1Von) is { } p1v && jetzt < p1v) return Verwaltung;
+        if (Zeitpunkt(k.Phase1Bis) is { } p1b && jetzt < p1b) return Phase1;
+        if (Zeitpunkt(k.Phase2Von) is { } p2v && jetzt < p2v) return Phase1Beendet;
+        if (Zeitpunkt(k.Phase2Bis) is { } p2b && jetzt < p2b) return Phase2;
+        var abschnitte = k.Abschnitte.Where(Vollstaendig).ToList();
+        if (abschnitte.Count == 0) return Abgeschlossen;
+        if (jetzt < abschnitte.Min(Beginn)) return Geschlossen;
+        if (jetzt <= abschnitte.Max(Ende)) return Durchfuehrung;
+        return Abgeschlossen;
     }
 
-    /// <summary>Anzeigestatus: <c>vorbereitung</c>, <c>angekuendigt</c>, <c>anmeldung</c>, <c>geschlossen</c>, <c>vorbei</c>, <c>abgesagt</c>.</summary>
-    public string Status(Sprechtag t) => Phase(t) is var p && p == Einladung ? Angekuendigt : p;
-
-    /// <summary>Darf das Konto den Sprechtag sehen? Verwaltung immer; sonst nur freigegebene – Kollegium, Eltern bzw. Schüler*innen nach den Optionen.</summary>
-    public static bool SichtbarFuer(Sprechtag t, Benutzer b) =>
-        Rechtedienst.Darf(b, Recht.SprechtagVerwalten) || (t.Sichtbar && (b.Kollegium || (b.Rolle == Rollen.Eltern && t.Optionen.SichtbarEltern) ||
-            (b.Rolle == Rollen.Schueler && t.Optionen.SichtbarSchueler)));
-
-    /// <summary>Termindauer einer Lehrkraft (eigene Dauer bzw. die des Sprechtags).</summary>
-    public static int DauerVon(Sprechtag t, string? lehrer) => Beteiligt(t, lehrer) is { Dauer: > 0 } l ? l.Dauer : t.Dauer;
-
-    /// <summary>Zeitblöcke des Tages (Beginn bis Ende ohne Pausen).</summary>
-    public static List<SprechtagZeitblock> Zeitbloecke(Sprechtag t)
+    /// <summary>Datum des Sprechtags („22.01.2027“ bzw. „04.11.2026 – 05.11.2026“), leer ohne Abschnitte.</summary>
+    public static string DatumText(Sprechtag t)
     {
-        var res = new List<SprechtagZeitblock>();
-        var z = Minuten(t.Beginn);
-        foreach (var p in t.Pausen.OrderBy(p => p.Von, StringComparer.Ordinal))
-        {
-            if (Minuten(p.Von) > z) res.Add(new SprechtagZeitblock(Text(z), p.Von));
-            z = Math.Max(z, Minuten(p.Bis));
-        }
-        if (Minuten(t.Ende) > z) res.Add(new SprechtagZeitblock(Text(z), t.Ende));
+        var tage = t.K.Abschnitte.Where(a => DateOnly.TryParse(a.Datum, Inv, out _)).Select(a => DateOnly.Parse(a.Datum, Inv)).Distinct().Order().ToList();
+        if (tage.Count == 0) return "";
+        return tage.Count == 1 ? $"{tage[0]:dd.MM.yyyy}" : $"{tage[0]:dd.MM.yyyy} – {tage[^1]:dd.MM.yyyy}";
+    }
+
+    /// <summary>Zeitraum der Anmeldung (Beginn 1. bis Ende 2. Anmeldephase).</summary>
+    public static string AnmeldungText(Sprechtag t)
+    {
+        var von = Zeitpunkt(t.K.Phase1Von) ?? Zeitpunkt(t.K.Phase2Von);
+        var bis = Zeitpunkt(t.K.Phase2Bis) ?? Zeitpunkt(t.K.Phase1Bis);
+        return von is null || bis is null ? "" : $"{von:dd.MM.yyyy} – {bis:dd.MM.yyyy}";
+    }
+
+    /// <summary>
+    /// Konfiguration noch änderbar? Im Entwurf immer; veröffentlicht nur, solange noch keine Termine angelegt wurden und die 1. Anmeldephase
+    /// noch nicht begonnen hat (der Sprechtag wird dann wieder zum Entwurf).
+    /// </summary>
+    public bool Bearbeitbar(Sprechtag t) => !t.IstVeroeffentlicht || (Phase(t) == Verwaltung && Termine(t.Id).Count == 0);
+
+    /// <summary>Zeitblöcke eines Abschnitts (einheitliche Taktung).</summary>
+    public static List<StZeit> Bloecke(Sprechtag t, StAbschnitt a)
+    {
+        var res = new List<StZeit>();
+        if (!Vollstaendig(a) || t.K.Dauer <= 0) return res;
+        for (var m = Minuten(a.Von); m + t.K.Dauer <= Minuten(a.Bis); m += t.K.Dauer) res.Add(new StZeit(Text(m), Text(m + t.K.Dauer)));
         return res;
     }
 
-    /// <summary>Ist der Sprechtag (Tag und Uhrzeit des Endes) schon vorbei? Dann sind keine Änderungen mehr möglich.</summary>
-    private bool IstVorbei(Sprechtag t) => _uhr.Jetzt > DateOnly.Parse(t.Datum, Inv).ToDateTime(TimeOnly.MinValue).AddMinutes(Minuten(t.Ende));
+    // ------------------------------------------------------------------------------------------ Anlegen, Konfiguration, Veröffentlichen
+
+    /// <summary>Neuer Sprechtag (Entwurf) für ein Schuljahr – das Schuljahr kann danach nicht mehr geändert werden.</summary>
+    public Sprechtag Anlegen(string schuljahr, string sjVon, string sjBis, StKonfig? k = null)
+    {
+        k ??= new StKonfig { Name = "Neuer Sprechtag", Abschnitte = new() { new StAbschnitt("1. Sprechtagsabschnitt", "", "13:00", "18:00") } };
+        var id = (int)_db.Einfuegen("INSERT INTO st_sprechtage (schuljahr, sj_von, sj_bis, konfig, veroeffentlicht, erstellt) VALUES (@j, @v, @b, @k, '', @z)",
+            Db.P("@j", schuljahr), Db.P("@v", sjVon), Db.P("@b", sjBis), Db.P("@k", JsonSerializer.Serialize(k, Json)), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)));
+        return Holen(id)!;
+    }
+
+    /// <summary>Kopie eines Sprechtags als Entwurf (gleiches Schuljahr, gleiche Konfiguration, ohne Räume und Termine).</summary>
+    public Sprechtag Duplizieren(Sprechtag t)
+    {
+        var name = t.K.Name.Length > 73 ? t.K.Name[..73] : t.K.Name;
+        return Anlegen(t.Schuljahr, t.SchuljahrVon, t.SchuljahrBis, t.K with { Name = $"{name} (Kopie)" });
+    }
 
     /// <summary>
-    /// Zeitfenster des Tages (für eine Lehrkraft mit ihrer Termindauer): ab Beginn im Takt Termindauer + Puffer; ein Fenster, das in eine Pause
-    /// fiele, beginnt nach der Pause neu.
+    /// Konfiguration speichern (laufend, auch unvollständig). Ein veröffentlichter Sprechtag wird dabei wieder zum Entwurf – nur solange
+    /// noch keine Termine angelegt wurden und die 1. Anmeldephase nicht begonnen hat.
     /// </summary>
-    public static List<(int Von, int Bis)> Zeitfenster(Sprechtag t, string? lehrer = null)
+    public Sprechtag KonfigSpeichern(Sprechtag t, StKonfig k)
     {
-        var res = new List<(int, int)>();
-        var dauer = DauerVon(t, lehrer);
-        var schritt = dauer + Math.Max(0, t.Optionen.Puffer);
-        var pausen = t.Pausen.Select(p => (Von: Minuten(p.Von), Bis: Minuten(p.Bis))).OrderBy(p => p.Von).ToList();
-        var ende = Minuten(t.Ende);
-        var z = Minuten(t.Beginn);
-        while (z + dauer <= ende && res.Count < 500)
+        if (!Bearbeitbar(t))
+            throw new ArgumentException("Der Sprechtag kann nicht mehr bearbeitet werden: Es wurden bereits Termine angelegt bzw. die Anmeldung hat begonnen. Sie können ihn löschen, neu anlegen oder duplizieren.");
+        var name = (k.Name ?? "").Trim();
+        if (name.Length > 80) throw new ArgumentException("Der Sprechtagsname darf höchstens 80 Zeichen lang sein.");
+        if (k.Dauer is < 3 or > 120) throw new ArgumentException("Die Dauer der Zeitblöcke muss zwischen 3 und 120 Minuten liegen.");
+        foreach (var a in k.Abschnitte)
         {
-            var p = pausen.FirstOrDefault(p => z < p.Bis && z + dauer > p.Von);
-            if (p != default) { z = Math.Max(z + 1, p.Bis); continue; }
-            res.Add((z, z + dauer));
-            z += schritt;
+            if (a.Von.Length > 0 && !Uhrzeit.IsMatch(a.Von) || a.Bis.Length > 0 && !Uhrzeit.IsMatch(a.Bis)) throw new ArgumentException("Bitte Uhrzeiten im Format HH:MM angeben.");
+            if ((a.Name ?? "").Length > 80) throw new ArgumentException("Der Abschnittsname darf höchstens 80 Zeichen lang sein.");
         }
-        return res;
+        var neu = k with
+        {
+            Name = name, Abschnitte = k.Abschnitte.Select(a => a with { Name = (a.Name ?? "").Trim() }).ToList(),
+            Rechte = k.Rechte ?? new StRechte(), Regeln = Regeln(k.Regeln),
+        };
+        _db.Ausfuehren("UPDATE st_sprechtage SET konfig = @k, veroeffentlicht = '' WHERE id = @id", Db.P("@k", JsonSerializer.Serialize(neu, Json)), Db.P("@id", t.Id));
+        return Holen(t.Id)!;
     }
 
-    private static bool Ueberschneidung(string vonA, string bisA, string vonB, string bisB) => Minuten(vonA) < Minuten(bisB) && Minuten(vonB) < Minuten(bisA);
-
-    // ------------------------------------------------------------------------------------------ Sprechtage lesen und speichern
-
-    private static Sprechtag Lesen(DbDataReader r) => new(r.Zahl("id"), r.Text("name"), r.Text("datum"), r.Text("beginn"), r.Text("ende"), r.Zahl("dauer"),
-        JsonSerializer.Deserialize<List<SprechtagPause>>(r.Text("pausen") is { Length: > 0 } p ? p : "[]", JsonOpt) ?? new(), r.Text("einladung_bis"),
-        r.Text("anmeldung_von"), r.Text("anmeldung_bis"), r.Wahr("sichtbar"), r.Wahr("raumwahl"), r.Text("hinweis"), r.Text("erstellt"))
-        { Abgesagt = r.Text("abgesagt"), AbsageGrund = r.Text("absage_grund"), Ort = r.Text("ort"), Optionen = OptionenLesen(r.Text("optionen")) };
-
-    private static SprechtagOptionen OptionenLesen(string json)
+    private static StRegeln Regeln(StRegeln? r)
     {
-        if (string.IsNullOrWhiteSpace(json)) return new();
-        try { return JsonSerializer.Deserialize<SprechtagOptionen>(json, JsonOpt) ?? new(); }
-        catch (JsonException) { return new(); }
+        int? Wert(int? x, string was) => x is null or 0 ? null : x is < 1 or > 50 ? throw new ArgumentException($"{was}: bitte eine Zahl zwischen 1 und 50 angeben.") : x;
+        return new StRegeln(Wert(r?.BloeckeBisPause, "Zeitblöcke am Stück bis zur Pause"), Wert(r?.MaxBloeckeProSchueler, "Maximale Zeitblöcke pro Schüler*in"),
+            Wert(r?.GesperrteBloecke, "Gesperrte Zeitblöcke zwischen zwei Terminen"));
     }
 
-    private static readonly JsonSerializerOptions JsonOpt = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true };
-
-    private List<SprechtagLehrkraft> LehrkraefteVon(int id) => _db.Liste("SELECT * FROM sprechtag_lehrer WHERE sprechtag_id = @id ORDER BY lehrer",
-        r => new SprechtagLehrkraft(r.Text("lehrer"), r.Text("raum"))
-        {
-            Abgesagt = r.Text("abgesagt"), AbsageGrund = r.Text("absage_grund"), Dauer = r.Zahl("dauer"), Online = r.Wahr("online"), Link = r.Text("link"),
-        }, Db.P("@id", id));
-
-    /// <summary>Alle Tage derselben Reihe (mehrtägiger Sprechtag), aufsteigend nach Datum; ohne Reihe leer.</summary>
-    public List<Sprechtag> Reihe(Sprechtag t) => t.Optionen.Reihe == 0 ? new()
-        : _db.Liste("SELECT * FROM sprechtage ORDER BY datum, id", Lesen).Where(x => x.Optionen.Reihe == t.Optionen.Reihe).ToList();
-
-    public List<Sprechtag> Alle() => _db.Liste("SELECT * FROM sprechtage ORDER BY datum DESC, id DESC", Lesen).Select(t => t with { Lehrkraefte = LehrkraefteVon(t.Id) }).ToList();
-
-    public Sprechtag? Holen(int id) => _db.Einzel("SELECT * FROM sprechtage WHERE id = @id", Lesen, Db.P("@id", id)) is { } t ? t with { Lehrkraefte = LehrkraefteVon(id) } : null;
-
-    public Sprechtag Pflicht(int id) => Holen(id) ?? throw new ArgumentException("Unbekannter Sprechtag.");
-
-    /// <summary>
-    /// Sprechtag anlegen (id = null) bzw. ändern. Gebuchte Termine müssen weiterhin ins Zeitraster passen. Beim Anlegen legt
-    /// <see cref="SprechtagDaten.WeitereTage"/> je Datum einen gleichen Sprechtag derselben Reihe an.
-    /// </summary>
-    public Sprechtag Speichern(Stand? s, int? id, SprechtagDaten d)
+    /// <summary>Fehler der Konfiguration, die das Veröffentlichen verhindern (leer = vollständig).</summary>
+    public static List<string> Pruefen(Sprechtag t)
     {
-        var tage = id is null ? (d.WeitereTage ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToList() : new List<string>();
-        if (tage.Count > 10) throw new ArgumentException("Bitte höchstens 10 weitere Tage angeben.");
-        // weitere Tage vorab prüfen (Datum, Anmeldezeitraum), damit nicht nur ein Teil der Reihe entsteht
-        foreach (var tag in tage) Aufbauen(s, d with { Datum = tag, WeitereTage = null }, null);
-        if (tage.Count > 0 && tage.Contains((d.Datum ?? "").Trim())) throw new ArgumentException("Ein weiterer Tag entspricht dem Datum des Sprechtags.");
-        var erster = SpeichernEinzeln(s, id, d, 0);
-        if (tage.Count == 0) return erster;
-        erster = SpeichernEinzeln(s, erster.Id, d with { WeitereTage = null }, erster.Id);
-        foreach (var tag in tage) SpeichernEinzeln(s, null, d with { Datum = tag, WeitereTage = null }, erster.Id);
-        return erster;
+        var k = t.K;
+        var f = new List<string>();
+        if (k.Name.Trim().Length == 0) f.Add("Bitte einen Sprechtagsnamen eingeben.");
+        if (k.Abschnitte.Count == 0) f.Add("Bitte mindestens einen Sprechtagsabschnitt anlegen.");
+        DateOnly.TryParse(t.SchuljahrVon, Inv, out var sjVon);
+        var sjBis = DateOnly.TryParse(t.SchuljahrBis, Inv, out var b) ? b : DateOnly.MaxValue;
+        for (var i = 0; i < k.Abschnitte.Count; i++)
+        {
+            var a = k.Abschnitte[i];
+            if (!Vollstaendig(a)) { f.Add($"{i + 1}. Abschnitt: Bitte Datum, Start- und Endzeit angeben."); continue; }
+            if (Minuten(a.Bis) - Minuten(a.Von) < k.Dauer) f.Add($"{i + 1}. Abschnitt: Die Endzeit muss mindestens einen Zeitblock nach der Startzeit liegen.");
+            var d = DateOnly.Parse(a.Datum, Inv);
+            if (d < sjVon || d > sjBis) f.Add($"{i + 1}. Abschnitt: Das Datum liegt nicht im Schuljahr {t.Schuljahr}.");
+            for (var j = 0; j < i; j++)
+                if (Vollstaendig(k.Abschnitte[j]) && Beginn(a) < Ende(k.Abschnitte[j]) && Beginn(k.Abschnitte[j]) < Ende(a))
+                    f.Add($"{i + 1}. und {j + 1}. Abschnitt überschneiden sich.");
+        }
+        var p1v = Zeitpunkt(k.Phase1Von); var p1b = Zeitpunkt(k.Phase1Bis); var p2v = Zeitpunkt(k.Phase2Von); var p2b = Zeitpunkt(k.Phase2Bis);
+        if (p1v is null || p1b is null) f.Add("Bitte Beginn und Ende der 1. Anmeldephase angeben.");
+        if (p2v is null || p2b is null) f.Add("Bitte Beginn und Ende der 2. Anmeldephase angeben.");
+        if (p1v >= p1b) f.Add("Die 1. Anmeldephase muss nach ihrem Beginn enden.");
+        if (p2v >= p2b) f.Add("Die 2. Anmeldephase muss nach ihrem Beginn enden.");
+        if (p1b > p2v) f.Add("Die Anmeldephasen dürfen sich nicht überschneiden (die 2. beginnt nach dem Ende der 1.).");
+        var erster = k.Abschnitte.Where(Vollstaendig).Select(Beginn).DefaultIfEmpty(DateTime.MaxValue).Min();
+        if (p2b > erster || p1b > erster) f.Add("Beide Anmeldephasen müssen vor dem ersten Sprechtagsabschnitt enden.");
+        return f.Distinct().ToList();
     }
 
-    /// <summary>Eingaben prüfen und den Sprechtag (ohne Id) aufbauen.</summary>
-    private Sprechtag Aufbauen(Stand? s, SprechtagDaten d, int? id)
+    /// <summary>Veröffentlichen: Phase „Verwaltung LK“ beginnt; alle Lehrkräfte werden benachrichtigt.</summary>
+    public Sprechtag Veroeffentlichen(Sprechtag t, Benutzer ich)
     {
-        var name = (d.Name ?? "").Trim();
-        if (name.Length is 0 or > 200) throw new ArgumentException("Bitte einen Namen (höchstens 200 Zeichen) eingeben.");
-        if (!DateOnly.TryParse(d.Datum, Inv, out var datum)) throw new ArgumentException("Bitte ein gültiges Datum angeben.");
-        string Zeit(string? x, string feld) => x is not null && Uhrzeit.IsMatch(x.Trim()) ? x.Trim() : throw new ArgumentException($"Bitte eine gültige Uhrzeit für „{feld}“ angeben (HH:MM).");
-        var eingabePausen = (d.Pausen ?? new()).ToList();
-        string beginn, ende;
-        var bloecke = (d.Zeitbloecke ?? new()).Where(b => !string.IsNullOrWhiteSpace(b.Von) || !string.IsNullOrWhiteSpace(b.Bis)).ToList();
-        if (bloecke.Count > 0)
-        {
-            // mehrere Zeitblöcke: Beginn des ersten bis Ende des letzten, Lücken werden Pausen
-            var liste = bloecke.Select(b => (Von: Zeit(b.Von, "Zeitblock von"), Bis: Zeit(b.Bis, "Zeitblock bis"))).OrderBy(b => b.Von, StringComparer.Ordinal).ToList();
-            if (liste.Count > 6) throw new ArgumentException("Bitte höchstens 6 Zeitblöcke angeben.");
-            for (var i = 0; i < liste.Count; i++)
-            {
-                if (Minuten(liste[i].Bis) <= Minuten(liste[i].Von)) throw new ArgumentException("Ein Zeitblock muss nach seinem Beginn enden.");
-                if (i > 0 && Minuten(liste[i].Von) < Minuten(liste[i - 1].Bis)) throw new ArgumentException("Zeitblöcke dürfen sich nicht überschneiden.");
-                if (i > 0 && Minuten(liste[i].Von) > Minuten(liste[i - 1].Bis)) eingabePausen.Add(new SprechtagPause(liste[i - 1].Bis, liste[i].Von));
-            }
-            beginn = liste[0].Von;
-            ende = liste[^1].Bis;
-        }
-        else
-        {
-            beginn = Zeit(d.Beginn, "von");
-            ende = Zeit(d.Ende, "bis");
-        }
-        if (Minuten(ende) <= Minuten(beginn)) throw new ArgumentException("Das Ende muss nach dem Beginn liegen.");
-        var dauer = d.Dauer ?? 10;
-        if (dauer is < 3 or > 120) throw new ArgumentException("Die Termindauer muss zwischen 3 und 120 Minuten liegen.");
-        var pausen = new List<SprechtagPause>();
-        foreach (var p in eingabePausen)
-        {
-            if (string.IsNullOrWhiteSpace(p.Von) && string.IsNullOrWhiteSpace(p.Bis)) continue;
-            var pv = Zeit(p.Von, "Pause von");
-            var pb = Zeit(p.Bis, "Pause bis");
-            if (Minuten(pb) <= Minuten(pv)) throw new ArgumentException("Eine Pause muss nach ihrem Beginn enden.");
-            if (Minuten(pv) < Minuten(beginn) || Minuten(pb) > Minuten(ende)) throw new ArgumentException("Pausen müssen innerhalb des Zeitfensters liegen.");
-            pausen.Add(new SprechtagPause(pv, pb));
-        }
-        pausen = pausen.OrderBy(p => p.Von, StringComparer.Ordinal).ToList();
-        for (var i = 1; i < pausen.Count; i++)
-            if (Minuten(pausen[i].Von) < Minuten(pausen[i - 1].Bis)) throw new ArgumentException("Pausen dürfen sich nicht überschneiden.");
-        string Zp(string? x, string feld, bool pflicht)
-        {
-            if (string.IsNullOrWhiteSpace(x)) return pflicht ? throw new ArgumentException($"Bitte „{feld}“ angeben.") : "";
-            return Zeitpunkt(x) is { } z ? z.ToString("yyyy-MM-dd'T'HH:mm", Inv) : throw new ArgumentException($"Ungültige Angabe bei „{feld}“.");
-        }
-        var anmeldungVon = Zp(d.AnmeldungVon, "Anmeldung ab", true);
-        var anmeldungBis = Zp(d.AnmeldungBis, "Anmeldung bis", true);
-        var einladungBis = Zp(d.EinladungBis, "Einladungen bis", false);
-        if (Zeitpunkt(anmeldungBis) <= Zeitpunkt(anmeldungVon)) throw new ArgumentException("Der Anmeldezeitraum muss nach seinem Beginn enden.");
-        var tagEnde = datum.ToDateTime(TimeOnly.MinValue).AddMinutes(Minuten(ende));
-        if (Zeitpunkt(anmeldungBis) > tagEnde) throw new ArgumentException($"Der Anmeldezeitraum muss spätestens mit dem Sprechtag ({datum:dd.MM.yyyy}) enden.");
-        if (einladungBis.Length > 0 && Zeitpunkt(einladungBis) > Zeitpunkt(anmeldungBis)) throw new ArgumentException("Die Einladungsphase muss spätestens mit dem Anmeldezeitraum enden.");
-        var hinweis = (d.Hinweis ?? "").Trim();
-        if (hinweis.Length > 2000) throw new ArgumentException("Der Hinweis ist zu lang (höchstens 2000 Zeichen).");
-        var ort = (d.Ort ?? "").Trim();
-        if (ort.Length > 300) throw new ArgumentException("Der Ort ist zu lang (höchstens 300 Zeichen).");
-        var o = d.Optionen ?? new SprechtagOptionen();
-        if (o.Puffer is < 0 or > 60) throw new ArgumentException("Der Puffer zwischen zwei Terminen muss zwischen 0 und 60 Minuten liegen.");
-        if (o.MaxTermineFamilie is < 0 or > 50) throw new ArgumentException("Die Höchstzahl der Termine je Familie muss zwischen 0 (unbegrenzt) und 50 liegen.");
-        if (o.ErinnerungStunden is < 0 or > 168) throw new ArgumentException("Die Erinnerung muss zwischen 0 (keine) und 168 Stunden vor dem Termin liegen.");
-
-        var lehrkraefte = new List<SprechtagLehrkraft>();
-        foreach (var l in d.Lehrkraefte ?? new())
-        {
-            var kurz = (l.Lehrer ?? "").Trim();
-            if (kurz.Length == 0 || lehrkraefte.Any(x => Ci.Equals(x.Lehrer, kurz))) continue;
-            if (s != null)
-            {
-                kurz = s.Lehrer.TryGetValue(kurz, out var le) ? le.Kurz : throw new ArgumentException($"Unbekannte Lehrkraft {kurz}.");
-            }
-            var raum = (l.Raum ?? "").Trim();
-            if (raum.Length > 0 && s != null) raum = s.Raeume.TryGetValue(raum, out var ra) ? ra.Kurz : throw new ArgumentException($"Unbekannter Raum {raum}.");
-            if (l.Dauer != 0 && l.Dauer is < 3 or > 120) throw new ArgumentException($"Die Termindauer von {kurz} muss zwischen 3 und 120 Minuten liegen (0 = Standard).");
-            lehrkraefte.Add(new SprechtagLehrkraft(kurz, raum) { Dauer = l.Dauer, Online = l.Online, Link = l.Online ? LinkPruefen(l.Link) : "" });
-        }
-        if (lehrkraefte.Count == 0) throw new ArgumentException("Bitte mindestens eine beteiligte Lehrkraft wählen.");
-        return new Sprechtag(id ?? 0, name, Plandienst.Iso(datum), beginn, ende, dauer, pausen, einladungBis, anmeldungVon, anmeldungBis, d.Sichtbar ?? false,
-            d.Raumwahl ?? false, hinweis, "") { Lehrkraefte = lehrkraefte, Ort = ort, Optionen = o };
+        if (t.IstVeroeffentlicht) throw new ArgumentException("Der Sprechtag ist bereits veröffentlicht.");
+        var fehler = Pruefen(t);
+        if (fehler.Count > 0) throw new ArgumentException(string.Join(" ", fehler));
+        if (Zeitpunkt(t.K.Phase1Von) <= _uhr.Jetzt) throw new ArgumentException("Die 1. Anmeldephase muss nach dem Veröffentlichen beginnen (Phase „Verwaltung LK“ für die Lehrkräfte).");
+        _db.Ausfuehren("UPDATE st_sprechtage SET veroeffentlicht = @z WHERE id = @id", Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@id", t.Id));
+        var lehrkraefte = _benutzer.Alle().Where(b => !b.Gesperrt && b.Kollegium && !string.IsNullOrEmpty(b.LehrerKuerzel)).Select(b => b.Id);
+        Melden(ich, lehrkraefte, $"Sprechtag „{t.K.Name}“ veröffentlicht",
+            $"Der Sprechtag „{t.K.Name}“ ({DatumText(t)}) wurde veröffentlicht. Bitte wählen Sie bis zum Beginn der 1. Anmeldephase am {Zeitpunkt(t.K.Phase1Von):dd.MM.yyyy HH:mm} Uhr " +
+            "Ihren Raum, tragen Sie Abwesenheiten ein und laden Sie Erziehungsberechtigte ein.");
+        return Holen(t.Id)!;
     }
 
-    /// <summary>Link zur Videokonferenz: leer oder http(s)-Adresse, höchstens 500 Zeichen.</summary>
-    public static string LinkPruefen(string? link)
+    /// <summary>Löschen (unwiderruflich): Betroffene mit aktiven Terminen bzw. Einladungen werden über die Absage benachrichtigt.</summary>
+    public void Loeschen(Stand? s, Sprechtag t, Benutzer ich)
     {
-        var l = (link ?? "").Trim();
-        if (l.Length == 0) return "";
-        if (l.Length > 500) throw new ArgumentException("Der Link ist zu lang (höchstens 500 Zeichen).");
-        if (!Uri.TryCreate(l, UriKind.Absolute, out var u) || (u.Scheme != Uri.UriSchemeHttps && u.Scheme != Uri.UriSchemeHttp))
-            throw new ArgumentException("Bitte einen gültigen Link (https://…) angeben.");
-        return l;
-    }
-
-    private Sprechtag SpeichernEinzeln(Stand? s, int? id, SprechtagDaten d, int reihe)
-    {
-        var neu = Aufbauen(s, d, id);
-        lock (_sperre)
-        {
-            var alt = id is int a ? Pflicht(a) : null;
-            // Reihe bleibt beim Ändern erhalten
-            neu = neu with { Optionen = neu.Optionen with { Reihe = reihe != 0 ? reihe : alt?.Optionen.Reihe ?? 0 } };
-            if (alt != null)
-            {
-                if (alt.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde abgesagt und kann nicht mehr geändert werden.");
-                // gebuchte Termine: Lehrkraft muss beteiligt bleiben und das Zeitfenster muss weiter bestehen
-                foreach (var t in TermineVon(alt))
-                {
-                    if (!neu.Lehrkraefte.Any(l => Ci.Equals(l.Lehrer, t.Lehrer)))
-                        throw new ArgumentException($"Die Lehrkraft {t.Lehrer} hat bereits gebuchte Termine und kann nicht entfernt werden.");
-                    if (!Zeitfenster(neu, t.Lehrer).Any(f => Text(f.Von) == t.Beginn))
-                        throw new ArgumentException($"Der gebuchte Termin um {t.Beginn} Uhr ({t.Lehrer}) passt nicht mehr ins Zeitraster. Bitte zuerst verschieben oder stornieren.");
-                }
-            }
-            var pausenJson = JsonSerializer.Serialize(neu.Pausen, JsonOpt);
-            var optionenJson = JsonSerializer.Serialize(neu.Optionen, JsonOpt);
-            var neueId = id ?? 0;
-            // abgesagte Teilnahmen bleiben beim Speichern erhalten
-            var absagen = alt != null ? alt.Lehrkraefte.ToDictionary(l => l.Lehrer, Ci) : new Dictionary<string, SprechtagLehrkraft>(Ci);
-            _db.Transaktion(c =>
-            {
-                var p = new[]
-                {
-                    Db.P("@n", neu.Name), Db.P("@d", neu.Datum), Db.P("@b", neu.Beginn), Db.P("@e", neu.Ende), Db.P("@du", neu.Dauer), Db.P("@p", pausenJson),
-                    Db.P("@eb", neu.EinladungBis), Db.P("@av", neu.AnmeldungVon), Db.P("@ab", neu.AnmeldungBis), Db.P("@s", neu.Sichtbar), Db.P("@r", neu.Raumwahl),
-                    Db.P("@h", neu.Hinweis), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@id", neueId), Db.P("@o", neu.Ort), Db.P("@op", optionenJson),
-                };
-                if (id is null)
-                {
-                    Db.Ausfuehren(c, """
-                        INSERT INTO sprechtage (name, datum, beginn, ende, dauer, pausen, einladung_bis, anmeldung_von, anmeldung_bis, sichtbar, raumwahl, hinweis, erstellt, geaendert, ort, optionen)
-                        VALUES (@n, @d, @b, @e, @du, @p, @eb, @av, @ab, @s, @r, @h, @z, @z, @o, @op)
-                        """, p);
-                    neueId = (int)Db.LetzteId(c);
-                }
-                else
-                    Db.Ausfuehren(c, """
-                        UPDATE sprechtage SET name = @n, datum = @d, beginn = @b, ende = @e, dauer = @du, pausen = @p, einladung_bis = @eb, anmeldung_von = @av,
-                            anmeldung_bis = @ab, sichtbar = @s, raumwahl = @r, hinweis = @h, geaendert = @z, ort = @o, optionen = @op WHERE id = @id
-                        """, p);
-                Db.Ausfuehren(c, "DELETE FROM sprechtag_lehrer WHERE sprechtag_id = @id", Db.P("@id", neueId));
-                foreach (var l in neu.Lehrkraefte)
-                {
-                    var a = absagen.GetValueOrDefault(l.Lehrer);
-                    Db.Ausfuehren(c, "INSERT INTO sprechtag_lehrer (sprechtag_id, lehrer, raum, abgesagt, absage_grund, dauer, online, link) VALUES (@id, @l, @r, @ab, @ag, @du, @on, @li)",
-                        Db.P("@id", neueId), Db.P("@l", l.Lehrer), Db.P("@r", l.Raum), Db.P("@ab", a?.Abgesagt ?? ""), Db.P("@ag", a?.AbsageGrund ?? ""),
-                        Db.P("@du", l.Dauer), Db.P("@on", l.Online), Db.P("@li", l.Link));
-                }
-                // Sperren außerhalb des neuen Rasters bzw. von nicht mehr beteiligten Lehrkräften entfernen
-                foreach (var (sid, lehrer, b) in Db.Liste(c, "SELECT id, lehrer, beginn FROM sprechtag_sperren WHERE sprechtag_id = @id", r => (r.Zahl("id"), r.Text("lehrer"), r.Text("beginn")), Db.P("@id", neueId)))
-                    if (!neu.Lehrkraefte.Any(l => Ci.Equals(l.Lehrer, lehrer)) || !Zeitfenster(neu, lehrer).Any(f => Text(f.Von) == b))
-                        Db.Ausfuehren(c, "DELETE FROM sprechtag_sperren WHERE id = @s", Db.P("@s", sid));
-            });
-            return Pflicht(neueId);
-        }
-    }
-
-    public void Loeschen(int id)
-    {
-        Pflicht(id);
+        if (t.IstVeroeffentlicht && Rang(Phase(t)) >= Rang(Phase1))
+            foreach (var x in Termine(t.Id).Where(x => x.Aktiv || x.Status == "einladung"))
+                Melden(ich, ElternVon(x.SchuelerId).Select(b => b.Id), "Sprechtag abgesagt",
+                    $"Der Sprechtag „{t.K.Name}“ wurde abgesagt. Ihr Termin bzw. Ihre Einladung bei {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)} entfällt.");
         _db.Transaktion(c =>
         {
-            foreach (var t in new[] { "sprechtag_termine", "sprechtag_einladungen", "sprechtag_sperren", "sprechtag_lehrer", "sprechtag_warteliste" })
-                Db.Ausfuehren(c, $"DELETE FROM {t} WHERE sprechtag_id = @id", Db.P("@id", id));
-            Db.Ausfuehren(c, "DELETE FROM sprechtage WHERE id = @id", Db.P("@id", id));
+            foreach (var tab in new[] { "st_hinweise", "st_abwesenheiten", "st_termine", "st_raeume" })
+                Db.Ausfuehren(c, $"DELETE FROM {tab} WHERE sprechtag_id = @id", Db.P("@id", t.Id));
+            Db.Ausfuehren(c, "DELETE FROM st_sprechtage WHERE id = @id", Db.P("@id", t.Id));
         });
     }
 
-    // ------------------------------------------------------------------------------------------ Lehrkräfte: Raum, Sperren, Zeitraster
+    // ------------------------------------------------------------------------------------------ Rechte
 
-    public static SprechtagLehrkraft? Beteiligt(Sprechtag t, string? lehrer) =>
-        lehrer is null ? null : t.Lehrkraefte.FirstOrDefault(l => Ci.Equals(l.Lehrer, lehrer));
+    public static bool IstVerwaltung(Benutzer b) => Rechtedienst.Darf(b, Recht.SprechtagVerwalten);
 
-    /// <summary>Raum setzen; optional Online-Gespräche mit Link (<paramref name="online"/> null = unverändert).</summary>
-    public void RaumSetzen(Stand? s, Sprechtag t, string lehrer, string? raum, bool? online = null, string? link = null)
+    /// <summary>Darf die Person für die Lehrkraft handeln (Administration immer; Lehrkraft nur für sich und nur mit dem Recht des Sprechtags)?</summary>
+    public static bool Darf(Sprechtag t, Benutzer b, string lehrer, Func<StRechte, bool>? recht = null) =>
+        IstVerwaltung(b) || (b.Kollegium && Ci.Equals(b.LehrerKuerzel, lehrer) && (recht is null || recht(t.K.Rechte)));
+
+    private static void Erlaubt(Sprechtag t, Benutzer b, string lehrer, Func<StRechte, bool>? recht, string was)
     {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        var r = raum is null ? l.Raum : raum.Trim();
-        if (r.Length > 0 && s != null && raum is not null) r = s.Raeume.TryGetValue(r, out var ra) ? ra.Kurz : throw new ArgumentException($"Unbekannter Raum {r}.");
-        var on = online ?? l.Online;
-        var li = on ? (online is null && link is null ? l.Link : LinkPruefen(link)) : "";
-        _db.Ausfuehren("UPDATE sprechtag_lehrer SET raum = @r, online = @on, link = @li WHERE sprechtag_id = @id AND lehrer = @l",
-            Db.P("@r", r), Db.P("@on", on), Db.P("@li", li), Db.P("@id", t.Id), Db.P("@l", l.Lehrer));
+        if (!Darf(t, b, lehrer, recht)) throw new UnauthorizedAccessException($"{was} ist für diesen Sprechtag nicht freigegeben.");
     }
 
-    public HashSet<string> Sperren(int id, string lehrer) =>
-        _db.Liste("SELECT beginn FROM sprechtag_sperren WHERE sprechtag_id = @id AND lehrer = @l", r => r.Text("beginn"), Db.P("@id", id), Db.P("@l", lehrer)).ToHashSet();
-
-    /// <summary>Zeitfenster sperren bzw. freigeben (Abwesenheit der Lehrkraft). Gebuchte Fenster lassen sich nicht sperren.</summary>
-    public int SperrenSetzen(Sprechtag t, string lehrer, IEnumerable<string> beginne, bool gesperrt)
+    private void NichtAbgeschlossen(Sprechtag t)
     {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        var fenster = Zeitfenster(t, l.Lehrer).Select(f => Text(f.Von)).ToHashSet();
-        var liste = beginne.Select(b => b.Trim()).Distinct().ToList();
-        if (liste.Count == 0) throw new ArgumentException("Bitte mindestens ein Zeitfenster wählen.");
-        if (liste.FirstOrDefault(b => !fenster.Contains(b)) is { } falsch) throw new ArgumentException($"Kein Zeitfenster um {falsch} Uhr.");
-        lock (_sperre)
+        var p = Phase(t);
+        if (p == Entwurf) throw new ArgumentException("Der Sprechtag ist noch nicht veröffentlicht.");
+        if (p == Abgeschlossen) throw new ArgumentException("Der Sprechtag ist abgeschlossen.");
+    }
+
+    // ------------------------------------------------------------------------------------------ Räume und Abwesenheiten
+
+    public void RaumSetzen(Sprechtag t, Benutzer ich, string lehrer, int abschnitt, string? raum)
+    {
+        Erlaubt(t, ich, lehrer, r => r.RaeumeWaehlen, "Die Raumwahl");
+        if (t.K.Online) throw new ArgumentException("Bei einem Online-Sprechtag werden keine Räume zugewiesen.");
+        if (abschnitt < 0 || abschnitt >= t.K.Abschnitte.Count) throw new ArgumentException("Unbekannter Abschnitt.");
+        if (Phase(t) == Abgeschlossen) throw new ArgumentException("Der Sprechtag ist abgeschlossen.");
+        _db.Transaktion(c =>
         {
-            var vorhanden = Sperren(t.Id, l.Lehrer);
-            if (gesperrt)
-            {
-                var gebucht = TermineVon(t).Where(x => Ci.Equals(x.Lehrer, l.Lehrer)).Select(x => x.Beginn).ToHashSet();
-                if (liste.FirstOrDefault(gebucht.Contains) is { } b) throw new ArgumentException($"Das Zeitfenster um {b} Uhr ist bereits gebucht und kann nicht gesperrt werden.");
-            }
-            var n = 0;
-            _db.Transaktion(c =>
-            {
-                foreach (var b in liste)
-                {
-                    if (gesperrt && !vorhanden.Contains(b))
-                        n += Db.Ausfuehren(c, "INSERT INTO sprechtag_sperren (sprechtag_id, lehrer, beginn) VALUES (@id, @l, @b)", Db.P("@id", t.Id), Db.P("@l", l.Lehrer), Db.P("@b", b));
-                    else if (!gesperrt && vorhanden.Contains(b))
-                        n += Db.Ausfuehren(c, "DELETE FROM sprechtag_sperren WHERE sprechtag_id = @id AND lehrer = @l AND beginn = @b", Db.P("@id", t.Id), Db.P("@l", l.Lehrer), Db.P("@b", b));
-                }
-            });
-            if (!gesperrt && n > 0) WartendeBenachrichtigen(t, l.Lehrer);
-            return n;
-        }
-    }
-
-    /// <summary>Zeitraster einer Lehrkraft mit Status je Fenster.</summary>
-    public List<SprechtagSlot> Raster(Sprechtag t, string lehrer)
-    {
-        var sperren = Sperren(t.Id, lehrer);
-        // abgesagte Teilnahme bzw. abgesagter Sprechtag: kein Fenster mehr frei
-        if (t.Abgesagt.Length > 0 || Beteiligt(t, lehrer)?.Abgesagt.Length > 0) sperren = Zeitfenster(t, lehrer).Select(f => Text(f.Von)).ToHashSet();
-        var termine = TermineVon(t).Where(x => Ci.Equals(x.Lehrer, lehrer)).ToDictionary(x => x.Beginn);
-        return Zeitfenster(t, lehrer).Select(f =>
-        {
-            var b = Text(f.Von);
-            return termine.TryGetValue(b, out var x) ? new SprechtagSlot(b, Text(f.Bis), "gebucht", x)
-                : new SprechtagSlot(b, Text(f.Bis), sperren.Contains(b) ? "gesperrt" : "frei", null);
-        }).ToList();
-    }
-
-    // ------------------------------------------------------------------------------------------ Termine
-
-    private static SprechtagTermin LesenTermin(DbDataReader r, Sprechtag t) => new(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Text("beginn"),
-        Text(Minuten(r.Text("beginn")) + DauerVon(t, r.Text("lehrer"))), r.Zahl("schueler_id"), r.ZahlOderNull("benutzer_id"), r.Text("bemerkung"), r.Text("quelle"), r.Text("erstellt"));
-
-    public List<SprechtagTermin> Termine(int id) => Holen(id) is { } t ? TermineVon(t) : new();
-
-    /// <summary>Termine eines Sprechtags (Ende nach der Termindauer der jeweiligen Lehrkraft).</summary>
-    public List<SprechtagTermin> TermineVon(Sprechtag t) =>
-        _db.Liste("SELECT * FROM sprechtag_termine WHERE sprechtag_id = @id ORDER BY beginn, lehrer", r => LesenTermin(r, t), Db.P("@id", t.Id));
-
-    public SprechtagTermin? Termin(Sprechtag t, int terminId) =>
-        _db.Einzel("SELECT * FROM sprechtag_termine WHERE id = @id AND sprechtag_id = @s", r => LesenTermin(r, t), Db.P("@id", terminId), Db.P("@s", t.Id));
-
-    /// <summary>Elternkonten (nicht gesperrt) einer Schülerin bzw. eines Schülers.</summary>
-    public List<Benutzer> ElternVon(int schuelerId) => _benutzer.Alle().Where(b => b.Rolle == Rollen.Eltern && !b.Gesperrt && b.SchuelerIds.Contains(schuelerId)).ToList();
-
-    /// <summary>Familie eines Kindes: alle Elternkonten des Kindes (plus buchendes Konto) und alle Kinder dieser Konten.</summary>
-    public (HashSet<int> Konten, HashSet<int> Kinder) Familie(int schuelerId, int? konto)
-    {
-        var alle = _benutzer.Alle().Where(b => b.Rolle == Rollen.Eltern).ToList();
-        var konten = alle.Where(b => b.SchuelerIds.Contains(schuelerId)).Select(b => b.Id).ToHashSet();
-        if (konto is int k) konten.Add(k);
-        var kinder = alle.Where(b => konten.Contains(b.Id)).SelectMany(b => b.SchuelerIds).ToHashSet();
-        kinder.Add(schuelerId);
-        return (konten, kinder);
-    }
-
-    /// <summary>Prüft ein Zeitfenster: gültig, nicht gesperrt, frei, kein zweiter Termin bei der Lehrkraft für das Kind, keine Überschneidung bei der Familie.</summary>
-    private void Pruefen(Stand? s, Sprechtag t, string lehrer, int schuelerId, string beginn, int? konto, int? ausser, bool gesperrteErlaubt = false)
-    {
-        if (t.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde abgesagt.");
-        if (Beteiligt(t, lehrer)?.Abgesagt.Length > 0) throw new ArgumentException($"{LehrerName(s, lehrer)} hat die Teilnahme am Sprechtag abgesagt.");
-        if (!Zeitfenster(t, lehrer).Any(f => Text(f.Von) == beginn)) throw new ArgumentException($"Kein Zeitfenster um {beginn} Uhr.");
-        var ende = Text(Minuten(beginn) + DauerVon(t, lehrer));
-        var termine = TermineVon(t).Where(x => x.Id != ausser).ToList();
-        if (termine.Any(x => Ci.Equals(x.Lehrer, lehrer) && x.Beginn == beginn)) throw new ArgumentException($"Das Zeitfenster um {beginn} Uhr ist bereits vergeben.");
-        if (!gesperrteErlaubt && Sperren(t.Id, lehrer).Contains(beginn)) throw new ArgumentException($"Das Zeitfenster um {beginn} Uhr ist gesperrt.");
-        if (termine.Any(x => Ci.Equals(x.Lehrer, lehrer) && x.SchuelerId == schuelerId))
-            throw new ArgumentException($"Für {Name(s, schuelerId)} gibt es bei dieser Lehrkraft bereits einen Termin (ein Termin je Lehrkraft und Kind).");
-        var (konten, kinder) = Familie(schuelerId, konto);
-        var konflikt = t.Optionen.ParalleleTermine ? null
-            : termine.FirstOrDefault(x => Ueberschneidung(x.Beginn, x.Ende, beginn, ende) && (kinder.Contains(x.SchuelerId) || (x.BenutzerId is int b && konten.Contains(b))));
-        if (konflikt != null)
-            throw new ArgumentException($"Überschneidung: Um {konflikt.Beginn} Uhr ist bereits ein Termin bei {LehrerName(s, konflikt.Lehrer)} für {Name(s, konflikt.SchuelerId)} eingetragen.");
-    }
-
-    private static string Name(Stand? s, int schuelerId) => s?.Schueler.FirstOrDefault(x => x.Id == schuelerId) is { } x ? $"{x.Vorname} {x.Name}".Trim() : $"Schüler*in {schuelerId}";
-
-    public static string LehrerName(Stand? s, string kurz) =>
-        s != null && s.Lehrer.TryGetValue(kurz, out var l) && l.Name.Length > 0 ? $"{(l.Vorname.Length > 0 ? l.Vorname + " " : "")}{l.Name}" : kurz;
-
-    private static WebSchueler Schueler(Stand? s, int id) =>
-        s?.Schueler.FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Schülerin bzw. unbekannter Schüler.");
-
-    private SprechtagTermin Einfuegen(Sprechtag t, string lehrer, int schuelerId, string beginn, int? konto, string bemerkung, string quelle)
-    {
-        var id = 0;
-        try
-        {
-            _db.Transaktion(c =>
-            {
-                Db.Ausfuehren(c, """
-                    INSERT INTO sprechtag_termine (sprechtag_id, lehrer, beginn, schueler_id, benutzer_id, bemerkung, quelle, erstellt)
-                    VALUES (@s, @l, @b, @k, @u, @m, @q, @z)
-                    """, Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@b", beginn), Db.P("@k", schuelerId), Db.P("@u", konto), Db.P("@m", bemerkung),
-                    Db.P("@q", quelle), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)));
-                id = (int)Db.LetzteId(c);
-                // Termin erhalten: Platz auf der Warteliste dieser Lehrkraft entfällt
-                Db.Ausfuehren(c, "DELETE FROM sprechtag_warteliste WHERE sprechtag_id = @s AND lehrer = @l AND schueler_id = @k", Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@k", schuelerId));
-            });
-        }
-        catch (DbException) { throw new ArgumentException("Das Zeitfenster wurde gerade vergeben. Bitte die Ansicht aktualisieren."); }
-        return Termin(t, id)!;
-    }
-
-    /// <summary>Buchung durch ein Elternkonto: nur im Anmeldezeitraum, nur eigene Kinder, nur Lehrkräfte des Kindes.</summary>
-    public SprechtagTermin Buchen(Stand? s, Sprechtag t, Benutzer eltern, string lehrer, int schuelerId, string beginn)
-    {
-        if (eltern.Rolle != Rollen.Eltern) throw new UnauthorizedAccessException("Termine buchen Erziehungsberechtigte.");
-        if (!eltern.SchuelerIds.Contains(schuelerId)) throw new UnauthorizedAccessException("Diese Schülerin bzw. dieser Schüler ist Ihrem Konto nicht zugeordnet.");
-        if (Phase(t) != Anmeldung) throw new ArgumentException("Termine können nur im Anmeldezeitraum gebucht werden.");
-        var kind = Schueler(s, schuelerId);
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (!LehrkraefteDesKindes(s, t, kind).Any(x => Ci.Equals(x.Kurz, l.Lehrer))) throw new UnauthorizedAccessException("Diese Lehrkraft unterrichtet Ihr Kind nicht.");
-        lock (_sperre)
-        {
-            Pruefen(s, t, l.Lehrer, schuelerId, beginn, eltern.Id, null);
-            if (t.Optionen.MaxTermineFamilie > 0 && FamilienTermine(t, schuelerId, eltern.Id) >= t.Optionen.MaxTermineFamilie)
-                throw new ArgumentException($"Je Familie {(t.Optionen.MaxTermineFamilie == 1 ? "ist höchstens ein Termin" : $"sind höchstens {t.Optionen.MaxTermineFamilie} Termine")} möglich.");
-            return Einfuegen(t, l.Lehrer, schuelerId, beginn, eltern.Id, "", "eltern");
-        }
-    }
-
-    /// <summary>Zahl der Termine der Familie eines Kindes (alle Kinder der Elternkonten und Buchungen dieser Konten).</summary>
-    public int FamilienTermine(Sprechtag t, int schuelerId, int? konto)
-    {
-        var (konten, kinder) = Familie(schuelerId, konto);
-        return TermineVon(t).Count(x => kinder.Contains(x.SchuelerId) || (x.BenutzerId is int b && konten.Contains(b)));
-    }
-
-    /// <summary>Termin durch die Lehrkraft bzw. Administration eintragen (auch für Familien ohne Konto, auch nach dem Anmeldezeitraum).</summary>
-    public SprechtagTermin Eintragen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, int schuelerId, string beginn, string? bemerkung)
-    {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        Schueler(s, schuelerId);
-        var text = (bemerkung ?? "").Trim();
-        if (text.Length > 500) throw new ArgumentException("Die Bemerkung ist zu lang (höchstens 500 Zeichen).");
-        lock (_sperre)
-        {
-            Pruefen(s, t, l.Lehrer, schuelerId, beginn, null, null, gesperrteErlaubt: true);
-            // ein manuell eingetragener Termin in einem gesperrten Fenster hebt die Sperre auf
-            _db.Ausfuehren("DELETE FROM sprechtag_sperren WHERE sprechtag_id = @id AND lehrer = @l AND beginn = @b", Db.P("@id", t.Id), Db.P("@l", l.Lehrer), Db.P("@b", beginn));
-            return Einfuegen(t, l.Lehrer, schuelerId, beginn, null, text, Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) && !Ci.Equals(ich.LehrerKuerzel, l.Lehrer) ? "verwaltung" : "lehrkraft");
-        }
-    }
-
-    /// <summary>Termin verschieben (neue Uhrzeit) bzw. Bemerkung ändern – Lehrkraft des Termins oder Administration.</summary>
-    public SprechtagTermin Verschieben(Stand? s, Sprechtag t, SprechtagTermin x, string? beginn, string? bemerkung)
-    {
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        var neu = string.IsNullOrWhiteSpace(beginn) ? x.Beginn : beginn.Trim();
-        var text = bemerkung is null ? x.Bemerkung : bemerkung.Trim();
-        if (text.Length > 500) throw new ArgumentException("Die Bemerkung ist zu lang (höchstens 500 Zeichen).");
-        lock (_sperre)
-        {
-            if (neu != x.Beginn) Pruefen(s, t, x.Lehrer, x.SchuelerId, neu, x.BenutzerId, x.Id, gesperrteErlaubt: true);
-            try
-            {
-                _db.Transaktion(c =>
-                {
-                    Db.Ausfuehren(c, "UPDATE sprechtag_termine SET beginn = @b, bemerkung = @m WHERE id = @id", Db.P("@b", neu), Db.P("@m", text), Db.P("@id", x.Id));
-                    Db.Ausfuehren(c, "DELETE FROM sprechtag_sperren WHERE sprechtag_id = @id AND lehrer = @l AND beginn = @b", Db.P("@id", t.Id), Db.P("@l", x.Lehrer), Db.P("@b", neu));
-                });
-            }
-            catch (DbException) { throw new ArgumentException("Das Zeitfenster wurde gerade vergeben. Bitte die Ansicht aktualisieren."); }
-            return Termin(t, x.Id)!;
-        }
-    }
-
-    // ------------------------------------------------------------------------------------------ Warteliste
-
-    public List<SprechtagWarteplatz> Warteliste(int id) => _db.Liste("SELECT * FROM sprechtag_warteliste WHERE sprechtag_id = @id ORDER BY id",
-        r => new SprechtagWarteplatz(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("schueler_id"), r.ZahlOderNull("benutzer_id"), r.Text("erstellt"),
-            r.Text("benachrichtigt")), Db.P("@id", id));
-
-    /// <summary>Position (ab 1) eines Eintrags auf der Warteliste seiner Lehrkraft.</summary>
-    public static int Position(List<SprechtagWarteplatz> liste, SprechtagWarteplatz w) =>
-        liste.Where(x => Ci.Equals(x.Lehrer, w.Lehrer)).ToList().FindIndex(x => x.Id == w.Id) + 1;
-
-    /// <summary>Auf die Warteliste einer ausgebuchten Lehrkraft (Option „Warteliste“, nur im Anmeldezeitraum, nur eigene Kinder).</summary>
-    public SprechtagWarteplatz WartelisteEintragen(Stand? s, Sprechtag t, Benutzer eltern, string lehrer, int schuelerId)
-    {
-        if (eltern.Rolle != Rollen.Eltern) throw new UnauthorizedAccessException("Auf die Warteliste tragen sich Erziehungsberechtigte ein.");
-        if (!eltern.SchuelerIds.Contains(schuelerId)) throw new UnauthorizedAccessException("Diese Schülerin bzw. dieser Schüler ist Ihrem Konto nicht zugeordnet.");
-        if (!t.Optionen.Warteliste) throw new ArgumentException("Für diesen Sprechtag gibt es keine Warteliste.");
-        if (Phase(t) != Anmeldung) throw new ArgumentException("Die Warteliste steht nur im Anmeldezeitraum zur Verfügung.");
-        var kind = Schueler(s, schuelerId);
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (l.Abgesagt.Length > 0) throw new ArgumentException($"{LehrerName(s, l.Lehrer)} hat die Teilnahme am Sprechtag abgesagt.");
-        if (!LehrkraefteDesKindes(s, t, kind).Any(x => Ci.Equals(x.Kurz, l.Lehrer))) throw new UnauthorizedAccessException("Diese Lehrkraft unterrichtet Ihr Kind nicht.");
-        lock (_sperre)
-        {
-            if (TermineVon(t).Any(x => Ci.Equals(x.Lehrer, l.Lehrer) && x.SchuelerId == schuelerId)) throw new ArgumentException("Für Ihr Kind gibt es bei dieser Lehrkraft bereits einen Termin.");
-            if (Raster(t, l.Lehrer).Any(x => x.Status == "frei")) throw new ArgumentException("Bei dieser Lehrkraft sind noch Termine frei – bitte direkt buchen.");
-            var vorhanden = Warteliste(t.Id).FirstOrDefault(x => Ci.Equals(x.Lehrer, l.Lehrer) && x.SchuelerId == schuelerId);
-            if (vorhanden != null) return vorhanden;
-            try
-            {
-                _db.Ausfuehren("INSERT INTO sprechtag_warteliste (sprechtag_id, lehrer, schueler_id, benutzer_id, erstellt) VALUES (@s, @l, @k, @b, @z)",
-                    Db.P("@s", t.Id), Db.P("@l", l.Lehrer), Db.P("@k", schuelerId), Db.P("@b", eltern.Id), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)));
-            }
-            catch (DbException) { /* gleichzeitig eingetragen */ }
-            return Warteliste(t.Id).First(x => Ci.Equals(x.Lehrer, l.Lehrer) && x.SchuelerId == schuelerId);
-        }
-    }
-
-    /// <summary>Eintrag von der Warteliste entfernen: Eltern des Kindes, die Lehrkraft bzw. die Verwaltung.</summary>
-    public void WartelisteLoeschen(Sprechtag t, Benutzer ich, int wid)
-    {
-        var w = Warteliste(t.Id).FirstOrDefault(x => x.Id == wid) ?? throw new ArgumentException("Unbekannter Eintrag auf der Warteliste.");
-        var darf = Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) || (ich.Kollegium && Ci.Equals(ich.LehrerKuerzel, w.Lehrer)) ||
-            (ich.Rolle == Rollen.Eltern && ich.SchuelerIds.Contains(w.SchuelerId));
-        if (!darf) throw new UnauthorizedAccessException("Diesen Eintrag dürfen Sie nicht entfernen.");
-        _db.Ausfuehren("DELETE FROM sprechtag_warteliste WHERE id = @id", Db.P("@id", wid));
-    }
-
-    /// <summary>Absender der Systemmitteilungen (Warteliste, Erinnerungen): das erste aktive Administrationskonto.</summary>
-    private Benutzer? Systemabsender() => _benutzer.Alle().Where(b => b.IstAdmin && !b.Gesperrt).OrderBy(b => b.Id).FirstOrDefault();
-
-    /// <summary>
-    /// Ein Zeitfenster der Lehrkraft ist frei geworden: alle noch nicht benachrichtigten Familien auf ihrer Warteliste erhalten eine Mitteilung
-    /// (Absender: Administration, damit keine Namen anderer Familien erscheinen). Liefert die Zahl benachrichtigter Konten.
-    /// </summary>
-    public int WartendeBenachrichtigen(Sprechtag t, string lehrer)
-    {
-        if (!t.Optionen.Warteliste || Phase(t) != Anmeldung) return 0;
-        var wartend = Warteliste(t.Id).Where(x => Ci.Equals(x.Lehrer, lehrer) && x.Benachrichtigt.Length == 0).ToList();
-        if (wartend.Count == 0 || Systemabsender() is not { } absender) return 0;
-        var n = 0;
-        var datum = DateOnly.Parse(t.Datum, Inv);
-        foreach (var w in wartend)
-        {
-            var konten = ElternVon(w.SchuelerId).Select(b => b.Id).ToHashSet();
-            if (w.BenutzerId is int k) konten.Add(k);
-            n += Melden(absender, konten, "Sprechtag: Termin frei geworden",
-                $"Bei {LehrerName(_paket?.Aktuell, lehrer)} ist am Sprechtag „{t.Name}“ ({datum:dd.MM.yyyy}) ein Termin frei geworden. Sie stehen auf der Warteliste – " +
-                "bitte buchen Sie unter „Sprechtag“, solange der Termin frei ist.");
-            _db.Ausfuehren("UPDATE sprechtag_warteliste SET benachrichtigt = @z WHERE id = @id", Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@id", w.Id));
-        }
-        return n;
-    }
-
-    // ------------------------------------------------------------------------------------------ Erinnerungen
-
-    /// <summary>
-    /// Erinnerungen versenden (Option „Erinnerung … Stunden vorher“): je fälligem Termin eine Mitteilung an die Familie und eine je Lehrkraft
-    /// mit ihren Terminen. Jeder Termin wird nur einmal erinnert. Liefert die Zahl erinnerter Termine.
-    /// </summary>
-    public int ErinnerungenSenden(Stand? s)
-    {
-        var jetzt = _uhr.Jetzt;
-        var absender = Systemabsender();
-        if (absender is null) return 0;
-        var n = 0;
-        foreach (var t in Alle().Where(t => t.Sichtbar && t.Abgesagt.Length == 0 && t.Optionen.ErinnerungStunden > 0))
-        {
-            var tag = DateOnly.Parse(t.Datum, Inv).ToDateTime(TimeOnly.MinValue);
-            var offen = _db.Liste("SELECT id FROM sprechtag_termine WHERE sprechtag_id = @id AND erinnert = ''", r => r.Zahl("id"), Db.P("@id", t.Id)).ToHashSet();
-            var faellig = TermineVon(t).Where(x => offen.Contains(x.Id)).Where(x =>
-            {
-                var beginn = tag.AddMinutes(Minuten(x.Beginn));
-                return jetzt < beginn && jetzt >= beginn.AddHours(-t.Optionen.ErinnerungStunden);
-            }).ToList();
-            if (faellig.Count == 0) continue;
-            var datum = $"{Plandienst.Wochentage[Plandienst.TagIndex(DateOnly.FromDateTime(tag))]}, {tag:dd.MM.yyyy}";
-            foreach (var x in faellig)
-            {
-                var l = Beteiligt(t, x.Lehrer);
-                var wo = l is { Online: true } ? $"Online-Gespräch{(l.Link.Length > 0 ? $": {l.Link}" : "")}" : l?.Raum is { Length: > 0 } r ? $"Raum {r}" : t.Ort;
-                Melden(absender, ElternDesTermins(x), "Erinnerung: Termin am Sprechtag",
-                    $"Erinnerung: {datum}, {x.Beginn}–{x.Ende} Uhr Gespräch mit {LehrerName(s, x.Lehrer)} über {Name(s, x.SchuelerId)} (Sprechtag „{t.Name}“)." +
-                    (wo.Length > 0 ? $"\nOrt: {wo}" : ""));
-            }
-            foreach (var g in faellig.GroupBy(x => x.Lehrer, Ci))
-                Melden(absender, KontenDerLehrkraft(g.Key).Select(b => b.Id), "Erinnerung: Ihre Termine am Sprechtag",
-                    $"Erinnerung an Ihre Termine am Sprechtag „{t.Name}“ ({datum}):\n" + string.Join("\n", g.Select(x => $"{x.Beginn}–{x.Ende} Uhr: {Name(s, x.SchuelerId)}")));
-            _db.Transaktion(c =>
-            {
-                foreach (var x in faellig) Db.Ausfuehren(c, "UPDATE sprechtag_termine SET erinnert = @z WHERE id = @id", Db.P("@z", jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@id", x.Id));
-            });
-            n += faellig.Count;
-        }
-        return n;
-    }
-
-    /// <summary>Termin stornieren: Administration, Lehrkraft des Termins oder Elternkonto des Kindes (nur im Anmeldezeitraum).</summary>
-    public void Stornieren(Sprechtag t, Benutzer ich, SprechtagTermin x)
-    {
-        if (!DarfTermin(t, ich, x)) throw new UnauthorizedAccessException("Diesen Termin dürfen Sie nicht stornieren.");
-        if (ich.Rolle == Rollen.Eltern && Phase(t) != Anmeldung) throw new ArgumentException("Termine können nur im Anmeldezeitraum storniert werden. Bitte wenden Sie sich an die Lehrkraft.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        _db.Ausfuehren("DELETE FROM sprechtag_termine WHERE id = @id", Db.P("@id", x.Id));
-        WartendeBenachrichtigen(t, x.Lehrer);
-    }
-
-    /// <summary>Darf das Konto diesen Termin ändern bzw. stornieren?</summary>
-    public static bool DarfTermin(Sprechtag t, Benutzer ich, SprechtagTermin x) =>
-        Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) || (ich.Kollegium && Ci.Equals(ich.LehrerKuerzel, x.Lehrer)) || (ich.Rolle == Rollen.Eltern && ich.SchuelerIds.Contains(x.SchuelerId));
-
-    // ------------------------------------------------------------------------------------------ Absagen
-
-    /// <summary>Konten einer Lehrkraft (Kollegium mit diesem Kürzel, nicht gesperrt).</summary>
-    public List<Benutzer> KontenDerLehrkraft(string lehrer) => _benutzer.Alle().Where(b => !b.Gesperrt && b.Kollegium && Ci.Equals(b.LehrerKuerzel, lehrer)).ToList();
-
-    /// <summary>Betroffene Elternkonten eines Termins: alle Elternkonten des Kindes und das buchende Konto.</summary>
-    private HashSet<int> ElternDesTermins(SprechtagTermin x)
-    {
-        var res = ElternVon(x.SchuelerId).Select(b => b.Id).ToHashSet();
-        if (x.BenutzerId is int k) res.Add(k);
-        return res;
-    }
-
-    private static string Grund(string? grund)
-    {
-        var g = (grund ?? "").Trim();
-        if (g.Length > 1000) throw new ArgumentException("Der Grund ist zu lang (höchstens 1000 Zeichen).");
-        return g;
-    }
-
-    private string Zeile(Stand? s, Sprechtag t) => $"am Sprechtag „{t.Name}“ ({Plandienst.Wochentage[Plandienst.TagIndex(DateOnly.Parse(t.Datum, Inv))]}, {DateOnly.Parse(t.Datum, Inv):dd.MM.yyyy})";
-
-    /// <summary>Mitteilung an Konten (Fehler beim Versand blockieren die Absage nicht). Liefert die Zahl benachrichtigter Konten.</summary>
-    private int Melden(Benutzer ich, IEnumerable<int> konten, string betreff, string text)
-    {
-        var ids = konten.Where(k => k != ich.Id).ToHashSet();
-        if (ids.Count == 0) return 0;
-        try { _mitteilungen.Benachrichtigen(ich, ids, betreff, text); return ids.Count; }
-        catch (ArgumentException) { return 0; }
+            Db.Ausfuehren(c, "DELETE FROM st_raeume WHERE sprechtag_id = @s AND lehrer = @l AND abschnitt = @a", Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@a", abschnitt));
+            if (!string.IsNullOrWhiteSpace(raum))
+                Db.Ausfuehren(c, "INSERT INTO st_raeume (sprechtag_id, lehrer, abschnitt, raum) VALUES (@s, @l, @a, @r)", Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@a", abschnitt), Db.P("@r", raum.Trim()));
+        });
     }
 
     /// <summary>
-    /// Einzelnen Termin absagen (optional mit Grund): Erziehungsberechtigte des Kindes (bis zum Ende des Sprechtags), Lehrkraft des Termins bzw.
-    /// Administration. Die jeweils andere Seite erhält eine Mitteilung. Liefert die Zahl benachrichtigter Konten.
+    /// Abwesenheit eintragen bzw. ändern (Administration immer, Lehrkraft mit Recht; in jeder Phase außer „Abgeschlossen“). Überschneidet sie
+    /// sich mit einer bestehenden Abwesenheit, wird sie nicht gespeichert; Termine der Lehrkraft in diesem Zeitraum werden abgesagt.
     /// </summary>
-    public int TerminAbsagen(Stand? s, Sprechtag t, Benutzer ich, SprechtagTermin x, string? grund)
+    public StAbwesenheit AbwesenheitSpeichern(Stand? s, Sprechtag t, Benutzer ich, int? id, string lehrer, int abschnitt, string beginn, string ende, string? anmerkung)
     {
-        if (!DarfTermin(t, ich, x)) throw new UnauthorizedAccessException("Diesen Termin dürfen Sie nicht absagen.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        var g = Grund(grund);
-        _db.Ausfuehren("DELETE FROM sprechtag_termine WHERE id = @id", Db.P("@id", x.Id));
-        WartendeBenachrichtigen(t, x.Lehrer);
-        var kind = Name(s, x.SchuelerId);
-        var wer = ich.Anzeigename.Length > 0 ? ich.Anzeigename : ich.Login;
-        var zusatz = g.Length > 0 ? $"\n\nGrund: {g}" : "";
-        if (ich.Rolle == Rollen.Eltern)
-        {
-            // Lehrkraft und die übrigen Elternkonten des Kindes
-            var konten = KontenDerLehrkraft(x.Lehrer).Select(b => b.Id).Concat(ElternDesTermins(x));
-            return Melden(ich, konten, $"Sprechtag: Termin abgesagt ({kind})",
-                $"{wer} hat den Termin um {x.Beginn} Uhr für {kind} {Zeile(s, t)} abgesagt.{zusatz}");
-        }
-        return Melden(ich, ElternDesTermins(x), "Sprechtag: Termin abgesagt",
-            $"Ihr Termin bei {LehrerName(s, x.Lehrer)} {Zeile(s, t)} um {x.Beginn} Uhr für {kind} wurde abgesagt.{zusatz}\n\nBitte buchen Sie bei Bedarf einen neuen Termin.");
-    }
-
-    /// <summary>
-    /// Gesamte Teilnahme einer Lehrkraft absagen: alle Termine der Lehrkraft entfallen, die betroffenen Erziehungsberechtigten erhalten eine Mitteilung,
-    /// die Lehrkraft ist nicht mehr buchbar. Liefert (abgesagte Termine, benachrichtigte Konten).
-    /// </summary>
-    public (int Termine, int Benachrichtigt) TeilnahmeAbsagen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, string? grund)
-    {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (t.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde bereits abgesagt.");
-        if (l.Abgesagt.Length > 0) throw new ArgumentException("Die Teilnahme wurde bereits abgesagt.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        var g = Grund(grund);
-        List<SprechtagTermin> termine;
+        Erlaubt(t, ich, lehrer, r => r.AbwesenheitenEintragen, "Das Eintragen von Abwesenheiten");
+        NichtAbgeschlossen(t);
+        var a = Abschnitt(t, abschnitt);
+        if (!Uhrzeit.IsMatch(beginn) || !Uhrzeit.IsMatch(ende) || Minuten(beginn) >= Minuten(ende)) throw new ArgumentException("Bitte Start- und Endzeit angeben (Start vor Ende).");
+        if (Minuten(beginn) < Minuten(a.Von) || Minuten(ende) > Minuten(a.Bis)) throw new ArgumentException($"Die Abwesenheit muss im Abschnitt ({a.Von}–{a.Bis} Uhr) liegen.");
+        var text = (anmerkung ?? "").Trim();
+        if (text.Length > 255) throw new ArgumentException("Die Anmerkung darf höchstens 255 Zeichen lang sein.");
         lock (_sperre)
         {
-            termine = TermineVon(t).Where(x => Ci.Equals(x.Lehrer, l.Lehrer)).ToList();
-            _db.Transaktion(c =>
+            if (Abwesenheiten(t.Id).Any(x => x.Id != id && Ci.Equals(x.Lehrer, lehrer) && x.Abschnitt == abschnitt && Ueberschneidung(Minuten(x.Beginn), Minuten(x.Ende), Minuten(beginn), Minuten(ende))))
+                throw new ArgumentException("Die Abwesenheit überschneidet sich mit einer bestehenden Abwesenheit der Lehrkraft.");
+            int neueId;
+            if (id is int vorhanden)
             {
-                Db.Ausfuehren(c, "UPDATE sprechtag_lehrer SET abgesagt = @z, absage_grund = @g WHERE sprechtag_id = @id AND lehrer = @l",
-                    Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@g", g), Db.P("@id", t.Id), Db.P("@l", l.Lehrer));
-                Db.Ausfuehren(c, "DELETE FROM sprechtag_termine WHERE sprechtag_id = @id AND lehrer = @l", Db.P("@id", t.Id), Db.P("@l", l.Lehrer));
-            });
-        }
-        var n = 0;
-        var zusatz = g.Length > 0 ? $"\n\nGrund: {g}" : "";
-        foreach (var x in termine)
-            n += Melden(ich, ElternDesTermins(x), "Sprechtag: Termin abgesagt",
-                $"{LehrerName(s, l.Lehrer)} kann {Zeile(s, t)} leider nicht teilnehmen. Ihr Termin um {x.Beginn} Uhr für {Name(s, x.SchuelerId)} entfällt.{zusatz}");
-        // Administration informieren, wenn die Lehrkraft selbst absagt
-        if (!ich.IstAdmin)
-            Melden(ich, _benutzer.Alle().Where(b => b.IstAdmin && !b.Gesperrt).Select(b => b.Id), $"Sprechtag: Teilnahme abgesagt ({l.Lehrer})",
-                $"{LehrerName(s, l.Lehrer)} hat die Teilnahme {Zeile(s, t)} abgesagt; {termine.Count} Termin(e) entfallen.{zusatz}");
-        return (termine.Count, n);
-    }
-
-    /// <summary>Abgesagte Teilnahme wieder aufnehmen (Lehrkraft bzw. Administration) – die Zeitfenster sind danach wieder frei.</summary>
-    public void TeilnahmeWiederaufnehmen(Sprechtag t, string lehrer)
-    {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (t.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde abgesagt.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        _db.Ausfuehren("UPDATE sprechtag_lehrer SET abgesagt = '', absage_grund = '' WHERE sprechtag_id = @id AND lehrer = @l", Db.P("@id", t.Id), Db.P("@l", l.Lehrer));
-        WartendeBenachrichtigen(Pflicht(t.Id), l.Lehrer);
-    }
-
-    /// <summary>
-    /// Ganzen Sprechtag absagen (Administration): alle Termine entfallen; alle beteiligten Lehrkräfte, alle Erziehungsberechtigten mit Termin
-    /// bzw. Einladung werden benachrichtigt. Liefert (abgesagte Termine, benachrichtigte Konten).
-    /// </summary>
-    public (int Termine, int Benachrichtigt) SprechtagAbsagen(Stand? s, Sprechtag t, Benutzer ich, string? grund)
-    {
-        if (!Rechtedienst.Darf(ich, Recht.SprechtagVerwalten)) throw new UnauthorizedAccessException("Nur die Administration kann den Sprechtag absagen.");
-        if (t.Abgesagt.Length > 0) throw new ArgumentException("Der Sprechtag wurde bereits abgesagt.");
-        if (IstVorbei(t)) throw new ArgumentException("Der Sprechtag ist bereits vorbei.");
-        var g = Grund(grund);
-        List<SprechtagTermin> termine;
-        lock (_sperre)
-        {
-            termine = TermineVon(t);
-            _db.Transaktion(c =>
-            {
-                Db.Ausfuehren(c, "UPDATE sprechtage SET abgesagt = @z, absage_grund = @g, geaendert = @z WHERE id = @id",
-                    Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@g", g), Db.P("@id", t.Id));
-                Db.Ausfuehren(c, "DELETE FROM sprechtag_termine WHERE sprechtag_id = @id", Db.P("@id", t.Id));
-            });
-        }
-        if (!t.Sichtbar) return (termine.Count, 0);
-        var zusatz = g.Length > 0 ? $"\n\nGrund: {g}" : "";
-        var eltern = termine.SelectMany(ElternDesTermins).Concat(Einladungen(t.Id).SelectMany(e => ElternVon(e.SchuelerId).Select(b => b.Id))).ToHashSet();
-        var lehrer = t.Lehrkraefte.SelectMany(l => KontenDerLehrkraft(l.Lehrer)).Select(b => b.Id).ToHashSet();
-        var n = Melden(ich, eltern, $"Sprechtag abgesagt: {t.Name}",
-            $"Der Sprechtag „{t.Name}“ am {DateOnly.Parse(t.Datum, Inv):dd.MM.yyyy} wurde abgesagt. Alle gebuchten Termine entfallen.{zusatz}");
-        n += Melden(ich, lehrer, $"Sprechtag abgesagt: {t.Name}",
-            $"Der Sprechtag „{t.Name}“ am {DateOnly.Parse(t.Datum, Inv):dd.MM.yyyy} wurde abgesagt; {termine.Count} gebuchte(r) Termin(e) entfallen.{zusatz}");
-        return (termine.Count, n);
-    }
-
-    // ------------------------------------------------------------------------------------------ Einladungen
-
-    public List<SprechtagEinladung> Einladungen(int id) => _db.Liste("SELECT * FROM sprechtag_einladungen WHERE sprechtag_id = @id ORDER BY id",
-        r => new SprechtagEinladung(r.Zahl("id"), r.Zahl("sprechtag_id"), r.Text("lehrer"), r.Zahl("schueler_id"), r.Text("text"), r.Text("erstellt"), r.Zahl("benachrichtigt"), r.Zahl("verpflichtend") != 0),
-        Db.P("@id", id));
-
-    /// <summary>
-    /// Einladungen versenden: je Schüler*in eine Einladung und eine Mitteilung an alle Elternkonten des Kindes (bereits eingeladene werden
-    /// übersprungen). Liefert die Zahl neuer Einladungen, benachrichtigter Konten und der Kinder ohne Elternkonto.
-    /// </summary>
-    public (int Neu, int Benachrichtigt, List<string> OhneKonto) Einladen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, IEnumerable<int> schuelerIds, string? text,
-        bool verpflichtend = false)
-    {
-        var l = Beteiligt(t, lehrer) ?? throw new ArgumentException("Die Lehrkraft ist an diesem Sprechtag nicht beteiligt.");
-        if (!t.Sichtbar) throw new ArgumentException("Der Sprechtag ist noch nicht freigegeben.");
-        if (t.Abgesagt.Length > 0 || l.Abgesagt.Length > 0) throw new ArgumentException("Die Teilnahme bzw. der Sprechtag wurde abgesagt.");
-        if (_uhr.Jetzt > EinladungEnde(t)) throw new ArgumentException("Die Einladungsphase ist beendet.");
-        var zusatz = (text ?? "").Trim();
-        if (zusatz.Length > 1000) throw new ArgumentException("Der Text ist zu lang (höchstens 1000 Zeichen).");
-        var ids = schuelerIds.Distinct().ToList();
-        if (ids.Count == 0) throw new ArgumentException("Bitte mindestens eine Schülerin bzw. einen Schüler wählen.");
-        if (ids.Count > 500) throw new ArgumentException("Bitte höchstens 500 Einladungen auf einmal versenden.");
-        var kinder = ids.Select(i => Schueler(s, i)).ToList();
-        var vorhanden = Einladungen(t.Id).Where(e => Ci.Equals(e.Lehrer, l.Lehrer)).Select(e => e.SchuelerId).ToHashSet();
-        var lehrerName = LehrerName(s, l.Lehrer);
-        var datum = DateOnly.Parse(t.Datum, Inv);
-        var neu = 0;
-        var benachrichtigt = 0;
-        var ohne = new List<string>();
-        foreach (var k in kinder.Where(k => !vorhanden.Contains(k.Id)))
-        {
-            var eltern = ElternVon(k.Id);
-            var gesendet = 0;
-            if (eltern.Count > 0)
-            {
-                var von = Zeitpunkt(t.AnmeldungVon);
-                var bis = Zeitpunkt(t.AnmeldungBis);
-                var nachricht = $"{lehrerName} lädt Sie zum Sprechtag „{t.Name}“ am {Plandienst.Wochentage[Plandienst.TagIndex(datum)]}, {datum:dd.MM.yyyy} zu einem {(verpflichtend ? "verpflichtenden " : "")}Gespräch über " +
-                    $"{k.Vorname} {k.Name} (Klasse {k.Klasse}) ein.\n\nBitte buchen Sie im Anmeldezeitraum vom {von:dd.MM.yyyy HH:mm} bis {bis:dd.MM.yyyy HH:mm} Uhr " +
-                    "unter „Sprechtag“ einen freien Termin." + (Beteiligt(t, l.Lehrer)?.Raum is { Length: > 0 } raum ? $"\nRaum: {raum}" : "") + (zusatz.Length > 0 ? $"\n\n{zusatz}" : "");
-                try
-                {
-                    _mitteilungen.Benachrichtigen(ich, eltern.Select(e => e.Id), $"{(verpflichtend ? "Verpflichtende " : "")}Einladung zum Sprechtag: {k.Vorname} {k.Name}", nachricht);
-                    gesendet = eltern.Count;
-                }
-                catch (ArgumentException) { gesendet = 0; }
+                var alt = Abwesenheiten(t.Id).FirstOrDefault(x => x.Id == vorhanden && Ci.Equals(x.Lehrer, lehrer)) ?? throw new ArgumentException("Unbekannte Abwesenheit.");
+                _db.Ausfuehren("UPDATE st_abwesenheiten SET abschnitt = @a, beginn = @b, ende = @e, anmerkung = @m WHERE id = @id",
+                    Db.P("@a", abschnitt), Db.P("@b", beginn), Db.P("@e", ende), Db.P("@m", text), Db.P("@id", alt.Id));
+                neueId = alt.Id;
             }
-            if (gesendet == 0) ohne.Add($"{k.Vorname} {k.Name} ({k.Klasse})");
-            try
-            {
-                _db.Ausfuehren("INSERT INTO sprechtag_einladungen (sprechtag_id, lehrer, schueler_id, text, erstellt, benachrichtigt, verpflichtend) VALUES (@s, @l, @k, @t, @z, @b, @v)",
-                    Db.P("@s", t.Id), Db.P("@l", l.Lehrer), Db.P("@k", k.Id), Db.P("@t", zusatz), Db.P("@z", _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv)), Db.P("@b", gesendet),
-                    Db.P("@v", verpflichtend ? 1 : 0));
-                neu++;
-                benachrichtigt += gesendet;
-            }
-            catch (DbException) { /* gleichzeitig eingeladen */ }
+            else
+                neueId = (int)_db.Einfuegen("INSERT INTO st_abwesenheiten (sprechtag_id, lehrer, abschnitt, beginn, ende, anmerkung) VALUES (@s, @l, @a, @b, @e, @m)",
+                    Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@a", abschnitt), Db.P("@b", beginn), Db.P("@e", ende), Db.P("@m", text));
+            // Termine der Lehrkraft in diesem Zeitraum werden abgesagt und die Teilnehmenden benachrichtigt
+            foreach (var x in Termine(t.Id).Where(x => x.Aktiv && x.HatZeit && Ci.Equals(x.Lehrer, lehrer) && x.Abschnitt == abschnitt
+                                                        && Ueberschneidung(Minuten(x.Beginn), Minuten(x.Ende), Minuten(beginn), Minuten(ende))))
+                AbsageSchreiben(s, t, ich, x, "Die Lehrkraft ist zu dieser Zeit abwesend.");
+            return Abwesenheiten(t.Id).First(x => x.Id == neueId);
         }
-        return (neu, benachrichtigt, ohne);
     }
 
-    public void EinladungLoeschen(Sprechtag t, Benutzer ich, int einladungId)
+    public void AbwesenheitLoeschen(Sprechtag t, Benutzer ich, int id)
     {
-        var e = Einladungen(t.Id).FirstOrDefault(x => x.Id == einladungId) ?? throw new ArgumentException("Unbekannte Einladung.");
-        if (!Rechtedienst.Darf(ich, Recht.SprechtagVerwalten) && !Ci.Equals(ich.LehrerKuerzel, e.Lehrer)) throw new UnauthorizedAccessException("Diese Einladung dürfen Sie nicht löschen.");
-        _db.Ausfuehren("DELETE FROM sprechtag_einladungen WHERE id = @id", Db.P("@id", einladungId));
+        var a = Abwesenheiten(t.Id).FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Abwesenheit.");
+        Erlaubt(t, ich, a.Lehrer, r => r.AbwesenheitenEintragen, "Das Bearbeiten von Abwesenheiten");
+        NichtAbgeschlossen(t);
+        _db.Ausfuehren("DELETE FROM st_abwesenheiten WHERE id = @id", Db.P("@id", id));
     }
 
-    // ------------------------------------------------------------------------------------------ Lehrkräfte eines Kindes
+    private static StAbschnitt Abschnitt(Sprechtag t, int i) =>
+        i >= 0 && i < t.K.Abschnitte.Count && Vollstaendig(t.K.Abschnitte[i]) ? t.K.Abschnitte[i] : throw new ArgumentException("Unbekannter Sprechtagsabschnitt.");
 
-    /// <summary>Lehrkraft eines Kindes am Sprechtag mit Fächern (aus dem Unterricht der Klasse, Klassenleitung, Einladungen).</summary>
-    public sealed record KindLehrkraft(string Kurz, string Name, List<string> Faecher, bool Klassenleitung, string Raum);
+    // ------------------------------------------------------------------------------------------ Schüler*innen und Erziehungsberechtigte
 
-    public List<KindLehrkraft> LehrkraefteDesKindes(Stand? s, Sprechtag t, WebSchueler kind)
+    /// <summary>Schüler*innen, die die Lehrkraft unterrichtet (Klassen ihres Unterrichts und Klassenleitung) – nur mit ihnen gibt es Termine.</summary>
+    public static List<WebSchueler> SchuelerDerLehrkraft(Stand? s, string lehrer)
     {
-        var faecher = new Dictionary<string, SortedSet<string>>(Ci);
-        void Dazu(string lehrer, string? fach)
-        {
-            if (string.IsNullOrWhiteSpace(lehrer)) return;
-            if (!faecher.TryGetValue(lehrer, out var f)) faecher[lehrer] = f = new SortedSet<string>(Ci);
-            if (!string.IsNullOrWhiteSpace(fach)) f.Add(fach);
-        }
-        var leitung = new List<string>();
-        if (s != null)
-        {
-            foreach (var u in s.Unterricht.Values)
-                foreach (var z in u.Zeilen)
-                    if (z.Klassen.Contains(kind.Klasse, Ci)) Dazu(z.Lehrer, z.Fach);
-            if (s.Klassen.TryGetValue(kind.Klasse, out var kl)) { leitung = kl.Klassenleitung; foreach (var l in leitung) Dazu(l, null); }
-        }
-        foreach (var e in Einladungen(t.Id).Where(e => e.SchuelerId == kind.Id)) Dazu(e.Lehrer, null);
-        return t.Lehrkraefte.Where(l => faecher.ContainsKey(l.Lehrer))
-            .Select(l => new KindLehrkraft(l.Lehrer, LehrerName(s, l.Lehrer), faecher[l.Lehrer].ToList(), leitung.Contains(l.Lehrer, Ci), l.Raum))
-            .OrderByDescending(x => x.Klassenleitung).ThenBy(x => x.Name, StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true)).ToList();
+        if (s == null) return new();
+        var klassen = KlassenVon(s, lehrer).ToHashSet(Ci);
+        var de = StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true);
+        return s.Schueler.Where(x => klassen.Contains(x.Klasse)).OrderBy(x => x.Klasse, de).ThenBy(x => x.Name, de).ThenBy(x => x.Vorname, de).ToList();
     }
 
-    /// <summary>Unterrichtete Klassen einer Lehrkraft (für den Klassenfilter beim Einladen).</summary>
     public static List<string> KlassenVon(Stand? s, string lehrer)
     {
         if (s == null) return new();
         var res = s.Unterricht.Values.SelectMany(u => u.Zeilen).Where(z => Ci.Equals(z.Lehrer, lehrer)).SelectMany(z => z.Klassen).ToHashSet(Ci);
         var leitung = s.Klassen.Values.Where(k => k.Klassenleitung.Contains(lehrer, Ci)).Select(k => k.Kurz).ToHashSet(Ci);
         res.UnionWith(leitung);
-        // eigene Klasse (Klassenleitung) zuerst – sie ist beim Einladen vorgewählt
         return res.OrderByDescending(leitung.Contains).ThenBy(x => x, StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true)).ToList();
+    }
+
+    /// <summary>Lehrkräfte eines Kindes (Unterricht der Klasse und Klassenleitung) mit Fächern.</summary>
+    public sealed record KindLehrkraft(string Kurz, string Name, List<string> Faecher, bool Klassenleitung);
+
+    public static List<KindLehrkraft> LehrkraefteDesKindes(Stand? s, WebSchueler kind)
+    {
+        if (s == null) return new();
+        var faecher = new Dictionary<string, SortedSet<string>>(Ci);
+        void Dazu(string lehrer, string? fach)
+        {
+            if (string.IsNullOrWhiteSpace(lehrer) || lehrer is "---" or "???") return;
+            if (!faecher.TryGetValue(lehrer, out var f)) faecher[lehrer] = f = new SortedSet<string>(Ci);
+            if (!string.IsNullOrWhiteSpace(fach)) f.Add(fach);
+        }
+        foreach (var u in s.Unterricht.Values)
+            foreach (var z in u.Zeilen)
+                if (z.Klassen.Contains(kind.Klasse, Ci)) Dazu(z.Lehrer, z.Fach);
+        var leitung = s.Klassen.TryGetValue(kind.Klasse, out var kl) ? kl.Klassenleitung : new List<string>();
+        foreach (var l in leitung) Dazu(l, null);
+        var de = StringComparer.Create(CultureInfo.GetCultureInfo("de-DE"), true);
+        return faecher.Select(x => new KindLehrkraft(x.Key, LehrerName(s, x.Key), x.Value.ToList(), leitung.Contains(x.Key, Ci)))
+            .OrderByDescending(x => x.Klassenleitung).ThenBy(x => x.Name, de).ToList();
+    }
+
+    private bool Unterrichtet(Stand? s, string lehrer, int schuelerId) => s == null || SchuelerDerLehrkraft(s, lehrer).Any(x => x.Id == schuelerId);
+
+    public List<Benutzer> ElternVon(int schuelerId) => _benutzer.Alle().Where(b => !b.Gesperrt && b.Rolle == Rollen.Eltern && b.SchuelerIds.Contains(schuelerId)).ToList();
+    public List<Benutzer> KontenDerLehrkraft(string lehrer) => _benutzer.Alle().Where(b => !b.Gesperrt && b.Kollegium && Ci.Equals(b.LehrerKuerzel, lehrer)).ToList();
+
+    /// <summary>Kinder aller Elternkonten der Familie (Geschwister über gemeinsame Konten).</summary>
+    public HashSet<int> Familie(int schuelerId)
+    {
+        var konten = ElternVon(schuelerId);
+        var kinder = konten.SelectMany(b => b.SchuelerIds).ToHashSet();
+        kinder.Add(schuelerId);
+        return kinder;
+    }
+
+    public static string Name(Stand? s, int schuelerId) => s?.Schueler.FirstOrDefault(x => x.Id == schuelerId) is { } x ? $"{x.Name} {x.Vorname}".Trim() : "Unbekannt";
+    public static string LehrerName(Stand? s, string kurz) =>
+        s != null && s.Lehrer.TryGetValue(kurz, out var l) && l.Name.Length > 0 ? $"{l.Name}{(l.Vorname.Length > 0 ? " " + l.Vorname : "")}" : kurz;
+    /// <summary>„(Kürzel) Name Vorname“ wie in der Vorlage.</summary>
+    public static string LehrerTitel(Stand? s, string kurz) => $"({kurz}) {LehrerName(s, kurz)}";
+
+    // ------------------------------------------------------------------------------------------ Freie Zeiten und Buchungsregeln
+
+    /// <summary>Belegte Zeiten der Lehrkraft im Abschnitt: aktive Termine, Abwesenheiten (Sprechtag und Lehrerabwesenheiten des Plans).</summary>
+    private List<(int Von, int Bis)> Belegt(Stand? s, Sprechtag t, string lehrer, int abschnitt, int? ausser)
+    {
+        var a = Abschnitt(t, abschnitt);
+        var res = Termine(t.Id).Where(x => x.Id != ausser && x.Aktiv && x.HatZeit && x.Abschnitt == abschnitt && Ci.Equals(x.Lehrer, lehrer))
+            .Select(x => (Minuten(x.Beginn), Minuten(x.Ende))).ToList();
+        res.AddRange(Abwesenheiten(t.Id).Where(x => x.Abschnitt == abschnitt && Ci.Equals(x.Lehrer, lehrer)).Select(x => (Minuten(x.Beginn), Minuten(x.Ende))));
+        // Abwesenheiten aus dem Plan (z. B. Krankmeldung) werden übernommen: ganztägig sperrt den Abschnitt
+        if (s != null && LehrerAbwesend(s, lehrer, DateOnly.Parse(a.Datum, Inv))) res.Add((Minuten(a.Von), Minuten(a.Bis)));
+        return res;
+    }
+
+    private static bool LehrerAbwesend(Stand s, string lehrer, DateOnly tag) =>
+        s.Paket.Absenzen.Any(x => Ci.Equals(x.Art, "lehrer") && Ci.Equals(x.Element, lehrer)
+            && DateOnly.TryParse(x.Von, Inv, out var v) && tag >= v && tag <= (DateOnly.TryParse(x.Bis, Inv, out var b) ? b : v));
+
+    /// <summary>
+    /// Freie Zeitblöcke der Lehrkraft im Abschnitt. Für Erziehungsberechtigte (<paramref name="schuelerId"/> gesetzt) gelten zusätzlich die
+    /// Buchungsregeln: Pause nach N Blöcken am Stück, höchstens M Blöcke je Kind und Lehrkraft, G gesperrte Blöcke zwischen zwei Terminen der
+    /// Familie (Raumwechsel) und keine Überschneidung mit Terminen der Familie.
+    /// </summary>
+    public List<StZeit> Frei(Stand? s, Sprechtag t, string lehrer, int abschnitt, int? schuelerId, int? ausser = null)
+    {
+        var a = Abschnitt(t, abschnitt);
+        var belegt = Belegt(s, t, lehrer, abschnitt, ausser);
+        var frei = Bloecke(t, a).Where(z => !belegt.Any(b => Ueberschneidung(b.Von, b.Bis, Minuten(z.Von), Minuten(z.Bis)))).ToList();
+        if (schuelerId is not int kind) return frei;
+        var r = t.K.Regeln;
+        var termine = Termine(t.Id).Where(x => x.Id != ausser && x.Aktiv && x.HatZeit).ToList();
+        if (r.MaxBloeckeProSchueler is int max)
+        {
+            var bisher = termine.Where(x => x.SchuelerId == kind && Ci.Equals(x.Lehrer, lehrer)).Sum(x => (Minuten(x.Ende) - Minuten(x.Beginn)) / Math.Max(1, t.K.Dauer));
+            if (bisher >= max) return new();
+        }
+        if (r.BloeckeBisPause is int n)
+        {
+            var eigene = termine.Where(x => x.Abschnitt == abschnitt && Ci.Equals(x.Lehrer, lehrer)).Select(x => (Minuten(x.Beginn), Minuten(x.Ende))).ToList();
+            bool Gebucht(int m) => eigene.Any(e => e.Item1 <= m && m < e.Item2);
+            frei = frei.Where(z =>
+            {
+                var m = Minuten(z.Von);
+                var vor = 0; for (var x = m - t.K.Dauer; x >= Minuten(a.Von) && Gebucht(x); x -= t.K.Dauer) vor++;
+                var nach = 0; for (var x = m + t.K.Dauer; x < Minuten(a.Bis) && Gebucht(x); x += t.K.Dauer) nach++;
+                return vor + 1 + nach <= n;
+            }).ToList();
+        }
+        var familie = Familie(kind);
+        var abstand = (r.GesperrteBloecke ?? 0) * t.K.Dauer;
+        var datum = a.Datum;
+        var fam = termine.Where(x => familie.Contains(x.SchuelerId) && x.Abschnitt >= 0 && x.Abschnitt < t.K.Abschnitte.Count && t.K.Abschnitte[x.Abschnitt].Datum == datum)
+            .Select(x => (Minuten(x.Beginn), Minuten(x.Ende), x.Lehrer)).ToList();
+        return frei.Where(z => !fam.Any(f =>
+        {
+            // eine Lehrkraft, ein Raum: kein Abstand nötig, aber keine Überschneidung
+            var luecke = Ci.Equals(f.Lehrer, lehrer) ? 0 : abstand;
+            return Ueberschneidung(f.Item1 - luecke, f.Item2 + luecke, Minuten(z.Von), Minuten(z.Bis));
+        })).ToList();
+    }
+
+    // ------------------------------------------------------------------------------------------ Einladungen und Termine (Lehrkräfte, Administration)
+
+    /// <summary>
+    /// Einladungen senden (ohne Uhrzeit): in „Verwaltung LK“, in der 1. und der 2. Anmeldephase. Erziehungsberechtigte werden ab Beginn der
+    /// 1. Anmeldephase benachrichtigt (vorher sehen sie den Sprechtag nicht).
+    /// </summary>
+    public int Einladen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, IEnumerable<int> schuelerIds, string? text, bool verpflichtend)
+    {
+        Erlaubt(t, ich, lehrer, null, "Das Einladen");
+        var p = Phase(t);
+        if (p is not (Verwaltung or Phase1 or Phase2))
+            throw new ArgumentException(p == Phase1Beendet ? "Bis zum Start der 2. Anmeldephase können keine Einladungen verschickt werden." : "In dieser Phase können keine Einladungen verschickt werden.");
+        var vorhanden = Termine(t.Id).Where(x => Ci.Equals(x.Lehrer, lehrer) && (x.Status == "einladung" || x.Aktiv)).Select(x => x.SchuelerId).ToHashSet();
+        var n = 0;
+        foreach (var id in schuelerIds.Distinct())
+        {
+            if (vorhanden.Contains(id)) continue;
+            if (!Unterrichtet(s, lehrer, id)) throw new ArgumentException($"{Name(s, id)} wird von dieser Lehrkraft nicht unterrichtet.");
+            var tid = (int)_db.Einfuegen("""
+                INSERT INTO st_termine (sprechtag_id, lehrer, abschnitt, schueler_id, art, status, verpflichtend, anmerkung, erstellt_von, erstellt)
+                VALUES (@s, @l, -1, @k, 'einladung', 'einladung', @v, @m, @u, @z)
+                """, Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@k", id), Db.P("@v", verpflichtend ? 1 : 0), Db.P("@m", (text ?? "").Trim()),
+                Db.P("@u", ich.Login), Db.P("@z", Jetzt()));
+            n++;
+            if (Rang(p) >= Rang(Phase1)) AnfrageMelden(s, t, ich, Termin(tid)!);
+        }
+        return n;
+    }
+
+    /// <summary>
+    /// Terminanfrage mit fester Uhrzeit (Recht „Termine für Erziehungsberechtigte buchen“; Administration immer). Die Erziehungsberechtigten
+    /// nehmen sie an bzw. lehnen sie ab; in „Verwaltung LK“ heißt sie „Terminiert“ und wird erst mit der 1. Anmeldephase versendet.
+    /// </summary>
+    public StTermin TerminAnlegen(Stand? s, Sprechtag t, Benutzer ich, string lehrer, int abschnitt, string beginn, string ende, int schuelerId,
+        string? anmerkung, string? link, bool verpflichtend)
+    {
+        Erlaubt(t, ich, lehrer, r => r.TermineBuchen, "Das Buchen von Terminen für Erziehungsberechtigte");
+        var p = Phase(t);
+        if (p is Entwurf or Abgeschlossen or Durchfuehrung) throw new ArgumentException("In dieser Phase können keine Termine angelegt werden.");
+        if (!Unterrichtet(s, lehrer, schuelerId)) throw new ArgumentException($"{Name(s, schuelerId)} wird von dieser Lehrkraft nicht unterrichtet.");
+        var linkText = LinkPruefen(link);
+        lock (_sperre)
+        {
+            ZeitPruefen(s, t, lehrer, abschnitt, beginn, ende, null);
+            var id = (int)_db.Einfuegen("""
+                INSERT INTO st_termine (sprechtag_id, lehrer, abschnitt, beginn, ende, schueler_id, art, status, verpflichtend, link, anmerkung, erstellt_von, erstellt)
+                VALUES (@s, @l, @a, @b, @e, @k, 'termin', 'angefragt', @v, @li, @m, @u, @z)
+                """, Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@a", abschnitt), Db.P("@b", beginn), Db.P("@e", ende), Db.P("@k", schuelerId),
+                Db.P("@v", verpflichtend ? 1 : 0), Db.P("@li", linkText), Db.P("@m", (anmerkung ?? "").Trim()), Db.P("@u", ich.Login), Db.P("@z", Jetzt()));
+            var x = Termin(id)!;
+            if (Rang(p) >= Rang(Phase1)) AnfrageMelden(s, t, ich, x);
+            return x;
+        }
+    }
+
+    /// <summary>Prüft Beginn/Ende eines Termins der Lehrkraft: im Abschnitt, auf Zeitblöcke ausgerichtet, frei.</summary>
+    private void ZeitPruefen(Stand? s, Sprechtag t, string lehrer, int abschnitt, string beginn, string ende, int? ausser)
+    {
+        var a = Abschnitt(t, abschnitt);
+        if (!Uhrzeit.IsMatch(beginn) || !Uhrzeit.IsMatch(ende) || Minuten(beginn) >= Minuten(ende)) throw new ArgumentException("Bitte Start- und Endzeit angeben (Start vor Ende).");
+        var b = Minuten(beginn); var e = Minuten(ende);
+        if (b < Minuten(a.Von) || e > Minuten(a.Bis)) throw new ArgumentException($"Der Termin muss im Abschnitt ({a.Von}–{a.Bis} Uhr) liegen.");
+        if ((b - Minuten(a.Von)) % t.K.Dauer != 0 || (e - b) % t.K.Dauer != 0)
+            throw new ArgumentException($"Termine beginnen und enden im Takt der Zeitblöcke ({t.K.Dauer} Minuten).");
+        if (Belegt(s, t, lehrer, abschnitt, ausser).Any(x => Ueberschneidung(x.Von, x.Bis, b, e)))
+            throw new ArgumentException("Die Lehrkraft hat zu dieser Zeit bereits einen Termin bzw. ist abwesend.");
+    }
+
+    public static string LinkPruefen(string? link)
+    {
+        var l = (link ?? "").Trim();
+        if (l.Length == 0) return "";
+        if (l.Length > 500 || !Uri.TryCreate(l, UriKind.Absolute, out var u) || u.Scheme is not ("https" or "http"))
+            throw new ArgumentException("Bitte einen gültigen Meeting-Link (https://…) angeben.");
+        return l;
+    }
+
+    /// <summary>
+    /// Termin bearbeiten (Uhrzeit, Anmerkung, Meeting-Link): Administration immer, Lehrkraft mit Recht „Bestehende Termine bearbeiten &amp; absagen“,
+    /// Erziehungsberechtigte nur die Uhrzeit eigener Termine in der 1. und 2. Anmeldephase. Die Betroffenen werden benachrichtigt.
+    /// </summary>
+    public StTermin TerminAendern(Stand? s, Sprechtag t, Benutzer ich, StTermin x, int? abschnitt, string? beginn, string? ende, string? anmerkung, string? link)
+    {
+        var eltern = ich.Rolle == Rollen.Eltern;
+        if (eltern)
+        {
+            if (!ich.SchuelerIds.Contains(x.SchuelerId)) throw new UnauthorizedAccessException("Diesen Termin dürfen Sie nicht ändern.");
+            if (Phase(t) is not (Phase1 or Phase2)) throw new ArgumentException("Termine können nur in der 1. und 2. Anmeldephase geändert werden.");
+            if (x.Status != "bestaetigt") throw new ArgumentException("Nur bestätigte Termine können verschoben werden.");
+        }
+        else Erlaubt(t, ich, x.Lehrer, r => r.TermineBearbeiten, "Das Bearbeiten von Terminen");
+        NichtAbgeschlossen(t);
+        if (!x.Aktiv) throw new ArgumentException("Der Termin ist nicht mehr aktiv.");
+        lock (_sperre)
+        {
+            var a = abschnitt ?? x.Abschnitt;
+            var b = beginn ?? x.Beginn; var e = ende ?? x.Ende;
+            if (eltern) e = Text(Minuten(b) + (Minuten(x.Ende) - Minuten(x.Beginn)));
+            var zeitNeu = a != x.Abschnitt || b != x.Beginn || e != x.Ende;
+            if (zeitNeu)
+            {
+                ZeitPruefen(s, t, x.Lehrer, a, b, e, x.Id);
+                if (eltern && !Frei(s, t, x.Lehrer, a, x.SchuelerId, x.Id).Any(z => z.Von == b))
+                    throw new ArgumentException("Diese Zeit ist nicht mehr frei bzw. nach den Buchungsregeln nicht möglich.");
+            }
+            var linkNeu = eltern ? x.Link : link is null ? x.Link : LinkPruefen(link);
+            var text = eltern ? x.Anmerkung : (anmerkung ?? x.Anmerkung).Trim();
+            _db.Ausfuehren("UPDATE st_termine SET abschnitt = @a, beginn = @b, ende = @e, link = @li, anmerkung = @m WHERE id = @id",
+                Db.P("@a", a), Db.P("@b", b), Db.P("@e", e), Db.P("@li", linkNeu), Db.P("@m", text), Db.P("@id", x.Id));
+            var neu = Termin(x.Id)!;
+            if ((zeitNeu || linkNeu != x.Link) && Sichtbar(t, neu))
+            {
+                var was = zeitNeu ? $"neue Zeit: {ZeitText(t, neu)}" : $"neuer Meeting-Link: {linkNeu}";
+                var an = eltern ? KontenDerLehrkraft(x.Lehrer).Select(k => k.Id) : ElternVon(x.SchuelerId).Select(k => k.Id);
+                Melden(ich, an, "Sprechtag: Termin geändert", $"Ihr Termin am Sprechtag „{t.K.Name}“ bei {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)} wurde geändert – {was}.");
+            }
+            return neu;
+        }
+    }
+
+    /// <summary>Termin absagen bzw. Einladung zurückziehen; die Betroffenen werden benachrichtigt.</summary>
+    public void Absagen(Stand? s, Sprechtag t, Benutzer ich, StTermin x, string? grund)
+    {
+        if (ich.Rolle == Rollen.Eltern)
+        {
+            if (!ich.SchuelerIds.Contains(x.SchuelerId)) throw new UnauthorizedAccessException("Diesen Termin dürfen Sie nicht absagen.");
+            if (x.HatZeit && Zeitpunkt($"{t.K.Abschnitte[x.Abschnitt].Datum}T{x.Beginn}") <= _uhr.Jetzt) throw new ArgumentException("Der Termin hat bereits begonnen.");
+        }
+        else Erlaubt(t, ich, x.Lehrer, x.Status == "einladung" ? null : r => r.TermineBearbeiten, "Das Absagen von Terminen");
+        if (x.Status is "abgesagt" or "abgelehnt") return;
+        AbsageSchreiben(s, t, ich, x, grund);
+    }
+
+    private void AbsageSchreiben(Stand? s, Sprechtag t, Benutzer ich, StTermin x, string? grund)
+    {
+        _db.Ausfuehren("UPDATE st_termine SET status = 'abgesagt', grund = @g WHERE id = @id", Db.P("@g", (grund ?? "").Trim()), Db.P("@id", x.Id));
+        if (!Sichtbar(t, x)) return;
+        var g = string.IsNullOrWhiteSpace(grund) ? "" : $" Grund: {grund.Trim()}";
+        var was = x.Status == "einladung" ? "Die Einladung" : $"Der Termin ({ZeitText(t, x)})";
+        var an = ich.Rolle == Rollen.Eltern ? KontenDerLehrkraft(x.Lehrer).Select(k => k.Id) : ElternVon(x.SchuelerId).Select(k => k.Id);
+        Melden(ich, an, "Sprechtag: Termin abgesagt", $"{was} am Sprechtag „{t.K.Name}“ bei {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)} wurde abgesagt.{g}");
+    }
+
+    // ------------------------------------------------------------------------------------------ Erziehungsberechtigte
+
+    /// <summary>
+    /// Sieht das Elternkonto den Sprechtag? Im Entwurf und in „Verwaltung LK“ nie; in der 1. Anmeldephase und der Pause danach nur mit
+    /// Einladung bzw. Terminanfrage; ab der 2. Anmeldephase alle, bis der Sprechtag abgeschlossen ist.
+    /// </summary>
+    public bool SichtbarFuerEltern(Sprechtag t, Benutzer b)
+    {
+        var p = Phase(t);
+        if (Rang(p) < Rang(Phase1) || p == Abgeschlossen) return false;
+        if (Rang(p) >= Rang(Phase2)) return true;
+        return Termine(t.Id).Any(x => b.SchuelerIds.Contains(x.SchuelerId) && x.Status is "einladung" or "angefragt" or "bestaetigt");
+    }
+
+    /// <summary>Sieht die Familie den Termin bzw. die Einladung (ab der 1. Anmeldephase)?</summary>
+    public bool Sichtbar(Sprechtag t, StTermin x) => Rang(Phase(t)) >= Rang(Phase1);
+
+    /// <summary>
+    /// Buchung durch Erziehungsberechtigte: über eine Einladung (1. Anmeldephase, Pause und 2. Anmeldephase) bzw. frei in der 2. Anmeldephase –
+    /// nur eigene Kinder, nur Lehrkräfte des Kindes, nach den Buchungsregeln. Der Termin ist sofort bestätigt; die Lehrkraft wird benachrichtigt.
+    /// </summary>
+    public StTermin Buchen(Stand? s, Sprechtag t, Benutzer eltern, string lehrer, int abschnitt, string beginn, int schuelerId, int? einladungId)
+    {
+        if (!eltern.SchuelerIds.Contains(schuelerId)) throw new UnauthorizedAccessException("Termine können nur für eigene Kinder gebucht werden.");
+        var p = Phase(t);
+        StTermin? einladung = null;
+        if (einladungId is int eid)
+        {
+            einladung = Termin(eid);
+            if (einladung is null || einladung.SprechtagId != t.Id || einladung.Status != "einladung" || einladung.SchuelerId != schuelerId || !Ci.Equals(einladung.Lehrer, lehrer))
+                throw new ArgumentException("Die Einladung ist nicht mehr gültig.");
+            if (p is not (Phase1 or Phase1Beendet or Phase2)) throw new ArgumentException("Die Anmeldung ist geschlossen.");
+        }
+        else if (p != Phase2)
+            throw new ArgumentException(p is Phase1 or Phase1Beendet ? "Derzeit können Termine nur mit einer Einladung gebucht werden. Die freie Buchung ist ab der 2. Anmeldephase möglich."
+                : "Die Anmeldung ist geschlossen.");
+        if (!LehrkraefteDesKindes(s, Schueler(s, schuelerId)).Any(l => Ci.Equals(l.Kurz, lehrer)) && einladung is null)
+            throw new ArgumentException("Termine sind nur bei Lehrkräften des Kindes möglich.");
+        lock (_sperre)
+        {
+            if (!Frei(s, t, lehrer, abschnitt, schuelerId).Any(z => z.Von == beginn))
+                throw new ArgumentException("Diese Zeit ist nicht mehr frei bzw. nach den Buchungsregeln nicht möglich. Bitte die Ansicht aktualisieren.");
+            var ende = Text(Minuten(beginn) + t.K.Dauer);
+            int id;
+            if (einladung != null)
+            {
+                _db.Ausfuehren("UPDATE st_termine SET abschnitt = @a, beginn = @b, ende = @e, status = 'bestaetigt', benutzer_id = @u WHERE id = @id",
+                    Db.P("@a", abschnitt), Db.P("@b", beginn), Db.P("@e", ende), Db.P("@u", eltern.Id), Db.P("@id", einladung.Id));
+                id = einladung.Id;
+            }
+            else
+                id = (int)_db.Einfuegen("""
+                    INSERT INTO st_termine (sprechtag_id, lehrer, abschnitt, beginn, ende, schueler_id, art, status, erstellt_von, benutzer_id, erstellt)
+                    VALUES (@s, @l, @a, @b, @e, @k, 'termin', 'bestaetigt', @u, @bid, @z)
+                    """, Db.P("@s", t.Id), Db.P("@l", lehrer), Db.P("@a", abschnitt), Db.P("@b", beginn), Db.P("@e", ende), Db.P("@k", schuelerId),
+                    Db.P("@u", eltern.Login), Db.P("@bid", eltern.Id), Db.P("@z", Jetzt()));
+            var x = Termin(id)!;
+            Melden(eltern, KontenDerLehrkraft(lehrer).Select(k => k.Id), "Sprechtag: Termin gebucht",
+                $"Für {Name(s, schuelerId)} wurde am Sprechtag „{t.K.Name}“ ein Termin gebucht: {ZeitText(t, x)}.");
+            return x;
+        }
+    }
+
+    /// <summary>Terminanfrage annehmen bzw. ablehnen (Erziehungsberechtigte, ab der 1. Anmeldephase bis zum Ende der Anmeldung).</summary>
+    public StTermin Beantworten(Stand? s, Sprechtag t, Benutzer eltern, StTermin x, bool annehmen)
+    {
+        if (!eltern.SchuelerIds.Contains(x.SchuelerId)) throw new UnauthorizedAccessException("Diese Anfrage gilt nicht für Ihre Kinder.");
+        if (x.Status != "angefragt") throw new ArgumentException("Die Terminanfrage ist nicht mehr offen.");
+        var p = Phase(t);
+        if (Rang(p) < Rang(Phase1) || Rang(p) >= Rang(Durchfuehrung)) throw new ArgumentException("Die Anfrage kann derzeit nicht beantwortet werden.");
+        _db.Ausfuehren("UPDATE st_termine SET status = @st, benutzer_id = @u WHERE id = @id", Db.P("@st", annehmen ? "bestaetigt" : "abgelehnt"), Db.P("@u", eltern.Id), Db.P("@id", x.Id));
+        Melden(eltern, KontenDerLehrkraft(x.Lehrer).Select(k => k.Id), annehmen ? "Sprechtag: Termin angenommen" : "Sprechtag: Termin abgelehnt",
+            $"Der Termin am Sprechtag „{t.K.Name}“ für {Name(s, x.SchuelerId)} ({ZeitText(t, x)}) wurde {(annehmen ? "angenommen" : "abgelehnt")}.");
+        return Termin(x.Id)!;
+    }
+
+    private static WebSchueler Schueler(Stand? s, int id) =>
+        s?.Schueler.FirstOrDefault(x => x.Id == id) ?? throw new ArgumentException("Unbekannte Schülerin bzw. unbekannter Schüler.");
+
+    // ------------------------------------------------------------------------------------------ Benachrichtigungen
+
+    private string Jetzt() => _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm", Inv);
+
+    public static string ZeitText(Sprechtag t, StTermin x)
+    {
+        if (!x.HatZeit || x.Abschnitt >= t.K.Abschnitte.Count) return "ohne feste Uhrzeit";
+        var d = DateOnly.Parse(t.K.Abschnitte[x.Abschnitt].Datum, Inv);
+        return $"{Plandienst.Wochentage[Plandienst.TagIndex(d)]}, {d:dd.MM.yyyy}, {x.Beginn}–{x.Ende} Uhr";
+    }
+
+    private int Melden(Benutzer absender, IEnumerable<int> konten, string betreff, string text)
+    {
+        var liste = konten.Distinct().Where(k => k != absender.Id).ToList();
+        if (liste.Count == 0) return 0;
+        try { return _mitteilungen.Benachrichtigen(absender, liste, betreff, text); }
+        catch (Exception) { return 0; }
+    }
+
+    private void AnfrageMelden(Stand? s, Sprechtag t, Benutzer absender, StTermin x)
+    {
+        var text = x.Art == "einladung"
+            ? $"{LehrerName(s, x.Lehrer)} lädt Sie zum Sprechtag „{t.K.Name}“ ({DatumText(t)}) zu einem Gespräch über {Name(s, x.SchuelerId)} ein{(x.Verpflichtend ? " (verpflichtend)" : "")}. Bitte buchen Sie unter „Sprechtag“ einen Termin."
+            : $"{LehrerName(s, x.Lehrer)} schlägt Ihnen am Sprechtag „{t.K.Name}“ einen Termin für {Name(s, x.SchuelerId)} vor: {ZeitText(t, x)}. Bitte nehmen Sie ihn unter „Sprechtag“ an oder lehnen Sie ihn ab.";
+        Melden(absender, ElternVon(x.SchuelerId).Select(b => b.Id), x.Art == "einladung" ? "Einladung zum Sprechtag" : "Terminanfrage zum Sprechtag", text);
+        _db.Ausfuehren("UPDATE st_termine SET benachrichtigt = @z WHERE id = @id", Db.P("@z", Jetzt()), Db.P("@id", x.Id));
+    }
+
+    private Benutzer? Systemabsender() => _benutzer.Alle().Where(b => b.IstAdmin && !b.Gesperrt).OrderBy(b => b.Id).FirstOrDefault();
+
+    private bool EinmalMerken(int sprechtagId, string schluessel)
+    {
+        if (_db.Wert("SELECT 1 FROM st_hinweise WHERE sprechtag_id = @s AND schluessel = @k", Db.P("@s", sprechtagId), Db.P("@k", schluessel)) != null) return false;
+        _db.Ausfuehren("INSERT INTO st_hinweise (sprechtag_id, schluessel) VALUES (@s, @k)", Db.P("@s", sprechtagId), Db.P("@k", schluessel));
+        return true;
+    }
+
+    /// <summary>
+    /// Regelmäßige Aufgaben (alle 15 Minuten): Einladungen und Terminanfragen aus „Verwaltung LK“ mit Beginn der 1. Anmeldephase versenden,
+    /// Familien mit ungenutzter Einladung zu Beginn der 2. Anmeldephase erinnern, an fehlende Räume erinnern (Lehrkräfte 28, 21, 14, 7, 2 und 1 Tag
+    /// vor der 1. Anmeldephase, Administration 7, 2 und 1 Tag vorher) und unbeantwortete Terminanfragen beim Abschluss absagen.
+    /// </summary>
+    public int Aufgaben(Stand? s)
+    {
+        var absender = Systemabsender();
+        if (absender is null) return 0;
+        var n = 0;
+        var jetzt = _uhr.Jetzt;
+        foreach (var t in Alle().Where(t => t.IstVeroeffentlicht))
+        {
+            var p = Phase(t);
+            var termine = Termine(t.Id);
+            if (Rang(p) >= Rang(Phase1) && p != Abgeschlossen)
+                foreach (var x in termine.Where(x => x.Benachrichtigt.Length == 0 && x.Status is "einladung" or "angefragt"))
+                { AnfrageMelden(s, t, absender, x); n++; }
+            if (p == Phase2 && EinmalMerken(t.Id, "phase2"))
+                foreach (var x in termine.Where(x => x.Status == "einladung"))
+                {
+                    n += Melden(absender, ElternVon(x.SchuelerId).Select(b => b.Id), "Sprechtag: Anmeldung geöffnet",
+                        $"Die allgemeine Anmeldephase des Sprechtags „{t.K.Name}“ hat begonnen. Sie haben noch eine offene Einladung von {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)}.");
+                }
+            if (p == Verwaltung && !t.K.Online && Zeitpunkt(t.K.Phase1Von) is { } p1)
+            {
+                var tage = (int)Math.Ceiling((p1 - jetzt).TotalDays);
+                var raeume = Raeume(t.Id);
+                var ohne = s?.Lehrer.Keys.Where(l => Enumerable.Range(0, t.K.Abschnitte.Count).Any(a => Raum(raeume, l, a).Length == 0)).ToList() ?? new();
+                if (ohne.Count > 0 && new[] { 28, 21, 14, 7, 2, 1 }.Contains(tage) && EinmalMerken(t.Id, $"raum-lk-{tage}"))
+                    foreach (var l in ohne)
+                        n += Melden(absender, KontenDerLehrkraft(l).Select(b => b.Id), "Sprechtag: Raum fehlt",
+                            $"Für den Sprechtag „{t.K.Name}“ ist Ihnen noch kein Raum zugeordnet. Die 1. Anmeldephase beginnt in {tage} {(tage == 1 ? "Tag" : "Tagen")}.");
+                if (ohne.Count > 0 && new[] { 7, 2, 1 }.Contains(tage) && EinmalMerken(t.Id, $"raum-admin-{tage}"))
+                    n += Melden(absender, _benutzer.Alle().Where(b => !b.Gesperrt && IstVerwaltung(b)).Select(b => b.Id), "Sprechtag: Räume fehlen",
+                        $"Für den Sprechtag „{t.K.Name}“ fehlt noch {ohne.Count} {(ohne.Count == 1 ? "Lehrkraft" : "Lehrkräften")} ein Raum. Die 1. Anmeldephase beginnt in {tage} {(tage == 1 ? "Tag" : "Tagen")}.");
+            }
+            if (p == Abgeschlossen && EinmalMerken(t.Id, "abgeschlossen"))
+                _db.Ausfuehren("UPDATE st_termine SET status = 'abgesagt', grund = 'Nicht beantwortet' WHERE sprechtag_id = @s AND status = 'angefragt'", Db.P("@s", t.Id));
+        }
+        return n;
     }
 }
 
-/// <summary>Hintergrunddienst: Erinnerungen an Sprechtag-Termine (Option „Erinnerung … Stunden vorher“), alle 15 Minuten.</summary>
+/// <summary>Hintergrunddienst: Phasenwechsel des Sprechtags (Benachrichtigungen, Erinnerungen, Abschluss), alle 15 Minuten.</summary>
 public sealed class Sprechtagerinnerung : Microsoft.Extensions.Hosting.BackgroundService
 {
     private readonly Sprechtagdienst _dienst;
@@ -1022,10 +818,10 @@ public sealed class Sprechtagerinnerung : Microsoft.Extensions.Hosting.Backgroun
         {
             try
             {
-                var n = _dienst.ErinnerungenSenden(_paket.Aktuell);
-                if (n > 0) _log.LogInformation("Sprechtag: an {Termine} Termine erinnert", n);
+                var n = _dienst.Aufgaben(_paket.Aktuell);
+                if (n > 0) _log.LogInformation("Sprechtag: {Anzahl} Benachrichtigungen versendet", n);
             }
-            catch (Exception ex) { _log.LogWarning(ex, "Sprechtag: Erinnerung fehlgeschlagen"); }
+            catch (Exception ex) { _log.LogWarning(ex, "Sprechtag: Aufgaben fehlgeschlagen"); }
             try { await Task.Delay(TimeSpan.FromMinutes(15), stop); } catch (OperationCanceledException) { return; }
         }
     }

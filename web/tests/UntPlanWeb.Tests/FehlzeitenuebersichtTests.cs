@@ -149,7 +149,7 @@ public class FehlzeitenuebersichtTests
     }
 
     [Fact]
-    public void Oberflaeche_ohne_Summen_mit_Zeitraum_Details_und_Sprechtag_fuer_Schueler()
+    public void Oberflaeche_ohne_Summen_mit_Zeitraum_und_Details()
     {
         var familie = Datei("js", "ansichten", "familie.js");
         // keine Summen-/Statistik-Box oben („bis“-Datum in der URL, aufklappbare Stunden und „teilweise“ bei
@@ -167,11 +167,6 @@ public class FehlzeitenuebersichtTests
         Assert.DoesNotContain("'nicht entschuldigt' : e(z.status)", ueb);
         Assert.Contains("'Verspätet'", ueb);
         Assert.DoesNotContain(".fm-summe", Datei("css", "app.css"));
-        // Sprechtag: Formular mit „sichtbar für Schüler*innen“ an, Menüpunkt auch für Schüler*innen
-        var st = Datei("js", "ansichten", "sprechtag.js");
-        Assert.Contains("sichtbarSchueler: true, ankuendigen: true", st);
-        Assert.Contains("o.sichtbarSchueler ?? true", st);
-        Assert.Contains("b.rolle === 'eltern' || b.rolle === 'schueler') m.push({ id: 'sprechtag'", Datei("js", "app.js"));
     }
 
     [Fact]

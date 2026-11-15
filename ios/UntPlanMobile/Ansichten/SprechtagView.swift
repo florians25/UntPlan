@@ -1,63 +1,100 @@
 import SwiftUI
 
+// MARK: - Daten und Aktionen
+
+/// Daten eines Sprechtags (GET /sprechtag/{id}) und Aktionen für alle Ansichten des Blatts. Nach jeder Aktion wird neu
+/// geladen, damit Termine, Einladungen und Abwesenheiten überall stimmen.
+@MainActor
+final class SprechtagModell: ObservableObject {
+    let id: Int
+    let api = ApiClient.shared
+
+    @Published var ansicht: SprechtagAnsicht? = nil
+    @Published var fehler: String? = nil
+    /// Kurze Erfolgsmeldung oben im Blatt (z. B. „Termin gebucht.“)
+    @Published var meldung: String? = nil
+    @Published var laedt = false
+    @Published var geladen = false
+    /// Laufende Aktion (Kennung), z. B. „a12“ für eine Terminanfrage
+    @Published var arbeitet: String? = nil
+    weak var zustand: AppZustand?
+
+    init(id: Int) {
+        self.id = id
+    }
+
+    var sprechtag: SprechtagDaten? { ansicht?.sprechtag }
+
+    func laden() async {
+        laedt = true
+        defer { laedt = false }
+        do {
+            ansicht = try await api.sprechtag(id)
+            fehler = nil
+        } catch is CancellationError {
+            // Ansicht geschlossen bzw. neu geladen
+        } catch {
+            if let text = fehlertext(error) { fehler = text }
+        }
+        geladen = true
+    }
+
+    /// Fehlertext wie in der übrigen App (nil = abgemeldet).
+    func fehlertext(_ error: Error) -> String? {
+        if let zustand { return zustand.fehlertext(error) }
+        return error.localizedDescription
+    }
+
+    /// Aktion ausführen und danach neu laden. Die Aktion liefert die Erfolgsmeldung. Ergebnis: nil = erfolgreich, sonst der
+    /// Fehlertext (leer, wenn die Sitzung abgelaufen ist). `fehlerAnzeigen`: Fehler zusätzlich oben im Blatt zeigen
+    /// (Formulare zeigen ihn selbst).
+    @discardableResult
+    func ausfuehren(_ kennung: String, fehlerAnzeigen: Bool = true, _ aktion: (ApiClient) async throws -> String) async -> String? {
+        arbeitet = kennung
+        defer { arbeitet = nil }
+        meldung = nil
+        do {
+            let text = try await aktion(api)
+            meldung = text.isEmpty ? nil : text
+            fehler = nil
+            await laden()
+            return nil
+        } catch is CancellationError {
+            return ""
+        } catch {
+            let text = fehlertext(error) ?? ""
+            if fehlerAnzeigen && !text.isEmpty { fehler = text }
+            return text
+        }
+    }
+}
+
+// MARK: - Sprechtag (Einstieg)
+
 /// Sprechtag (Elternsprechtag) – von der Startseite aus als Blatt (iPhone randlos und 90 % hoch, iPad festes Detailblatt).
-/// Aufbau wie die übrigen Blätter: Kopf mit runden Glasknöpfen (X, ⋮), Titel mittig mit Datum und Zeitraum.
-/// - Lehrkräfte: grauer Segmentschalter (Alle | Gebucht | Frei), darunter die Zeitfenster als gruppierte Liste – Uhrzeit
-///   groß links, Status als farbiger Punkt mit Text, Schüler*in, Klasse und Buchende. Wischen bzw. langes Drücken:
-///   gebuchte Termine absagen (mit Grund, die Eltern werden benachrichtigt), freie Zeiten sperren bzw. wieder freigeben.
-/// - Erziehungsberechtigte: eigene Termine (absagen), je Kind Karten der Lehrkräfte mit den freien Zeiten als Chips –
-///   Antippen bucht nach Rückfrage (nur im Anmeldezeitraum).
-/// - Schüler*innen: dieselbe Familiensicht, nur lesend (falls die Schule den Sprechtag für sie sichtbar macht).
-/// - Angekündigt (freigegeben, Anmeldung beginnt erst später): Hinweis mit Anmeldebeginn, Zeiten nur als Vorschau.
+/// Lädt GET /sprechtag/{id} und verzweigt nach der Rolle:
+/// - Erziehungsberechtigte: Hinweis zur Phase, Terminanfragen und Einladungen (buchen, annehmen, ablehnen), „Meine Termine“
+///   nach Datum (Details mit Absagen und Zeit ändern) und ab der 2. Anmeldephase die freie Buchung je Kind und Lehrkraft.
+/// - Lehrkräfte: „Meine Termine“ je Abschnitt mit Raum, „+“-Menü (Einladung senden, Termin buchen, Abwesenheit eintragen),
+///   Terminen und Abwesenheiten (Antippen bearbeitet) und darunter die Einladungen ohne Uhrzeit.
+/// - Administration: Liste der Lehrkräfte (Suche, Filter Alle | Kein Raum | Keine Termine), Antippen zeigt dieselbe Ansicht
+///   für die gewählte Lehrkraft. Anlegen und Konfiguration bleiben der Weboberfläche vorbehalten.
+/// - Schüler*innen haben keinen Zugriff.
 struct SprechtagView: View {
     let id: Int
     let titel: String
-    /// Karte von der Startseite – Rückfall, falls die Details (noch) nicht geladen werden können (z. B. angekündigter
-    /// Sprechtag ohne eigene Zeiten)
-    var karte: SprechtagKarte? = nil
+    /// Karte von der Startseite – Rückfall, falls die Details nicht geladen werden können
+    var karte: SprechtagKarte?
     @EnvironmentObject var zustand: AppZustand
     @Environment(\.dismiss) private var systemSchliessen
     @Environment(\.blattSchliessen) private var blattSchliessen
-    @State private var lehrkraft: SprechtagLehrkraftDaten? = nil
-    @State private var eltern: SprechtagElternDaten? = nil
-    @State private var fehler: String? = nil
-    @State private var geladen = false
-    @State private var laedt = false
-    @State private var filter: Filter = .alle
-    @State private var absage: Absage? = nil
-    @State private var grund = ""
-    @State private var arbeitet: String? = nil
-    @State private var meldung: String? = nil
-    @State private var buchung: Buchungswahl? = nil
-    @State private var sammel: Sammelaktion? = nil
+    @StateObject private var modell: SprechtagModell
 
-    enum Filter: Hashable {
-        case alle
-        case gebucht
-        case frei
-    }
-
-    /// Abzusagender Termin.
-    struct Absage: Identifiable {
-        let id: Int
-        let text: String
-    }
-
-    /// Freie Zeit einer Lehrkraft, die gebucht werden soll (Erziehungsberechtigte).
-    struct Buchungswahl: Identifiable {
-        let kind: SprechtagKind
-        let lehrkraft: SprechtagKindLehrkraft
-        let fenster: SprechtagFreiesFenster
-
-        var id: String { "\(kind.id)|\(lehrkraft.kurz)|\(fenster.beginn)" }
-    }
-
-    /// Alle freien Zeiten sperren bzw. alle gesperrten freigeben (Lehrkraft, mit Rückfrage).
-    struct Sammelaktion: Identifiable {
-        let beginne: [String]
-        let sperren: Bool
-
-        var id: String { (sperren ? "s" : "f") + beginne.joined(separator: ",") }
+    init(id: Int, titel: String, karte: SprechtagKarte? = nil) {
+        self.id = id
+        self.titel = titel
+        self.karte = karte
+        _modell = StateObject(wrappedValue: SprechtagModell(id: id))
     }
 
     /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt (bzw. zurück).
@@ -65,146 +102,41 @@ struct SprechtagView: View {
         if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
     }
 
-    /// Familiensicht: Erziehungsberechtigte und Schüler*innen (sonst Lehrkraft-Sicht).
-    private var istEltern: Bool {
-        !zustand.istKollegium
+    /// Schüler*innen sehen den Sprechtag nicht.
+    private var nurSchueler: Bool {
+        (zustand.benutzer?.rolle.lowercased() ?? "") == "schueler"
     }
 
-    /// Schüler*innen sehen den Sprechtag nur lesend (keine Buchung, keine Absage).
-    private var nurLesen: Bool {
-        istEltern && (zustand.benutzer?.rolle.lowercased() ?? "") != "eltern"
-    }
-
-    private var info: SprechtagInfo? { istEltern ? eltern?.sprechtag : lehrkraft?.sprechtag }
-
-    /// Änderungen möglich (nicht vorbei, nicht abgesagt; nicht für Schüler*innen).
-    private var aenderbar: Bool {
-        guard let info, !nurLesen else { return false }
-        return !info.abgesagt && info.phase != "vorbei" && info.status != "vorbei"
-    }
-
-    /// Untertitel im Kopf: „Do. 12.11.26 | 15:00 – 19:00“.
-    private var zeitraum: String? {
-        guard let info else { return nil }
-        let tag = info.datum.isEmpty ? info.datumText : Datumsformat.anzeige(info.datum, "EE dd.MM.yy")
-        let zeit = info.zeitenText
-        let text = [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
-        return text.isEmpty ? nil : text
-    }
-
-    /// Untertitel aus der Startkarte, solange keine Details vorliegen.
-    private var kartenZeitraum: String? {
-        guard let karte else { return nil }
-        let tag = karte.datum.isEmpty ? karte.datumText : Datumsformat.anzeige(karte.datum, "EE dd.MM.yy")
-        let zeit = karte.beginn.isEmpty ? "" : (karte.ende.isEmpty ? karte.beginn : "\(karte.beginn) – \(karte.ende)")
-        let text = [tag, zeit].filter { !$0.isEmpty }.joined(separator: " | ")
+    private var untertitel: String? {
+        let text = modell.sprechtag?.datumText ?? karte?.datumText ?? ""
         return text.isEmpty ? nil : text
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() }, laedt: laedt || !geladen) {
-                Blatttitel(titel: info?.titel ?? titel, untertitel: zeitraum ?? kartenZeitraum)
+            Blattkopf(symbol: "xmark", symbolText: "Schließen", aktion: { schliessen() },
+                      laedt: modell.laedt || (!modell.geladen && !nurSchueler)) {
+                Blatttitel(titel: modell.sprechtag?.titel ?? titel, untertitel: untertitel)
             } rechts: {
                 menue
             }
-            if !istEltern, let d = lehrkraft, !d.zeitfenster.isEmpty {
-                segment(d)
-            }
-            List {
-                // Ohne Details, aber mit Startkarte (z. B. angekündigt, keine eigenen Zeiten): die Ankündigung statt des Fehlers
-                if fehler != nil, info == nil, let karte {
-                    kartenUebersicht(karte)
-                } else if let fehler {
-                    Section {
-                        Fehlerhinweis(text: fehler)
-                    }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                }
-                if let meldung {
-                    Section {
-                        Label(meldung, systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.gruen)
-                    }
-                    .listRowBackground(Farben.flaeche)
-                }
-                if let info {
-                    uebersicht(info)
-                }
-                if istEltern {
-                    if let eltern { elternInhalt(eltern) }
-                } else if let lehrkraft {
-                    lehrkraftInhalt(lehrkraft)
-                }
-            }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Farben.grund)
-            .refreshable { await laden() }
+            inhalt
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
-        .background(Farben.blatt.ignoresSafeArea())
+        .background(Farben.grund.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .task { await laden() }
-        .alert("Termin absagen?", isPresented: Binding(get: { absage != nil }, set: { if !$0 { absage = nil } }), presenting: absage) { a in
-            TextField("Grund (optional)", text: $grund)
-            Button("Absagen", role: .destructive) {
-                Task { await absagen(a) }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: { a in
-            Text(istEltern ? "\(a.text)\nDie Lehrkraft wird benachrichtigt." : "\(a.text)\nDie Erziehungsberechtigten werden benachrichtigt.")
-        }
-        .confirmationDialog(buchung.map { "Termin um \($0.fenster.beginn) Uhr buchen?" } ?? "",
-                            isPresented: Binding(get: { buchung != nil }, set: { if !$0 { buchung = nil } }),
-                            titleVisibility: .visible, presenting: buchung) { w in
-            Button("Buchen") {
-                Task { await buchen(w) }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: { w in
-            Text("\(w.lehrkraft.anzeige) · \(w.kind.anzeige) · \(w.fenster.beginn)–\(w.fenster.ende) Uhr"
-                 + (w.fenster.konflikt ? "\nZu dieser Zeit haben Sie bereits einen anderen Termin." : ""))
-        }
-        .confirmationDialog(sammel.map { $0.sperren ? "Alle freien Zeiten sperren?" : "Alle gesperrten Zeiten freigeben?" } ?? "",
-                            isPresented: Binding(get: { sammel != nil }, set: { if !$0 { sammel = nil } }),
-                            titleVisibility: .visible, presenting: sammel) { s in
-            Button(s.sperren ? "\(s.beginne.count) Zeiten sperren" : "\(s.beginne.count) Zeiten freigeben", role: s.sperren ? ButtonRole.destructive : nil) {
-                Task { await sperren(s.beginne, gesperrt: s.sperren) }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: { s in
-            Text(s.sperren ? "Gesperrte Zeiten können nicht gebucht werden." : "Die Zeiten können danach wieder gebucht werden.")
+        .task {
+            modell.zustand = zustand
+            if !nurSchueler && !modell.geladen { await modell.laden() }
         }
     }
-
-    // MARK: - Kopf
 
     private var menue: some View {
         Menu {
             Button {
-                Task { await laden() }
+                Task { await modell.laden() }
             } label: {
                 Label("Aktualisieren", systemImage: "arrow.clockwise")
-            }
-            if !istEltern, aenderbar, let d = lehrkraft {
-                let frei = d.zeitfenster.filter(\.frei).map(\.beginn)
-                let gesperrt = d.zeitfenster.filter(\.gesperrt).map(\.beginn)
-                if !frei.isEmpty {
-                    Button {
-                        sammel = Sammelaktion(beginne: frei, sperren: true)
-                    } label: {
-                        Label("Alle freien Zeiten sperren", systemImage: "lock")
-                    }
-                }
-                if !gesperrt.isEmpty {
-                    Button {
-                        sammel = Sammelaktion(beginne: gesperrt, sperren: false)
-                    } label: {
-                        Label("Alle gesperrten Zeiten freigeben", systemImage: "lock.open")
-                    }
-                }
             }
         } label: {
             Rundknopf(symbol: "ellipsis", gewicht: .medium, groesse: 18, drehung: 90)
@@ -214,579 +146,2167 @@ struct SprechtagView: View {
         .accessibilityLabel("Menü")
     }
 
-    private func segment(_ d: SprechtagLehrkraftDaten) -> some View {
-        let gebucht = d.zeitfenster.filter(\.gebucht).count
-        let frei = d.zeitfenster.filter(\.frei).count
-        return Segmentschalter(auswahl: $filter, [
-            (Filter.alle, "Alle (\(d.zeitfenster.count))"),
-            (Filter.gebucht, "Gebucht (\(gebucht))"),
-            (Filter.frei, "Frei (\(frei))"),
-        ])
-        .padding(.horizontal, 14)
-        .padding(.top, 2)
-        .padding(.bottom, 8)
-        .background(Farben.blatt)
-    }
-
-    // MARK: - Übersicht
-
     @ViewBuilder
-    private func uebersicht(_ info: SprechtagInfo) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Plakette(text: info.phaseText,
-                             farbe: info.abgesagt ? Farben.entfallRand
-                                 : (info.buchbar ? Farben.gruen : (info.angekuendigt ? Farben.akzent : Farben.gedaempft)))
-                    if !istEltern, let l = lehrkraft?.lehrer, !l.abgesagt.isEmpty {
-                        Plakette(text: "Teilnahme abgesagt", farbe: Farben.entfallRand)
-                    }
-                    Spacer(minLength: 4)
-                    if !istEltern, let raum = lehrkraft?.lehrer?.raum, !raum.isEmpty {
-                        Label("Raum \(raum)", systemImage: "door.left.hand.open")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                            .lineLimit(1)
-                    }
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(info.datumText.isEmpty ? Datumsformat.anzeige(info.datum, "EEEE, d. MMMM yyyy") : info.datumText)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                    if !info.zeitenText.isEmpty {
-                        Text("\(info.zeitenText) Uhr" + (info.dauer > 0 ? " · je \(info.dauer) Minuten" : ""))
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    if !info.ort.isEmpty {
-                        Text(info.ort)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    if istEltern && !info.anmeldungBis.isEmpty && info.phase != "vorbei" && !info.abgesagt && !info.angekuendigt {
-                        Text("Anmeldung bis \(Datumsformat.anzeige(info.anmeldungBis, "d.M.yyyy"))")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                }
-                if info.angekuendigt && !info.abgesagt {
-                    Label(info.ankuendigungText, systemImage: "megaphone")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
-                if !istEltern, let d = lehrkraft, !d.zeitfenster.isEmpty {
-                    HStack(spacing: 0) {
-                        kennzahl(d.zeitfenster.filter(\.gebucht).count, "Gebucht", Farben.akzent)
-                        kennzahl(d.zeitfenster.filter(\.frei).count, "Frei", Farben.gruen)
-                        kennzahl(d.zeitfenster.filter(\.gesperrt).count, "Gesperrt", Farben.gedaempft)
-                    }
-                    .padding(.top, 2)
-                }
-                if info.abgesagt {
-                    Label("Der Sprechtag wurde abgesagt." + (info.absageGrund.isEmpty ? "" : " Grund: \(info.absageGrund)"),
-                          systemImage: "xmark.octagon")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.entfallRand)
-                }
-                if !info.hinweis.isEmpty {
-                    Label(info.hinweis, systemImage: "info.circle")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
+    private var inhalt: some View {
+        if nurSchueler {
+            ScrollView {
+                SprechtagInfobanner(titel: "Der Sprechtag steht Erziehungsberechtigten und Lehrkräften zur Verfügung.",
+                                    text: "Termine buchen Ihre Erziehungsberechtigten.")
+                    .padding(16)
             }
-            .padding(.vertical, 6)
-            .listRowBackground(Farben.flaeche)
+        } else if let a = modell.ansicht, a.sprechtag != nil {
+            if a.istEltern {
+                SprechtagElternInhalt(modell: modell)
+            } else if a.istAdmin {
+                SprechtagAdminInhalt(modell: modell)
+            } else {
+                SprechtagLehrkraftInhalt(modell: modell, kurz: a.lehrkraefte.first?.kurz ?? "")
+            }
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    SprechtagMeldungen(modell: modell)
+                    if modell.fehler != nil, let karte {
+                        kartenUebersicht(karte)
+                    }
+                }
+                .padding(16)
+            }
+            .refreshable { await modell.laden() }
         }
     }
 
     /// Ankündigung aus der Startkarte (ohne Details).
     private func kartenUebersicht(_ k: SprechtagKarte) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: 10) {
-                Plakette(text: k.angekuendigt ? "Angekündigt" : (k.buchbar ? "Anmeldung geöffnet" : "Sprechtag"),
-                         farbe: k.buchbar ? Farben.gruen : (k.angekuendigt ? Farben.akzent : Farben.gedaempft))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(k.datumText.isEmpty ? Datumsformat.anzeige(k.datum, "EEEE, d. MMMM yyyy") : k.datumText)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                    if !k.beginn.isEmpty {
-                        Text(k.ende.isEmpty ? "\(k.beginn) Uhr" : "\(k.beginn) – \(k.ende) Uhr")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    if !k.ort.isEmpty {
-                        Text(k.ort)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                }
-                if !k.text.isEmpty {
-                    Label(k.text, systemImage: k.angekuendigt ? "megaphone" : "info.circle")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                } else if k.angekuendigt && !k.anmeldungVonText.isEmpty {
-                    Label("Anmeldung ab \(k.anmeldungVonText)", systemImage: "megaphone")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            if !k.phaseText.isEmpty {
+                SprechtagPille.phase(k.phase, k.phaseText)
             }
-            .padding(.vertical, 6)
-            .listRowBackground(Farben.flaeche)
-        }
-    }
-
-    private func kennzahl(_ zahl: Int, _ text: String, _ farbe: Color) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text("\(zahl)")
-                .font(.system(size: 22, weight: .semibold).monospacedDigit())
+            Text(k.titel)
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Farben.tinte)
-            Statusmarke(text: text, farbe: farbe)
+            if !k.datumText.isEmpty {
+                SprechtagMeta(symbol: "calendar", text: k.datumText)
+            }
+            if !k.text.isEmpty {
+                Text(k.text)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Farben.tinte2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .sprechtagKarte()
+    }
+}
+
+// MARK: - Erziehungsberechtigte
+
+/// Auftrag für das Buchungsblatt: Einladung (mit `einladungId`), freie Buchung oder Zeit eines Termins ändern (`termin`).
+struct SprechtagBuchAuftrag: Hashable {
+    let lehrer: String
+    let titel: String
+    let kindId: Int
+    let kindName: String
+    var einladungId: Int? = nil
+    var termin: SprechtagTermin? = nil
+
+    var id: String { "\(lehrer)|\(kindId)|\(einladungId ?? 0)|\(termin?.id ?? 0)" }
+}
+
+/// Blätter der Eltern-Ansicht.
+enum SprechtagElternBlatt: Identifiable {
+    case buchen(SprechtagBuchAuftrag)
+    case termin(SprechtagTermin)
+
+    var id: String {
+        switch self {
+        case .buchen(let a): return "b" + a.id
+        case .termin(let t): return "t\(t.id)"
+        }
+    }
+}
+
+/// Eltern-Ansicht: Infobanner, Terminanfragen, Meine Termine (nach Datum) und – ab der 2. Anmeldephase – Termin buchen.
+struct SprechtagElternInhalt: View {
+    @ObservedObject var modell: SprechtagModell
+    @EnvironmentObject var zustand: AppZustand
+    @State private var blatt: SprechtagElternBlatt? = nil
+
+    /// Ein Tag in „Meine Termine“.
+    private struct Tag: Identifiable {
+        let id: String
+        let text: String
+        var termine: [SprechtagTermin]
     }
 
-    // MARK: - Lehrkraft
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                SprechtagMeldungen(modell: modell)
+                if let a = modell.ansicht, let t = a.sprechtag {
+                    inhalt(a, t)
+                }
+            }
+            .padding(16)
+            .padding(.bottom, 20)
+            .zentriert(maxBreite: 700)
+        }
+        .refreshable { await modell.laden() }
+        .detailPraesentation(item: $blatt, breit: Geraet.istPad, art: .formular) { b in
+            NavigationStack {
+                switch b {
+                case .buchen(let auftrag):
+                    SprechtagBuchenBlatt(modell: modell, auftrag: auftrag)
+                case .termin(let termin):
+                    SprechtagElternTerminBlatt(modell: modell, termin: termin)
+                }
+            }
+            .environmentObject(zustand)
+        }
+    }
+
+    /// Buchung, Annehmen und Ablehnen sind bis zum Ende der Anmeldung möglich.
+    private func offen(_ t: SprechtagDaten) -> Bool {
+        !["geschlossen", "durchfuehrung", "abgeschlossen"].contains(t.phase)
+    }
 
     @ViewBuilder
-    private func lehrkraftInhalt(_ d: SprechtagLehrkraftDaten) -> some View {
-        let liste: [SprechtagZeitfenster] = {
-            switch filter {
-            case .alle: return d.zeitfenster
-            case .gebucht: return d.zeitfenster.filter(\.gebucht)
-            case .frei: return d.zeitfenster.filter(\.frei)
+    private func inhalt(_ a: SprechtagAnsicht, _ t: SprechtagDaten) -> some View {
+        if !a.hinweis.isEmpty {
+            SprechtagInfobanner(titel: a.hinweis,
+                                text: t.phase == "phase1"
+                                    ? "Derzeit können Termine nur mit einer Einladung gebucht werden. Die freie Buchung ist ab der nächsten Anmeldephase möglich."
+                                    : "")
+        }
+        if !a.einladungen.isEmpty || !a.anfragen.isEmpty {
+            SprechtagGruppentitel(titel: "Terminanfragen")
+            ForEach(a.einladungen) { x in
+                einladungKarte(x, t: t)
             }
-        }()
-        Section {
-            if liste.isEmpty {
-                leer(d.zeitfenster.isEmpty ? "Keine Zeitfenster" : (filter == .gebucht ? "Noch keine Buchungen" : "Keine freien Zeiten"),
-                     symbol: d.zeitfenster.isEmpty ? "calendar.badge.exclamationmark" : (filter == .gebucht ? "person.2.slash" : "clock.badge.xmark"),
-                     text: d.zeitfenster.isEmpty ? "Für diesen Sprechtag sind Ihnen keine Zeiten zugeteilt."
-                         : (filter == .gebucht ? "Sobald Eltern einen Termin buchen, erscheint er hier." : "Alle Zeiten sind gebucht oder gesperrt."))
-            }
-            ForEach(liste) { f in
-                fensterZeile(f)
-                    .listRowBackground(Farben.flaeche)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        fensterAktionen(f)
-                    }
-                    .contextMenu {
-                        fensterAktionen(f)
-                    }
-            }
-        } header: {
-            if !liste.isEmpty { Text("Zeitfenster") }
-        } footer: {
-            if aenderbar && !liste.isEmpty {
-                Text("Nach links wischen oder lange drücken: Termine absagen, freie Zeiten sperren bzw. freigeben.")
+            ForEach(a.anfragen) { x in
+                anfrageKarte(x, t: t)
             }
         }
-    }
-
-    @ViewBuilder
-    private func fensterAktionen(_ f: SprechtagZeitfenster) -> some View {
-        if aenderbar && arbeitet == nil {
-            if let t = f.termin {
-                Button(role: .destructive) {
-                    absageAnfragen(t)
-                } label: {
-                    Label("Absagen", systemImage: "xmark.circle")
-                }
-            } else if f.gesperrt {
-                Button {
-                    Task { await sperren([f.beginn], gesperrt: false) }
-                } label: {
-                    Label("Freigeben", systemImage: "lock.open")
-                }
-                .tint(Farben.gruen)
-            } else {
-                Button {
-                    Task { await sperren([f.beginn], gesperrt: true) }
-                } label: {
-                    Label("Sperren", systemImage: "lock")
-                }
-                .tint(Farben.gedaempft)
+        SprechtagGruppentitel(titel: "Meine Termine", text: "Ihre bestätigten Gesprächstermine.")
+        let tage = gruppiert(a.termine)
+        if tage.isEmpty {
+            SprechtagLeer(text: "Noch keine bestätigten Termine.")
+        }
+        ForEach(tage) { tag in
+            Text(tag.text)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Farben.tinte2)
+                .padding(.top, 4)
+            ForEach(tag.termine) { x in
+                terminKarte(x, t: t)
             }
         }
-    }
-
-    private func fensterZeile(_ f: SprechtagZeitfenster) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            Zeitspalte(beginn: f.beginn, ende: f.ende, aktiv: f.gebucht)
-            VStack(alignment: .leading, spacing: 3) {
-                if let t = f.termin {
-                    Statusmarke(text: "Gebucht", farbe: Farben.akzent)
-                    Text(t.schueler?.anzeige.isEmpty == false ? (t.schueler?.anzeige ?? "") : "Termin")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                        .lineLimit(1)
-                    let zusatz = [t.schueler?.klasse ?? "", t.gebuchtVon.isEmpty ? "" : "gebucht von \(t.gebuchtVon)"].filter { !$0.isEmpty }
-                    if !zusatz.isEmpty {
-                        Text(zusatz.joined(separator: " · "))
-                            .font(.system(size: 13))
-                            .foregroundStyle(Farben.tinte2)
-                            .lineLimit(2)
-                    }
-                    if !t.bemerkung.isEmpty {
-                        Text(t.bemerkung)
-                            .font(.system(size: 13))
-                            .italic()
-                            .foregroundStyle(Farben.tinte2)
-                            .lineLimit(3)
-                    }
-                } else if f.gesperrt {
-                    Statusmarke(text: "Gesperrt", farbe: Farben.gedaempft, symbol: "lock.fill")
-                    Text("Nicht buchbar")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.gedaempft)
-                } else {
-                    Statusmarke(text: "Frei", farbe: Farben.gruen)
-                    Text("Noch nicht gebucht")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.tinte2)
-                }
+        if a.freiBuchbar {
+            SprechtagGruppentitel(titel: "Termin buchen", text: "Wählen Sie eine Lehrkraft Ihres Kindes.")
+            if a.kinder.isEmpty {
+                SprechtagLeer(text: "Für Ihr Konto sind keine Kinder hinterlegt.")
             }
-            Spacer(minLength: 4)
-            if arbeitet == "f\(f.beginn)" || (f.termin.map { arbeitet == "t\($0.id)" } ?? false) {
-                ProgressView()
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-
-    private func absageAnfragen(_ t: SprechtagTermin) {
-        grund = ""
-        let wer = t.schueler?.anzeige ?? ""
-        absage = Absage(id: t.id, text: "\(t.beginn) Uhr" + (wer.isEmpty ? "" : " · \(wer)"))
-    }
-
-    // MARK: - Erziehungsberechtigte
-
-    @ViewBuilder
-    private func elternInhalt(_ d: SprechtagElternDaten) -> some View {
-        Section {
-            if d.termine.isEmpty {
-                leer("Noch keine Termine", symbol: "calendar.badge.plus",
-                     text: d.buchbar && !nurLesen ? "Tippen Sie unten bei einer Lehrkraft auf eine freie Zeit, um einen Termin zu buchen."
-                         : "Gebuchte Termine erscheinen hier.")
-            }
-            ForEach(d.termine.sorted { $0.beginn < $1.beginn }) { t in
-                elternTerminZeile(t)
-                    .listRowBackground(Farben.flaeche)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if aenderbar && arbeitet == nil {
-                            Button(role: .destructive) {
-                                elternAbsageAnfragen(t)
-                            } label: {
-                                Label("Absagen", systemImage: "xmark.circle")
-                            }
-                        }
-                    }
-                    .contextMenu {
-                        if aenderbar {
-                            Button(role: .destructive) {
-                                elternAbsageAnfragen(t)
-                            } label: {
-                                Label("Termin absagen", systemImage: "xmark.circle")
-                            }
-                        }
-                    }
-            }
-        } header: {
-            Text("Meine Termine")
-        } footer: {
-            if nurLesen {
-                Text("Termine buchen Ihre Erziehungsberechtigten.")
-            } else if !d.buchbar && aenderbar {
-                if info?.angekuendigt == true, let von = info?.anmeldungVonText, !von.isEmpty {
-                    Text("Termine können ab \(von) gebucht werden. Die Zeiten unten sind eine Vorschau.")
-                } else if info?.phase == "einladung" || info?.angekuendigt == true {
-                    Text("Termine können erst im Anmeldezeitraum gebucht werden.")
-                } else {
-                    Text("Termine können nur im Anmeldezeitraum gebucht werden.")
-                }
-            } else if aenderbar && !d.termine.isEmpty {
-                Text(d.maxTermine > 0 ? "Nach links wischen oder lange drücken: Termin absagen. Höchstens \(d.maxTermine) Termine je Familie."
-                     : "Nach links wischen oder lange drücken: Termin absagen.")
-            }
-        }
-        if d.kinder.isEmpty {
-            Section {
-                leer(nurLesen ? "Keine Lehrkräfte" : "Keine Kinder", symbol: "person.crop.circle.badge.questionmark",
-                     text: nurLesen ? "Für Ihr Konto sind keine Lehrkräfte für diesen Sprechtag hinterlegt."
-                         : "Für Ihr Konto sind keine Kinder für diesen Sprechtag hinterlegt.")
-            }
-        }
-        ForEach(d.kinder) { kind in
-            Section {
+            ForEach(a.kinder) { kind in
+                Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige) · \(kind.klasse)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Farben.tinte2)
+                    .padding(.top, 4)
                 if kind.lehrkraefte.isEmpty {
-                    leer("Keine Lehrkräfte", symbol: "person.2.slash", text: "Am Sprechtag nehmen keine Lehrkräfte von \(kind.anzeige) teil.")
+                    SprechtagLeer(text: "Keine Lehrkräfte gefunden.")
                 }
                 ForEach(kind.lehrkraefte) { l in
-                    lehrkraftKarte(l, kind: kind, buchbar: d.buchbar && aenderbar)
-                        .listRowBackground(Farben.flaeche)
-                }
-            } header: {
-                HStack(spacing: 8) {
-                    Initialen(name: kind.anzeige, groesse: 22)
-                    Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige) · \(kind.klasse)")
-                }
-            }
-        }
-    }
-
-    private func elternTerminZeile(_ t: SprechtagElternTermin) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            Zeitspalte(beginn: t.beginn, ende: t.ende, aktiv: true)
-            VStack(alignment: .leading, spacing: 3) {
-                Statusmarke(text: "Gebucht", farbe: Farben.akzent)
-                Text(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Farben.tinte)
-                    .lineLimit(1)
-                let zusatz = [t.schueler?.anzeige ?? "", t.online ? "Online" : (t.raum.isEmpty ? "" : "Raum \(t.raum)")].filter { !$0.isEmpty }
-                if !zusatz.isEmpty {
-                    Text(zusatz.joined(separator: " · "))
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.tinte2)
-                        .lineLimit(2)
-                }
-                if !t.bemerkung.isEmpty {
-                    Text(t.bemerkung)
-                        .font(.system(size: 13))
-                        .italic()
-                        .foregroundStyle(Farben.tinte2)
-                        .lineLimit(3)
-                }
-                if t.online, let url = Karte.onlineURL(t.link) {
-                    Link(destination: url) {
-                        Label("Online-Termin öffnen", systemImage: "video")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Farben.akzent)
-                    }
-                }
-            }
-            Spacer(minLength: 4)
-            if arbeitet == "t\(t.id)" {
-                ProgressView()
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-    }
-
-    private func elternAbsageAnfragen(_ t: SprechtagElternTermin) {
-        grund = ""
-        absage = Absage(id: t.id, text: "\(t.beginn) Uhr bei \(t.lehrerName.isEmpty ? t.lehrer : t.lehrerName)")
-    }
-
-    /// Karte einer Lehrkraft: Name, Fächer, Raum; darunter der gebuchte Termin oder die freien Zeiten als Chips.
-    private func lehrkraftKarte(_ l: SprechtagKindLehrkraft, kind: SprechtagKind, buchbar: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .top, spacing: 11) {
-                Initialen(name: l.anzeige, groesse: 34)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(l.anzeige)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Farben.tinte)
-                            .lineLimit(1)
-                        if l.eingeladen {
-                            Plakette(text: l.verpflichtend ? "Verpflichtend" : "Erwünscht", farbe: l.verpflichtend ? Farben.markerRot : Farben.akzent)
+                    Button {
+                        blatt = .buchen(SprechtagBuchAuftrag(lehrer: l.kurz, titel: l.titel, kindId: kind.id, kindName: kind.anzeige))
+                    } label: {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(l.titel)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(Farben.tinte)
+                                if !l.unterzeile.isEmpty {
+                                    Text(l.unterzeile)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(Farben.gedaempft)
+                                        .lineLimit(2)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            SprechtagPfeil()
                         }
+                        .sprechtagKarte()
+                        .contentShape(Rectangle())
                     }
-                    let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "",
-                                 l.online ? "Online" : (l.raum.isEmpty ? "" : "Raum \(l.raum)"), l.dauer > 0 ? "\(l.dauer) Min." : ""]
-                        .filter { !$0.isEmpty }
-                    if !unten.isEmpty {
-                        Text(unten.joined(separator: " · "))
-                            .font(.system(size: 13))
-                            .foregroundStyle(Farben.tinte2)
-                            .lineLimit(2)
-                    }
+                    .buttonStyle(.plain)
+                    .disabled(!offen(t))
                 }
-                Spacer(minLength: 0)
             }
-            if l.eingeladen && !l.einladungText.isEmpty {
-                Text(l.einladungText)
+        }
+    }
+
+    /// Termine nach Datum, Reihenfolge wie vom Server (Datum, Beginn).
+    private func gruppiert(_ liste: [SprechtagTermin]) -> [Tag] {
+        var tage: [Tag] = []
+        for x in liste {
+            let schluessel = x.datum.isEmpty ? x.datumText : x.datum
+            if let i = tage.firstIndex(where: { $0.id == schluessel }) {
+                tage[i].termine.append(x)
+            } else {
+                tage.append(Tag(id: schluessel, text: SprechtagText.tag(x), termine: [x]))
+            }
+        }
+        return tage
+    }
+
+    /// Kopf einer Karte: „(KÜRZEL) Name“, darunter das Kind grau.
+    private func kartenKopf(_ x: SprechtagTermin, pille: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(x.lehrerTitel)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Farben.tinte)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if pille {
+                    SprechtagPille.status(x)
+                }
+            }
+            if !x.schuelerName.isEmpty {
+                Text(x.schuelerName)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Farben.gedaempft)
+            }
+        }
+    }
+
+    private func zusatz(_ x: SprechtagTermin) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if x.verpflichtend {
+                Text("Verpflichtend")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(SprechtagFarben.braun)
+            }
+            if !x.anmerkung.isEmpty {
+                Text(x.anmerkung)
                     .font(.system(size: 13))
                     .foregroundStyle(Farben.tinte2)
-                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let t = l.termin {
-                Statusmarke(text: "Gebucht: \(t.beginn)–\(t.ende) Uhr", farbe: Farben.akzent)
-            } else if l.abgesagt {
-                Statusmarke(text: "Nimmt nicht teil", farbe: Farben.gedaempft)
-            } else if l.zeitfenster.isEmpty || l.ausgebucht {
-                Statusmarke(text: l.ausgebucht ? "Ausgebucht" : "Keine freien Zeiten", farbe: Farben.gedaempft)
-            } else if buchbar {
-                Fliesslayout(abstand: 6) {
-                    ForEach(l.zeitfenster) { f in
-                        Button {
-                            buchung = Buchungswahl(kind: kind, lehrkraft: l, fenster: f)
-                        } label: {
-                            Zeitchip(fenster: f)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(arbeitet != nil)
-                        .accessibilityLabel("\(f.beginn) Uhr buchen" + (f.konflikt ? ", Überschneidung" : ""))
+        }
+    }
+
+    /// Einladung (ohne Uhrzeit): „Termin buchen“ öffnet das Buchungsblatt mit der Einladung.
+    private func einladungKarte(_ x: SprechtagTermin, t: SprechtagDaten) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            kartenKopf(x, pille: false)
+            zusatz(x)
+            if offen(t) {
+                SprechtagKnopf(titel: "Termin buchen") {
+                    blatt = .buchen(SprechtagBuchAuftrag(lehrer: x.lehrer, titel: x.lehrerTitel, kindId: x.schueler?.id ?? 0,
+                                                         kindName: x.schuelerName, einladungId: x.id))
+                }
+            }
+        }
+        .sprechtagKarte()
+    }
+
+    /// Terminanfrage mit fester Uhrzeit: Ablehnen bzw. Annehmen.
+    private func anfrageKarte(_ x: SprechtagTermin, t: SprechtagDaten) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            kartenKopf(x, pille: false)
+            VStack(alignment: .leading, spacing: 3) {
+                let tag = SprechtagText.tag(x)
+                if !tag.isEmpty {
+                    SprechtagMeta(symbol: "calendar", text: tag)
+                }
+                SprechtagMeta(symbol: "clock", text: x.zeitText)
+                SprechtagOrt(termin: x, online: t.online)
+            }
+            zusatz(x)
+            if offen(t) {
+                HStack(spacing: 10) {
+                    SprechtagKnopf(titel: "Ablehnen", stil: .zweit, laedt: modell.arbeitet == "n\(x.id)") {
+                        Task { await beantworten(x, annehmen: false) }
+                    }
+                    SprechtagKnopf(titel: "Annehmen", laedt: modell.arbeitet == "j\(x.id)") {
+                        Task { await beantworten(x, annehmen: true) }
                     }
                 }
-                if l.zeitfenster.contains(where: \.konflikt) {
-                    Label("Überschneidung mit einem Ihrer Termine", systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Farben.orange)
-                }
-            } else {
-                Statusmarke(text: l.zeitfenster.count == 1 ? "1 freie Zeit" : "\(l.zeitfenster.count) freie Zeiten", farbe: Farben.gruen)
+                .disabled(modell.arbeitet != nil)
             }
         }
-        .padding(.vertical, 6)
+        .sprechtagKarte()
     }
 
-    /// Leerer Zustand mit Symbol.
-    private func leer(_ titel: String, symbol: String, text: String) -> some View {
-        ContentUnavailableView {
-            Label(titel, systemImage: symbol)
-        } description: {
-            Text(text)
+    /// Bestätigter Termin: Antippen öffnet die Details (Absagen, Zeit ändern).
+    private func terminKarte(_ x: SprechtagTermin, t: SprechtagDaten) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                kartenKopf(x, pille: true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(x.zeitText)
+                        .font(.system(size: 15, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Farben.tinte)
+                    SprechtagOrt(termin: x, online: t.online)
+                }
+                zusatz(x)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            SprechtagPfeil()
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+        .sprechtagKarte()
+        .contentShape(Rectangle())
+        // Kein Knopf um die Karte, damit der Link zum Online-Meeting antippbar bleibt
+        .onTapGesture { blatt = .termin(x) }
+        .accessibilityAddTraits(.isButton)
     }
 
-    // MARK: - Laden und Aktionen
+    private func beantworten(_ x: SprechtagTermin, annehmen: Bool) async {
+        let sid = modell.id
+        await modell.ausfuehren((annehmen ? "j" : "n") + "\(x.id)") { api in
+            try await api.sprechtagAnfrageBeantworten(sid, termin: x.id, annehmen: annehmen)
+            return annehmen ? "Termin angenommen." : "Termin abgelehnt."
+        }
+    }
+}
 
-    private func laden() async {
+/// Details eines bestätigten Termins (Erziehungsberechtigte): Termin absagen (mit Rückfrage), Zeit ändern.
+struct SprechtagElternTerminBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let termin: SprechtagTermin
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var absagenFragen = false
+    @State private var grund = ""
+    @State private var fehler: String? = nil
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: "Gesprächstermin", untertitel: termin.lehrerTitel, symbol: "xmark", zurueck: { schliessen() }) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(termin.lehrerTitel)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Farben.tinte)
+                        if !termin.schuelerName.isEmpty {
+                            Text(termin.schuelerName)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        let tag = SprechtagText.tag(termin)
+                        if !tag.isEmpty {
+                            SprechtagMeta(symbol: "calendar", text: tag)
+                        }
+                        SprechtagMeta(symbol: "clock", text: termin.zeitText)
+                        if !termin.abschnittName.isEmpty {
+                            SprechtagMeta(symbol: "square.grid.2x2", text: termin.abschnittName)
+                        }
+                        SprechtagOrt(termin: termin, online: modell.sprechtag?.online ?? termin.online)
+                    }
+                    SprechtagPille.status(termin)
+                    if !termin.anmerkung.isEmpty {
+                        Text(termin.anmerkung)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let fehler, !fehler.isEmpty {
+                        Fehlerhinweis(text: fehler)
+                    }
+                    VStack(spacing: 10) {
+                        if modell.ansicht?.aendern == true {
+                            NavigationLink {
+                                SprechtagBuchenBlatt(modell: modell,
+                                                     auftrag: SprechtagBuchAuftrag(lehrer: termin.lehrer, titel: termin.lehrerTitel,
+                                                                                   kindId: termin.schueler?.id ?? 0,
+                                                                                   kindName: termin.schuelerName, termin: termin),
+                                                     wurzel: false, fertig: { schliessen() })
+                            } label: {
+                                SprechtagKnopfBeschriftung(titel: "Zeit ändern", stil: .primaer, breit: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        SprechtagKnopf(titel: "Termin absagen", stil: .gefahr, breit: true, laedt: modell.arbeitet == "x\(termin.id)") {
+                            grund = ""
+                            absagenFragen = true
+                        }
+                        .disabled(modell.arbeitet != nil)
+                    }
+                    .padding(.top, 6)
+                }
+                .padding(16)
+            }
+        }
+        .alert("Termin absagen?", isPresented: $absagenFragen) {
+            TextField("Grund (optional)", text: $grund)
+            Button("Absagen", role: .destructive) {
+                Task { await absagen() }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Der Termin wird abgesagt; die Lehrkraft wird benachrichtigt.")
+        }
+    }
+
+    private func absagen() async {
+        let sid = modell.id
+        let tid = termin.id
+        let g = grund
+        let ergebnis = await modell.ausfuehren("x\(tid)", fehlerAnzeigen: false) { api in
+            try await api.sprechtagTerminAbsagen(sid, termin: tid, grund: g)
+            return "Termin abgesagt."
+        }
+        if let ergebnis {
+            fehler = ergebnis
+        } else {
+            schliessen()
+        }
+    }
+}
+
+/// Freie Zeiten wählen und buchen (Einladung bzw. freie Buchung) oder die Zeit eines Termins ändern: Abschnitt (bei
+/// mehreren), freie Zeiten als Chips, darunter „Termin buchen“ bzw. „Termin ändern“.
+struct SprechtagBuchenBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let auftrag: SprechtagBuchAuftrag
+    /// Wurzel des Blatts (X schließt), sonst Unterseite (Zurück)
+    var wurzel: Bool = true
+    /// Nach dem Buchen (Unterseite: schließt das ganze Blatt)
+    var fertig: (() -> Void)? = nil
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var abschnitt: Int
+    @State private var frei: [SprechtagZeit] = []
+    @State private var wahl: String? = nil
+    @State private var laedt = false
+    @State private var speichert = false
+    @State private var fehler: String? = nil
+
+    init(modell: SprechtagModell, auftrag: SprechtagBuchAuftrag, wurzel: Bool = true, fertig: (() -> Void)? = nil) {
+        _modell = ObservedObject(wrappedValue: modell)
+        self.auftrag = auftrag
+        self.wurzel = wurzel
+        self.fertig = fertig
+        let start = auftrag.termin.map { $0.abschnitt >= 0 ? $0.abschnitt : 0 } ?? (modell.sprechtag?.abschnitte.first?.index ?? 0)
+        _abschnitt = State(initialValue: start)
+    }
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    /// Wurzel: X schließt das Blatt; Unterseite: Zurück (Standard des Rahmens).
+    private var zurueckAktion: (() -> Void)? {
+        guard wurzel else { return nil }
+        return { schliessen() }
+    }
+
+    private var aendern: Bool { auftrag.termin != nil }
+    private var abschnitte: [SprechtagAbschnitt] { modell.sprechtag?.abschnitte ?? [] }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: aendern ? "Termin ändern" : "Termin buchen", untertitel: auftrag.titel,
+                           symbol: wurzel ? "xmark" : "chevron.left", zurueck: zurueckAktion, laedt: laedt) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(auftrag.titel)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Farben.tinte)
+                        if !auftrag.kindName.isEmpty {
+                            Text(auftrag.kindName)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                    }
+                    if abschnitte.count > 1 {
+                        SprechtagFeld(titel: "Abschnitt") {
+                            Picker("Abschnitt", selection: $abschnitt) {
+                                ForEach(abschnitte) { a in
+                                    Text(a.langText).tag(a.index)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .tint(Farben.tinte)
+                        }
+                    } else if let a = abschnitte.first {
+                        HStack(spacing: 14) {
+                            SprechtagMeta(symbol: "calendar", text: [a.wochentag, a.datumText].filter { !$0.isEmpty }.joined(separator: ", "))
+                            SprechtagMeta(symbol: "clock", text: "\(a.von) – \(a.bis) Uhr")
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Freie Zeiten")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Farben.tinte2)
+                        if frei.isEmpty {
+                            Text(laedt ? "Freie Zeiten werden geladen …" : "Keine freien Zeiten in diesem Abschnitt.")
+                                .font(.system(size: 14))
+                                .foregroundStyle(Farben.gedaempft)
+                        } else {
+                            Fliesslayout(abstand: 8) {
+                                ForEach(frei) { z in
+                                    Button {
+                                        wahl = z.von
+                                    } label: {
+                                        SprechtagZeitchip(text: z.von, aktiv: wahl == z.von)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("\(z.von) Uhr")
+                                    .accessibilityAddTraits(wahl == z.von ? .isSelected : [])
+                                }
+                            }
+                        }
+                    }
+                    if let fehler, !fehler.isEmpty {
+                        Fehlerhinweis(text: fehler)
+                    }
+                    SprechtagKnopf(titel: aendern ? "Termin ändern" : "Termin buchen", breit: true, laedt: speichert) {
+                        Task { await buchen() }
+                    }
+                    .disabled(wahl == nil || speichert)
+                    .padding(.top, 4)
+                }
+                .padding(16)
+            }
+        }
+        .task { await freiLaden() }
+        .onChange(of: abschnitt) { _, _ in
+            wahl = nil
+            Task { await freiLaden() }
+        }
+    }
+
+    private func freiLaden() async {
         laedt = true
         defer { laedt = false }
         do {
-            if istEltern {
-                eltern = try await zustand.api.sprechtagEltern(id)
-            } else {
-                lehrkraft = try await zustand.api.sprechtagLehrkraft(id)
-            }
+            frei = try await modell.api.sprechtagFrei(modell.id, lehrer: auftrag.lehrer, abschnitt: abschnitt,
+                                                      schuelerId: auftrag.kindId, ausser: auftrag.termin?.id)
             fehler = nil
+        } catch is CancellationError {
         } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
-        }
-        geladen = true
-    }
-
-    private func absagen(_ a: Absage) async {
-        arbeitet = "t\(a.id)"
-        defer { arbeitet = nil }
-        do {
-            try await zustand.api.sprechtagTerminAbsagen(id, termin: a.id, grund: grund)
-            meldung = "Termin \(a.text) abgesagt."
-            grund = ""
-            await laden()
-        } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
+            frei = []
+            fehler = zustand.fehlertext(error)
         }
     }
 
-    private func sperren(_ beginne: [String], gesperrt: Bool) async {
-        guard !beginne.isEmpty else { return }
-        arbeitet = beginne.count == 1 ? "f\(beginne[0])" : "sammel"
-        defer { arbeitet = nil }
-        do {
-            try await zustand.api.sprechtagSperren(id, beginne: beginne, gesperrt: gesperrt)
-            if beginne.count > 1 {
-                meldung = gesperrt ? "\(beginne.count) Zeiten gesperrt." : "\(beginne.count) Zeiten freigegeben."
+    private func buchen() async {
+        guard let w = wahl else { return }
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let a = abschnitt
+        let l = auftrag.lehrer
+        let k = auftrag.kindId
+        let e = auftrag.einladungId
+        let tid = auftrag.termin?.id
+        let ergebnis = await modell.ausfuehren("buchen", fehlerAnzeigen: false) { api in
+            if let tid {
+                try await api.sprechtagTerminAendern(sid, termin: tid, SprechtagAenderDaten(abschnitt: a, beginn: w))
+                return "Termin auf \(w) Uhr geändert."
             }
-            await laden()
-        } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
+            try await api.sprechtagBuchen(sid, SprechtagBuchDaten(lehrer: l, abschnitt: a, beginn: w, schuelerId: k, einladungId: e))
+            return "Termin um \(w) Uhr gebucht."
+        }
+        if let ergebnis {
+            fehler = ergebnis
+            // Zeit inzwischen vergeben: freie Zeiten neu laden
+            await freiLaden()
+            if !ergebnis.isEmpty { fehler = ergebnis }
+        } else if let fertig {
+            fertig()
+        } else {
+            schliessen()
+        }
+    }
+}
+
+// MARK: - Administration
+
+/// Verwaltung (Administration): Lehrkräfte mit Suche und Filter; Antippen zeigt die Abschnitte der Lehrkraft.
+struct SprechtagAdminInhalt: View {
+    @ObservedObject var modell: SprechtagModell
+    @EnvironmentObject var zustand: AppZustand
+    @State private var suche = ""
+    @State private var filter: Filter = .alle
+
+    enum Filter: Hashable {
+        case alle
+        case keinRaum
+        case keineTermine
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if let a = modell.ansicht, let t = a.sprechtag {
+                VStack(spacing: 0) {
+                    Suchleiste(text: $suche, platzhalter: "Lehrkräfte suchen")
+                    Segmentschalter(auswahl: $filter, filterEintraege(a, t))
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                }
+                .background(Farben.blatt)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SprechtagMeldungen(modell: modell)
+                        kopf(t)
+                        let liste = gefiltert(a)
+                        if liste.isEmpty {
+                            SprechtagLeer(text: "Keine Lehrkräfte gefunden.")
+                        } else {
+                            Zeilengruppe {
+                                ForEach(Array(liste.enumerated()), id: \.element.id) { eintrag in
+                                    NavigationLink {
+                                        SprechtagLehrkraftSeite(modell: modell, kurz: eintrag.element.kurz)
+                                            .environmentObject(zustand)
+                                    } label: {
+                                        zeile(eintrag.element, online: t.online)
+                                    }
+                                    .buttonStyle(ZeilenKnopfStil())
+                                    if eintrag.offset < liste.count - 1 {
+                                        Rectangle()
+                                            .fill(Farben.trennlinie)
+                                            .frame(height: 0.5)
+                                            .padding(.horizontal, 16)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .padding(.bottom, 20)
+                    .zentriert(maxBreite: 700)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .refreshable { await modell.laden() }
+            }
         }
     }
 
-    private func buchen(_ w: Buchungswahl) async {
-        arbeitet = "b\(w.id)"
-        defer { arbeitet = nil }
-        do {
-            try await zustand.api.sprechtagBuchen(id, SprechtagBuchDaten(lehrer: w.lehrkraft.kurz, schuelerId: w.kind.id, beginn: w.fenster.beginn))
-            meldung = "Termin um \(w.fenster.beginn) Uhr bei \(w.lehrkraft.anzeige) gebucht."
-            await laden()
-        } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
+    private func filterEintraege(_ a: SprechtagAnsicht, _ t: SprechtagDaten) -> [(Filter, String)] {
+        var liste: [(Filter, String)] = [(.alle, "Alle (\(a.lehrkraefte.count))")]
+        if !t.online {
+            liste.append((.keinRaum, "Kein Raum (\(a.lehrkraefte.filter(\.keinRaum).count))"))
         }
+        liste.append((.keineTermine, "Keine Termine (\(a.lehrkraefte.filter(\.keineTermine).count))"))
+        return liste
+    }
+
+    private func gefiltert(_ a: SprechtagAnsicht) -> [SprechtagLehrkraft] {
+        let q = suche.trimmingCharacters(in: .whitespaces).lowercased()
+        return a.lehrkraefte.filter { l in
+            let passt = q.isEmpty || "\(l.kurz) \(l.name)".lowercased().contains(q)
+            switch filter {
+            case .alle: return passt
+            case .keinRaum: return passt && l.keinRaum
+            case .keineTermine: return passt && l.keineTermine
+            }
+        }
+    }
+
+    private func kopf(_ t: SprechtagDaten) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Verwaltung")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Farben.tinte)
+                Spacer(minLength: 4)
+                if !t.phaseText.isEmpty {
+                    SprechtagPille.phase(t.phase, t.phaseText)
+                }
+            }
+            Text("Hier verwalten Sie Abwesenheiten, Räume und Termine der Lehrkräfte."
+                 + (t.online ? " Dies ist ein Online-Sprechtag: Meeting-Links werden direkt im jeweiligen Termin hinterlegt."
+                    : " Für Präsenz-Termine muss der jeweiligen Lehrkraft vorab ein Raum zugewiesen sein."))
+                .font(.system(size: 14))
+                .foregroundStyle(Farben.tinte2)
+                .fixedSize(horizontal: false, vertical: true)
+            if t.phase == "entwurf" {
+                SprechtagInfobanner(titel: "Der Sprechtag ist noch nicht veröffentlicht.",
+                                    text: "Konfiguration und Veröffentlichung erfolgen in der Weboberfläche.")
+                    .padding(.top, 4)
+            }
+        }
+    }
+
+    private func zeile(_ l: SprechtagLehrkraft, online: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(l.titel)
+                    .font(.system(size: 16))
+                    .foregroundStyle(Farben.tinte)
+                    .lineLimit(1)
+                if (l.keinRaum && !online) || l.keineTermine {
+                    HStack(spacing: 6) {
+                        if l.keinRaum && !online {
+                            SprechtagPille.grau("Kein Raum")
+                        }
+                        if l.keineTermine {
+                            SprechtagPille.grau("Keine Termine")
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            let anzahl = l.termine.filter(\.hatZeit).count
+            if anzahl > 0 {
+                ZahlPlakette(zahl: anzahl)
+                    .scaleEffect(0.85)
+            }
+            SprechtagPfeil()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: 50)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Abschnitte einer gewählten Lehrkraft (Administration) als Unterseite im selben Blatt.
+struct SprechtagLehrkraftSeite: View {
+    @ObservedObject var modell: SprechtagModell
+    let kurz: String
+
+    var body: some View {
+        DetailSeitenRahmen(titel: modell.ansicht?.lehrkraft(kurz)?.titel ?? kurz, untertitel: modell.sprechtag?.titel, laedt: modell.laedt) {
+            SprechtagLehrkraftInhalt(modell: modell, kurz: kurz, admin: true)
+                .background(Farben.grund)
+        }
+    }
+}
+
+// MARK: - Lehrkraft
+
+/// Blätter der Lehrkraft-Ansicht (je mit dem Kürzel der Lehrkraft).
+enum SprechtagLehrkraftBlatt: Identifiable {
+    case termin(String, SprechtagTermin)
+    case abwesenheit(String, Int, SprechtagAbwesenheit?)
+    case einladung(String)
+    case terminNeu(String, Int)
+
+    var id: String {
+        switch self {
+        case .termin(let l, let t): return "t\(l)|\(t.id)"
+        case .abwesenheit(let l, let i, let a): return "a\(l)|\(i)|\(a?.id ?? 0)"
+        case .einladung(let l): return "e\(l)"
+        case .terminNeu(let l, let i): return "n\(l)|\(i)"
+        }
+    }
+}
+
+/// „Meine Termine“ einer Lehrkraft: je Abschnitt Kopf mit Datum und Zeit, Raum, „+“-Menü und die Termine bzw.
+/// Abwesenheiten nach Uhrzeit; darunter die Einladungen ohne Uhrzeit (zurückziehen).
+struct SprechtagLehrkraftInhalt: View {
+    @ObservedObject var modell: SprechtagModell
+    let kurz: String
+    /// Administration (Ansicht einer gewählten Lehrkraft)
+    var admin: Bool = false
+    @EnvironmentObject var zustand: AppZustand
+    @State private var blatt: SprechtagLehrkraftBlatt? = nil
+    @State private var zurueckziehen: SprechtagTermin? = nil
+
+    /// Termin oder Abwesenheit in einem Abschnitt.
+    private struct Eintrag: Identifiable {
+        let id: String
+        let von: String
+        var termin: SprechtagTermin? = nil
+        var abwesenheit: SprechtagAbwesenheit? = nil
+    }
+
+    /// Räume eines Gebäudes für die Auswahl.
+    private struct Gebaeude: Identifiable {
+        let id: String
+        var raeume: [SprechtagRaum]
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                SprechtagMeldungen(modell: modell)
+                if let a = modell.ansicht, let t = a.sprechtag {
+                    kopf(t)
+                    if let l = a.lehrkraft(kurz) {
+                        if t.abschnitte.isEmpty {
+                            SprechtagLeer(text: "Für diesen Sprechtag sind keine Abschnitte festgelegt.")
+                        }
+                        ForEach(t.abschnitte) { ab in
+                            abschnittKarte(a, t, l, ab)
+                        }
+                        if !l.einladungen.isEmpty {
+                            einladungen(l, t)
+                        }
+                    } else {
+                        SprechtagLeer(text: "Ihrem Konto ist keine Lehrkraft zugeordnet.")
+                    }
+                }
+            }
+            .padding(16)
+            .padding(.bottom, 20)
+            .zentriert(maxBreite: 700)
+        }
+        .refreshable { await modell.laden() }
+        .detailPraesentation(item: $blatt, breit: Geraet.istPad, art: .formular) { b in
+            NavigationStack {
+                switch b {
+                case .termin(let l, let termin):
+                    SprechtagTerminBearbeitenBlatt(modell: modell, lehrer: l, termin: termin, admin: admin)
+                case .abwesenheit(let l, let i, let alt):
+                    SprechtagAbwesenheitBlatt(modell: modell, lehrer: l, abschnitt: i, alt: alt, admin: admin)
+                case .einladung(let l):
+                    SprechtagEinladungBlatt(modell: modell, lehrer: l, admin: admin)
+                case .terminNeu(let l, let i):
+                    SprechtagTerminAnlegenBlatt(modell: modell, lehrer: l, abschnitt: i, admin: admin)
+                }
+            }
+            .environmentObject(zustand)
+        }
+        .confirmationDialog("Einladung zurückziehen?",
+                            isPresented: Binding(get: { zurueckziehen != nil }, set: { if !$0 { zurueckziehen = nil } }),
+                            titleVisibility: .visible, presenting: zurueckziehen) { x in
+            Button("Zurückziehen", role: .destructive) {
+                Task { await einladungZurueckziehen(x) }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: { _ in
+            Text("Die Einladung wird zurückgezogen; die Erziehungsberechtigten werden benachrichtigt, falls sie sie bereits erhalten haben.")
+        }
+    }
+
+    private func kopf(_ t: SprechtagDaten) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(admin ? "Termine und Abwesenheiten" : "Meine Termine")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Farben.tinte)
+                Spacer(minLength: 4)
+                if !t.phaseText.isEmpty {
+                    SprechtagPille.phase(t.phase, t.phaseText)
+                }
+            }
+            Text((admin ? "Termine und Abwesenheiten der Lehrkraft für den Sprechtag." : "Hier sehen Sie Ihre Termine und Abwesenheiten für den Sprechtag.")
+                 + (t.online ? " Dies ist ein Online-Sprechtag. Je nach Berechtigung müssen den Terminen Meeting-Links hinzugefügt werden." : ""))
+                .font(.system(size: 14))
+                .foregroundStyle(Farben.tinte2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Abschnitt
+
+    private func abschnittKarte(_ a: SprechtagAnsicht, _ t: SprechtagDaten, _ l: SprechtagLehrkraft, _ ab: SprechtagAbschnitt) -> some View {
+        let liste = eintraege(l, ab.index)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(ab.name.isEmpty ? "Abschnitt \(ab.index + 1)" : ab.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Farben.tinte)
+                    HStack(spacing: 14) {
+                        SprechtagMeta(symbol: "calendar", text: ab.datumText)
+                        SprechtagMeta(symbol: "clock", text: "\(ab.von) – \(ab.bis) Uhr")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                plusMenue(a, t, l, ab)
+            }
+            raum(a, t, l, ab)
+            if !liste.isEmpty {
+                Rectangle()
+                    .fill(Farben.trennlinie)
+                    .frame(height: 0.5)
+            }
+            ForEach(liste) { e in
+                eintragZeile(e, a: a, t: t, l: l)
+            }
+        }
+        .sprechtagKarte()
+    }
+
+    private func eintraege(_ l: SprechtagLehrkraft, _ abschnitt: Int) -> [Eintrag] {
+        let termine = l.termine.filter { $0.abschnitt == abschnitt && $0.hatZeit }
+            .map { Eintrag(id: "t\($0.id)", von: $0.beginn, termin: $0) }
+        let abwesend = l.abwesenheiten.filter { $0.abschnitt == abschnitt }
+            .map { Eintrag(id: "a\($0.id)", von: $0.beginn, abwesenheit: $0) }
+        return (termine + abwesend).sorted { $0.von < $1.von }
+    }
+
+    @ViewBuilder
+    private func eintragZeile(_ e: Eintrag, a: SprechtagAnsicht, t: SprechtagDaten, l: SprechtagLehrkraft) -> some View {
+        if let x = e.termin {
+            Button {
+                blatt = .termin(l.kurz, x)
+            } label: {
+                zeileInhalt(pille: x.statusAnzeige, zeit: x.zeitText,
+                            name: x.schuelerName.isEmpty ? x.anmerkung : x.schuelerName,
+                            zusatz: [x.schueler?.klasse ?? "", x.verpflichtend ? "verpflichtend" : ""].filter { !$0.isEmpty }.joined(separator: " · "),
+                            pfeil: true)
+            }
+            .buttonStyle(.plain)
+        } else if let x = e.abwesenheit {
+            let darf = a.rechte.abwesenheiten && t.laufend
+            Button {
+                blatt = .abwesenheit(l.kurz, x.abschnitt, x)
+            } label: {
+                zeileInhalt(pille: "Abwesend", zeit: "\(x.beginn) – \(x.ende) Uhr", name: x.anmerkung, zusatz: "", pfeil: darf)
+            }
+            .buttonStyle(.plain)
+            .disabled(!darf)
+        }
+    }
+
+    private func zeileInhalt(pille: String, zeit: String, name: String, zusatz: String, pfeil: Bool) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    SprechtagPille.grau(pille)
+                    Text(zeit)
+                        .font(.system(size: 14, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Farben.tinte)
+                        .lineLimit(1)
+                }
+                if !name.isEmpty {
+                    Text(name)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Farben.tinte)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                if !zusatz.isEmpty {
+                    Text(zusatz)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.gedaempft)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if pfeil {
+                SprechtagPfeil()
+            }
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
+    }
+
+    // MARK: Raum
+
+    @ViewBuilder
+    private func raum(_ a: SprechtagAnsicht, _ t: SprechtagDaten, _ l: SprechtagLehrkraft, _ ab: SprechtagAbschnitt) -> some View {
+        let aktuell = l.raum(ab.index)
+        if t.online {
+            SprechtagMeta(symbol: "video", text: "Online-Sprechtag")
+        } else if a.rechte.raeume && t.laufend {
+            Menu {
+                Button {
+                    Task { await raumSetzen(l, ab.index, "") }
+                } label: {
+                    if aktuell.isEmpty {
+                        Label("Kein Raum", systemImage: "checkmark")
+                    } else {
+                        Text("Kein Raum")
+                    }
+                }
+                ForEach(gebaeude(a.raumListe)) { g in
+                    Section(g.id) {
+                        ForEach(g.raeume) { r in
+                            Button {
+                                Task { await raumSetzen(l, ab.index, r.kurz) }
+                            } label: {
+                                let text = r.name.isEmpty || r.name == r.kurz ? r.kurz : "\(r.kurz) – \(r.name)"
+                                if r.kurz == aktuell {
+                                    Label(text, systemImage: "checkmark")
+                                } else {
+                                    Text(text)
+                                }
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "door.left.hand.open")
+                        .font(.system(size: 13))
+                    Text(aktuell.isEmpty ? "Gebäude | Raum" : aktuell)
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(1)
+                    if modell.arbeitet == "r\(l.kurz)|\(ab.index)" {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                }
+                .foregroundStyle(aktuell.isEmpty ? Farben.gedaempft : Farben.tinte)
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+                .background(Farben.eingabeFeld, in: Capsule())
+            }
+            .tint(Color.primary)
+            .disabled(modell.arbeitet != nil)
+            .accessibilityLabel("Raum für \(ab.name): \(aktuell.isEmpty ? "kein Raum" : aktuell)")
+        } else {
+            SprechtagMeta(symbol: "door.left.hand.open", text: aktuell.isEmpty ? "Kein Raum" : "Raum \(aktuell)")
+        }
+    }
+
+    private func gebaeude(_ raeume: [SprechtagRaum]) -> [Gebaeude] {
+        var liste: [Gebaeude] = []
+        for r in raeume {
+            let name = r.gebaeude.isEmpty ? "Ohne Gebäude" : r.gebaeude
+            if let i = liste.firstIndex(where: { $0.id == name }) {
+                liste[i].raeume.append(r)
+            } else {
+                liste.append(Gebaeude(id: name, raeume: [r]))
+            }
+        }
+        return liste
+    }
+
+    private func raumSetzen(_ l: SprechtagLehrkraft, _ abschnitt: Int, _ raum: String) async {
+        guard raum != l.raum(abschnitt) else { return }
+        let sid = modell.id
+        let lehrer = l.kurz
+        await modell.ausfuehren("r\(lehrer)|\(abschnitt)") { api in
+            try await api.sprechtagRaum(sid, SprechtagRaumDaten(lehrer: lehrer, abschnitt: abschnitt, raum: raum))
+            return raum.isEmpty ? "Raum entfernt." : "Raum \(raum) gespeichert."
+        }
+    }
+
+    // MARK: „+“-Menü
+
+    @ViewBuilder
+    private func plusMenue(_ a: SprechtagAnsicht, _ t: SprechtagDaten, _ l: SprechtagLehrkraft, _ ab: SprechtagAbschnitt) -> some View {
+        let einladen = a.rechte.einladen && !["phase1_beendet", "geschlossen", "durchfuehrung"].contains(t.phase)
+        let buchen = a.rechte.buchen && t.phase != "durchfuehrung"
+        let abwesenheit = a.rechte.abwesenheiten
+        if t.laufend && (einladen || buchen || abwesenheit) {
+            Menu {
+                if einladen {
+                    Button {
+                        blatt = .einladung(l.kurz)
+                    } label: {
+                        Label("Einladung senden", systemImage: "envelope")
+                    }
+                }
+                if buchen {
+                    Button {
+                        blatt = .terminNeu(l.kurz, ab.index)
+                    } label: {
+                        Label("Termin buchen", systemImage: "calendar.badge.plus")
+                    }
+                }
+                if abwesenheit {
+                    Button {
+                        blatt = .abwesenheit(l.kurz, ab.index, nil)
+                    } label: {
+                        Label("Abwesenheit eintragen", systemImage: "clock.badge.xmark")
+                    }
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(width: 34, height: 34)
+                    .background(Farben.akzent, in: Circle())
+                    .contentShape(Circle())
+            }
+            .tint(Color.primary)
+            .accessibilityLabel("Hinzufügen")
+        }
+    }
+
+    // MARK: Einladungen
+
+    private func einladungen(_ l: SprechtagLehrkraft, _ t: SprechtagDaten) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Einladungen")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Farben.tinte)
+            Text("Die Uhrzeit wählen die Erziehungsberechtigten.")
+                .font(.system(size: 13))
+                .foregroundStyle(Farben.gedaempft)
+            ForEach(l.einladungen) { x in
+                HStack(spacing: 10) {
+                    SprechtagPille.grau(x.statusAnzeige)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(x.schuelerName)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.tinte)
+                            .lineLimit(1)
+                        let zusatz = [x.schueler?.klasse ?? "", x.verpflichtend ? "verpflichtend" : ""].filter { !$0.isEmpty }
+                        if !zusatz.isEmpty {
+                            Text(zusatz.joined(separator: " · "))
+                                .font(.system(size: 13))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if t.laufend {
+                        if modell.arbeitet == "z\(x.id)" {
+                            ProgressView()
+                        } else {
+                            Button {
+                                zurueckziehen = x
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Farben.gedaempft)
+                                    .frame(width: 34, height: 34)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(modell.arbeitet != nil)
+                            .accessibilityLabel("Einladung zurückziehen")
+                        }
+                    }
+                }
+            }
+        }
+        .sprechtagKarte()
+    }
+
+    private func einladungZurueckziehen(_ x: SprechtagTermin) async {
+        let sid = modell.id
+        let tid = x.id
+        await modell.ausfuehren("z\(tid)") { api in
+            try await api.sprechtagTerminAbsagen(sid, termin: tid, grund: nil)
+            return "Einladung zurückgezogen."
+        }
+    }
+}
+
+// MARK: - Formulare der Lehrkraft
+
+/// Kopf eines Formulars: Abschnitt mit Datum, Zeit und Raum (bzw. Online).
+private struct SprechtagAbschnittKopf: View {
+    let abschnitt: SprechtagAbschnitt?
+    let raum: String
+    let online: Bool
+
+    var body: some View {
+        if let a = abschnitt {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 14) {
+                    SprechtagMeta(symbol: "calendar", text: [a.wochentag, a.datumText].filter { !$0.isEmpty }.joined(separator: ", "))
+                    SprechtagMeta(symbol: "clock", text: "\(a.von) – \(a.bis) Uhr")
+                }
+                HStack {
+                    Text(a.name)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Farben.tinte)
+                    Spacer(minLength: 8)
+                    Text(online ? "Online" : (raum.isEmpty ? "Kein Raum" : raum))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                }
+                .padding(12)
+                .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+    }
+}
+
+/// Termin bearbeiten (Lehrkraft bzw. Administration): Startzeit aus den freien Zeiten, Link (online), Anmerkung;
+/// „Termin absagen“ nur mit dem Recht „Termine bearbeiten“.
+struct SprechtagTerminBearbeitenBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let lehrer: String
+    let termin: SprechtagTermin
+    var admin: Bool = false
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var beginn: String
+    @State private var link: String
+    @State private var anmerkung: String
+    @State private var frei: [String] = []
+    @State private var laedt = false
+    @State private var speichert = false
+    @State private var fehler: String? = nil
+    @State private var absagenFragen = false
+    @State private var grund = ""
+
+    init(modell: SprechtagModell, lehrer: String, termin: SprechtagTermin, admin: Bool = false) {
+        _modell = ObservedObject(wrappedValue: modell)
+        self.lehrer = lehrer
+        self.termin = termin
+        self.admin = admin
+        _beginn = State(initialValue: termin.beginn)
+        _link = State(initialValue: termin.link)
+        _anmerkung = State(initialValue: termin.anmerkung)
+    }
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    private var online: Bool { modell.sprechtag?.online ?? termin.online }
+
+    /// Bearbeiten erlaubt (Recht, laufender Sprechtag, aktiver Termin).
+    private var darf: Bool {
+        (modell.ansicht?.rechte.bearbeiten ?? false) && (modell.sprechtag?.laufend ?? false)
+            && ["angefragt", "bestaetigt"].contains(termin.status)
+    }
+
+    /// Dauer bleibt beim Verschieben erhalten.
+    private var dauer: Int {
+        max(Sprechtagzeit.minuten(termin.ende) - Sprechtagzeit.minuten(termin.beginn), modell.sprechtag?.dauer ?? 10)
+    }
+
+    private var ende: String { Sprechtagzeit.text(Sprechtagzeit.minuten(beginn) + dauer) }
+
+    private var zeiten: [String] {
+        Array(Set(frei + [termin.beginn])).filter { !$0.isEmpty }.sorted()
+    }
+
+    private var geaendert: Bool {
+        beginn != termin.beginn || anmerkung != termin.anmerkung || (online && link != termin.link)
+    }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: "Termin", untertitel: termin.schuelerName, symbol: "xmark", zurueck: { schliessen() }, laedt: laedt) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    SprechtagAbschnittKopf(abschnitt: modell.sprechtag?.abschnitt(termin.abschnitt), raum: termin.raum, online: online)
+                    HStack(spacing: 8) {
+                        SprechtagPille.status(termin)
+                        Text(termin.schuelerName)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Farben.tinte)
+                        if let k = termin.schueler?.klasse, !k.isEmpty {
+                            Text(k)
+                                .font(.system(size: 14))
+                                .foregroundStyle(Farben.gedaempft)
+                        }
+                    }
+                    if admin {
+                        Text(termin.lehrerTitel)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                    HStack(spacing: 12) {
+                        SprechtagFeld(titel: "Startzeit") {
+                            Picker("Startzeit", selection: $beginn) {
+                                ForEach(zeiten, id: \.self) { z in
+                                    Text(z).tag(z)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .tint(Farben.tinte)
+                            .disabled(!darf)
+                        }
+                        SprechtagFeld(titel: "Endzeit") {
+                            Text(ende)
+                                .font(.system(size: 15).monospacedDigit())
+                                .foregroundStyle(Farben.tinte2)
+                        }
+                    }
+                    if online {
+                        SprechtagFeld(titel: "Meeting-Link") {
+                            TextField("https://…", text: $link)
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 15))
+                                .disabled(!darf)
+                        }
+                        if let url = Karte.onlineURL(link) {
+                            Link(destination: url) {
+                                Label("Online-Meeting öffnen", systemImage: "video")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(Farben.akzent)
+                            }
+                        }
+                    }
+                    SprechtagFeld(titel: "Anmerkung") {
+                        TextField("Anmerkung", text: $anmerkung, axis: .vertical)
+                            .font(.system(size: 15))
+                            .lineLimit(2...8)
+                            .padding(.vertical, 10)
+                            .disabled(!darf)
+                    }
+                    if !termin.grund.isEmpty {
+                        Text("Grund: \(termin.grund)")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Farben.tinte2)
+                    }
+                    if let fehler, !fehler.isEmpty {
+                        Fehlerhinweis(text: fehler)
+                    }
+                    if darf {
+                        VStack(spacing: 10) {
+                            SprechtagKnopf(titel: "Speichern", breit: true, laedt: speichert) {
+                                Task { await sichern() }
+                            }
+                            .disabled(!geaendert || speichert)
+                            SprechtagKnopf(titel: "Termin absagen", stil: .gefahr, breit: true, laedt: modell.arbeitet == "x\(termin.id)") {
+                                grund = ""
+                                absagenFragen = true
+                            }
+                            .disabled(speichert || modell.arbeitet != nil)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(16)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .task {
+            guard darf else { return }
+            laedt = true
+            defer { laedt = false }
+            frei = ((try? await modell.api.sprechtagFrei(modell.id, lehrer: lehrer, abschnitt: termin.abschnitt, ausser: termin.id)) ?? []).map(\.von)
+        }
+        .alert("Termin absagen?", isPresented: $absagenFragen) {
+            TextField("Grund (optional)", text: $grund)
+            Button("Absagen", role: .destructive) {
+                Task { await absagen() }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Der Termin wird abgesagt; die Erziehungsberechtigten werden benachrichtigt.")
+        }
+    }
+
+    private func sichern() async {
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let tid = termin.id
+        let daten = SprechtagAenderDaten(abschnitt: termin.abschnitt, beginn: beginn, ende: ende,
+                                         anmerkung: anmerkung.trimmingCharacters(in: .whitespacesAndNewlines),
+                                         link: online ? link.trimmingCharacters(in: .whitespacesAndNewlines) : nil)
+        let ergebnis = await modell.ausfuehren("s\(tid)", fehlerAnzeigen: false) { api in
+            try await api.sprechtagTerminAendern(sid, termin: tid, daten)
+            return "Termin gespeichert."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
+    }
+
+    private func absagen() async {
+        let sid = modell.id
+        let tid = termin.id
+        let g = grund
+        let ergebnis = await modell.ausfuehren("x\(tid)", fehlerAnzeigen: false) { api in
+            try await api.sprechtagTerminAbsagen(sid, termin: tid, grund: g)
+            return "Termin abgesagt."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
+    }
+}
+
+/// Abwesenheit eintragen bzw. bearbeiten: Start und Ende im Takt der Zeitblöcke, Anmerkung (höchstens 255 Zeichen);
+/// Speichern bzw. Löschen.
+struct SprechtagAbwesenheitBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let lehrer: String
+    let abschnitt: Int
+    let alt: SprechtagAbwesenheit?
+    var admin: Bool = false
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var beginn: String
+    @State private var ende: String
+    @State private var anmerkung: String
+    @State private var speichert = false
+    @State private var fehler: String? = nil
+    @State private var loeschenFragen = false
+
+    private static let maxZeichen = 255
+
+    init(modell: SprechtagModell, lehrer: String, abschnitt: Int, alt: SprechtagAbwesenheit?, admin: Bool = false) {
+        _modell = ObservedObject(wrappedValue: modell)
+        self.lehrer = lehrer
+        self.abschnitt = abschnitt
+        self.alt = alt
+        self.admin = admin
+        let a = modell.sprechtag?.abschnitt(abschnitt)
+        let dauer = modell.sprechtag?.dauer ?? 10
+        let von = a?.von ?? ""
+        let bis = a?.bis ?? ""
+        let vorEnde = von.isEmpty ? "" : Sprechtagzeit.text(min(Sprechtagzeit.minuten(von) + dauer, Sprechtagzeit.minuten(bis)))
+        _beginn = State(initialValue: alt?.beginn ?? von)
+        _ende = State(initialValue: alt?.ende ?? vorEnde)
+        _anmerkung = State(initialValue: alt?.anmerkung ?? "")
+    }
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    private var lehrkraft: SprechtagLehrkraft? { modell.ansicht?.lehrkraft(lehrer) }
+    private var abschnittDaten: SprechtagAbschnitt? { modell.sprechtag?.abschnitt(abschnitt) }
+
+    private var zeiten: [String] {
+        guard let a = abschnittDaten else { return [beginn, ende].filter { !$0.isEmpty } }
+        let raster = Sprechtagzeit.raster(von: a.von, bis: a.bis, dauer: modell.sprechtag?.dauer ?? 10)
+        return Array(Set(raster + [beginn, ende])).filter { !$0.isEmpty }.sorted()
+    }
+
+    private var gueltig: Bool {
+        !beginn.isEmpty && !ende.isEmpty && Sprechtagzeit.minuten(beginn) < Sprechtagzeit.minuten(ende)
+    }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: alt == nil ? "Abwesenheit eintragen" : "Abwesenheit bearbeiten",
+                           untertitel: admin ? lehrkraft?.titel : abschnittDaten?.name, symbol: "xmark", zurueck: { schliessen() }) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Zeitslot als Pause oder Abwesenheit sperren.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                    SprechtagAbschnittKopf(abschnitt: abschnittDaten, raum: lehrkraft?.raum(abschnitt) ?? "",
+                                           online: modell.sprechtag?.online ?? false)
+                    HStack(spacing: 12) {
+                        SprechtagFeld(titel: "Startzeit") {
+                            Picker("Startzeit", selection: $beginn) {
+                                ForEach(zeiten, id: \.self) { z in
+                                    Text(z).tag(z)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .tint(Farben.tinte)
+                        }
+                        SprechtagFeld(titel: "Endzeit") {
+                            Picker("Endzeit", selection: $ende) {
+                                ForEach(zeiten, id: \.self) { z in
+                                    Text(z).tag(z)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .tint(Farben.tinte)
+                        }
+                    }
+                    VStack(alignment: .trailing, spacing: 4) {
+                        SprechtagFeld(titel: "Anmerkungen") {
+                            TextField("Anmerkungen", text: $anmerkung, axis: .vertical)
+                                .font(.system(size: 15))
+                                .lineLimit(3...8)
+                                .padding(.vertical, 10)
+                        }
+                        Text("\(anmerkung.count)/\(Self.maxZeichen)")
+                            .font(.system(size: 12).monospacedDigit())
+                            .foregroundStyle(anmerkung.count >= Self.maxZeichen ? Farben.entfallRand : Farben.gedaempft)
+                    }
+                    Text("Termine der Lehrkraft in diesem Zeitraum werden automatisch abgesagt; die Beteiligten werden benachrichtigt.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.gedaempft)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let fehler, !fehler.isEmpty {
+                        Fehlerhinweis(text: fehler)
+                    }
+                    VStack(spacing: 10) {
+                        SprechtagKnopf(titel: "Abwesenheit speichern", breit: true, laedt: speichert) {
+                            Task { await sichern() }
+                        }
+                        .disabled(!gueltig || speichert)
+                        if alt != nil {
+                            SprechtagKnopf(titel: "Löschen", stil: .gefahr, breit: true) {
+                                loeschenFragen = true
+                            }
+                            .disabled(speichert)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(16)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .onChange(of: anmerkung) { _, neu in
+            if neu.count > Self.maxZeichen { anmerkung = String(neu.prefix(Self.maxZeichen)) }
+        }
+        .confirmationDialog("Abwesenheit löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive) {
+                Task { await loeschen() }
+            }
+            Button("Abbrechen", role: .cancel) {}
+        }
+    }
+
+    private func sichern() async {
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let daten = SprechtagAbwesenheitDaten(id: alt?.id, lehrer: lehrer, abschnitt: abschnitt, beginn: beginn, ende: ende,
+                                              anmerkung: anmerkung.trimmingCharacters(in: .whitespacesAndNewlines))
+        let ergebnis = await modell.ausfuehren("abw", fehlerAnzeigen: false) { api in
+            try await api.sprechtagAbwesenheitSpeichern(sid, daten)
+            return "Abwesenheit gespeichert."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
+    }
+
+    private func loeschen() async {
+        guard let aid = alt?.id else { return }
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let ergebnis = await modell.ausfuehren("abw", fehlerAnzeigen: false) { api in
+            try await api.sprechtagAbwesenheitLoeschen(sid, abwesenheit: aid)
+            return "Abwesenheit gelöscht."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
+    }
+}
+
+/// Einladung senden: Schüler*innen der Lehrkraft wählen (Suche), Nachricht (optional), verpflichtend.
+struct SprechtagEinladungBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let lehrer: String
+    var admin: Bool = false
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var liste: [SprechtagSchuelerWahl] = []
+    @State private var gewaehlt: Set<Int> = []
+    @State private var suche = ""
+    @State private var text = ""
+    @State private var verpflichtend = false
+    @State private var laedt = false
+    @State private var geladen = false
+    @State private var speichert = false
+    @State private var fehler: String? = nil
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    private var gefiltert: [SprechtagSchuelerWahl] {
+        let q = suche.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return liste }
+        return liste.filter { "\($0.anzeige) \($0.klasse)".lowercased().contains(q) }
+    }
+
+    /// Vor der 1. Anmeldephase werden Einladungen erst mit deren Beginn versendet.
+    private var spaeterVersand: Bool {
+        ["entwurf", "verwaltung"].contains(modell.sprechtag?.phase ?? "")
+    }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: "Einladung senden", untertitel: admin ? modell.ansicht?.lehrkraft(lehrer)?.titel : nil,
+                           symbol: "xmark", zurueck: { schliessen() }, laedt: laedt) {
+            VStack(spacing: 0) {
+                Suchleiste(text: $suche, platzhalter: "Schüler*innen suchen")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("Die Erziehungsberechtigten wählen die Uhrzeit selbst; gebuchte Termine sind sofort bestätigt."
+                             + (spaeterVersand ? " Versand an die Erziehungsberechtigten mit Beginn der 1. Anmeldephase." : ""))
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if geladen && liste.isEmpty {
+                            SprechtagLeer(text: "Keine Schüler*innen im Unterricht dieser Lehrkraft.")
+                        } else {
+                            VStack(spacing: 0) {
+                                ForEach(gefiltert) { s in
+                                    schuelerZeile(s)
+                                    Rectangle()
+                                        .fill(Farben.trennlinie)
+                                        .frame(height: 0.5)
+                                        .padding(.leading, 46)
+                                }
+                            }
+                            .background(Farben.eingabeFeld.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        SprechtagFeld(titel: "Nachricht (optional)") {
+                            TextField("Nachricht", text: $text, axis: .vertical)
+                                .font(.system(size: 15))
+                                .lineLimit(3...8)
+                                .padding(.vertical, 10)
+                        }
+                        Toggle(isOn: $verpflichtend) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Verpflichtend")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundStyle(Farben.tinte)
+                                Text("Das Gespräch ist aus Sicht der Lehrkraft verpflichtend.")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(Farben.gedaempft)
+                            }
+                        }
+                        .tint(Farben.akzent)
+                        if let fehler, !fehler.isEmpty {
+                            Fehlerhinweis(text: fehler)
+                        }
+                        SprechtagKnopf(titel: gewaehlt.isEmpty ? "Einladung senden" : "Einladung senden (\(gewaehlt.count))",
+                                       breit: true, laedt: speichert) {
+                            Task { await senden() }
+                        }
+                        .disabled(gewaehlt.isEmpty || speichert)
+                    }
+                    .padding(16)
+                }
+                .scrollDismissesKeyboard(.interactively)
+            }
+        }
+        .onChange(of: text) { _, neu in
+            if neu.count > 1000 { text = String(neu.prefix(1000)) }
+        }
+        .task {
+            guard !geladen else { return }
+            laedt = true
+            defer { laedt = false }
+            do {
+                liste = try await modell.api.sprechtagSchueler(modell.id, lehrer: lehrer)
+                fehler = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                fehler = zustand.fehlertext(error)
+            }
+            geladen = true
+        }
+    }
+
+    private func schuelerZeile(_ s: SprechtagSchuelerWahl) -> some View {
+        let an = gewaehlt.contains(s.id)
+        return Button {
+            if an { gewaehlt.remove(s.id) } else { gewaehlt.insert(s.id) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: s.vorhanden ? "checkmark.circle" : (an ? "checkmark.circle.fill" : "circle"))
+                    .font(.system(size: 20))
+                    .foregroundStyle(s.vorhanden ? Farben.gedaempft : (an ? Farben.akzent : Farben.gedaempft))
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(s.anzeige)
+                        .font(.system(size: 15))
+                        .foregroundStyle(s.vorhanden ? Farben.gedaempft : Farben.tinte)
+                        .lineLimit(1)
+                    Text(s.vorhanden ? "\(s.klasse) · bereits eingeladen" : s.klasse)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.gedaempft)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(s.vorhanden)
+        .accessibilityAddTraits(an ? .isSelected : [])
+    }
+
+    private func senden() async {
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let nachricht = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let daten = SprechtagEinladungDaten(lehrer: lehrer, schuelerIds: Array(gewaehlt).sorted(),
+                                            text: nachricht.isEmpty ? nil : nachricht, verpflichtend: verpflichtend)
+        let ergebnis = await modell.ausfuehren("einladen", fehlerAnzeigen: false) { api in
+            let n = try await api.sprechtagEinladen(sid, daten)
+            return n == 1 ? "1 Einladung angelegt." : "\(n) Einladungen angelegt."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
+    }
+}
+
+/// Termin buchen (Lehrkraft bzw. Administration): verbindlicher Termin mit fester Uhrzeit (z. B. nach telefonischer
+/// Absprache); die Erziehungsberechtigten nehmen ihn an oder lehnen ihn ab.
+struct SprechtagTerminAnlegenBlatt: View {
+    @ObservedObject var modell: SprechtagModell
+    let lehrer: String
+    let abschnitt: Int
+    var admin: Bool = false
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.dismiss) private var systemSchliessen
+    @Environment(\.blattSchliessen) private var blattSchliessen
+    @State private var schueler: [SprechtagSchuelerWahl] = []
+    @State private var frei: [SprechtagZeit] = []
+    @State private var kind = 0
+    @State private var beginn = ""
+    @State private var bloecke = 1
+    @State private var link = ""
+    @State private var anmerkung = ""
+    @State private var verpflichtend = false
+    @State private var laedt = false
+    @State private var geladen = false
+    @State private var speichert = false
+    @State private var fehler: String? = nil
+
+    private func schliessen() {
+        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    }
+
+    private var online: Bool { modell.sprechtag?.online ?? false }
+    private var dauer: Int { modell.sprechtag?.dauer ?? 10 }
+    private var ende: String { beginn.isEmpty ? "" : Sprechtagzeit.text(Sprechtagzeit.minuten(beginn) + bloecke * dauer) }
+    private var gueltig: Bool { kind > 0 && !beginn.isEmpty }
+
+    var body: some View {
+        DetailSeitenRahmen(titel: "Termin buchen", untertitel: admin ? modell.ansicht?.lehrkraft(lehrer)?.titel : nil,
+                           symbol: "xmark", zurueck: { schliessen() }, laedt: laedt) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Verbindlicher Termin mit festem Zeitslot (z. B. nach telefonischer Absprache). Die Erziehungsberechtigten nehmen ihn an oder lehnen ihn ab.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    SprechtagAbschnittKopf(abschnitt: modell.sprechtag?.abschnitt(abschnitt),
+                                           raum: modell.ansicht?.lehrkraft(lehrer)?.raum(abschnitt) ?? "", online: online)
+                    SprechtagFeld(titel: "Schüler*in") {
+                        Picker("Schüler*in", selection: $kind) {
+                            Text("Bitte wählen").tag(0)
+                            ForEach(schueler) { s in
+                                Text(s.klasse.isEmpty ? s.anzeige : "\(s.anzeige) (\(s.klasse))").tag(s.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .tint(Farben.tinte)
+                    }
+                    HStack(spacing: 12) {
+                        SprechtagFeld(titel: "Startzeit") {
+                            if frei.isEmpty {
+                                Text(geladen ? "Keine freie Zeit" : "…")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(Farben.gedaempft)
+                            } else {
+                                Picker("Startzeit", selection: $beginn) {
+                                    ForEach(frei) { z in
+                                        Text(z.von).tag(z.von)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .tint(Farben.tinte)
+                            }
+                        }
+                        SprechtagFeld(titel: "Dauer") {
+                            Picker("Dauer", selection: $bloecke) {
+                                ForEach(1...3, id: \.self) { n in
+                                    Text("\(n * dauer) Minuten").tag(n)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .tint(Farben.tinte)
+                        }
+                    }
+                    if !ende.isEmpty {
+                        SprechtagMeta(symbol: "clock", text: "\(beginn) – \(ende) Uhr")
+                    }
+                    if online {
+                        SprechtagFeld(titel: "Meeting-Link") {
+                            TextField("https://…", text: $link)
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 15))
+                        }
+                    }
+                    SprechtagFeld(titel: "Anmerkung (optional)") {
+                        TextField("Anmerkung", text: $anmerkung, axis: .vertical)
+                            .font(.system(size: 15))
+                            .lineLimit(2...8)
+                            .padding(.vertical, 10)
+                    }
+                    Toggle(isOn: $verpflichtend) {
+                        Text("Verpflichtend")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(Farben.tinte)
+                    }
+                    .tint(Farben.akzent)
+                    if let fehler, !fehler.isEmpty {
+                        Fehlerhinweis(text: fehler)
+                    }
+                    SprechtagKnopf(titel: "Termin buchen", breit: true, laedt: speichert) {
+                        Task { await anlegen() }
+                    }
+                    .disabled(!gueltig || speichert)
+                }
+                .padding(16)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .onChange(of: anmerkung) { _, neu in
+            if neu.count > 1000 { anmerkung = String(neu.prefix(1000)) }
+        }
+        .task {
+            guard !geladen else { return }
+            laedt = true
+            defer { laedt = false }
+            let api = modell.api
+            let sid = modell.id
+            do {
+                async let s = api.sprechtagSchueler(sid, lehrer: lehrer)
+                async let f = api.sprechtagFrei(sid, lehrer: lehrer, abschnitt: abschnitt)
+                let (liste, zeiten) = try await (s, f)
+                schueler = liste
+                frei = zeiten
+                if beginn.isEmpty { beginn = zeiten.first?.von ?? "" }
+                fehler = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                fehler = zustand.fehlertext(error)
+            }
+            geladen = true
+        }
+    }
+
+    private func anlegen() async {
+        speichert = true
+        defer { speichert = false }
+        let sid = modell.id
+        let text = anmerkung.trimmingCharacters(in: .whitespacesAndNewlines)
+        let meeting = link.trimmingCharacters(in: .whitespacesAndNewlines)
+        let daten = SprechtagTerminDaten(lehrer: lehrer, abschnitt: abschnitt, beginn: beginn, ende: ende, schuelerId: kind,
+                                         anmerkung: text.isEmpty ? nil : text, link: online && !meeting.isEmpty ? meeting : nil,
+                                         verpflichtend: verpflichtend)
+        let ergebnis = await modell.ausfuehren("anlegen", fehlerAnzeigen: false) { api in
+            try await api.sprechtagTerminAnlegen(sid, daten)
+            return "Termin angelegt."
+        }
+        if let ergebnis { fehler = ergebnis } else { schliessen() }
     }
 }
 
 // MARK: - Bausteine
 
-/// Uhrzeit groß links in der Zeile, darunter klein das Ende.
-private struct Zeitspalte: View {
-    let beginn: String
-    let ende: String
-    var aktiv: Bool = true
+/// Farben des Sprechtags (Phasen- und Statuspillen, Infobanner) wie in der Weboberfläche, jeweils hell und dunkel.
+enum SprechtagFarben {
+    static let blau = Color(hell: 0x2F5BEA, dunkel: 0x8EA8FF)
+    static let blauFlaeche = Color(hell: 0xE8EFFF, dunkel: 0x1D2747)
+    static let braun = Color(hell: 0xA5481A, dunkel: 0xF3B48C)
+    static let braunFlaeche = Color(hell: 0xFDF2D9, dunkel: 0x3B2A16)
+    static let gruen = Color(hell: 0x16794A, dunkel: 0x74D7A6)
+    static let gruenFlaeche = Color(hell: 0xE2F6EC, dunkel: 0x12392A)
+}
+
+/// Texte für Termine.
+enum SprechtagText {
+    /// „Freitag, 20.11.26“
+    static func tag(_ x: SprechtagTermin) -> String {
+        let kurz = x.datum.isEmpty ? x.datumText : Datumsformat.anzeige(x.datum, "dd.MM.yy")
+        return [x.wochentag, kurz].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// Pille (Phase bzw. Status): kleine Kapsel mit Schrift in der Kennfarbe.
+struct SprechtagPille: View {
+    let text: String
+    let schrift: Color
+    let flaeche: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(beginn)
-                .font(.system(size: 20, weight: .semibold).monospacedDigit())
-                .foregroundStyle(aktiv ? Farben.tinte : Farben.tinte2)
-            if !ende.isEmpty {
-                Text("bis \(ende)")
-                    .font(.system(size: 12).monospacedDigit())
+        Text(text)
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(schrift)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 9)
+            .padding(.vertical, 3)
+            .background(flaeche, in: Capsule())
+    }
+
+    /// Phase: Entwurf blau, Verwaltung LK und Anmeldephasen orange-braun, Durchführung grün, sonst grau.
+    static func phase(_ phase: String, _ text: String) -> SprechtagPille {
+        switch phase {
+        case "entwurf":
+            return SprechtagPille(text: text, schrift: SprechtagFarben.blau, flaeche: SprechtagFarben.blauFlaeche)
+        case "verwaltung", "phase1", "phase1_beendet", "phase2":
+            return SprechtagPille(text: text, schrift: SprechtagFarben.braun, flaeche: SprechtagFarben.braunFlaeche)
+        case "durchfuehrung":
+            return SprechtagPille(text: text, schrift: SprechtagFarben.gruen, flaeche: SprechtagFarben.gruenFlaeche)
+        default:
+            return grau(text)
+        }
+    }
+
+    /// Status eines Termins: bestätigt grün, sonst grau.
+    static func status(_ x: SprechtagTermin) -> SprechtagPille {
+        x.bestaetigt ? SprechtagPille(text: x.statusAnzeige, schrift: SprechtagFarben.gruen, flaeche: SprechtagFarben.gruenFlaeche)
+            : grau(x.statusAnzeige)
+    }
+
+    static func grau(_ text: String) -> SprechtagPille {
+        SprechtagPille(text: text, schrift: Farben.pilleText, flaeche: Farben.pilleFlaeche)
+    }
+}
+
+/// Blaues Infobanner: linker blauer Balken, i-Symbol, Titel fett und optional ein Text.
+struct SprechtagInfobanner: View {
+    let titel: String
+    var text: String = ""
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 18))
+                .foregroundStyle(SprechtagFarben.blau)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(titel)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Farben.tinte)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.tinte2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 12)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .background(SprechtagFarben.blauFlaeche)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(SprechtagFarben.blau)
+                .frame(width: 4)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Überschrift einer Gruppe mit optionalem Untertitel.
+struct SprechtagGruppentitel: View {
+    let titel: String
+    var text: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(titel)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Farben.tinte)
+                .accessibilityAddTraits(.isHeader)
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 14))
                     .foregroundStyle(Farben.gedaempft)
             }
         }
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-        .frame(width: 62, alignment: .leading)
+        .padding(.top, 8)
     }
 }
 
-/// Status als farbiger Punkt (bzw. Symbol) mit Text.
-private struct Statusmarke: View {
+/// Symbol mit Text (Kalender, Uhr, Raum …).
+struct SprechtagMeta: View {
+    let symbol: String
     let text: String
-    let farbe: Color
-    var symbol: String? = nil
 
     var body: some View {
-        HStack(spacing: 5) {
-            if let symbol {
+        if !text.isEmpty {
+            Label {
+                Text(text)
+                    .lineLimit(1)
+            } icon: {
                 Image(systemName: symbol)
-                    .font(.system(size: 9, weight: .semibold))
-            } else {
-                Circle()
-                    .frame(width: 7, height: 7)
+                    .foregroundStyle(Farben.gedaempft)
             }
-            Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(Farben.tinte2)
+        }
+    }
+}
+
+/// Ort eines Termins: Raum bzw. „Unbekannter Raum“; online der Link zum Meeting (bzw. „Online (Link folgt)“).
+struct SprechtagOrt: View {
+    let termin: SprechtagTermin
+    let online: Bool
+
+    var body: some View {
+        if online {
+            if let url = Karte.onlineURL(termin.link) {
+                Link(destination: url) {
+                    Label("Online-Meeting öffnen", systemImage: "video")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Farben.akzent)
+                }
+            } else {
+                SprechtagMeta(symbol: "video", text: "Online (Link folgt)")
+            }
+        } else {
+            SprechtagMeta(symbol: "door.left.hand.open", text: termin.raum.isEmpty ? "Unbekannter Raum" : termin.raum)
+        }
+    }
+}
+
+/// Pfeil rechts in antippbaren Karten.
+struct SprechtagPfeil: View {
+    var body: some View {
+        Image(systemName: "chevron.right")
+            .font(.system(size: 15, weight: .regular))
+            .foregroundStyle(Farben.gedaempft)
+    }
+}
+
+/// Grauer Hinweis für leere Bereiche.
+struct SprechtagLeer: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(Farben.gedaempft)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Fehler bzw. Erfolgsmeldung des Modells oben in der Ansicht.
+struct SprechtagMeldungen: View {
+    @ObservedObject var modell: SprechtagModell
+
+    var body: some View {
+        if modell.fehler != nil || modell.meldung != nil {
+            VStack(spacing: 8) {
+                if let fehler = modell.fehler {
+                    Fehlerhinweis(text: fehler)
+                }
+                if let meldung = modell.meldung {
+                    Label(meldung, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Farben.gruen)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            }
+        }
+    }
+}
+
+/// Eingabefeld mit Beschriftung darüber (graue Fläche).
+struct SprechtagFeld<Inhalt: View>: View {
+    let titel: String
+    let inhalt: Inhalt
+
+    init(titel: String, @ViewBuilder inhalt: () -> Inhalt) {
+        self.titel = titel
+        self.inhalt = inhalt()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(titel)
                 .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Farben.tinte2)
+            inhalt
+                .foregroundStyle(Farben.tinte)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .background(Farben.eingabeFeld, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Beschriftung eines Knopfs: orange (primär), orange umrandet (zweit) bzw. rot umrandet (Gefahr).
+struct SprechtagKnopfBeschriftung: View {
+    enum Stil {
+        case primaer
+        case zweit
+        case gefahr
+    }
+
+    let titel: String
+    var stil: Stil = .primaer
+    var breit: Bool = false
+    var laedt: Bool = false
+
+    private var schrift: Color {
+        switch stil {
+        case .primaer: return Color.white
+        case .zweit: return Farben.akzent
+        case .gefahr: return Farben.entfallRand
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if laedt {
+                ProgressView()
+                    .tint(schrift)
+                    .controlSize(.small)
+            }
+            Text(titel)
+                .font(.system(size: 15, weight: .semibold))
                 .lineLimit(1)
         }
-        .foregroundStyle(farbe)
+        .foregroundStyle(schrift)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: breit ? .infinity : nil)
+        .frame(height: breit ? 46 : 38)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(stil == .primaer ? Farben.akzent : Farben.flaeche)
+        }
+        .overlay {
+            if stil != .primaer {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(schrift.opacity(0.6), lineWidth: 1)
+            }
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
-/// Freie Zeit als Chip (Antippen bucht nach Rückfrage); Überschneidung orange mit Warnzeichen.
-private struct Zeitchip: View {
-    let fenster: SprechtagFreiesFenster
+/// Knopf im Stil der Weboberfläche (siehe `SprechtagKnopfBeschriftung`); gesperrt halb durchsichtig.
+struct SprechtagKnopf: View {
+    let titel: String
+    var stil: SprechtagKnopfBeschriftung.Stil = .primaer
+    var breit: Bool = false
+    var laedt: Bool = false
+    let aktion: () -> Void
+    @Environment(\.isEnabled) private var aktiviert
 
     var body: some View {
-        let farbe = fenster.konflikt ? Farben.orange : Farben.gruen
-        HStack(spacing: 3) {
-            if fenster.konflikt {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
+        Button(action: aktion) {
+            SprechtagKnopfBeschriftung(titel: titel, stil: stil, breit: breit, laedt: laedt)
+        }
+        .buttonStyle(.plain)
+        .opacity(aktiviert || laedt ? 1 : 0.45)
+    }
+}
+
+/// Freie Zeit als Chip; gewählt orange gefüllt.
+struct SprechtagZeitchip: View {
+    let text: String
+    let aktiv: Bool
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 15, weight: .medium).monospacedDigit())
+            .foregroundStyle(aktiv ? Color.white : Farben.tinte)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background(aktiv ? Farben.akzent : Farben.eingabeFeld, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(aktiv ? Color.clear : Farben.linie, lineWidth: 0.5)
             }
-            Text(fenster.beginn)
-                .font(.system(size: 14, weight: .medium).monospacedDigit())
-        }
-        .foregroundStyle(farbe)
-        .padding(.horizontal, 11)
-        .frame(height: 30)
-        .background(farbe.opacity(0.12), in: Capsule())
-        .overlay {
-            Capsule().strokeBorder(farbe.opacity(0.35), lineWidth: 0.5)
-        }
-        .contentShape(Capsule())
+            .contentShape(Capsule())
+    }
+}
+
+extension View {
+    /// Weiße Karte des Sprechtags (abgerundet, volle Breite).
+    func sprechtagKarte() -> some View {
+        padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

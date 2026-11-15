@@ -15,6 +15,16 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ### Klassenbuch – Rechte
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
+### Sprechtag (neu, ersetzt das bisherige Modul)
+- Übersicht „Sprechtage“ mit Karten je Schuljahr (Phase, Datum, Anmeldezeitraum; Löschen, Duplizieren, Bearbeiten) und „Neuer Sprechtag“ mit Auswahl des Schuljahres. Das Info-Symbol am Schuljahr erklärt die acht Phasen: Entwurf → Verwaltung LK → 1. Anmeldephase → 1. Anmeldephase beendet → 2. Anmeldephase → Anmeldung geschlossen → In Durchführung → Abgeschlossen.
+- Konfiguration in drei Schritten, laufend als Entwurf gespeichert: 1. Name, Dauer der Zeitblöcke, Online-Sprechtag; 2. Abschnitte (auch an mehreren Tagen) und die beiden Anmeldephasen (priorisiert/allgemein); 3. Rechte der Lehrkräfte (Räume wählen, Abwesenheiten, Termine bearbeiten & absagen, Termine buchen) und Buchungsregeln (Blöcke bis zur Pause, höchstens Blöcke je Schüler*in und Lehrkraft, gesperrte Blöcke zwischen zwei Terminen). „Veröffentlichen“ prüft alles und benachrichtigt die Lehrkräfte.
+- Verwaltung für die Administration: Lehrkräfte mit Suche und Filtern „Kein Raum“/„Keine Termine“, je Abschnitt Raumwahl (Gebäude | Raum) und „+“ für Einladung senden, Termin buchen, Abwesenheit eintragen. Lehrkräfte sehen „Meine Termine“.
+- Abwesenheiten sagen überschneidende Termine automatisch ab (mit Benachrichtigung). Einladungen ohne Uhrzeit – die Eltern wählen selbst; Terminanfragen mit fester Uhrzeit nehmen sie an oder lehnen sie ab („Terminiert“ → „Versendet“ → „Akzeptiert“).
+- Erziehungsberechtigte: in der 1. Anmeldephase nur mit Einladung, ab der 2. frei bei allen Lehrkräften ihres Kindes; Terminanfragen, „Meine Termine“ nach Datum, Zeit ändern und Absagen. Schüler*innen haben keinen Zugriff mehr.
+- Erinnerungen an fehlende Räume vor der 1. Anmeldephase, Versand der Einladungen zu deren Beginn, Hinweis auf ungenutzte Einladungen zur 2. Phase; unbeantwortete Anfragen werden beim Abschluss abgesagt.
+- Terminpläne als PDF wie bisher: Drucken-Knopf im Kopf – Administration Gesamtplan (mit bzw. ohne freie Zeilen zum spontanen Eintragen) und je Lehrkraft über „+“ → „Terminplan drucken (PDF)“, Lehrkräfte ihr eigener Plan, Erziehungsberechtigte „Meine Termine“ als PDF.
+- Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
+
 ### Web
 - Nach einem Update auf dem Server lädt die Seite beim nächsten Seitenwechsel automatisch neu – ein offener Tab zeigt nie mehr alten Code bzw. alte Stile (z. B. noch automatisches Speichern oder schmale Einstellungsseiten).
 - Notizen und Link zum Online-Unterricht speichern nur über „Speichern“ (kein automatisches Speichern).
@@ -56,6 +66,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Sprechtag neu (wie im Web): Erziehungsberechtigte sehen den Hinweis zur Phase, Terminanfragen (Termin buchen bzw. Annehmen/Ablehnen) und „Meine Termine“ nach Datum mit Raum, Absagen und Zeit ändern; ab der 2. Anmeldephase freie Buchung je Kind. Lehrkräfte: „Meine Termine“ je Abschnitt mit Raumwahl, „+“ für Einladung, Termin und Abwesenheit sowie Bearbeiten. Administration: Lehrkräfte mit Suche und Filtern.
 - Startseite in den Größen der Vorlage: Schulname 26 pt fett, Tageskarte mit 21 pt Rand und mindestens 152 pt Höhe (Wochentag und Monat 13 pt halbfett, Tageszahl 34 pt, Stunden und Uhrzeiten 13 pt, 13 pt Abstand zwischen den Stunden), Liste mit 17-pt-Titeln und größeren Symbolen. Der Punkt „Klassenleitung“ entfällt – die Klassenleitung arbeitet über „Abwesenheiten“.
 - Raum ersetzen/hinzufügen in denselben Größen wie die Raumsuche der Planauswahl: Suchfeld 44 pt, Filter „Abteilung“ als 42-pt-Kapsel mit Pfeil, Raumzeilen mit 44-pt-Scheibe, Kürzel 20 pt und Raumname als graues Badge; auch die Filter bei den Abwesenheiten (Zeitbereich, Status) sind 42 pt hoch.
 - Schülerliste (Anwesenheitskontrolle) wie im Vorlage-Video: nach links wischen setzt „abwesend“ (rot), ein zweites Mal nach links während der laufenden Stunde „verspätet“ (gelbes Uhr-Symbol, „gekommen um …“); daneben „Verspätet“ bzw. „Entschuldigen“ als weitere Wischaktion. Nach rechts wischen setzt wieder „anwesend“.

@@ -421,8 +421,8 @@ function menue() {
     m.push({ id: 'hausaufgaben', nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' });
     m.push({ id: 'pruefungen', nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'pruefung' });
   }
-  // Sprechtag (sprechtag.js): Lehrkräfte, Schulleitung, Administration, Erziehungsberechtigte und Schüler*innen (nur lesen – Ankündigung, eigene Termine)
-  if (k || b.rolle === 'eltern' || b.rolle === 'schueler') m.push({ id: 'sprechtag', nav: 'sprechtag', href: '#/sprechtag', text: 'Sprechtag', icon: 'aktive' });
+  // Sprechtag (sprechtag.js): Lehrkräfte, Schulleitung, Administration und Erziehungsberechtigte (Schüler*innen haben keinen Zugriff)
+  if (k || b.rolle === 'eltern') m.push({ id: 'sprechtag', nav: 'sprechtag', href: '#/sprechtag', text: 'Sprechtag', icon: 'aktive' });
   if (b.admin) {
     m.push({ id: 'stammdaten', text: 'Stammdaten', icon: 'stammdaten', unter: [
       { nav: 'stammdaten-klassen', href: '#/stammdaten/klassen', text: 'Klassen', icon: 'klasse' },
@@ -738,8 +738,7 @@ async function route() {
   let nav = navAus([name, ...teile.slice(1)]);
   // Klassenkonten: frühere Adresse #/klassenbuch zeigt die Hausaufgaben
   if (name === 'klassenbuch' && !sitzung.benutzer.kollegium) { name = 'hausaufgaben'; nav = 'hausaufgaben'; }
-  // Sprechtag für Schüler*innen ohne Menüpunkt (Option „sichtbar für Schüler*innen“; Zugang über die Karten auf Heute/Übersicht, der Server prüft)
-  const erlaubt = name === 'profil' || name === 'neuigkeiten' || (name === 'sprechtag' && sitzung.benutzer.rolle === 'schueler') || allePunkte().some(p => p.nav === nav);
+  const erlaubt = name === 'profil' || name === 'neuigkeiten' || allePunkte().some(p => p.nav === nav);
   if (!ANSICHTEN[name] || !erlaubt) { name = 'heute'; nav = 'heute'; }
   aktiverPunkt = nav;
   // vorherige Ansicht (z. B. Stundenplan → anderer Stundenplan: gewählte Woche beibehalten)
