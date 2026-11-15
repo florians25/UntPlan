@@ -29,6 +29,8 @@ enum Startziel: Hashable {
     case entschuldigungen
     /// Klassenleitung: Übersicht der eigenen Klasse(n) mit den Abwesenheiten
     case klassenleitung
+    /// Klassenleitung: Abwesenheiten der eigenen Klasse(n) direkt (wie in der Vorlage mit Zahl der offenen)
+    case klassenAbwesenheiten
 }
 
 /// Startseite nach Vorlage: großer Schulname, Infokarten, Tageskarte (Datum links, Tagesinhalt rechts),
@@ -46,6 +48,8 @@ struct StartView: View {
     @State private var ferien: Ferienzeit? = nil
     /// Sprechtage für die Startseite (Lehrkräfte bzw. Erziehungsberechtigte)
     @State private var sprechtage: [SprechtagKarte] = []
+    /// Klassenleitung: Zahl der offenen Abwesenheiten (letzte 30 Tage) für den Startpunkt „Abwesenheiten“
+    @State private var offeneAbwesenheiten = 0
     /// Geöffneter Sprechtag (als Blatt wie die Stundendetails)
     @State private var sprechtagWahl: SprechtagWahl? = nil
     @Environment(\.horizontalSizeClass) private var groessenklasse
@@ -107,6 +111,9 @@ struct StartView: View {
                         .environmentObject(zustand)
                 case .klassenleitung:
                     KlassenleitungView()
+                        .environmentObject(zustand)
+                case .klassenAbwesenheiten:
+                    KlassenAbwesenheitenStart()
                         .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
@@ -404,6 +411,7 @@ struct StartView: View {
             liste.append(Listeneintrag(ziel: .abwesenheiten, titel: "Meine Abwesenheiten", symbol: "calendar.badge.exclamationmark", zahl: 0))
             if zustand.entschuldigungsrechte?.klassenleitung == true {
                 liste.append(Listeneintrag(ziel: .klassenleitung, titel: "Klassenleitung", symbol: "person.crop.rectangle", zahl: 0))
+                liste.append(Listeneintrag(ziel: .klassenAbwesenheiten, titel: "Abwesenheiten", symbol: "chair", zahl: offeneAbwesenheiten))
             }
             if zustand.entschuldigungsrechte?.irgendwas == true {
                 liste.append(Listeneintrag(ziel: .entschuldigungen, titel: "Entschuldigungen", symbol: "checkmark.seal", zahl: 0))
@@ -467,7 +475,12 @@ struct StartView: View {
             return try? await api.sprechtagStart()
         }
         async let sprechtagListe = holeSprechtage()
-        await zustand.entschuldigungsrechteLaden(neu: true)
+        let rechte = await zustand.entschuldigungsrechteLaden(neu: true)
+        if rechte.klassenleitung {
+            let offen = try? await api.entschuldigungsAbwesenheiten(von: Datumsformat.iso(Datumsformat.tage(-30, nach: Date())),
+                                                                    bis: Datumsformat.iso(Date()), klasse: nil, status: "offen")
+            offeneAbwesenheiten = offen?.count ?? 0
+        }
         do {
             let neu = try await api.heute()
             heute = neu
@@ -688,6 +701,7 @@ struct StartlisteView: View {
         case .sprechtag: return "Sprechtag"
         case .entschuldigungen: return "Entschuldigungen"
         case .klassenleitung: return "Klassenleitung"
+        case .klassenAbwesenheiten: return "Abwesenheiten"
         }
     }
 
@@ -700,7 +714,7 @@ struct StartlisteView: View {
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
-                case .sprechtag, .entschuldigungen, .klassenleitung: EmptyView()
+                case .sprechtag, .entschuldigungen, .klassenleitung, .klassenAbwesenheiten: EmptyView()
                 }
             }
         }
