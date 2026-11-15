@@ -204,6 +204,10 @@ export function karteDialog(karte, kontext = {}) {
   }
 
   function kopf() {
+    // Raum ersetzen/hinzufügen wie in der Vorlage: die Raumwahl füllt das ganze Fenster – eigener Kopf „HN011 ersetzen“ mit X
+    // (zurück zu den Details), ohne Stundenkopf und Reiter
+    if (reiter === 'raum') return `<div class="sd-kopf rv-kopf"><h2>${e(raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen')}</h2>
+      <button type="button" class="rv-x" data-abbrechen title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>`;
     // „Klassen | Gruppe | Fach“ – Klassen und Gruppe verlinkt („Im Stundenplan anzeigen“)
     // Mitklassen (gekoppelte Parallelklassen) mit anzeigen; fehlende Mitklasse nur durchgestrichen (ohne Label). Ebenso eine abwesende
     // Klasse, wenn die Stunde für die übrigen Klassen weiterläuft (abwesendeKlassen) – im Plan der Klasse selbst wie überall sonst.
@@ -1104,12 +1108,13 @@ export function karteDialog(karte, kontext = {}) {
     const aktuell = kuerzel(k.raeume.filter(w => w.k));
     raeume = raeume.filter(r => (r.buchbar || r.eigen) && r.frei && !aktuell.includes(r.kurz))
       .sort((x, y) => x.kurz.localeCompare(y.kurz, 'de', { numeric: true }));
+    // ohne gepflegte Abteilungen: Abteilung aus dem Kürzel (Buchstaben am Anfang, z. B. „HN“ aus „HN011“) – wie in der übrigen Raumliste
+    if (!raeume.some(r => r.abteilung)) raeume = raeume.map(r => ({ ...r, abteilung: (r.kurz.match(/^[A-Za-zÄÖÜäöü]+/)?.[0] ?? '').toUpperCase() }));
     const f = raumModus.filter ??= {};
     f.suche ??= ''; f.gebaeude ??= ''; f.abteilung ??= '';
     const werte = n => [...new Set(raeume.map(r => r[n]).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de', { numeric: true }));
     const chip = (n, titel) => {
-      const liste = werte(n);
-      if (!liste.length && !f[n]) return '';
+      const liste = werte(n);   // Filter immer sichtbar (wie in der Vorlage), auch ohne Auswahlmöglichkeiten
       return `<span class="rv-chipbox"><button type="button" class="rv-chip ${f[n] ? 'an' : ''}" data-rv-chip="${n}" aria-haspopup="listbox" aria-expanded="false">${e(f[n] || titel)}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>
         <span class="rv-menue d-none" data-rv-menue="${n}" role="listbox"><button type="button" class="rv-menue-kopf" data-rv-wert="" data-rv-n="${n}">${e(f[n] || titel)}<i class="bi bi-chevron-up" aria-hidden="true"></i></button>
           <button type="button" data-rv-wert="" data-rv-n="${n}">${e(titel)}</button>${liste.map(w => `<button type="button" class="${w === f[n] ? 'an' : ''}" data-rv-wert="${e(w)}" data-rv-n="${n}">${e(w)}</button>`).join('')}</span></span>`;

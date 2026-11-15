@@ -16,6 +16,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Nach einem Update auf dem Server lädt die Seite beim nächsten Seitenwechsel automatisch neu – ein offener Tab zeigt nie mehr alten Code bzw. alte Stile (z. B. noch automatisches Speichern oder schmale Einstellungsseiten).
+- Notizen und Link zum Online-Unterricht speichern nur über „Speichern“ (kein automatisches Speichern).
+- Raum ersetzen/hinzufügen füllt das ganze Detailfenster wie in der Vorlage: eigener Kopf „HN011 ersetzen“ mit X (ohne Stundenkopf und Reiter); die Filter „Gebäude“ und „Abteilung“ sind immer da (Abteilung ohne gepflegte Angaben aus dem Kürzel abgeleitet).
 - Verlegungen: der Raum der Zielstunde ist der Soll-Raum – kein Raum-Label mehr gegenüber dem Raum der Ursprungsstunde (in Web, App und Vertretungsplan); nur eine spätere Raumänderung der Zielstunde erscheint als Raumänderung.
 - Stundendetails → Details: Notizen und Link zum Online-Unterricht wieder mit „Abbrechen“ und „Speichern“ in einem kleinen Kasten rechts unter dem Feld (wie in der Vorlage); Esc verwirft, beim Link speichert auch Enter.
 - Stundendetails → Details: die Räume der Stunde stehen immer da (auch bei vergangenen Stunden); Ersetzen, Löschen und „+“ wie bisher nur, wo eine Raumänderung erlaubt ist.

@@ -236,6 +236,13 @@ input.sd-eingabe { min-height: 56px; }
 .sd-rumpf .sd-eingabe, .sd-rumpf .sd-eingabe:focus { background-color: #fff; color: var(--u-text); }
 .sd-rumpf .sd-eingabe:focus { border-color: var(--u-akzent); box-shadow: none; outline: 0; }
 
+/* Raumwahl füllt das ganze Detailfenster: Kopf „HN011 ersetzen“ (groß, hell, bündig mit der Liste) und X oben rechts */
+.sd-kopf.rv-kopf { position: relative; display: block; padding: 28px 120px 12px 166px; border-bottom: 0; background: #fff; }
+@media (max-width: 991.98px) { .sd-kopf.rv-kopf { padding: 18px 64px 8px 16px; } }
+.rv-kopf h2 { max-width: 920px; margin: 0; font-size: 1.6rem; font-weight: 400; color: #5d6b75; letter-spacing: .01em; }
+.rv-x { position: absolute; top: 24px; right: 28px; display: inline-grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: #8a96a1; font-size: 1.25rem; cursor: pointer; }
+.rv-x:hover { background: var(--u-hover); color: var(--u-titel); }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
