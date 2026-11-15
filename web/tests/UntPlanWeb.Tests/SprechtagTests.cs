@@ -198,6 +198,29 @@ public class SprechtagTests
     }
 
     [Fact]
+    public async Task Optionen_Abwesenheitseingabe_und_parallele_Termine()
+    {
+        await using var s = await Testserver.StartenAsync();
+        s.Dienst<Uhr>().Fest = new DateTime(2026, 10, 12, 9, 0, 0);
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var kind = stand.Schueler.First(x => x.Klasse == "7a");
+        var admin = await s.AlsAsync("admin");
+        var lan = await s.AlsAsync("lan", "lehrer", "LAN");
+        var (eltern, _) = await ElternAsync(s, admin, "eltern-p", kind.Id);
+        var daten = System.Text.Json.Nodes.JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(Daten()))!.AsObject();
+        daten["optionen"] = new System.Text.Json.Nodes.JsonObject { ["abwesenheitLehrkraft"] = false, ["paralleleTermine"] = true };
+        var id = (await Testserver.JsonAsync(await admin.PostAsJsonAsync("/api/app/sprechtag", daten)))["id"]!.GetValue<int>();
+        string Url(string pfad = "") => $"/api/app/sprechtag/{id}{pfad}";
+        // Lehrkraft darf nicht sperren, die Administration schon
+        Assert.False((await Testserver.HolenAsync(lan, Url("/lehrkraft")))["sperrenErlaubt"]!.GetValue<bool>());
+        await FehlerAsync(await lan.PutAsJsonAsync(Url("/sperren"), new { beginne = new[] { "15:00" }, gesperrt = true }), HttpStatusCode.Forbidden);
+        await Testserver.JsonAsync(await admin.PutAsJsonAsync(Url("/sperren"), new { lehrer = "LAN", beginne = new[] { "15:00" }, gesperrt = true }));
+        // parallele Termine: zwei Lehrkräfte zur selben Zeit
+        await Testserver.JsonAsync(await eltern.PostAsJsonAsync(Url("/buchen"), new { lehrer = "LAN", schuelerId = kind.Id, beginn = "15:10" }));
+        await Testserver.JsonAsync(await eltern.PostAsJsonAsync(Url("/buchen"), new { lehrer = "FIS", schuelerId = kind.Id, beginn = "15:10" }));
+    }
+
+    [Fact]
     public async Task Verpflichtende_Einladung_mit_Prioritaet()
     {
         await using var s = await Testserver.StartenAsync();
