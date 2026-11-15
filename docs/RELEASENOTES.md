@@ -14,6 +14,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Seitenleiste: Menüpunkte wie in der Vorlage – Text grau (#67747e) statt dunkel, Symbole etwas kleiner, Text 2 px weiter links, aktiver Punkt im Orange der Vorlage (#fe6033).
 - Startseite „Heute“: Schriftgrößen und Farben wie in der Vorlage nachgemessen – Titel etwas kleiner, Datum hellgrau (#999), Anmeldung/Planaktualisierung und Nachrichten in 12 px dunkelgrau (#333), Kartenüberschriften etwas kleiner.
 - Raumbuchung: bucht eine Lehrkraft für ihre Stunde einen anderen Raum, wird der ursprüngliche Raum in dieser Stunde frei und steht in der Buchung (Raumsuche, Belegung, freie Räume, Prüfungen) sofort wieder zur Verfügung.
 - Durchgestrichene Labels (z. B. abwesende Lehrkraft, entfernter Raum) wie in der Vorlage: Linie genau mittig durch die Kürzel im Label.
