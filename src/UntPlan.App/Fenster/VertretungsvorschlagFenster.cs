@@ -1192,11 +1192,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         raumUebernehmen = false;
         var optionen = new[] { "Lehrer nicht verplanen", "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)", "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)" };
-        // Selbsttest: wie die übrigen Auswahlfragen über den Antwort-Haken (Vorgabe „Betreuung“, Raum übernehmen)
+        // Selbsttest: wie die übrigen Auswahlfragen über den Antwort-Haken (Vorgabe „Betreuung“, Raum nicht übernehmen)
         if (Ui.AuswahlAntwort is { } hook)
         {
             var w = hook(text, optionen);
-            raumUebernehmen = w == 1;
+            raumUebernehmen = false;
             return w;
         }
         using var d = new Dialog("Frage", 520, 290);
@@ -1204,7 +1204,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 116, Width = 496, Height = 28 + optionen.Length * 24 };
         var knoepfe = optionen.Select((o, i) => new RadioButton { Text = o, Left = 12, Top = 20 + i * 24, Width = 476, Checked = i == 1 }).ToList();
         grp.Controls.AddRange(knoepfe.ToArray<Control>());
-        var raum = new CheckBox { Text = "Raum des Betreuungslehrers übernehmen", Left = 12, Top = grp.Bottom + 8, AutoSize = true, Checked = true };
+        // Vorgabe: Raum nicht übernehmen (ausdrücklicher Wunsch) – die betreute Klasse bleibt in ihrem Raum
+        var raum = new CheckBox { Text = "Raum des Betreuungslehrers übernehmen", Left = 12, Top = grp.Bottom + 8, AutoSize = true, Checked = false };
         knoepfe[1].CheckedChanged += (_, _) => raum.Enabled = knoepfe[1].Checked;
         d.Controls.AddRange(new Control[] { grp, raum });
         d.Abbrechen.Visible = false;

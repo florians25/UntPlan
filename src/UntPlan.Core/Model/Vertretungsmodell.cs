@@ -159,6 +159,11 @@ public sealed class Vertretung
     public List<int>? VertretungsKlassenIds { get; set; }
     public int? RaumId { get; set; }
     public int? VertretungsraumId { get; set; }
+    /// <summary>
+    /// Zielstunde einer Verlegung: der Raum, den die Verlegung der Stunde gibt (Soll-Raum der Zielstunde). Vertretungsplan und Export
+    /// zeigen ihn als bisherigen Raum – nur eine spätere Raumänderung erscheint als Raumänderung. Ältere Dateien: null.
+    /// </summary>
+    public int? ZielraumId { get; set; }
     /// <summary>Zusätzliche Räume (Zusätzlichen Raum zuordnen).</summary>
     public List<int> ZusatzraumIds { get; set; } = new();
     public string Text { get; set; } = "";

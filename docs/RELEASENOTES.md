@@ -7,6 +7,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Betreuung: „Raum des Betreuungslehrers übernehmen“ ist standardmäßig nicht mehr angehakt.
+- Verlegungen merken sich den Raum der Zielstunde (Soll-Raum); der Vertretungsplan zeigt ihn als bisherigen Raum – nur eine spätere Raumänderung erscheint als Raumänderung.
 - Sondereinsatz (zusätzliche Stunde): kollidiert er mit vorhandenem Unterricht der Lehrkraft bzw. Klasse, fragt UntPlan nach – auflisten der betroffenen Stunden, dann „Auflösen (Vertretung/Entfall)“, „Unterricht belassen“ oder „Abbrechen“. Der ursprüngliche Unterricht wird nicht mehr ungefragt zur offenen Vertretung.
 - Eingabefelder in Tabellen werden nie mehr schwarz – weder das Feld noch der Rand darum (auch nicht mit Textvorschlag im Feld).
 
@@ -14,6 +16,11 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Verlegungen: der Raum der Zielstunde ist der Soll-Raum – kein Raum-Label mehr gegenüber dem Raum der Ursprungsstunde (in Web, App und Vertretungsplan); nur eine spätere Raumänderung der Zielstunde erscheint als Raumänderung.
+- Stundendetails → Details: Notizen und Link zum Online-Unterricht wieder mit „Abbrechen“ und „Speichern“ in einem kleinen Kasten rechts unter dem Feld (wie in der Vorlage); Esc verwirft, beim Link speichert auch Enter.
+- Stundendetails → Details: die Räume der Stunde stehen immer da (auch bei vergangenen Stunden); Ersetzen, Löschen und „+“ wie bisher nur, wo eine Raumänderung erlaubt ist.
+- Lehrstoff direkt auf der Seite noch näher an der Vorlage: beim Überfahren Rahmen und Textcursor, das Eingabefeld erscheint an derselben Stelle.
+- Unterstrich der Reiter oben abgerundet und unten gerade, Leiste am aktiven Menüpunkt zur Innenseite abgerundet.
 - Startseite „Mein nächster Unterricht“ auf kleineren Monitoren: keine abgeschnittene Spalte „Klassenbuch“ mehr – der Lehrstoff nimmt nur den Restplatz und endet mit „…“ (vollständig im Hover), schmalere Abstände, unter 1300 px ohne den langen Fachnamen; im Notfall waagrecht scrollbar.
 - Kopf der Stundendetails enger wie in der Vorlage: kleinere Abstände um die Trennstriche, dichtere Laufweite, Reiter „Klassenbuch“/„Details“ direkt nebeneinander.
 - Seitenleiste: Menütexte grau (#67747e) und Medium statt dunkel und fett, wie in der Vorlage.

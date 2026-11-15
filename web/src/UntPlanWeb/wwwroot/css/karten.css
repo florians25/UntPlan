@@ -214,6 +214,28 @@ input.sd-eingabe { min-height: 56px; }
 .sd-reiter { gap: 0; }
 .sd-reiter > li:first-child { margin-left: 16px; }
 
+/* Notizen und Link: beim Bearbeiten rechts unter dem Feld „Abbrechen“ / „Speichern“ in einem kleinen Kasten (wie in der Vorlage) */
+.sd-eingabe-huelle { position: relative; }
+.sd-eingabe-knoepfe { position: absolute; right: 0; top: 100%; z-index: 3; display: flex; gap: 8px; padding: 6px 8px; background: #fff;
+  border: 1px solid #c9ced4; border-top: 0; border-radius: 0 0 4px 4px; }
+.sd-eingabe-knoepfe.d-none { display: none; }
+.sd-chipknopf.nur-lesen { cursor: default; }
+
+/* Lehrstoff wie in der Vorlage: Hinweis als ruhiges Feld – beim Überfahren Rahmen und Textcursor, Klick macht daraus das Eingabefeld
+   an derselben Stelle (gleiche Maße) mit „Speichern“ und „Abbrechen“ darunter */
+.sd-lehrstoff-klick { min-height: 34px; padding: 6px 10px; border: 1px solid transparent; border-radius: 2px; cursor: text; }
+.sd-lehrstoff-klick:hover { border-color: #c9ced4; color: #b9a3ae; }
+.sd-lehrstoff-klick.mit-text:hover { color: var(--u-text); }
+.sd-lehrstoff-inline input.sd-eingabe { min-height: 34px; padding: 6px 10px; border-radius: 2px; font-size: .875rem; }
+.sd-lehrstoff-knoepfe { margin-top: 6px; }
+
+/* Reiter-Unterstrich und Leiste am aktiven Menüpunkt mit abgerundeten Enden (wie in der Vorlage) */
+.sd-reiter button { position: relative; border-bottom-color: transparent !important; }
+.sd-reiter button.aktiv::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--u-akzent); }
+
+.sd-rumpf .sd-eingabe, .sd-rumpf .sd-eingabe:focus { background-color: #fff; color: var(--u-text); }
+.sd-rumpf .sd-eingabe:focus { border-color: var(--u-akzent); box-shadow: none; outline: 0; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die

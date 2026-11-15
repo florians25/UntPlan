@@ -2035,3 +2035,5 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
   .heute-unterricht td.hu-lehrstoff { min-width: 90px; }
   .heute-unterricht .hu-kb .nl-chip { padding-left: 8px; padding-right: 8px; }
 }
+/* Leiste am aktiven Menüpunkt: abgerundete Enden */
+.u-leiste .u-nav-punkt.aktiv::before, .u-nav-punkt.aktiv::before { border-radius: 0 4px 4px 0; }
