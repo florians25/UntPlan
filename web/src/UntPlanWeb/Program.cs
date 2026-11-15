@@ -138,6 +138,14 @@ public class Program
             if (ctx.Request.Path.StartsWithSegments("/api/app")) h.CacheControl = "no-store";
             await next();
         });
+        // Kennung des laufenden Builds in jeder App-Antwort: das Frontend lädt nach einem Update beim nächsten Seitenwechsel neu
+        // (ein offener Tab behielte sonst den alten Code bzw. die alten Stile)
+        var buildKennung = typeof(Program).Assembly.ManifestModule.ModuleVersionId.ToString("N")[..12];
+        app.Use(async (ctx, next) =>
+        {
+            if (ctx.Request.Path.StartsWithSegments("/api/app")) ctx.Response.Headers["X-UntPlanWeb-Build"] = buildKennung;
+            await next();
+        });
         // Schutz gegen fremde Seiten (CSRF): ändernde App-Aufrufe brauchen einen eigenen Kopf, den nur unser Frontend setzt
         app.Use(async (ctx, next) =>
         {

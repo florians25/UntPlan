@@ -57,6 +57,20 @@ export class ApiFehler extends Error {
   constructor(status, meldung) { super(meldung); this.status = status; }
 }
 
+/**
+ * Neues Update auf dem Server erkannt (andere Build-Kennung als beim Laden der Seite): beim nächsten Seitenwechsel die Seite neu laden,
+ * damit nie alter Code bzw. alte Stile weiterlaufen (z. B. nach einem Update bei offenem Tab).
+ */
+let geladenerBuild = null, neuLaden = false;
+function buildPruefen(kennung) {
+  if (!kennung) return;
+  if (geladenerBuild === null) { geladenerBuild = kennung; return; }
+  if (kennung !== geladenerBuild && !neuLaden) {
+    neuLaden = true;
+    window.addEventListener('hashchange', () => location.reload(), { once: true });
+  }
+}
+
 export async function api(pfad, { methode = 'GET', daten, formular } = {}) {
   const optionen = { method: methode, headers: { 'X-UntPlanWeb': '1' }, credentials: 'same-origin' };
   if (formular) optionen.body = formular;
@@ -64,6 +78,7 @@ export async function api(pfad, { methode = 'GET', daten, formular } = {}) {
   let antwort;
   try { antwort = await fetch(pfad, optionen); }
   catch { throw new ApiFehler(0, 'Keine Verbindung zum Server.'); }
+  buildPruefen(antwort.headers.get('X-UntPlanWeb-Build'));
   const text = await antwort.text();
   let json = null;
   try { json = text ? JSON.parse(text) : null; } catch { json = null; }
