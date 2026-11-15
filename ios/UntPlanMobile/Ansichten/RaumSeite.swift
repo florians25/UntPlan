@@ -33,7 +33,7 @@ struct RaumSeite: View {
     }
 
     var body: some View {
-        DetailSeitenRahmen(titel: titel, untertitel: stundenUntertitel(daten.karte), laedt: raeume == nil) {
+        DetailSeitenRahmen(titel: titel, untertitel: nil, laedt: raeume == nil) {
             VStack(spacing: 0) {
                 Suchleiste(text: $suche, platzhalter: "Suchen")
                 HStack {
@@ -51,17 +51,15 @@ struct RaumSeite: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Text(abteilung.isEmpty ? "Abteilung" : abteilung)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundStyle(abteilung.isEmpty ? Farben.tinte2 : Color.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(abteilung.isEmpty ? Farben.knopf : Farben.akzent, in: Capsule())
+                        // Vorlage: Kapsel mit grauem Rand „Abteilung“ (gewählt: orange gefüllt mit dem Namen)
+                        Text(abteilung.isEmpty ? "Abteilung" : abteilung)
+                            .lineLimit(1)
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(abteilung.isEmpty ? Farben.tinte2 : Color.white)
+                            .padding(.horizontal, 10)
+                            .frame(height: 32)
+                            .background(abteilung.isEmpty ? Color.clear : Farben.akzent, in: Capsule())
+                            .overlay(Capsule().stroke(abteilung.isEmpty ? Farben.linie : Color.clear, lineWidth: 1))
                     }
                     .tint(Color.primary)
                     .disabled(abteilungen.isEmpty)
@@ -117,41 +115,34 @@ struct RaumSeite: View {
         }
     }
 
+    /// Zeile wie in der Vorlage: graue Scheibe mit weißem Raumsymbol, daneben nur das Kürzel; Trennlinie ab dem Text.
     private func zeile(_ r: FreierRaum) -> some View {
-        HStack(spacing: 12) {
-            Listensymbol(name: "SymbolRaum", groesse: 26)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(r.kurz)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(Farben.detailText)
-                    .lineLimit(1)
-                let unter = [r.name != r.kurz ? r.name : "", r.raumart, r.kapazitaet.map { "\($0) Plätze" } ?? ""]
-                    .filter { !$0.isEmpty }.joined(separator: " · ")
-                if !unter.isEmpty {
-                    Text(unter)
-                        .font(.system(size: 14))
-                        .foregroundStyle(Farben.gedaempft)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 14) {
+            Image("SymbolRaum")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 17, height: 17)
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(Farben.raumScheibe, in: Circle())
+            Text(r.kurz)
+                .font(.system(size: 15))
+                .foregroundStyle(Farben.detailText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
             if bucht == r.kurz {
                 ProgressView()
-            } else if r.urspruenglich {
-                Text("ursprünglich")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Farben.tinte2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Farben.knopf, in: Capsule())
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(minHeight: 54)
+        .frame(height: 44)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Farben.trennlinie).frame(height: 0.5).padding(.leading, 62).padding(.trailing, 16)
+        }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityLabel([r.kurz, r.name != r.kurz ? r.name : "", r.urspruenglich ? "ursprünglicher Raum" : ""].filter { !$0.isEmpty }.joined(separator: ", "))
         .accessibilityHint("Raum buchen")
     }
 
