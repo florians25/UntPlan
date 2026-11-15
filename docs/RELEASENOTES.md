@@ -14,6 +14,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
 
 ### Web
+- Sprechtag für Erziehungsberechtigte: „Termine wählen“ als Raster wie in der Vorlage – je Kind Zeitfenster (Zeilen) × Lehrkräfte (Spalten), freies Feld antippen bucht, grüner Haken = eigener Termin (antippen: absagen); daneben die gebuchten Termine. Umschaltbar „Alle Lehrkräfte“ / „Einladungen“ und zurück auf die Liste „Lehrkräfte“.
 - Sprechtag „Gespräche wünschen“: Einladung mit Priorität – Knöpfe „Erwünscht“ und „Verpflichtend“, Spalte „Priorität“ in der Liste; Eltern sehen „Gespräch erwünscht“ bzw. „Gespräch verpflichtend“ (rot) bei der Lehrkraft (auch in der App), die Mitteilung nennt das verpflichtende Gespräch.
 - Seitenleiste: Menüpunkte wie in der Vorlage – Text grau (#67747e) statt dunkel, Symbole etwas kleiner, Text 2 px weiter links, aktiver Punkt im Orange der Vorlage (#fe6033).
 - Startseite „Heute“: Schriftgrößen und Farben wie in der Vorlage nachgemessen – Titel etwas kleiner, Datum hellgrau (#999), Anmeldung/Planaktualisierung und Nachrichten in 12 px dunkelgrau (#333), Kartenüberschriften etwas kleiner.

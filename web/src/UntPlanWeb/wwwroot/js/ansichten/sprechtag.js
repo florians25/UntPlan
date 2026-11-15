@@ -9,7 +9,7 @@
 // - startkarte(): Hinweis „Sprechtag“ auf der Startseite (Heute).
 // - Status „angekündigt“: freigegeben, Anmeldung beginnt noch – Familien sehen Datum, Zeit, Ort und Anmeldebeginn; Schüler*innen (Option) nur lesen.
 // - Optionen: Zeitblöcke, Termindauer je Lehrkraft, Puffer, Höchstzahl je Familie, Warteliste, Online-Termine mit Link, Erinnerungen, weitere Tage.
-import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, alarm } from '../ui.js';
+import { e, icon, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, segment } from '../ui.js';
 
 const BASIS = '/api/app/sprechtag';
 
@@ -630,6 +630,40 @@ async function lehrkraft(seite, kontext, id, lehrer) {
 
 // ------------------------------------------------------------------ Erziehungsberechtigte
 
+/** Ansicht der Elternseite („raster“ = Termine wählen wie in der Vorlage, „liste“ = Lehrkräfte mit Uhrzeitauswahl), je Browser gemerkt. */
+const ELTERN_ANSICHT = 'untplan-sprechtag-ansicht';
+function elternAnsicht() { try { return localStorage.getItem(ELTERN_ANSICHT) || 'raster'; } catch { return 'raster'; } }
+
+/**
+ * „Termine wählen“ (Vorlage): je Kind ein Raster – Zeilen = Zeitfenster, Spalten = Lehrkräfte. Freie Zeitfenster sind antippbar und buchen
+ * den Termin, der eigene Termin trägt einen grünen Haken (antippen: absagen), belegte bzw. nicht mögliche Zeitfenster bleiben grau.
+ * Rechts daneben die gebuchten Termine des Kindes.
+ */
+function terminRaster(t, d, k, { lesen, voll, nurEingeladen }) {
+  const lehrer = k.lehrkraefte.filter(l => !nurEingeladen || l.eingeladen);
+  if (!lehrer.length) return `<div class="p-3 nl-unter">${nurEingeladen ? 'Keine Einladungen für dieses Kind.' : 'Keine Lehrkraft nimmt teil.'}</div>`;
+  const zeiten = [...new Set(lehrer.flatMap(l => [...(l.zeitfenster ?? []).map(z => z.beginn), ...(l.termin ? [l.termin.beginn] : [])]))].sort();
+  if (!zeiten.length) return '<div class="p-3 nl-unter">Keine freien Zeitfenster.</div>';
+  const zelle = (l, zeit) => {
+    if (l.termin?.beginn === zeit) return `<td><button type="button" class="st-zelle gebucht" ${absagbar(t) && !lesen ? `data-storno="${l.termin.id}" data-text="${e(`${zeit} Uhr bei ${l.name}`)}"` : 'disabled'}
+      title="${e(`${zeit}–${l.termin.ende} gebucht – antippen zum Absagen`)}" aria-label="${e(`Termin ${zeit} Uhr bei ${l.name} gebucht`)}"><i class="bi bi-check-lg"></i></button></td>`;
+    const z = (l.zeitfenster ?? []).find(x => x.beginn === zeit);
+    if (!z || l.termin || lesen || !d.buchbar || voll) return '<td><span class="st-zelle leer" aria-hidden="true"></span></td>';
+    if (z.konflikt) return `<td><span class="st-zelle konflikt" title="Überschneidung mit einem Ihrer Termine"></span></td>`;
+    return `<td><button type="button" class="st-zelle frei" data-zbuchen data-lehrer="${e(l.kurz)}" data-kind="${k.id}" data-zeit="${e(zeit)}"
+      title="${e(`${zeit}–${z.ende} bei ${l.name} buchen`)}" aria-label="${e(`${zeit} Uhr bei ${l.name} buchen`)}"></button></td>`;
+  };
+  const eigene = d.termine.filter(x => x.schueler.id === k.id).sort((a, b) => a.beginn.localeCompare(b.beginn));
+  return `<div class="st-wahl">
+    <div class="st-matrix"><table><thead><tr><th class="st-mzeit"><span class="visually-hidden">Zeit</span></th>
+      ${lehrer.map(l => `<th class="${l.termin ? 'gebucht' : ''}" title="${e([l.name, l.faecher.join(', '), l.verpflichtend ? 'Gespräch verpflichtend' : l.eingeladen ? 'Gespräch erwünscht' : ''].filter(Boolean).join(' · '))}">
+        <span>${e(l.kurz)}</span>${l.eingeladen ? `<i class="bi bi-${l.verpflichtend ? 'exclamation-triangle-fill rot' : 'envelope-paper lila'}" aria-label="${l.verpflichtend ? 'verpflichtend' : 'eingeladen'}"></i>` : ''}</th>`).join('')}</tr></thead>
+      <tbody>${zeiten.map(z => `<tr><th class="st-mzeit">${e(z)}</th>${lehrer.map(l => zelle(l, z)).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="st-wahl-termine"><h3>Termine</h3>${eigene.length ? eigene.map(x => `<div class="st-wahl-termin"><b>${e(x.beginn)}</b><span>${e(x.lehrerName)}</span>
+      <span class="nl-unter">${x.online ? 'online' : x.raum ? e(x.raum) : ''}</span></div>`).join('') : '<div class="nl-unter">Noch keine Termine.</div>'}</div>
+  </div>`;
+}
+
 async function eltern(seite, kontext, id) {
   const d = await holen(`${BASIS}/${id}/eltern`);
   const t = d.sprechtag;
@@ -638,6 +672,8 @@ async function eltern(seite, kontext, id) {
   kontext.titel(t.name, lesen ? '' : `<a class="nl-knopf" href="${BASIS}/${id}/elternplan.pdf" data-pdf="hoch" target="_blank" rel="noopener">${icon('file-earmark-pdf')}Meine Termine (PDF)</a>`);
   const termine = d.termine.slice().sort((a, b) => a.beginn.localeCompare(b.beginn));
   const voll = d.maxTermine > 0 && d.gebuchtFamilie >= d.maxTermine;
+  const ansicht = elternAnsicht();
+  const nurEingeladen = (() => { try { return localStorage.getItem(ELTERN_ANSICHT + '-relevant') === 'eingeladen'; } catch { return false; } })();
   const lehrerZeile = (k, l) => {
     const faecher = l.faecher.length ? l.faecher.join(', ') : '';
     const merkmale = [l.klassenleitung ? '<span class="nl-chip grau">Klassenleitung</span>' : '',
@@ -680,8 +716,10 @@ async function eltern(seite, kontext, id) {
           <td class="text-end">${absagbar(t) && !lesen ? `<button type="button" class="nl-knopf rot st-klein" data-storno="${x.id}" data-text="${e(`${x.beginn} Uhr bei ${x.lehrerName}`)}" title="Termin absagen" aria-label="Termin absagen">Absagen</button>` : ''}</td></tr>`).join('')}
         </tbody></table></div>` : `<div class="p-3 nl-unter">Noch keine Termine gebucht.</div>`}
     </section>
-    ${d.kinder.length ? d.kinder.map(k => `<section class="st-karte"><header><i class="bi bi-people"></i><h2>${lesen ? 'Beteiligte Lehrkräfte' : `Lehrkräfte von ${e(`${k.vorname} ${k.name}`)}`}</h2><span class="nl-tag">${e(k.klasse)}</span></header>
-      ${k.lehrkraefte.length ? `<div class="nl-tabelle st-flach"><table><thead><tr><th>Lehrkraft</th><th>Fächer</th><th>Ort</th><th>Termin</th></tr></thead><tbody>
+    ${d.kinder.length && !lesen ? `<div class="st-ansicht">${segment([['raster', 'Termine wählen', { symbol: 'grid-3x3-gap' }], ['liste', 'Lehrkräfte', { symbol: 'list-ul' }]], ansicht, { attr: 'data-ansicht', label: 'Ansicht' })}
+      ${ansicht === 'raster' ? segment([['alle', 'Alle Lehrkräfte'], ['eingeladen', 'Einladungen']], nurEingeladen ? 'eingeladen' : 'alle', { attr: 'data-relevant', label: 'Lehrkräfte', klasse: 'klein' }) : ''}</div>` : ''}
+    ${d.kinder.length ? d.kinder.map(k => `<section class="st-karte"><header><i class="bi bi-people"></i><h2>${lesen ? 'Beteiligte Lehrkräfte' : ansicht === 'raster' ? `Termine wählen · ${e(`${k.vorname} ${k.name}`)}` : `Lehrkräfte von ${e(`${k.vorname} ${k.name}`)}`}</h2><span class="nl-tag">${e(k.klasse)}</span></header>
+      ${!lesen && ansicht === 'raster' && k.lehrkraefte.length ? terminRaster(t, d, k, { lesen, voll, nurEingeladen }) : k.lehrkraefte.length ? `<div class="nl-tabelle st-flach"><table><thead><tr><th>Lehrkraft</th><th>Fächer</th><th>Ort</th><th>Termin</th></tr></thead><tbody>
         ${k.lehrkraefte.map(l => lehrerZeile(k, l)).join('')}</tbody></table></div>` : `<div class="p-3 nl-unter">${lesen ? 'Keine deiner Lehrkräfte nimmt an diesem Sprechtag teil.' : 'Keine Lehrkraft Ihres Kindes nimmt an diesem Sprechtag teil.'}</div>`}
     </section>`).join('') : alarm('warning', lesen ? 'Deinem Konto ist keine Schülerin bzw. kein Schüler zugeordnet.' : 'Ihrem Konto ist kein Kind zugeordnet. Bitte wenden Sie sich an die Schule.')}`;
 
@@ -692,6 +730,16 @@ async function eltern(seite, kontext, id) {
     try {
       await senden(`${BASIS}/${id}/buchen`, { lehrer: b.dataset.lehrer, schuelerId: Number(b.dataset.kind), beginn: zeit });
       toast(`Termin um ${zeit} Uhr gebucht.`);
+      neu();
+    } catch (err) { kontext.fehler(err); b.disabled = false; }
+  });
+  seite.querySelectorAll('[data-ansicht]').forEach(b => b.onclick = () => { try { localStorage.setItem(ELTERN_ANSICHT, b.dataset.wert); } catch { /* ohne Speicher */ } neu(); });
+  seite.querySelectorAll('[data-relevant]').forEach(b => b.onclick = () => { try { localStorage.setItem(ELTERN_ANSICHT + '-relevant', b.dataset.wert); } catch { /* ohne Speicher */ } neu(); });
+  seite.querySelectorAll('[data-zbuchen]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try {
+      await senden(`${BASIS}/${id}/buchen`, { lehrer: b.dataset.lehrer, schuelerId: Number(b.dataset.kind), beginn: b.dataset.zeit });
+      toast(`Termin um ${b.dataset.zeit} Uhr gebucht.`);
       neu();
     } catch (err) { kontext.fehler(err); b.disabled = false; }
   });
