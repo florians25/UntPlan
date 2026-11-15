@@ -1242,10 +1242,12 @@ struct KlassenleitungAbwesenheitenView: View {
             Image(systemName: "chevron.down")
                 .font(.system(size: 12, weight: .medium))
         }
-        .font(.system(size: 16, weight: aktiv ? .semibold : .regular))
+        // gleiche Größe wie die Filter der Raumsuche (Planauswahl): 42 pt, 15 pt
+        .font(.system(size: 15, weight: aktiv ? .semibold : .regular))
         .foregroundStyle(aktiv ? Farben.filterText : Farben.tinte2)
-        .padding(.horizontal, 16)
-        .frame(height: 40)
+        .padding(.leading, 16)
+        .padding(.trailing, 18)
+        .frame(height: Auswahlmass.filterHoehe)
         .background(aktiv ? Farben.filterFlaeche : Farben.flaeche, in: Capsule())
         .overlay(Capsule().stroke(aktiv ? Color.clear : Farben.linie, lineWidth: 1))
     }

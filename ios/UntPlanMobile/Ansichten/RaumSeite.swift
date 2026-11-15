@@ -35,7 +35,9 @@ struct RaumSeite: View {
     var body: some View {
         DetailSeitenRahmen(titel: titel, untertitel: nil, laedt: raeume == nil) {
             VStack(spacing: 0) {
-                Suchleiste(text: $suche, platzhalter: "Suchen")
+                // gleiche Größen wie die Raumsuche der Planauswahl: Suchfeld 44 pt, Filter 42 pt, Zeilen mit 44-pt-Scheibe
+                Elementsuche(text: $suche)
+                    .padding(.top, 4)
                 HStack {
                     Menu {
                         Button {
@@ -51,22 +53,29 @@ struct RaumSeite: View {
                             }
                         }
                     } label: {
-                        // Vorlage: Kapsel mit grauem Rand „Abteilung“ (gewählt: orange gefüllt mit dem Namen)
-                        Text(abteilung.isEmpty ? "Abteilung" : abteilung)
-                            .lineLimit(1)
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(abteilung.isEmpty ? Farben.tinte2 : Color.white)
-                            .padding(.horizontal, 10)
-                            .frame(height: 32)
-                            .background(abteilung.isEmpty ? Color.clear : Farben.akzent, in: Capsule())
-                            .overlay(Capsule().stroke(abteilung.isEmpty ? Farben.linie : Color.clear, lineWidth: 1))
+                        // wie der Filter „Aktuelles Schuljahr“ der Raumsuche: Kapsel 42 pt, 15 pt, Pfeil (gewählt: orange gefüllt)
+                        HStack(spacing: 7) {
+                            Text(abteilung.isEmpty ? "Abteilung" : abteilung)
+                                .font(.system(size: 15))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(abteilung.isEmpty ? Auswahlmass.filterText : Color.white)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 18)
+                        .frame(height: Auswahlmass.filterHoehe)
+                        .background(abteilung.isEmpty ? Auswahlmass.filterFlaeche : Farben.akzent, in: Capsule())
+                        .overlay(Capsule().strokeBorder(abteilung.isEmpty ? Auswahlmass.filterRand : Color.clear, lineWidth: 1))
+                        .contentShape(Capsule())
                     }
                     .tint(Color.primary)
                     .disabled(abteilungen.isEmpty)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
                 liste
             }
         }
@@ -115,30 +124,44 @@ struct RaumSeite: View {
         }
     }
 
-    /// Zeile wie in der Vorlage: graue Scheibe mit weißem Raumsymbol, daneben nur das Kürzel; Trennlinie ab dem Text.
+    /// Zeile wie in der Raumsuche der Planauswahl: graue Scheibe 44 pt mit weißem Raumsymbol 24 pt, Kürzel 20 pt, darunter der
+    /// Raumname als graues Badge (sofern er vom Kürzel abweicht); Trennlinie ab dem Text.
     private func zeile(_ r: FreierRaum) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             Image("SymbolRaum")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 17, height: 17)
+                .frame(width: 24, height: 24)
                 .foregroundStyle(.white)
-                .frame(width: 32, height: 32)
-                .background(Farben.raumScheibe, in: Circle())
-            Text(r.kurz)
-                .font(.system(size: 15))
-                .foregroundStyle(Farben.detailText)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: Auswahlmass.avatar, height: Auswahlmass.avatar)
+                .background(Auswahlmass.avatarFlaeche, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(r.kurz)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Auswahlmass.name)
+                    .lineLimit(1)
+                let badge = r.urspruenglich ? "ursprünglicher Raum" : (r.name.isEmpty || r.name.caseInsensitiveCompare(r.kurz) == .orderedSame ? "" : r.name)
+                if !badge.isEmpty {
+                    Text(badge)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Auswahlmass.badgeText)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .frame(height: 19.3)
+                        .background(Auswahlmass.badgeFlaeche, in: Capsule())
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             if bucht == r.kurz {
                 ProgressView()
             }
         }
         .padding(.horizontal, 16)
-        .frame(height: 44)
+        .padding(.vertical, 8)
+        .frame(minHeight: 60)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Farben.trennlinie).frame(height: 0.5).padding(.leading, 62).padding(.trailing, 16)
+            Rectangle().fill(Farben.trennlinie).frame(height: 0.5).padding(.leading, 68).padding(.trailing, 16)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
