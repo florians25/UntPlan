@@ -595,7 +595,7 @@ struct SprechtagView: View {
                             .foregroundStyle(Farben.tinte)
                             .lineLimit(1)
                         if l.eingeladen {
-                            Plakette(text: "Eingeladen", farbe: Farben.akzent)
+                            Plakette(text: l.verpflichtend ? "Verpflichtend" : "Erwünscht", farbe: l.verpflichtend ? Farben.markerRot : Farben.akzent)
                         }
                     }
                     let unten = [l.faecher.joined(separator: ", "), l.klassenleitung ? "Klassenleitung" : "",

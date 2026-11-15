@@ -720,6 +720,11 @@ public sealed class Db
         ALTER TABLE ressourcen ADD COLUMN standort VARCHAR(100) NOT NULL DEFAULT '';
         ALTER TABLE ressourcenarten ADD COLUMN symbol VARCHAR(40) NOT NULL DEFAULT '';
         """),
+
+        // 29: Sprechtag – Priorität der Einladung (0 = erwünscht, 1 = verpflichtend) – nur Standard-SQL
+        Nr(29, """
+        ALTER TABLE sprechtag_einladungen ADD COLUMN verpflichtend INTEGER NOT NULL DEFAULT 0;
+        """),
     };
 
 

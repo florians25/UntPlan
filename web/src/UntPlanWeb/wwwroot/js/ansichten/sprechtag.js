@@ -451,9 +451,10 @@ async function lehrkraft(seite, kontext, id, lehrer) {
         <td class="text-end"><button type="button" class="nl-icon sichtbar rot" data-warte-weg="${w.id}" title="Von der Warteliste nehmen" aria-label="Von der Warteliste nehmen"><i class="bi bi-x-lg"></i></button></td></tr>`).join('')}
       </tbody></table></div></section>` : '';
 
-  const einladungZeilen = d.einladungen.length ? `<table><thead><tr><th>Klasse</th><th>Schüler*in</th><th>Status</th><th><span class="visually-hidden">Löschen</span></th></tr></thead><tbody>
+  const einladungZeilen = d.einladungen.length ? `<table><thead><tr><th>Klasse</th><th>Schüler*in</th><th>Priorität</th><th>Status</th><th><span class="visually-hidden">Löschen</span></th></tr></thead><tbody>
       ${d.einladungen.slice().sort((x, y) => (x.schueler.klasse || '').localeCompare(y.schueler.klasse || '', 'de') || schuelerName(x.schueler).localeCompare(schuelerName(y.schueler), 'de')).map(x => `<tr>
-        <td>${e(x.schueler.klasse)}</td><td class="nl-name st-n">${e(schuelerName(x.schueler))}</td>
+        <td>${e(x.schueler.klasse)}</td><td class="nl-name st-n">${e(schuelerName(x.schueler))}${x.text ? ` <i class="bi bi-chat-left-text nl-unter" data-hover="${e(x.text)}" data-hover-art="dunkel" aria-label="Text"></i>` : ''}</td>
+        <td>${x.verpflichtend ? '<span class="nl-chip rot"><i class="bi bi-exclamation-triangle"></i>Verpflichtend</span>' : '<span class="nl-chip grau">Erwünscht</span>'}</td>
         <td>${x.termin ? `<span class="nl-chip gruen"><i class="bi bi-check2"></i>Termin ${e(x.termin)}</span>` : x.benachrichtigt ? '<span class="nl-chip lila">eingeladen</span>' : '<span class="nl-chip gelb" data-hover="Kein Elternkonto – bitte anders benachrichtigen" data-hover-art="dunkel">ohne Elternkonto</span>'}</td>
         <td class="text-end"><button type="button" class="nl-icon sichtbar rot" data-einladung-weg="${x.id}" title="Einladung löschen" aria-label="Einladung löschen"><i class="bi bi-x-lg"></i></button></td></tr>`).join('')}</tbody></table>`
     : `<div class="p-3 nl-unter">Nichts anzuzeigen – noch keine Einladungen.</div>`;
@@ -494,7 +495,8 @@ async function lehrkraft(seite, kontext, id, lehrer) {
               ${klassen.map(k => `<option value="${e(k)}" ${k === klasse ? 'selected' : ''} ${sch.eigeneKlassen.includes(k) ? 'data-zweit="eigene Klasse"' : ''}>${e(k)}</option>`).join('')}</select></label>
             <label class="u-feld st-schuelerfeld"><span>Schüler*in</span><span data-schuelerbox>${schuelerAuswahl()}</span></label>
             <label class="u-feld st-textfeld"><span>Nachricht an die Eltern (optional)</span><input class="form-control" data-text maxlength="1000" placeholder="z. B. Anlass des Gesprächs"></label>
-            <button type="button" class="nl-hinzu" data-einladen>${icon('senden')}Anfordern</button></div>`
+            <span class="st-einladen-knoepfe"><button type="button" class="nl-hinzu" data-einladen="erwuenscht" title="Gespräch erwünscht – die Eltern werden eingeladen">${icon('senden')}Erwünscht</button>
+              <button type="button" class="nl-knopf rot" data-einladen="verpflichtend" title="Gespräch verpflichtend – die Eltern werden ausdrücklich zum Gespräch verpflichtet"><i class="bi bi-exclamation-triangle"></i>Verpflichtend</button></span></div>`
           : `<div class="nl-hinweis m-3"><i class="bi bi-info-circle"></i>${t.phase === 'vorbereitung' ? 'Der Sprechtag ist noch nicht freigegeben.' : 'Die Einladungsphase ist beendet.'}</div>`}
           <div class="nl-tabelle st-einladungen">${einladungZeilen}</div>
         </section>
@@ -536,16 +538,17 @@ async function lehrkraft(seite, kontext, id, lehrer) {
   // Einladungen
   const klasseSel = seite.querySelector('[data-klasse]');
   if (klasseSel) klasseSel.addEventListener('change', () => { klasse = klasseSel.value; seite.querySelector('[data-schuelerbox]').innerHTML = schuelerAuswahl(); });
-  seite.querySelector('[data-einladen]')?.addEventListener('click', async ev => {
+  seite.querySelectorAll('[data-einladen]').forEach(knopf => knopf.addEventListener('click', async ev => {
     const ids = [...seite.querySelector('[data-schueler]').selectedOptions].map(o => Number(o.value));
     if (!ids.length) { kontext.fehler(new Error('Bitte mindestens eine Schülerin bzw. einen Schüler wählen.')); return; }
     ev.currentTarget.disabled = true;
     try {
-      const r = await senden(`${BASIS}/${id}/einladungen`, mitLehrer({ schuelerIds: ids, text: seite.querySelector('[data-text]').value }));
+      const r = await senden(`${BASIS}/${id}/einladungen`, mitLehrer({ schuelerIds: ids, text: seite.querySelector('[data-text]').value,
+        verpflichtend: knopf.dataset.einladen === 'verpflichtend' }));
       toast(`${r.neu} ${r.neu === 1 ? 'Einladung' : 'Einladungen'} versendet${r.ohneKonto.length ? ` – ohne Elternkonto: ${r.ohneKonto.join(', ')}` : ''}.`);
       neu();
-    } catch (err) { kontext.fehler(err); ev.currentTarget.disabled = false; }
-  });
+    } catch (err) { kontext.fehler(err); knopf.disabled = false; }
+  }));
   seite.querySelectorAll('[data-einladung-weg]').forEach(b => b.onclick = async () => {
     try { await api(`${BASIS}/${id}/einladungen/${b.dataset.einladungWeg}`, { methode: 'DELETE' }); toast('Einladung gelöscht.'); neu(); } catch (err) { kontext.fehler(err); }
   });
@@ -639,7 +642,7 @@ async function eltern(seite, kontext, id) {
     const faecher = l.faecher.length ? l.faecher.join(', ') : '';
     const merkmale = [l.klassenleitung ? '<span class="nl-chip grau">Klassenleitung</span>' : '',
       l.online ? '<span class="nl-chip grau"><i class="bi bi-camera-video"></i>online</span>' : '',
-      l.eingeladen ? `<span class="nl-chip lila" ${l.einladungText ? `data-hover="${e(l.einladungText)}" data-hover-art="dunkel"` : ''}><i class="bi bi-envelope-paper"></i>Einladung</span>` : ''].join('');
+      l.eingeladen ? `<span class="nl-chip ${l.verpflichtend ? 'rot' : 'lila'}" ${l.einladungText ? `data-hover="${e(l.einladungText)}" data-hover-art="dunkel"` : ''}><i class="bi bi-${l.verpflichtend ? 'exclamation-triangle' : 'envelope-paper'}"></i>${l.verpflichtend ? 'Gespräch verpflichtend' : 'Gespräch erwünscht'}</span>` : ''].join('');
     let termin;
     if (l.termin) termin = `<span class="st-zeit gebucht">${e(l.termin.beginn)}</span> <span class="nl-unter">bis ${e(l.termin.ende)}</span>
         ${absagbar(t) && !lesen ? `<button type="button" class="nl-knopf rot st-klein ms-2" data-storno="${l.termin.id}" data-text="${e(`${l.termin.beginn} Uhr bei ${l.name}`)}">Absagen</button>` : ''}`;
