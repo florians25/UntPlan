@@ -256,7 +256,7 @@ public static class AppApi
             });
         });
 
-        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr) =>
+        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr, Planformatdienst pf) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
@@ -266,7 +266,9 @@ public static class AppApi
             if (!Rechtedienst.PlanSichtbar(b, tag, uhr.Heute)) return Results.Json(plan.Wochenplan(s, typ, element, tag, b.Kollegium).Sperren());
             var w = plan.Wochenplan(s, typ, element, tag, b.Kollegium, d => r.Vorgemerkt(d, s));
             // Notizen und fällige Hausaufgaben für die Symbole auf den Karten; eigene Abwesenheiten im eigenen Plan
-            return Results.Json(w with { Karten = kb.Anreichern(w.Karten, b.Kollegium), Abwesenheiten = EigeneAbwesenheiten(b, s, typ, element, tag, schueler, kb, kv) });
+            w = w with { Karten = kb.Anreichern(w.Karten, b.Kollegium), Abwesenheiten = EigeneAbwesenheiten(b, s, typ, element, tag, schueler, kb, kv) };
+            // Stundenplanformat (Administration → Stundenplaneinstellungen): Tage, Zeiten, Aktivitäten, Hervorhebungen, Anordnung auf dem Kärtchen
+            return Results.Json(Planformatdienst.Anwenden(w, pf.FormatFuer(typ, b.Kollegium), s));
         });
 
         api.MapGet("/tag", (string typ, string? datum, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Uhr uhr) =>

@@ -237,7 +237,38 @@ const zeilenText = x => x && typeof x === 'object' ? x.inline : x;
 /** Platzhalter statt einer Lehrkraft (zusätzlicher Unterricht ohne Lehrkraft, offene Vertretung). */
 const PLATZHALTER = ['---', '???', '+', '+++'];
 
-export function karteInhalt(k, typ, kompakt = false) {
+/**
+ * Stundenkärtchen nach Stundenplanformat (Administration → Stundenplaneinstellungen): die Elemente in der Reihenfolge des Formats
+ * (1. Element fett oben), je mit Kurzname, Langname bzw. „Langname (Kurzname)“; Labels (geändert, entfallen) wie in der Standarddarstellung.
+ */
+function formatInhalt(k, typ, kompakt, format, namen) {
+  const entfall = istEntfall(k, typ);
+  const lang = (art, w, form) => {
+    const kurz = w.k || w.alt || '';
+    const n = namen?.[art]?.[kurz];
+    return !n || form === 'kurz' ? kurz : form === 'lang' ? n : `${n} (${kurz})`;
+  };
+  // Werteliste mit Namensform: Labels bleiben (neuer Wert grün, entfernter durchgestrichen), nur der Text ändert sich
+  const benannt = (art, liste, form) => (liste || []).map(w => ({ ...w, k: w.k ? lang(art, w, form) : w.k, alt: w.alt ? lang(art, { k: w.alt }, form) : w.alt }));
+  const zeile = x => {
+    switch (x.art) {
+      case 'klasse': return (k.klassen || []).length ? klassenWerte({ ...k, klassen: benannt('klasse', k.klassen, x.name) }, entfall) : '';
+      case 'lehrer': return werteListe(benannt('lehrer', (k.lehrer || []).filter(w => !PLATZHALTER.includes(w.k || '')), x.name), entfall, true);
+      case 'raum': return istOnline(k, typ) ? '' : werteListe(benannt('raum', k.raeume, x.name), entfall);
+      case 'fach': return k.fach ? e(lang('fach', { k: k.fach }, x.name)) : e((k.status === 'klausur' && k.pruefung) || k.text || k.art || '');
+      case 'notiz': return k.notizSchueler ? e(k.notizSchueler) : '';
+      default: return '';
+    }
+  };
+  const zeilen = format.elemente.map(zeile);
+  const oben = zeilen[0] || zeilen.find(z => z) || e(k.fach || k.text || '—');
+  const rest = zeilen.slice(1).filter(x => x && x !== oben);
+  const rumpf = kompakt ? (rest.length ? `<div class="z2">${rest.map(zeilenText).join(' · ')}</div>` : '') : rest.map(x => zeileHtml('z2', x)).join('');
+  return `${marker(k, typ)}${zeileHtml('z1', oben)}${rumpf}${eckSymbole(k, typ)}`;
+}
+
+export function karteInhalt(k, typ, kompakt = false, format = null, namen = null) {
+  if (format?.elemente?.length && !k.ereignis) return formatInhalt(k, typ, kompakt, format, namen);
   const entfall = istEntfall(k, typ);
   // online: kein Raumlabel (auch kein künstliches) – nur das Symbol unten auf der Karte
   const raum = istOnline(k, typ) ? '' : werte(k.raeume, entfall);
@@ -517,11 +548,14 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   // Zeitachse wie im Original: Beginn oben an der Stunde, Ende unten (über der Linie), dazwischen die Stundennummer
   html += `<div class="tt-achse" style="height:${aufbau.hoehe}px">`;
   // Uhrzeiten auf den Karten eingeblendet: links nur die Stundennummern (keine Uhrzeiten doppelt)
+  // Stundenplanformat: Beginn-/Endzeit bzw. Stundennummer ausblenden
+  const mitZeiten = !kartenZeiten && plan.format?.zeiten !== false;
+  const mitNummer = plan.format?.stundennummer !== false;
   zeiten.forEach((z, i) => {
     const oben = aufbau.oben[i];
-    if (!kartenZeiten) html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
-    html += `<div class="tt-nr${kartenZeiten ? ' allein' : ''}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
-    if (!kartenZeiten) html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
+    if (mitZeiten) html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
+    if (mitNummer) html += `<div class="tt-nr${mitZeiten ? '' : ' allein'}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
+    if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
   });
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;
   html += '</div>';
@@ -555,7 +589,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         belegt.push([oben, oben + h, spur * breite, breite]);
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
-          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60)}</div>`;
+          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60, plan.format, plan.langnamen)}</div>`;
       }
     }
     // Pausenaufsichten in der Pausenzeile
@@ -678,7 +712,9 @@ export function listenKuerzen(wurzel) {
 }
 
 /** Klick auf eine Karte öffnet den Detaildialog. */
-export function kartenBinden(wurzel, karten, kontext, typ = null) {
+export function kartenBinden(wurzel, karten, kontext, typ = null, format = null) {
+  // Stundenplanformat ohne „Zugriff auf Stundendetails“: Karten sind nicht antippbar
+  if (format?.details === false) { listenKuerzen(wurzel); wurzel.querySelectorAll('[data-karte]').forEach(el => { el.removeAttribute('tabindex'); el.removeAttribute('role'); el.classList.add('ohne-details'); }); return; }
   const oeffnen = el => { const k = karten[Number(el.dataset.karte)]; if (k) karteDialog(k, { ...kontext, liste: karten, typ }); };
   listenKuerzen(wurzel);
   if (!wurzel.__kuerzen && typeof ResizeObserver === 'function') {

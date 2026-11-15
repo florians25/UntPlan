@@ -71,6 +71,7 @@ public class Program
         builder.Services.AddSingleton<Buchungsdienst>();
         builder.Services.AddSingleton<Personendienst>();
         builder.Services.AddSingleton<Sprechtagdienst>();
+        builder.Services.AddSingleton<Planformatdienst>();
         builder.Services.AddSingleton<SchuelerImport>();
         builder.Services.AddSingleton<Pushdienst>();
         builder.Services.AddSingleton<Notendienst>();

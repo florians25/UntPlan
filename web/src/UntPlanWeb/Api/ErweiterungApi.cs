@@ -404,6 +404,42 @@ public static class ErweiterungApi
         });
         admin.MapDelete("/freietage/{id:int}", (int id, HttpContext c, Verwaltungsdienst vw) => { Admin(c); vw.FreienTagLoeschen(id); return Results.Json(new { ok = true }); });
 
+        // ---------------------------------------------------------------- Stundenplaneinstellungen (Stundenplanformate)
+
+        admin.MapGet("/planformate", (HttpContext c, Planformatdienst pf) =>
+        {
+            Admin(c);
+            return Results.Json(new { formate = pf.Formate(), zuordnung = pf.Zuordnung(), arten = Planformatdienst.Arten, namensformen = Planformatdienst.Namensformen });
+        });
+        admin.MapPost("/planformate", (Planformat f, HttpContext c, Planformatdienst pf, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var neu = pf.Speichern(f with { Id = 0 });
+            prot.Schreiben(b.Login, "Stundenplanformat angelegt", neu.Name);
+            return Results.Json(neu);
+        });
+        admin.MapPut("/planformate/{id:int}", (int id, Planformat f, HttpContext c, Planformatdienst pf, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var neu = pf.Speichern(f with { Id = id });
+            prot.Schreiben(b.Login, "Stundenplanformat geändert", neu.Name);
+            return Results.Json(neu);
+        });
+        admin.MapDelete("/planformate/{id:int}", (int id, HttpContext c, Planformatdienst pf, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            pf.Loeschen(id);
+            prot.Schreiben(b.Login, "Stundenplanformat gelöscht", id.ToString());
+            return Results.Json(new { ok = true });
+        });
+        admin.MapPut("/planformate-zuordnung", (PlanformatZuordnung z, HttpContext c, Planformatdienst pf, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var neu = pf.ZuordnungSpeichern(z);
+            prot.Schreiben(b.Login, "Stundenplanformate zugeordnet", $"Klasse {neu.Klasse?.ToString() ?? "Standard"}, Lehrkraft {neu.Lehrer?.ToString() ?? "Standard"}, Raum {neu.Raum?.ToString() ?? "Standard"}");
+            return Results.Json(neu);
+        });
+
         admin.MapGet("/einstellungen/{bereich}", (string bereich, HttpContext c, Verwaltungsdienst vw) => { Admin(c); return Results.Json(vw.Einstellung(bereich)); });
         admin.MapPut("/einstellungen/{bereich}", (string bereich, Dictionary<string, JsonElement> werte, HttpContext c, Verwaltungsdienst vw, Protokoll prot) =>
         {
