@@ -2012,3 +2012,9 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .tt-leer-knopf { display: inline-grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: #8a96a1; font-size: 1rem; cursor: pointer; }
 .tt-leer-knopf:hover, .tt-leer-knopf.aus { background: #dfe3e7; color: #414d55; }
 .tag-filter { width: 200px; border-radius: 999px; }
+
+/* Menüpunkte der Seitenleiste wie in der Vorlage: grau (#67747e) und Medium statt dunkel und fett; aktiv orange */
+.u-leiste .u-nav .u-nav-punkt { color: #67747e; font-weight: 500; }
+.u-leiste .u-nav .u-nav-punkt .u-nav-sym { color: #67747e; }
+.u-leiste .u-nav .u-nav-punkt.aktiv, .u-leiste .u-nav .u-nav-punkt.aktiv .u-nav-sym { color: #fe6033; }
+.u-leiste .u-nav .u-nav-punkt:hover, .u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }

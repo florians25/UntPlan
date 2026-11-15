@@ -205,6 +205,15 @@ input.sd-eingabe { min-height: 56px; }
 /* gekürzte Kartenzeile mit Hover: während des Hovers leicht hinterlegt */
 .std .z1.hover-markiert, .std .z2.hover-markiert { background: rgba(65, 77, 85, .1); border-radius: 2px; }
 
+/* Kopf der Stundendetails wie in der Vorlage etwas enger: kleinere Abstände um die Trennstriche, dichtere Laufweite */
+.sd-titel h2 { letter-spacing: -.012em; gap: 0; }
+.sd-titel .trenn { margin: 0 .38rem; }
+.sd-zeile { letter-spacing: -.008em; }
+.sd-zeile .trenn { margin: 0 .4rem; }
+/* Reiter direkt nebeneinander (nur der Innenabstand trennt sie), der erste bündig unter dem Titel */
+.sd-reiter { gap: 0; }
+.sd-reiter > li:first-child { margin-left: 16px; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
