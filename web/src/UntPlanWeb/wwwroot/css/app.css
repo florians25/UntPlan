@@ -1075,6 +1075,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .u-legende-menue button.eintrag.ohne { padding-left: 24px; }
 .u-legende-menue .haken { color: var(--u-akzent); font-size: 20px; line-height: 1; -webkit-text-stroke: .3px; }
 .u-legende-menue .haken.leer { color: var(--u-grau-3); }
+.u-legende-menue .haken.punkt { font-size: 19px; -webkit-text-stroke: 0; }
 .u-hilfe-rund .bi { font-size: 28px; line-height: 1; }
 
 /* Stundendetails wie 59/62 */

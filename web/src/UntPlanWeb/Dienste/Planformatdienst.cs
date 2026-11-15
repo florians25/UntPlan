@@ -18,9 +18,18 @@ public sealed record Planformat
     public bool Details { get; init; } = true;
     public bool UnangekuendigtePruefungen { get; init; }
     public bool Farben { get; init; } = true;
-    /// <summary>Stundenbeschriftung im Raster: Beginn-/Endzeit, Stundennummer.</summary>
+    /// <summary>Zeitraster-Einstellung: „raster“ (Zeitraster der Schule) bzw. „uhrzeit“ (tatsächliche Uhrzeit).</summary>
+    public string Zeitraster { get; init; } = "raster";
+    /// <summary>Stundenbeschriftung im Raster: Beginn-/Endzeit, Stundennummer, Stundenname.</summary>
     public bool Zeiten { get; init; } = true;
     public bool Stundennummer { get; init; } = true;
+    public bool Stundenname { get; init; }
+    /// <summary>Zusätzliche Information auf dem Stundenkärtchen: Beginn- und Endzeit, Benutzer (Info-Symbol).</summary>
+    public bool KartenZeiten { get; init; }
+    public bool Benutzer { get; init; }
+    /// <summary>Externe Kalender anzeigen bzw. hervorheben (Plattform-Applikationen).</summary>
+    public bool ExterneKalender { get; init; } = true;
+    public bool ExterneHervorheben { get; init; } = true;
     /// <summary>Anordnung auf dem Stundenkärtchen (1. Element erforderlich, bis zu 5).</summary>
     public List<PlanformatElement> Elemente { get; init; } = new();
     /// <summary>Angezeigte Wochentage (0 = Montag … 6 = Sonntag); leer = alle Tage des Zeitrasters.</summary>
@@ -40,13 +49,20 @@ public sealed record Planformat
     public bool Symbole { get; init; } = true;
 }
 
-/// <summary>Zuordnung der Formate zu den Plänen je Elementtyp; null = Standarddarstellung. Kollegium: Format auch für Lehrkräfte.</summary>
+/// <summary>
+/// Stundenplaneinstellungen „Allgemein“: Format je Plan (null = Standarddarstellung). Klassen-, Lehrkraft- und Raum-Stundenpläne gelten für alle;
+/// das Format für Schüler-Stundenpläne gilt für Schüler*innen und Erziehungsberechtigte (eigener Plan und Klassenplan) und hat dort Vorrang.
+/// </summary>
 public sealed record PlanformatZuordnung
 {
     public int? Klasse { get; init; }
     public int? Lehrer { get; init; }
     public int? Raum { get; init; }
-    public bool Kollegium { get; init; }
+    public int? Schueler { get; init; }
+    /// <summary>Älterer Stand (ohne Schüler-Format): Formate nur für Schüler*innen und Eltern – wird beim Lesen in <see cref="Schueler"/> übernommen.</summary>
+    public bool Kollegium { get; init; } = true;
+    /// <summary>Links zu Videokonferenzen in den Stundendetails.</summary>
+    public bool VideoLinks { get; init; } = true;
 }
 
 /// <summary>Stundenplanformate: Verwaltung (Einstellungen-Tabelle, JSON) und Anwendung auf den Wochenplan.</summary>
@@ -78,7 +94,7 @@ public sealed class Planformatdienst
     public PlanformatZuordnung ZuordnungSpeichern(PlanformatZuordnung z)
     {
         var ids = Formate().Select(f => f.Id).ToHashSet();
-        foreach (var id in new[] { z.Klasse, z.Lehrer, z.Raum })
+        foreach (var id in new[] { z.Klasse, z.Lehrer, z.Raum, z.Schueler })
             if (id is int i && !ids.Contains(i)) throw new ArgumentException("Unbekanntes Stundenplanformat.");
         _einst.Schreiben(SchluesselZuordnung, JsonSerializer.Serialize(z, Json));
         return z;
@@ -112,7 +128,7 @@ public sealed class Planformatdienst
         if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) >= 0) throw new ArgumentException("Die Beginnzeit muss vor der Endzeit liegen.");
         var liste = Formate();
         if (liste.Any(x => x.Id != f.Id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("Ein Stundenplanformat mit diesem Namen gibt es schon.");
-        var neu = f with { Name = name, Elemente = elemente, Tage = tage, ZeitVon = von, ZeitBis = bis };
+        var neu = f with { Name = name, Elemente = elemente, Tage = tage, ZeitVon = von, ZeitBis = bis, Zeitraster = f.Zeitraster == "uhrzeit" ? "uhrzeit" : "raster" };
         if (f.Id <= 0)
         {
             neu = neu with { Id = liste.Count == 0 ? 1 : liste.Max(x => x.Id) + 1 };
@@ -137,6 +153,7 @@ public sealed class Planformatdienst
         _einst.Schreiben(SchluesselZuordnung, JsonSerializer.Serialize(z with
         {
             Klasse = z.Klasse == id ? null : z.Klasse, Lehrer = z.Lehrer == id ? null : z.Lehrer, Raum = z.Raum == id ? null : z.Raum,
+            Schueler = z.Schueler == id ? null : z.Schueler,
         }, Json));
     }
 
@@ -144,10 +161,19 @@ public sealed class Planformatdienst
     public Planformat? FormatFuer(string typ, bool kollegium)
     {
         var z = Zuordnung();
-        if (kollegium && !z.Kollegium) return null;
-        var id = typ switch { Elementtyp.Klasse => z.Klasse, Elementtyp.Lehrer => z.Lehrer, Elementtyp.Raum => z.Raum, _ => null };
+        // älterer Stand: „nur für Schüler*innen und Eltern“ – das Klassenformat galt dort nur für Familien
+        if (!z.Kollegium && z.Schueler is null) z = z with { Schueler = z.Klasse, Klasse = null, Kollegium = true };
+        int? id = typ switch
+        {
+            Elementtyp.Klasse when !kollegium && z.Schueler is not null => z.Schueler,
+            Elementtyp.Klasse => z.Klasse, Elementtyp.Lehrer => z.Lehrer, Elementtyp.Raum => z.Raum, _ => null,
+        };
         return id is int i ? Formate().FirstOrDefault(f => f.Id == i) : null;
     }
+
+    /// <summary>Gewähltes Format (Menü „⋮“ im Stundenplan): 0 = Standarddarstellung, sonst das Format mit dieser Id (unbekannt: Vorgabe).</summary>
+    public Planformat? Gewaehlt(int? wahl, string typ, bool kollegium) =>
+        wahl switch { null => FormatFuer(typ, kollegium), 0 => null, int i => Formate().FirstOrDefault(f => f.Id == i) ?? FormatFuer(typ, kollegium) };
 
     /// <summary>
     /// Format auf den Wochenplan anwenden: Tage und Uhrzeiten eingrenzen, Aktivitäten ausblenden, Hervorhebungen und Farben entfernen;

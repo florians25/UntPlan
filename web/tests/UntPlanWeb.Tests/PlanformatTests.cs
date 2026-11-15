@@ -44,6 +44,16 @@ public class PlanformatTests
         Assert.Equal(3, plan["tage"]!.AsArray().Count);
         Assert.DoesNotContain(plan["karten"]!.AsArray(), k => k!["status"]!.GetValue<string>() == "entfall");
         Assert.NotNull(plan["langnamen"]);
+        Assert.Equal(id, plan["formatId"]!.GetValue<int>());
+        Assert.Contains(plan["formate"]!.AsArray(), x => x!["id"]!.GetValue<int>() == id && x["name"]!.GetValue<string>() == "Schüler*innen");
+        // Auswahl im Menü „⋮“: Standard (0) bzw. ein bestimmtes Format, unbekannte Id = Vorgabe
+        var standard = await Testserver.HolenAsync(schueler, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-13&format=0");
+        Assert.Null(standard["format"]);
+        Assert.Equal(0, standard["formatId"]!.GetValue<int>());
+        Assert.True(standard["tage"]!.AsArray().Count >= 5);
+        var gewaehlt = await Testserver.HolenAsync(lehrkraft, $"/api/app/plan?typ=klasse&element=7a&datum=2026-10-13&format={id}");
+        Assert.Equal(id, gewaehlt["formatId"]!.GetValue<int>());
+        Assert.Null((await Testserver.HolenAsync(lehrkraft, "/api/app/plan?typ=klasse&element=7a&datum=2026-10-13&format=999"))["format"]);
 
         // Kollegium einschließen
         await Testserver.JsonAsync(await admin.PutAsJsonAsync("/api/app/admin/planformate-zuordnung", new { klasse = id, kollegium = true }));

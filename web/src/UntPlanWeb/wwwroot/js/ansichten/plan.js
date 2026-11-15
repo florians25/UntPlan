@@ -43,7 +43,12 @@ export function planEinstellungen() {
 function einstellungenSpeichern(w) { try { localStorage.setItem('untplan:planeinstellungen', JSON.stringify(w)); } catch { /* privat */ } }
 
 /** Legende als schwebende Pillenleiste; die Pillen blenden Statusfarben aus und ein, „⋮“ öffnet das Menü wie im Original. */
-export function legendeHtml(aus, einst, mitDruck = true) {
+/** Im Menü „⋮“ gewähltes Stundenplanformat (je Gerät): null = Vorgabe der Schule, 0 = Standarddarstellung, sonst die Id. */
+export function planformatWahl() {
+  try { const v = localStorage.getItem('untplan:planformat'); return v === null || v === '' ? null : Number(v); } catch { return null; }
+}
+
+export function legendeHtml(aus, einst, mitDruck = true, plan = null) {
   const pille = (id, marker, text) => `<button type="button" class="u-legende-pille ${aus.has(id) ? 'aus' : ''}" data-legende="${id}" aria-pressed="${!aus.has(id)}" title="${text} hervorheben ein/aus">${marker}${text}</button>`;
   const haken = an => an ? '<i class="bi bi-check-circle haken"></i>' : '<i class="bi bi-circle haken leer"></i>';
   return `<div class="u-legende-leiste nicht-drucken" data-legendenleiste>
@@ -57,6 +62,8 @@ export function legendeHtml(aus, einst, mitDruck = true) {
         <button type="button" class="eintrag" data-einst="abwesenheiten" role="menuitemcheckbox" aria-checked="${einst.abwesenheiten}">${haken(einst.abwesenheiten)}Abwesenheiten anzeigen</button>
         <div class="kopf">Pausenaufsichten</div>
         ${[['normal', 'Normal'], ['halbiert', 'Halbiert (Blöcke durchgängig)'], ['aus', 'Ausgeblendet']].map(([w, t]) => `<button type="button" class="eintrag" data-aufsichten="${w}" role="menuitemradio" aria-checked="${(einst.aufsichten ?? 'normal') === w}">${haken((einst.aufsichten ?? 'normal') === w)}${t}</button>`).join('')}
+        ${plan?.formate?.length ? `<div class="kopf">Stundenplanformat</div>
+          ${[{ id: 0, name: 'Standard' }, ...plan.formate].map(f => `<button type="button" class="eintrag" data-planformat="${f.id}" role="menuitemradio" aria-checked="${(plan.formatId ?? 0) === f.id}">${(plan.formatId ?? 0) === f.id ? '<i class="bi bi-record-circle-fill haken punkt"></i>' : '<i class="bi bi-circle haken leer"></i>'}${e(f.name)}</button>`).join('')}` : ''}
         <div class="kopf">Andere</div>
         ${mitDruck ? '<button type="button" class="eintrag ohne" data-drucken role="menuitem">Drucken</button>' : ''}
         <button type="button" class="eintrag ohne" data-link role="menuitem">Öffentlichen Link kopieren <i class="bi bi-copy ms-auto text-body-tertiary"></i></button>
@@ -118,6 +125,12 @@ export function legendeBinden(wurzel, aus, einst, neuZeichnen) {
     einst[b.dataset.einst] = !einst[b.dataset.einst];
     einstellungenSpeichern(einst);
     neuZeichnen(true);
+  });
+  wurzel.querySelectorAll('[data-planformat]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    try { localStorage.setItem('untplan:planformat', b.dataset.planformat); } catch { /* privat */ }
+    // neu laden: das Format wendet der Server an (Tage, Zeiten, Aktivitäten, Hervorhebungen)
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
   });
   wurzel.querySelectorAll('[data-aufsichten]').forEach(b => b.onclick = ev => {
     ev.stopPropagation();
@@ -228,7 +241,8 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
 
   const istAktuell = kontext.aktuell();
   // eigene Abwesenheiten (graue Fläche hinter den Stunden) liefert der Server nur im eigenen Plan; bei mehreren Kindern das gewählte
-  const plan = await holen(`/api/app/plan?typ=${typ}&element=${encodeURIComponent(element)}&datum=${datum}${istMein && meinKind ? `&schueler=${meinKind}` : ''}`);
+  const fw = planformatWahl();
+  const plan = await holen(`/api/app/plan?typ=${typ}&element=${encodeURIComponent(element)}&datum=${datum}${istMein && meinKind ? `&schueler=${meinKind}` : ''}${fw !== null ? `&format=${fw}` : ''}`);
   if (!istAktuell()) return;
   const inhalt = seite.querySelector('[data-inhalt]');
   let gewaehlt = Math.max(0, plan.tage.findIndex(t => t.datum === datum));
@@ -239,8 +253,8 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` – ${e(langname(plan))}` : ''}</h2>
         <span class="text-body-secondary small ms-2">${wochenText(mo)}</span></div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeiten, aufsichten: einst.aufsichten })}
-      ${legendeHtml(aus, einst)}`;
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: plan.format?.kartenZeiten || einst.zeiten, aufsichten: einst.aufsichten })}
+      ${legendeHtml(aus, einst, true, plan)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext, typ, plan.format);
     legendeBinden(inhalt, aus, einst, () => zeichnen(true));
