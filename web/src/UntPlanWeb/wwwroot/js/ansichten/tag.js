@@ -1,6 +1,7 @@
-// Tagesübersicht für das Kollegium: alle Klassen, Lehrkräfte oder Räume eines Tages.
+// Tagesübersicht für das Kollegium (Tag - Klassen/Lehrkräfte/Räume) wie in der Vorlage: je Element eine Spalte mit derselben senkrechten
+// Zeitachse und denselben Karten wie im Wochenplan; oben links schaltet ein runder Knopf leere Spalten aus bzw. ein („Leere Spalten anzeigen“).
 import { e, icon, holen, heuteIso, plusTage, datumLang, lade } from '../ui.js';
-import { tagesGitter, kartenBinden, sperreHtml } from '../plangitter.js';
+import { wochenGitter, kartenBinden, sperreHtml } from '../plangitter.js';
 import { kalenderBinden } from './plan.js';
 
 const TYPEN = { klasse: 'Klassen', lehrer: 'Lehrkräfte', raum: 'Räume' };
@@ -15,7 +16,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   // Kopfzeile wie im Stundenplan: Filter links, Tag mittig mit Blättern, „Heute“ rechts
   seite.innerHTML = `
     <div class="planleiste nicht-drucken">
-      <div class="links"><input type="search" class="form-control" data-filter placeholder="${TYPEN[typ]} filtern" style="width:200px;border-radius:999px" aria-label="Filtern"></div>
+      <div class="links"><input type="search" class="form-control tag-filter" data-filter placeholder="${TYPEN[typ]} filtern" aria-label="Filtern"></div>
       <div class="mitte">
         <button type="button" class="rundknopf" data-tage="-1" title="Vorheriger Tag" aria-label="Vorheriger Tag">${icon('links')}</button>
         <span class="position-relative"><button type="button" class="zeitraum" data-datum title="Datum wählen" aria-haspopup="dialog">${e(datumLang(datum))}</button></span>
@@ -37,19 +38,33 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   const tag = await holen(`/api/app/tag?typ=${typ}&datum=${datum}`);
   if (!istAktuell()) return;
   const inhalt = seite.querySelector('[data-inhalt]');
-  const zeichnen = filter => {
-    const f = filter.trim().toLowerCase();
-    const sicht = { ...tag, zeilen: f ? tag.zeilen.filter(z => (z.kurz + ' ' + z.name).toLowerCase().includes(f)) : tag.zeilen };
+  const LEER = 'untplan:tag-leere-aus';
+  let leerAus = false;
+  try { leerAus = localStorage.getItem(LEER) === '1'; } catch { /* privat */ }
+  let filterText = '';
+  const zeichnen = () => {
+    const f = filterText.trim().toLowerCase();
     const k = tag.kopf;
-    const { html, karten } = tagesGitter(sicht);
-    inhalt.innerHTML = `<div class="d-flex flex-wrap align-items-baseline gap-2 mb-2"><h2 class="h6 fw-bold mb-0">Tag - ${e(TYPEN[typ])}</h2>
-        ${tag.gesperrt ? '' : `<span class="badge ${k.tagesaktuell ? 'text-bg-success' : 'text-bg-secondary'}">${k.tagesaktuell ? 'tagesaktuell' : 'Regelplan'}</span>`}</div>
-      ${k.hinweise.map(h => `<div class="alert alert-warning py-2 small mb-2">${e(h)}</div>`).join('')}
+    let zeilen = f ? tag.zeilen.filter(z => (z.kurz + ' ' + z.name).toLowerCase().includes(f)) : tag.zeilen;
+    if (leerAus) zeilen = zeilen.filter(z => z.karten.length);
+    // je Element eine Spalte des Rasters (die Karten behalten ihr Datum für die Stundendetails)
+    const plan = { typ, zeitraster: tag.zeitraster, aufsichten: [], abwesenheiten: [], karten: [], gesperrt: false,
+      tage: zeilen.map(z => ({ datum, spalte: z.kurz, titel: z.kurz, name: z.name, hinweise: [], ereignisse: [], frei: false })) };
+    zeilen.forEach(z => z.karten.forEach(x => plan.karten.push({ ...x, spalte: z.kurz })));
+    const ecke = `<button type="button" class="tt-leer-knopf ${leerAus ? 'aus' : ''}" data-leer data-hover="${leerAus ? 'Leere Spalten anzeigen' : 'Leere Spalten ausblenden'}" data-hover-art="dunkel"
+      aria-label="${leerAus ? 'Leere Spalten anzeigen' : 'Leere Spalten ausblenden'}" aria-pressed="${leerAus}"><i class="bi ${leerAus ? 'bi-arrows-expand-vertical' : 'bi-arrows-collapse-vertical'}" aria-hidden="true"></i></button>`;
+    inhalt.innerHTML = `${k.hinweise.map(h => `<div class="alert alert-warning py-2 small mb-2">${e(h)}</div>`).join('')}
       ${tag.gesperrt ? `<div class="tt-gesperrt tag-gesperrt">${sperreHtml(tag.sperrhinweis)}</div>`
         : k.frei ? `<div class="alert alert-secondary">${e(k.freiGrund || 'Unterrichtsfrei')}</div>`
-        : sicht.zeilen.length ? html : '<div class="alert alert-secondary">Keine Einträge.</div>'}`;
-    kartenBinden(inhalt, karten, kontext, typ);
+        : zeilen.length ? `<div class="tag-huelle" style="--spalten:${zeilen.length}">${wochenGitter(plan, { ecke })}</div>`
+        : `<div class="alert alert-secondary">${leerAus && tag.zeilen.length ? 'Keine Einträge – leere Spalten sind ausgeblendet.' : 'Keine Einträge.'}</div>`}`;
+    kartenBinden(inhalt, plan.karten, kontext, typ);
+    inhalt.querySelector('[data-leer]')?.addEventListener('click', () => {
+      leerAus = !leerAus;
+      try { localStorage.setItem(LEER, leerAus ? '1' : '0'); } catch { /* privat */ }
+      zeichnen();
+    });
   };
-  zeichnen('');
-  seite.querySelector('[data-filter]').oninput = ev => zeichnen(ev.target.value);
+  zeichnen();
+  seite.querySelector('[data-filter]').oninput = ev => { filterText = ev.target.value; zeichnen(); };
 }

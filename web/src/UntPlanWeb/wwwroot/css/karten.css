@@ -202,6 +202,9 @@ input.sd-eingabe { min-height: 56px; }
 .rv-zeile:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
 .rv-leer { padding: 24px 8px; color: var(--u-grau); }
 
+/* gekürzte Kartenzeile mit Hover: während des Hovers leicht hinterlegt */
+.std .z1.hover-markiert, .std .z2.hover-markiert { background: rgba(65, 77, 85, .1); border-radius: 2px; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
