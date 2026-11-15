@@ -394,16 +394,17 @@ body.gescrollt .u-werkzeug { box-shadow: 0 6px 10px -10px rgba(0, 5, 10, .35); }
 
 /* ------------------------------------------------------------------ Heute (Aufbau wie im Original) */
 
-.heute-titel { font-size: 1.07rem; margin: 6px 0 12px; font-weight: 400; color: var(--u-akzent); }
-.heute-titel span { color: var(--u-grau); margin-left: 3px; font-size: .95rem; }
+.heute-titel { font-size: .975rem; margin: 6px 0 12px; font-weight: 400; color: var(--u-akzent); }
+.heute-titel span { color: #999; margin-left: 3px; font-size: .8625rem; }
 .heute { max-width: 992px; display: flex; flex-direction: column; gap: 16px; }
 .heute-karte { background: #fff; box-shadow: 0 1px 3px rgba(0, 5, 10, .08), 0 3px 10px rgba(0, 5, 10, .05); border-radius: 2px; }
-.heute-anmeldung { padding: 12px 18px 12px; font-size: .8125rem; color: var(--u-titel); line-height: 1.5; }
+/* Vorlage nachgemessen: Text 12 px in #333, Datum im Titel #999 */
+.heute-anmeldung { padding: 13px 18px 12px; font-size: .75rem; color: #333; line-height: 1.5; }
 .heute-anmeldung div + div { margin-top: 10px; }
-.heute-karte > header { display: flex; align-items: center; gap: 6px; padding: 10px 16px 9px; border-bottom: 1px solid #c9ced4; color: var(--u-akzent); font-size: .95rem; }
+.heute-karte > header { display: flex; align-items: center; gap: 6px; padding: 10px 16px 9px; border-bottom: 1px solid #c9ced4; color: var(--u-akzent); font-size: .88rem; }
 .heute-karte > header .u-rss { width: 16px; height: 16px; margin-left: 2px; }
 .heute-karte > header a { margin-left: auto; font-size: .8125rem; font-weight: 600; }
-.heute-nachrichten { padding: 4px 16px 10px; font-size: .8125rem; color: var(--u-titel); }
+.heute-nachrichten { padding: 4px 16px 10px; font-size: .75rem; color: #333; }
 .heute-nachrichten .leer { padding: 6px 0 2px; }
 .heute-nachricht { padding: 8px 0; border-bottom: 1px solid var(--u-linie-2); white-space: pre-wrap; }
 .heute-nachricht:last-child { border-bottom: 0; }
@@ -1317,7 +1318,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 /* UW-05: Startseite – „Mein nächster Unterricht“ als alte Liste (Entfall grau durchgestrichen, Änderung lila) */
 .heute-karte > header .h-stift img { width: 16px; height: 16px; }
 .heute-karte > header .h-stift { margin-left: 4px; }
-.heute-karte > header .h-tag { color: var(--u-grau); font-size: .85rem; margin-left: 6px; }
+.heute-karte > header .h-tag { color: #999; font-size: .85rem; margin-left: 6px; }
 .heute-liste { width: 100%; border-collapse: separate; border-spacing: 0 2px; font-size: 12.5px; color: #24323d; margin: 4px 0 8px; }
 .heute-liste th { font-size: 11.5px; font-weight: 600; padding: 8px 8px 4px; white-space: nowrap; text-align: left; }
 .heute-liste td { padding: 6px 8px; background: #fff; white-space: nowrap; vertical-align: middle; }
