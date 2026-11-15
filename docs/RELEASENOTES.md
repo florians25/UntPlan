@@ -45,6 +45,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Raum ersetzen/hinzufügen in denselben Größen wie die Raumsuche der Planauswahl: Suchfeld 44 pt, Filter „Abteilung“ als 42-pt-Kapsel mit Pfeil, Raumzeilen mit 44-pt-Scheibe, Kürzel 20 pt und Raumname als graues Badge; auch die Filter bei den Abwesenheiten (Zeitbereich, Status) sind 42 pt hoch.
 - Schülerliste (Anwesenheitskontrolle) wie im Vorlage-Video: nach links wischen setzt „abwesend“ (rot), ein zweites Mal nach links während der laufenden Stunde „verspätet“ (gelbes Uhr-Symbol, „gekommen um …“); daneben „Verspätet“ bzw. „Entschuldigen“ als weitere Wischaktion. Nach rechts wischen setzt wieder „anwesend“.
 - Startseite (Klassenleitung): eigener Punkt „Abwesenheiten“ mit der Zahl der offenen Abwesenheiten; die Liste startet wie in der Vorlage gefiltert auf „Offen“ (Menü „Status wählen“: Alle, Offen, Unentschuldigt, Entschuldigt). Im Dialog öffnet „Entschuldigungsstatus“ die Seite „Entschuldigungsstatus wählen“ (gewählter Status mit orangem Haken); unten steht der Abwesenheitsgrund.
 - Raum ersetzen/hinzufügen wie in der Vorlage: Titel „R1BK ersetzen“, Suchfeld, Kapsel „Abteilung“, je Raum eine graue Scheibe mit Raumsymbol und das Kürzel.
