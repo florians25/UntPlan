@@ -23,7 +23,7 @@ enum Startziel: Hashable {
     case hausaufgaben
     case aufsichten
     case aenderungen
-    /// Sprechtag (Lehrkräfte: eigene Termine; Erziehungsberechtigte: buchen und absagen)
+    /// Sprechtag (Lehrkräfte und Administration: Termine verwalten; Erziehungsberechtigte: buchen, annehmen und absagen)
     case sprechtag(Int)
     /// Entschuldigungen (Klassenleitung: Abwesenheiten der eigenen Klassen; Fachlehrkraft: eigene Fehlstunden)
     case entschuldigungen
@@ -430,7 +430,7 @@ struct StartView: View {
         }
         // Sprechtag statt Pausenaufsichten (die Aufsichten stehen im Stundenplan)
         // Auch angekündigte Sprechtage (noch keine Buchung möglich) erscheinen mit Datum, Ort und Anmeldebeginn
-        for t in sprechtage {
+        for t in (mitSprechtag ? sprechtage : []) {
             liste.append(Listeneintrag(ziel: .sprechtag(t.id), titel: t.titel, symbol: t.angekuendigt ? "megaphone" : "person.2",
                                        zahl: t.termine, untertitel: t.untertitel))
         }
@@ -465,10 +465,11 @@ struct StartView: View {
         }
     }
 
-    /// Sprechtage für alle Rollen laden – der Server entscheidet, was sichtbar ist (Lehrkräfte, Erziehungsberechtigte,
-    /// Schüler*innen nur bei Freigabe durch die Schule).
+    /// Sprechtage für Lehrkräfte, Administration und Erziehungsberechtigte laden – der Server entscheidet, was sichtbar ist.
+    /// Schüler*innen haben keinen Zugriff auf den Sprechtag.
     private var mitSprechtag: Bool {
-        zustand.benutzer != nil
+        guard let b = zustand.benutzer else { return false }
+        return b.rolle.lowercased() != "schueler"
     }
 
     private func laden() async {
