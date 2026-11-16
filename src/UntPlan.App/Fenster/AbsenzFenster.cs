@@ -107,6 +107,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Columns["Ent"]!.DisplayIndex = nachText + 2;
         _g.Columns["Abs"]!.DisplayIndex = nachText + 3;
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
+        Ui.Spaltenhilfe(_g, c => SpaltenhilfeText(c.Name, Typ));
         Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
         {
             Element? el = zelle.OwningColumn.Name == "G" ? D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) : D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname == text);
@@ -291,6 +292,28 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private AbwesenheitsArt Art => (AbwesenheitsArt)Math.Max(0, _tabs.SelectedIndex);
 
     private ElementTyp Typ => TypVon(Art);
+
+    /// <summary>Kurzer Hilfetext je Spalte für die Statuszeile (Spaltenhilfe).</summary>
+    internal static readonly Dictionary<string, string> Spaltenhilfen = new()
+    {
+        ["Nr"] = "Absenznummer zur eindeutigen Kennzeichnung der Absenz",
+        ["E"] = "Abwesendes Element – Kurzname eintippen oder aus der Liste wählen",
+        ["V"] = "Erster Tag der Absenz (TT.MM.)",
+        ["SV"] = "Erste abwesende Stunde am ersten Tag (leer = ab der ersten Stunde)",
+        ["B"] = "Letzter Tag der Absenz (TT.MM.)",
+        ["SB"] = "Letzte abwesende Stunde am letzten Tag (leer = bis zur letzten Stunde)",
+        ["G"] = "Grund der Absenz – wird für die Zählerführung gebraucht (z. B. ob Entfall gezählt wird)",
+        ["T"] = "Text zur Absenz, erscheint auf Wunsch im Vertretungsplan",
+        ["Beg"] = "Begleitlehrkraft, z. B. bei Exkursionen der Klasse",
+        ["O"] = "Anzahl der noch offenen Vertretungen dieser Absenz",
+        ["Anr"] = "Anrechnung der Absenz auf den Vertretungszähler",
+        ["Ent"] = "Entfalltage: Tage, an denen die Absenz Unterricht entfallen lässt",
+        ["Abs"] = "Absenztage: Unterrichtstage im Zeitraum der Absenz",
+    };
+
+    private static string? SpaltenhilfeText(string spalte, ElementTyp typ) => spalte == "E"
+        ? typ switch { ElementTyp.Klasse => "Abwesende Klasse – Kurzname eintippen oder aus der Liste wählen", ElementTyp.Raum => "Gesperrter Raum – Kurzname eintippen oder aus der Liste wählen", _ => "Abwesende Lehrkraft – Kurzname eintippen oder aus der Liste wählen" }
+        : Spaltenhilfen.GetValueOrDefault(spalte);
 
     private static ElementTyp TypVon(AbwesenheitsArt a) => a switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum };
 

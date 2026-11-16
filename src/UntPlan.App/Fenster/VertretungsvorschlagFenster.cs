@@ -118,6 +118,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             ("Vorm", "Vormerkungen", 90), ("Bez", "bez.", 40), ("Betr", "Betreuungen", 70), ("Ben", "Benachrichtigen", 90), ("Punkte", "Punkte", 46),
             ("Kr", "Kriterien", 220),
         });
+        // Standard-Reihenfolge der Anzeige (gespeicherte Tabellenformate des Benutzers gehen vor): die für die Auswahl wichtigsten Spalten vorn
+        var reihe = new[] { "Name", "Merker", "Klasse", "Fach", "Zaehler", "Vertr", "Entf", "Vorwoche", "Punkte", "ZW" };
+        var anzeige = reihe.Concat(_vorschlag.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.Index).Select(c => c.Name).Where(n => !reihe.Contains(n))).ToList();
+        for (var i = 0; i < anzeige.Count; i++) _vorschlag.Columns[anzeige[i]]!.DisplayIndex = i;
         _vorschlag.Columns["RegB"]!.ToolTipText = "Genutzte reguläre Bereitschaften";
         _vorschlag.Columns["DepB"]!.ToolTipText = "Genutzte Deputats-Bereitschaften";
         _vorschlag.Columns["Bez"]!.ToolTipText = "Bezahlte Vertretungen im eingestellten Zeitraum";

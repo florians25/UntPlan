@@ -54,11 +54,11 @@ public sealed partial class HauptFenster
     });
 
     /// <summary>„Ausgabe ▸ Tageslisten“: alle Vertretungsformate mit dem Kennzeichen „Tagesliste“ für das Datum des Kalenders drucken.</summary>
-    private void TageslistenDrucken() =>
+    internal void TageslistenDrucken() =>
         Druck.VertretungsplanDruck.Tageslisten(this, AppZustand.Datum, Vertretungsformate.Tageslisten(AppZustand.Einstellungen.VertretungsformateListe));
 
     /// <summary>„Ausgabe ▸ Druck Klassen / Druck Lehrer“: Vertretungsplan des Kalendertages (Seitenlayout mit Vorschau).</summary>
-    private void VertretungsplanDrucken(bool lehrer) =>
+    internal void VertretungsplanDrucken(bool lehrer) =>
         Druck.VertretungsplanDruck.Drucken(this, AppZustand.Datum, AppZustand.Datum, lehrer, true);
 
     /// <summary>„Datei ▸ Import/Export ▸ Import Vertretungsplanung“ (Handbuch Kap. 16.7).</summary>

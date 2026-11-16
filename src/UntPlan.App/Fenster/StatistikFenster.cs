@@ -34,6 +34,12 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
     private readonly FlowLayoutPanel _links = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Abschnitt.Grund };
     private readonly FlowLayoutPanel _rechts = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Abschnitt.Grund };
     private readonly SplitContainer _teilung = new() { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
+    /// <summary>Übersicht bei breitem Fenster dreispaltig: links Zeitraum/Stunden-/Wochenverteilung, Mitte Lehrerübersicht, rechts Absenzgründe.</summary>
+    private readonly TableLayoutPanel _drei = new() { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Visible = false, BackColor = Abschnitt.Grund };
+    private readonly FlowLayoutPanel[] _spalten = Enumerable.Range(0, 3).Select(_ => new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Abschnitt.Grund, Margin = Padding.Empty }).ToArray();
+    /// <summary>Mindestbreite des Statistikbereichs für die dreispaltige Übersicht; darunter werden die Bereiche gestapelt.</summary>
+    private const int DreiSpaltenAb = 1100;
+    private bool _dreiSpaltig;
     private readonly Panel _detailKopf = new() { Dock = DockStyle.Top, Height = 30, Visible = false };
     private readonly Label _detailArt = new() { Left = 6, Top = 7, AutoSize = true };
     private readonly ComboBox _detailWahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 60, Top = 4, Width = 110 };
@@ -53,7 +59,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         Text = "Vertretungsstatistik";
         HilfeThema = "Statistik";
         Icon = SymbolIcon("statistik");
-        Size = new Size(1080, 640);
+        Size = new Size(1180, 640);
         Positionieren();
         var heute = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _von.Value = new DateTime(heute.Year, heute.Month, 1);
@@ -152,8 +158,20 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         _teilung.Panel2.Controls.Add(_rechts);
         _links.Resize += (_, _) => Breiten();
         _rechts.Resize += (_, _) => Breiten();
+        _drei.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
+        _drei.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+        _drei.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+        _drei.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        for (var i = 0; i < 3; i++)
+        {
+            _drei.Controls.Add(_spalten[i], i, 0);
+            _spalten[i].Resize += (_, _) => Breiten();
+        }
         _seiteStatistik.Controls.Add(_teilung);
+        _seiteStatistik.Controls.Add(_drei);
         _seiteStatistik.Controls.Add(_detailKopf);
+        // beim Überschreiten der Breitengrenze zwischen dreispaltiger und gestapelter Übersicht wechseln
+        _seiteStatistik.Resize += (_, _) => { if (!_laedt && _detailTyp is null && DreiSpaltigMoeglich != _dreiSpaltig) Anordnen(); };
         _von.ValueChanged += (_, _) => Neuaufbau();
         _bis.ValueChanged += (_, _) => Neuaufbau();
 
@@ -244,14 +262,21 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
 
     private string GrundName(int id) => id == 0 ? "Kein Grund" : D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == id)?.Kurzname ?? "?";
 
-    /// <summary>Übersicht: alle Bereiche untereinander; Detailansicht: links Zeitraum/Stunden-/Wochenverteilung, rechts Überblick und Absenzgründe.</summary>
+    private bool DreiSpaltigMoeglich => _seiteStatistik.ClientSize.Width >= DreiSpaltenAb;
+
+    /// <summary>
+    /// Übersicht: bei breitem Fenster dreispaltig (links Zeitraum/Stunden-/Wochenverteilung, Mitte Lehrerübersicht, rechts Absenzgründe),
+    /// bei schmalem Fenster alle Bereiche untereinander; Detailansicht: links Zeitraum/Stunden-/Wochenverteilung, rechts Überblick und Absenzgründe.
+    /// </summary>
     private void Anordnen()
     {
         var detail = _detailTyp != null;
-        _links.SuspendLayout();
-        _rechts.SuspendLayout();
-        _links.Controls.Clear();
-        _rechts.Controls.Clear();
+        var panels = new[] { _links, _rechts }.Concat(_spalten).ToArray();
+        foreach (var p in panels) p.SuspendLayout();
+        foreach (var p in panels) p.Controls.Clear();
+        _dreiSpaltig = !detail && DreiSpaltigMoeglich;
+        _drei.Visible = _dreiSpaltig;
+        _teilung.Visible = !_dreiSpaltig;
         if (detail)
         {
             _links.Controls.AddRange(new Control[] { _aZeitraum, _aStunden, _aWoche });
@@ -268,20 +293,25 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         }
         else
         {
-            _links.Controls.AddRange(new Control[] { _aZeitraum, _aStunden, _aWoche, _aLehrer, _aGruende });
+            if (_dreiSpaltig)
+            {
+                _spalten[0].Controls.AddRange(new Control[] { _aZeitraum, _aStunden, _aWoche });
+                _spalten[1].Controls.Add(_aLehrer);
+                _spalten[2].Controls.Add(_aGruende);
+            }
+            else _links.Controls.AddRange(new Control[] { _aZeitraum, _aStunden, _aWoche, _aLehrer, _aGruende });
             _teilung.Panel2Collapsed = true;
             _detailKopf.Visible = false;
             _stunden.Columns["KL"]!.HeaderText = "Klassenlehrer";
             _stunden.Columns["K"]!.HeaderText = "Klassen";
         }
-        _links.ResumeLayout();
-        _rechts.ResumeLayout();
+        foreach (var p in panels) p.ResumeLayout();
         Breiten();
     }
 
     private void Breiten()
     {
-        foreach (var p in new[] { _links, _rechts })
+        foreach (var p in new[] { _links, _rechts }.Concat(_spalten))
         {
             var w = Math.Max(200, p.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8);
             foreach (Control c in p.Controls) c.Width = w;

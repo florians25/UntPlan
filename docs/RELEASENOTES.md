@@ -12,6 +12,12 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Verlegungen merken sich den Raum der Zielstunde (Soll-Raum); der Vertretungsplan zeigt ihn als bisherigen Raum – nur eine spätere Raumänderung erscheint als Raumänderung.
 - Sondereinsatz (zusätzliche Stunde): kollidiert er mit vorhandenem Unterricht der Lehrkraft bzw. Klasse, fragt UntPlan nach – auflisten der betroffenen Stunden, dann „Auflösen (Vertretung/Entfall)“, „Unterricht belassen“ oder „Abbrechen“. Der ursprüngliche Unterricht wird nicht mehr ungefragt zur offenen Vertretung.
 - Eingabefelder in Tabellen werden nie mehr schwarz – weder das Feld noch der Rand darum (auch nicht mit Textvorschlag im Feld).
+- Berichte erscheinen jetzt in einem eigenen Fenster im Programm (statt im Browser) – mit Drucken, Seitenansicht, Seite einrichten, „Im Browser öffnen“ und „Speichern unter“; oben stehen Schulname, Schuljahr und Erstelldatum. Im Auswahldialog der Berichte gibt es zusätzlich „Seite einrichten“.
+- Neu: Start ▸ Berichte ▸ „Listenauswahl…“ fasst alle Berichte und Listen in Gruppen zusammen (Übersichten, Stundenplan, Unterricht, Pausenaufsichten, Vertretungsplanung, Klausuren); Doppelklick oder „Ausgabe“ öffnet sie. Neue Listen: „Freie Stunden“ (freie Lehrkräfte und Räume je Tag und Stunde), „Fach-Stunden-Liste“ (Wochenstunden je Fach, Klasse und Lehrkraft mit Summen), Pausenaufsichts- und Klausurenliste.
+- Vertretungsstatistik: In der Übersicht stehen bei breitem Fenster Zeitraum/Verteilungen, Lehrerübersicht und Absenzgründe nebeneinander in drei Spalten; bei schmalem Fenster weiter untereinander.
+- Kalender: Der Fenstertitel zeigt Datum, Wochentag und Periode mit Zeitraum; neben dem Datum steht bei A/B-Wochen der Wochenbuchstabe.
+- Vertretungsvorschlag: neue Standard-Spaltenreihenfolge Name, Merker zur Stunde, Klasse, Fach, Zähler, Vertr., Entfall, Vorwoche, Punkte, Zeitwunsch (eigene gespeicherte Spaltenanordnungen bleiben erhalten).
+- Absenzen, Veranstaltungen und Vertretungen: Beim Wechsel in eine Spalte erklärt die Statuszeile kurz, wofür die Spalte da ist.
 
 ### Klassenbuch – Rechte
 - Jede Lehrkraft trägt Abwesenheiten und Verspätungen in allen Stunden ihres Plans ein (eigene Klassen und Vertretungen) und kann dort auch Fehlzeiten ändern bzw. löschen, die eine andere Lehrkraft eingetragen hat.
