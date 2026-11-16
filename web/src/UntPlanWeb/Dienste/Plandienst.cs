@@ -249,17 +249,17 @@ public static class Elementtyp
 /// <summary>Stundenpläne (Woche, Tag), Tagesübersichten aller Elemente und Hinweise aus dem übertragenen Paket.</summary>
 public sealed class Plandienst
 {
-    /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“), wenn kein anderer Text vorhanden ist.</summary>
+    /// <summary>Automatischer Text einer Vertretung ohne Lehrkraft („+++“) älterer Desktop-Versionen – wird nie als Vertretungstext gezeigt.</summary>
     public const string OhneLehrkraftText = "Vertr. o. Lehrkr.";
 
     /// <summary>
     /// Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung. Der automatische Hinweis „(Benutzer) Raumänderung“
     /// älterer Desktop-Versionen (Raumänderung aus einer Buchung) ist kein Vertretungstext und entfällt, ebenso die automatischen
-    /// Standardtexte einer Verlegung („Vertretung durch Verlegung“, „Vorziehung“) – überall (Karten, Details, Heute, Vertretungsplan, Apps).
+    /// Standardtexte einer Verlegung („Vertretung durch Verlegung“, „Vorziehung“) und „Vertr. o. Lehrkr.“ – überall (Karten, Details, Heute, Vertretungsplan, Apps).
     /// </summary>
     public static string TextNormal(string text) =>
         string.Join(" · ", text.Replace("Vertr. o. Lehrkraft", OhneLehrkraftText, StringComparison.Ordinal)
-            .Split(" · ").Where(t => !RaumaenderungsHinweis.IsMatch(t.Trim()) && !IstVerlegungsStandardtext(t)));
+            .Split(" · ").Where(t => !RaumaenderungsHinweis.IsMatch(t.Trim()) && !IstVerlegungsStandardtext(t) && t.Trim() != OhneLehrkraftText));
 
     private static readonly System.Text.RegularExpressions.Regex RaumaenderungsHinweis = new(@"^\([^()]*\)\s*Raumänderung$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
@@ -1498,8 +1498,6 @@ public sealed class Plandienst
             lehrer = lehrer.Where(w => !IstPlatzhalter(w.K) && (w.K.Length > 0 || (!string.IsNullOrEmpty(w.Alt) && !IstPlatzhalter(w.Alt)))).ToList();
         var text = buchung ? "" : string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         if (buchung) art = "";
-        // Vertretung ohne Lehrkraft ohne eigenen Text: Hinweis als Vertretungstext
-        if (ohneLehrer && text.Length == 0) text = OhneLehrkraftText;
         text = TextNormal(text);
         // zusätzliche Unterrichtsstunde: kein automatisch erzeugter Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text);
         // von Hand eingegebene Texte bleiben (Info-Symbol auf der Karte)

@@ -7,6 +7,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Vertretung ohne Lehrkraft („+++“): Es wird kein automatischer Text „Vertr. o. Lehrkr.“ mehr ins Feld „Text“ eingetragen bzw. in der Spalte „Text“ gezeigt; ein früher eingesetzter Standardtext verschwindet beim erneuten Setzen. Eigene Texte bleiben.
 - Betreuung: „Raum des Betreuungslehrers übernehmen“ ist standardmäßig nicht mehr angehakt.
 - Verlegungen merken sich den Raum der Zielstunde (Soll-Raum); der Vertretungsplan zeigt ihn als bisherigen Raum – nur eine spätere Raumänderung erscheint als Raumänderung.
 - Sondereinsatz (zusätzliche Stunde): kollidiert er mit vorhandenem Unterricht der Lehrkraft bzw. Klasse, fragt UntPlan nach – auflisten der betroffenen Stunden, dann „Auflösen (Vertretung/Entfall)“, „Unterricht belassen“ oder „Abbrechen“. Der ursprüngliche Unterricht wird nicht mehr ungefragt zur offenen Vertretung.
@@ -26,6 +27,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Vertretung ohne Lehrkraft: kein Info-Symbol und kein Vertretungstext „Vertr. o. Lehrkr.“ mehr (auch nicht aus älteren Daten) – nur von Hand eingegebene Texte erscheinen.
+- Raum buchen: Knöpfe (Zurück, Weiter, Speichern …) gleich groß und rechts.
 - Raum buchen wie in der Vorlage (im Grunddesign): „Buchung: Suche nach freien Räumen“ mit Zeitbereich (Einmalig, Täglich, Jede Woche … , Datum bzw. Zeitraum, Beginn- und Endzeit, „ganztägig“) und Auswahlkriterien (Ressourcenart, Raumart, Abteilung, Gebäude, Raumgruppe, Kapazität, maximale Belegung) → „Freie Räume“ als Tabelle mit „frei“ je Termin → „Buchung“ (Lehrkraft, Fach, Klassen, Titel, Anmerkung, Benachrichtigung, Hinweis auf Überschneidungen) → „Erfolgreiche Buchung“ mit PDF-Beleg und „Schließen“.
 - Stundenplan: Bei mehreren Räumen steht der Raum mit Label vorne („[A103], C103“) – im Web und in der App.
 - Stundendetails: Der Raumbereich (Ersetzen, Löschen, „+“) erscheint wieder nur in eigenen Stunden bzw. für die Administration in allen Stunden.

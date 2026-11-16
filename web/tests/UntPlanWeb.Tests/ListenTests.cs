@@ -53,8 +53,8 @@ public class FachpunktTests
         Assert.True(lehrer["neu"]!.GetValue<bool>());
         Assert.DoesNotContain("+++", plan.ToJsonString());
         Assert.DoesNotContain("???", k.ToJsonString());
-        // ohne eigenen Vertretungstext: Hinweis „Vertr. o. Lehrkr.“
-        Assert.Equal("Vertr. o. Lehrkr.", k["text"]!.GetValue<string>());
+        // ohne eigenen Vertretungstext: kein automatischer Text (kein Info-Symbol)
+        Assert.Equal("", k["text"]!.GetValue<string>());
 
         if (mitVertretung)
         {
@@ -65,7 +65,7 @@ public class FachpunktTests
             Assert.Equal("", z["lehrer"]!.GetValue<string>());
             Assert.Equal("WAG", z["lehrerAlt"]!.GetValue<string>());
             Assert.Equal("geaendert", z["status"]!.GetValue<string>());
-            Assert.Equal("Vertr. o. Lehrkr.", z["text"]!.GetValue<string>());
+            Assert.Equal("", z["text"]!.GetValue<string>());
             Assert.True(z["ohneLehrer"]!.GetValue<bool>());
         }
     }

@@ -62,7 +62,9 @@ public class PlanRaumOnlineTests
         Assert.Equal("", Plandienst.TextNormal(" (admin)  Raumänderung "));
         Assert.Equal("Arbeitsblatt", Plandienst.TextNormal("Arbeitsblatt · (lan) Raumänderung"));
         Assert.Equal("Raumänderung wegen Wasserschaden", Plandienst.TextNormal("Raumänderung wegen Wasserschaden"));
-        Assert.Equal(Plandienst.OhneLehrkraftText, Plandienst.TextNormal("Vertr. o. Lehrkraft"));
+        // automatischer Text einer Vertretung ohne Lehrkraft (auch ältere Schreibweise) ist kein Vertretungstext
+        Assert.Equal("", Plandienst.TextNormal("Vertr. o. Lehrkraft"));
+        Assert.Equal("Aufgaben", Plandienst.TextNormal("Vertr. o. Lehrkr. · Aufgaben"));
     }
 
     [Fact]
