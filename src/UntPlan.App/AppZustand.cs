@@ -235,6 +235,8 @@ public sealed partial class Benutzereinstellungen
     // ---- lokal gespeichert (nicht in der Schuldatei; im Einstellungsbaum kursiv) ----
     /// <summary>Tageslisten zusätzlich automatisch als PDF ausgeben (Einstellungen › Sonstiges).</summary>
     public bool TageslistenPdf { get; set; }
+    /// <summary>Lehrkräfte mit Unterricht (bzw. abwesende) in der Vertreter-Auswahlliste des Vertretungsfensters rot hervorheben.</summary>
+    public bool VertreterMitUnterrichtHervorheben { get; set; } = true;
     /// <summary>Ordner für die PDF-Tageslisten (leer = Dokumente).</summary>
     public string TageslistenPdfOrdner { get; set; } = "";
     /// <summary>Bei jeder Ausgabe der Tageslisten einen eigenen Dateinamen vergeben.</summary>

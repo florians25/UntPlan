@@ -208,6 +208,19 @@ public static class Kalender
 
     public static DateOnly Montag(DateOnly datum) => datum.AddDays(-(((int)datum.DayOfWeek + 6) % 7));
 
+    /// <summary>
+    /// Einstellungen | Diverses | Stundenplan, „Wochenanzeige“: Bezeichnung der Woche als Schulwoche („12. Schulwoche“) bzw.
+    /// Kalenderwoche nach ISO 8601 („KW 46“).
+    /// </summary>
+    public static string Wochenbezeichnung(Schuldatei d, DateOnly datum, bool kalenderwochen) =>
+        kalenderwochen ? $"KW {System.Globalization.ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue))}" : $"{Schulwoche(d, datum)}. Schulwoche";
+
+    /// <summary>Wochenbereich („12. - 30. Schulwoche“ bzw. „KW 37 - KW 6“).</summary>
+    public static string Wochenbereich(Schuldatei d, DateOnly von, DateOnly bis, bool kalenderwochen) =>
+        kalenderwochen
+            ? $"KW {System.Globalization.ISOWeek.GetWeekOfYear(von.ToDateTime(TimeOnly.MinValue))} - KW {System.Globalization.ISOWeek.GetWeekOfYear(bis.ToDateTime(TimeOnly.MinValue))}"
+            : $"{Schulwoche(d, von)}. - {Schulwoche(d, bis)}.Schulwoche";
+
     /// <summary>Schulwoche seit Schuljahresbeginn (1-basiert; ungerade = A-Woche).</summary>
     public static int Schulwoche(Schuldatei d, DateOnly datum)
     {

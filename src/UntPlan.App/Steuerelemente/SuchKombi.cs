@@ -1,7 +1,7 @@
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>Darstellung eines Eintrags in einer Auswahlliste (Hintergrund z. B. rot = nicht verfügbar, Zusatztext = Langname).</summary>
-public readonly record struct ListenStil(Color Hintergrund, Color Text, string Zusatz);
+public readonly record struct ListenStil(Color Hintergrund, Color Text, string Zusatz, Image? Symbol = null);
 
 /// <summary>
 /// Auswahllisten in Tabellen mit Direktsuche (siehe <see cref="ListenSuche"/>): In Auswahlspalten kann getippt werden, die Liste

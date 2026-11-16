@@ -372,7 +372,7 @@ internal static class StundenplanFormular
         using (var mZeit = new Font(Schrift, 6.5f))
         {
             nrB = Enumerable.Range(1, stunden).Max(st => g.MeasureString((zr.ErsteStundennummer - 1 + st).ToString(De), mNr).Width);
-            zeitB = Enumerable.Range(1, stunden).Select(zr.Zeit).Where(z => z != null)
+            zeitB = Enumerable.Range(1, stunden).Select(st => zr.Zeit(st)).Where(z => z != null)
                 .Select(z => g.MeasureString($"{z!.Beginn:H\\:mm}-{z.Ende:H\\:mm}", mZeit).Width).DefaultIfEmpty(0).Max();
         }
         var stdB = (int)Math.Ceiling(Math.Max(kompakt ? 58 : 70, nrB + zeitB + 4));

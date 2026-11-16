@@ -23,8 +23,13 @@ internal static class Program
         Steuerelemente.Tabellenbedienung.Einschalten();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-        Application.ThreadException += (_, e) => Ui.Fehler(e.Exception);
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => { if (e.ExceptionObject is Exception ex) Ui.Fehler(ex); };
+        // erwartete Fehler (Meldungstexte) wie bisher; echte Programmfehler zusätzlich mit Absturzbericht und Wiederherstellungskopie
+        Application.ThreadException += (_, e) =>
+        {
+            if (e.Exception is InvalidOperationException or FormatException or InvalidDataException) Ui.Fehler(e.Exception);
+            else Ui.Fehler(e.Exception + Absturzschutz.Fehler(e.Exception));
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => { if (e.ExceptionObject is Exception ex) Ui.Fehler(ex + Absturzschutz.Fehler(ex)); };
         var datei = args.FirstOrDefault(a => (a.EndsWith(Core.Dokument.Dateiendung, StringComparison.OrdinalIgnoreCase) || a.EndsWith(Core.Dokument.DateiendungAlt, StringComparison.OrdinalIgnoreCase)) && File.Exists(a));
         var test = args.FirstOrDefault(a => a.StartsWith("--selbsttest=", StringComparison.OrdinalIgnoreCase))?["--selbsttest=".Length..];
         if (test != null || args.Any(a => a.StartsWith("--druckprobe=", StringComparison.OrdinalIgnoreCase) || a.StartsWith("--leistung=", StringComparison.OrdinalIgnoreCase))) { AppZustand.Einstellungen.BegruessungZeigen = false; AppZustand.Einstellungen.LetzteDateiLaden = false; }

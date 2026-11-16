@@ -350,9 +350,10 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Unterricht als Kurs übernehmen", "kurs", AlsKursUebernehmen));
         ts.Items.Add(new ToolStripSeparator());
         var layout = new ToolStripSplitButton("Seitenlayout", Symbole.Get("vorschau", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Seitenlayout" };
-        layout.ButtonClick += (_, _) => Drucken(true);
-        layout.DropDownItems.Add("Seitenlayout", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
-        layout.DropDownItems.Add("Drucken", Symbole.Get("drucken", 16), (_, _) => Drucken(false));
+        layout.ButtonClick += (_, _) => ListeDrucken(true);
+        layout.DropDownItems.Add("Seitenlayout", Symbole.Get("vorschau", 16), (_, _) => ListeDrucken(true));
+        layout.DropDownItems.Add("Drucken", Symbole.Get("drucken", 16), (_, _) => ListeDrucken(false));
+        layout.DropDownItems.Add("Druckauswahl…", Symbole.Get("drucken", 16), (_, _) => Drucken(true));
         ts.Items.Add(layout);
         ts.Items.Add(Knopf("Einstellungen", "einstellungen", EinstellungenDialog));
         ts.Items.Add(Knopf("Aktualisieren (F5)", "aktualisieren", Neuaufbau));
@@ -610,6 +611,14 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         return x.Length == 1 && (x[0] is >= '1' and <= '9' or >= 'A' and <= 'E') ? x : throw new FormatException("Erlaubte Eingaben sind 1 - 9 für die positive, A - E für die negative Fachfolge.");
     }
 
+    /// <summary>Teilungs-Nummer: leer oder 0 bis 255.</summary>
+    private static int? Teilungsnummer(string t)
+    {
+        var x = t.Trim();
+        if (x.Length == 0) return null;
+        return int.TryParse(x, out var n) && n is >= 0 and <= 255 ? n : throw new FormatException("Erlaubter Wertebereich der Teilungs-Nummer: 0 bis 255.");
+    }
+
     /// <summary>Klassenkollisions-Kennzeichen: 1–9 bzw. A–H.</summary>
     private static string Kkk(string t)
     {
@@ -726,6 +735,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             new("Kurs", "Kursname", 70, false, false, (u, _) => u.Kursname, (d, u, z, t) => u.Kursname = t.Trim(), "Kursplanung"),
             new("Gruppe", "Schülergruppe", 80, false, false, (u, _) => u.Schuelergruppe, (d, u, z, t) => u.Schuelergruppe = t, "Unterricht"),
             new("Zeilentext", "ZeilenText", 80, true, false, (_, z) => z.Zeilentext, (d, u, z, t) => z.Zeilentext = t, "Unterricht"),
+            new("Zeilentext2", "ZeilenText-2", 80, true, false, (_, z) => z.Zeilentext2, (d, u, z, t) => z.Zeilentext2 = t, "Unterricht"),
             new("Wert", "Wert", 48, true, false, (u, z) => Format.Zahl(Core.Module.Wertrechnung.Wert(AppZustand.D, ix(), u, z)),
                 (d, u, z, t) => z.Wert = t.Trim().Length == 0 ? null : decimal.Parse(t.Replace('.', ','), CultureInfo.GetCultureInfo("de-DE")), "Werte"),
             new("Faktor", "Werte-Faktor", 70, false, false, (u, _) => u.WerteFaktor.HasValue ? Format.Zahl(u.WerteFaktor.Value) : "",
@@ -741,6 +751,18 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             new("Bis", "Bis", 76, false, false, (u, _) => u.BisDatum.HasValue ? Format.Datum(u.BisDatum.Value) : "",
                 (d, u, z, t) => u.BisDatum = t.Trim().Length == 0 ? null : DateOnly.Parse(t, CultureInfo.GetCultureInfo("de-DE")), "Stundenplan"),
             new("Statistik", "Statistik-Kennz.", 60, false, false, (u, _) => u.Statistik, (d, u, z, t) => u.Statistik = t, "Unterricht"),
+            // Karteikarte „Unterricht“: Abteilung und Fachgruppe (aus Klasse bzw. Fach), Teilungs-Nummer, Studenten/Studentinnen/Gesamt
+            new("Abteilung", "Abt.", 50, false, false, (u, _) => u.KlassenIds.Select(k => ix().Klassen.GetValueOrDefault(k)?.AbteilungId).FirstOrDefault(a => a.HasValue) is int a
+                ? ix().K(ElementTyp.Abteilung, a) : "", null, "Unterricht"),
+            new("Fachgruppe", "Fachgruppe", 70, false, false, (u, _) => u.HauptfachId is int f ? ix().Faecher.GetValueOrDefault(f)?.Fachgruppe ?? "" : "", null, "Unterricht"),
+            new("TeilungsNr", "Teilungs-Nr.", 50, false, false, (u, _) => u.Teilungsnummer?.ToString() ?? "", (d, u, z, t) => u.Teilungsnummer = Teilungsnummer(t), "Unterricht"),
+            new("StudM", "Studenten", 50, false, false, (u, _) => u.SchuelerMaennlich > 0 ? u.SchuelerMaennlich.ToString() : "",
+                (d, u, z, t) => u.SchuelerMaennlich = t.Trim().Length == 0 ? 0 : Math.Clamp(int.Parse(t), 0, 9999), "Unterricht"),
+            new("StudW", "Studentinnen", 50, false, false, (u, _) => u.SchuelerWeiblich > 0 ? u.SchuelerWeiblich.ToString() : "",
+                (d, u, z, t) => u.SchuelerWeiblich = t.Trim().Length == 0 ? 0 : Math.Clamp(int.Parse(t), 0, 9999), "Unterricht"),
+            new("StudGesamt", "Gesamt", 44, false, false, (u, _) => u.Schuelerzahl > 0 ? u.Schuelerzahl.ToString() : "", null, "Unterricht"),
+            new("VerplPrio", "Verpl.Prio.", 50, false, false, (u, _) => u.Verplanungsprioritaet > 0 ? u.Verplanungsprioritaet.ToString() : "",
+                (d, u, z, t) => u.Verplanungsprioritaet = t.Trim().Length == 0 ? 0 : Math.Clamp(int.Parse(t), 0, 99), "Stundenplan"),
         };
     }
 
@@ -850,6 +872,8 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             _grid.ResumeLayout();
             _laden = false;
         }
+        // Klassenansicht: Unterrichte mit gleicher Teilungs-Nummer zählen nur mit der größten Stundenzahl (Teilungs-Nummer 0: gar nicht)
+        if (_sicht == ElementTyp.Klasse) summeWst = Stammdatenkennzahlen.KlassenWochenstunden(Unterrichte());
         _summe.Text = $"Wst: {summeWst}   Nvpl.: {summeNv}";
         FormularFuellen();
         ZeilenHinweis();
@@ -1686,7 +1710,58 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         })) Neuaufbau();
     }
 
+    /// <summary>
+    /// Druck / Seitenansicht (Schnellstartleiste): in den Klassen- und Lehreransichten die Druckauswahl (Handbuch 3.6) mit mehreren
+    /// Elementen und den Unterrichtsoptionen; in „Alle Unterrichte“ wie bisher die Liste der Rasteransicht.
+    /// </summary>
     public void Drucken(bool vorschau)
+    {
+        if (_sicht is not (ElementTyp.Klasse or ElementTyp.Lehrer)) { ListeDrucken(vorschau); return; }
+        var erg = UnterrichtDruckauswahl.Zeigen(this, _sicht, _elementId);
+        if (erg.Aktion == UnterrichtDruckauswahl.Aktion.Abbrechen || erg.Elemente.Count == 0) return;
+        var o = erg.Optionen;
+        var spalten = o.Stundenwuensche
+            ? new[] { "UNr", "Klassen", "Lehrer", "Fach", "Wst" }.Select(k => _spalten.First(s => s.Key == k)).ToList()
+            : _spalten.Where(s => _sichtbar.Contains(s.Key)).OrderBy(s => _sichtbar.IndexOf(s.Key)).ToList();
+        var kopf = spalten.Select(s => s.Titel).Concat(o.Stundenwuensche ? new[] { "Stundenwünsche" } : Array.Empty<string>()).ToArray();
+        var breiten = spalten.Select(s => s.Breite).Concat(o.Stundenwuensche ? new[] { 260 } : Array.Empty<int>()).ToArray();
+        var abschnitte = new List<UnterrichtDruck.Abschnitt>();
+        foreach (var id in erg.Elemente)
+        {
+            if (D.AlleElemente(_sicht).FirstOrDefault(e => e.Id == id) is not { } el) continue;
+            var unterrichte = Ix.UnterrichteVon(_sicht, id).Where(u => !o.Stundenwuensche || !u.Zeitwuensche.Leer);
+            var zeilen = new List<string[]>();
+            foreach (var e in Unterrichtsdruck.Eintraege(unterrichte, _sicht, id, o.NurElement, o.Zusammenfassen))
+            {
+                var erste = true;
+                foreach (var zi in e.Zeilen.DefaultIfEmpty(0))
+                {
+                    var z = e.U.Zeilen.ElementAtOrDefault(zi) ?? new Kopplungszeile();
+                    var zellen = spalten.Select(s => !erste && !s.Zeile ? "" : s.Key switch
+                    {
+                        "UNr" => string.Join(",", e.Nummern),
+                        "Wst" => e.Wochenstunden.ToString(),
+                        _ => s.Get(e.U, z),
+                    });
+                    if (o.Stundenwuensche) zellen = zellen.Append(erste ? Stammdatenkennzahlen.ZeitwuenscheText(D, e.U.Zeitwuensche) : "");
+                    zeilen.Add(zellen.ToArray());
+                    erste = false;
+                }
+            }
+            var titel = $"{Ui.TypName(_sicht)} {el.Kurzname}{(el.Langname.Length > 0 ? " – " + el.Langname : "")}";
+            abschnitte.Add(new UnterrichtDruck.Abschnitt(titel, zeilen, o.Stundenwuensche ? new List<string>() : UnterrichtDruck.Zusatzzeilen(D, Ix, el, o)));
+        }
+        var layoutTitel = o.Stundenwuensche ? $"Stundenwünsche {Ui.TypName(_sicht, true)}" : UnterrichtDruck.LayoutTitel(_sicht);
+        if (erg.Aktion == UnterrichtDruckauswahl.Aktion.AusdruckBearbeiten)
+        {
+            UnterrichtDruck.AusdruckBearbeiten(this, layoutTitel, kopf, breiten, abschnitte.FirstOrDefault()?.Zeilen ?? new List<string[]>());
+            return;
+        }
+        UnterrichtDruck.Drucken(this, layoutTitel, kopf, breiten, abschnitte, o.SeiteJeElement, erg.Aktion == UnterrichtDruckauswahl.Aktion.Seitenansicht);
+    }
+
+    /// <summary>Seitenlayout (Symbolleiste): Liste der Rasteransicht mit Seitenlayout und Seitenansicht.</summary>
+    private void ListeDrucken(bool vorschau)
     {
         var spalten = _grid.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
         var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is ZeilenTag)

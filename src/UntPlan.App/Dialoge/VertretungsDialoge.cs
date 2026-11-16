@@ -1231,6 +1231,7 @@ public static class VertretungsEinstellungenDialog
         y += 50;
         // Tageslisten (Handbuch Kap. 13.3) – lokal am Arbeitsplatz gespeichert (kursiv)
         var lokal = AppZustand.Einstellungen;
+        var vmu = Ui.Zeile(ta, "", new CheckBox { Text = "Lehrer mit Unterricht im Auswahlmenü im Vertretungsfenster hervorheben", Checked = lokal.VertreterMitUnterrichtHervorheben, AutoSize = true, Font = Lokal }, ref y, 10);
         var tlPdf = Ui.Zeile(ta, "", new CheckBox { Text = "Tageslisten automatisch als PDF ausgeben", Checked = lokal.TageslistenPdf, AutoSize = true, Font = Lokal }, ref y, 10);
         var tlName = Ui.Zeile(ta, "", new CheckBox { Text = "Benutzerdefinierte Dateinamen", Checked = lokal.TageslistenEigeneDateinamen, AutoSize = true, Font = Lokal }, ref y, 10);
         var tlOrdner = new TextBox { Text = lokal.TageslistenPdfOrdner, Left = 150, Top = y, Width = 380, Font = Lokal };
@@ -1422,6 +1423,7 @@ public static class VertretungsEinstellungenDialog
             na.AbwesendeInformieren = nAbw.Checked;
             // lokal gespeichert (einstellungen.json, nicht in der Schuldatei)
             lokal.TageslistenPdf = tlPdf.Checked;
+            lokal.VertreterMitUnterrichtHervorheben = vmu.Checked;
             lokal.TageslistenEigeneDateinamen = tlName.Checked;
             lokal.TageslistenPdfOrdner = tlOrdner.Text.Trim();
             lokal.NachrichtenNurGeaenderte = nNur.Checked;

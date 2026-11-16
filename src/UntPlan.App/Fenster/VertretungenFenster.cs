@@ -72,7 +72,21 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly Label _elementGruppe = new() { AutoSize = true, Margin = new Padding(0, 0, 0, 3) };
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
-    private readonly TextBox _nr = new() { Width = 60 };
+    /// <summary>Vtr-Nr. als Zahlenfeld mit Auf-/Ab-Pfeilen wie im Vorbild: die Pfeile springen zur nächsten bzw. vorigen Vertretung, Enter zur eingegebenen.</summary>
+    private readonly VtrNrFeld _nr = new() { Width = 85, Minimum = 0, Maximum = int.MaxValue };
+
+    private sealed class VtrNrFeld : NumericUpDown
+    {
+        public Action<int>? Schritt;
+        public override void UpButton() { if (Schritt is null) base.UpButton(); else Schritt(1); }
+        public override void DownButton() { if (Schritt is null) base.DownButton(); else Schritt(-1); }
+        /// <summary>Nummer anzeigen (leer ohne Vertretung), ohne Ereignisse auszulösen.</summary>
+        public void Anzeigen(int? nr)
+        {
+            if (nr is int n && n >= Minimum && n <= Maximum) Value = n;
+            Text = nr?.ToString() ?? "";
+        }
+    }
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray, Padding = new Padding(12, 5, 0, 0) };
     private readonly Dictionary<DateOnly, Tagesplan> _plaene = new();
     private readonly System.Windows.Forms.Timer _auswahlTimer = new() { Interval = 140 };
@@ -215,7 +229,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             DataGridViewColumn c = name switch
             {
-                "Vertreter" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "+++", "---", "???" }.Concat(Stammdaten.Sortiert(D.Lehrer).Select(l => l.Kurzname))),
+                // wie im Vorbild: zuerst die Lehrkräfte, am Ende „Ohne Lehrkraft“ (+++), Entfall (---) und offen (???)
+                "Vertreter" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, Stammdaten.Sortiert(D.Lehrer).Select(l => l.Kurzname).Concat(new[] { "+++", "---", "???" })),
                 "NRaum" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, new[] { "???" }.Concat(Stammdaten.Sortiert(D.Raeume).Select(r => r.Kurzname))),
                 "NFach" => Steuerelemente.SuchKombi.Spalte(name, kopf, breite, Stammdaten.Sortiert(D.Faecher).Select(f => f.Kurzname)),
                 _ => new DataGridViewTextBoxColumn { Name = name, HeaderText = kopf },
@@ -294,7 +309,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.SelectionChanged += (_, _) =>
         {
             if (_laedt) return;
-            if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
+            if (!_nr.Focused) _nr.Anzeigen((_g.CurrentRow?.Tag as Vertretung)?.Id);
             _auswahlTimer.Stop();
             _auswahlTimer.Start();
         };
@@ -373,6 +388,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (e.KeyCode != Keys.Enter || !int.TryParse(_nr.Text, out var nr)) return;
             e.SuppressKeyPress = true;
             Springen(nr);
+        };
+        _nr.Schritt = richtung =>
+        {
+            // nächste bzw. vorige vorhandene Vtr-Nr. (ausgehend von der aktuellen Vertretung bzw. der eingegebenen Nummer)
+            var aktuell = (_g.CurrentRow?.Tag as Vertretung)?.Id ?? (int.TryParse(_nr.Text, out var t) ? t : 0);
+            if (Vertretungsnummern.Nachbar(D.Vertretungen.Select(x => x.Id), aktuell, richtung) is int z) { Springen(z); _nr.Anzeigen(z); }
         };
 
         // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle (Label oben beim Auswahlfeld angelegt)
@@ -1091,7 +1112,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _laedt = false;
         }
         SortGlyphen();
-        if (!_nr.Focused) _nr.Text = (_g.CurrentRow?.Tag as Vertretung)?.Id.ToString() ?? "";
+        if (!_nr.Focused) _nr.Anzeigen((_g.CurrentRow?.Tag as Vertretung)?.Id);
         _status.Text = "";
         // andere Fenster (Vorschlag, Stundenpläne) nur benachrichtigen, wenn sich die Auswahl tatsächlich geändert hat
         if (AuswahlSignatur() != vorher)
@@ -1517,18 +1538,24 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         e.Handled = true;
     }
 
-    /// <summary>Auswahlliste "Vertreter": belegte bzw. abwesende Lehrer rot, Bereitschaft/freigesetzt grün, Langname als Zusatz.</summary>
+    /// <summary>
+    /// Auswahlliste "Vertreter" wie im Vorbild (Kap. 3.4): Lehrersymbol, Kurzname und Langname (Nachname); Lehrkräfte mit Unterricht
+    /// bzw. abwesende rot hinterlegt (Einstellung „Lehrer mit Unterricht im Auswahlmenü hervorheben“), Bereitschaft/freigesetzt grün;
+    /// am Ende „Ohne Lehrkraft“ (+++). Der Grund der Belegung steht im Tooltip der Zeile bzw. im Vertretungsvorschlag.
+    /// </summary>
     private Steuerelemente.ListenStil? VertreterStil(DataGridViewCell zelle, string text)
     {
         if (zelle.OwningColumn.Name == "NRaum") return RaumStil(zelle, text);
         if (zelle.OwningColumn.Name != "Vertreter") return D.Faecher.FirstOrDefault(f => f.Kurzname == text) is { } fa ? new(Color.White, Color.Black, fa.Langname) : null;
         if (zelle.OwningRow.Tag is not Vertretung v) return null;
         var l = D.Lehrer.FirstOrDefault(x => x.Kurzname == text);
-        if (l is null) return text switch { "+++" => new(Color.White, Color.Black, "Vertr. o. Lehrkr."), "---" => new(Color.White, Color.Black, "Entfall"), _ => null };
+        if (l is null) return text switch { "+++" => new(Color.White, Color.Black, "Ohne Lehrkraft"), "---" => new(Color.White, Color.Black, "Entfall"), _ => null };
+        var symbol = Symbole.Get("unterricht", 16);
+        var name = l.Langname.Length > 0 ? l.Langname : l.VollerName;
         var tp = Plan(v.Datum);
-        if (Vertretungen.LehrerBelegt(D, tp, l.Id, v.Stunde, v) is { } grund) return new(Color.FromArgb(225, 40, 40), Color.White, $"{l.VollerName} – {grund}");
-        if (Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.IstFreigesetzt(D, tp, l.Id, v.Stunde)) return new(Color.FromArgb(200, 240, 200), Color.Black, l.VollerName);
-        return new(Color.White, Color.Black, l.VollerName);
+        if (AppZustand.Einstellungen.VertreterMitUnterrichtHervorheben && Vertretungen.LehrerBelegt(D, tp, l.Id, v.Stunde, v) is not null) return new(Color.FromArgb(255, 0, 0), Color.Black, name, symbol);
+        if (Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.IstFreigesetzt(D, tp, l.Id, v.Stunde)) return new(Color.FromArgb(200, 240, 200), Color.Black, name, symbol);
+        return new(Color.White, Color.Black, name, symbol);
     }
 
     /// <summary>Auswahlliste "Raum": belegte bzw. gesperrte Räume rot, freie grün, Langname als Zusatz.</summary>
@@ -1612,7 +1639,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Aktuelle();
         var aktiv = _g.CurrentRow?.Tag as Vertretung ?? liste.FirstOrDefault();
-        if (!_nr.Focused) _nr.Text = aktiv?.Id.ToString() ?? "";
+        if (!_nr.Focused) _nr.Anzeigen(aktiv?.Id);
         _laedt = true;
         AppZustand.VertretungWaehlen(aktiv, liste.Select(v => v.Id));
         _laedt = false;

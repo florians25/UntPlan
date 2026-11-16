@@ -289,31 +289,96 @@ public static class RaumZuordnenDialog
     }
 }
 
-/// <summary>Tauschvorschläge mit Gewinn (Verbesserung bzw. Verschlechterung der Bewertung).</summary>
+/// <summary>
+/// Tauschvorschläge (Handbuch, Manuelles Planen | Tauschvorschläge): mögliche 2er-, 3er- und 4er-Tausche für die aktive Stunde mit den
+/// Spalten „Gewinn“ (positiv = Verbesserung), „Auswirkungen“, „Spr.Kla“ und „Gesamt“; Optionen „Mit Klassensprung“ und „Nur verschiedene
+/// Lehrer“. Bei einem Klassensprung zeigt der untere Teil, wie die behindernde Stunde in der Sprungklasse verlegt werden kann.
+/// &lt;Aktualisieren&gt; rechnet neu, &lt;Tauschen&gt; führt den gewählten Tausch aus (das Fenster bleibt offen).
+/// </summary>
 public static class TauschvorschlaegeDialog
 {
-    public static Tauschvorschlag? Zeigen(IWin32Window owner, Planstunde p)
+    /// <param name="index">Index der aktiven Stunde in <see cref="Schuldatei.Stundenplan"/>.</param>
+    /// <param name="tauschen">Führt die Züge aus (als eine rückgängig machbare Änderung).</param>
+    public static void Zeigen(IWin32Window owner, int index, Action<IReadOnlyList<TauschZug>> tauschen)
     {
-        List<Tauschvorschlag> liste;
-        using (new WarteCursor()) liste = Planungsdienst.Tauschvorschlaege(AppZustand.D, p);
-        using var d = new Dialog("Tauschvorschläge", 700, 360);
-        d.Ok.Text = "Tauschen";
-        var g = new DataGridView { Left = 10, Top = 10, Width = 680, Height = 300 };
-        Ui.RasterGestalten(g, false);
-        g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        g.RowHeadersVisible = false;
-        g.Columns.Add("G", "Gewinn");
-        g.Columns.Add("T", "Tausch");
-        g.Columns[1].Width = 590;
-        foreach (var v in liste)
+        using var d = new Dialog("Tauschvorschläge", 820, 470);
+        d.Ok.Visible = false;
+        d.Abbrechen.Text = "Schließen";
+        var klassensprung = new CheckBox { Text = "Mit Klassensprung", Left = 10, Top = 10, AutoSize = true };
+        var verschieden = new CheckBox { Text = "Nur verschiedene Lehrer", Left = 160, Top = 10, AutoSize = true };
+        var aktualisieren = new Button { Text = "Aktualisieren", Left = 520, Top = 6, Width = 100, Height = 26 };
+        var tausch = new Button { Text = "Tauschen", Left = 628, Top = 6, Width = 100, Height = 26 };
+        var stundeText = new Label { Left = 10, Top = 34, Width = 790, ForeColor = Color.DimGray };
+        var oben = new DataGridView { Left = 10, Top = 54, Width = 800, Height = 230, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+        var untenText = new Label { Left = 10, Top = 290, Width = 790, Text = "Verlegung der behindernden Stunde in der Sprungklasse:" };
+        var unten = new DataGridView { Left = 10, Top = 308, Width = 800, Height = 110, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        foreach (var g in new[] { oben, unten })
         {
-            var r = g.Rows.Add(v.Gewinn.ToString("+0;-0;0"), v.Beschreibung);
-            g.Rows[r].Tag = v;
-            g.Rows[r].Cells[0].Style.ForeColor = v.Gewinn > 0 ? Color.DarkGreen : v.Gewinn < 0 ? Color.DarkRed : Color.Black;
+            Ui.RasterGestalten(g, false);
+            g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            g.MultiSelect = false;
+            g.RowHeadersVisible = false;
+            g.ReadOnly = true;
+            g.AllowUserToAddRows = false;
         }
-        d.Controls.Add(g);
-        if (liste.Count == 0) Ui.Info("Für diese Stunde wurden keine Tauschmöglichkeiten gefunden.");
-        return d.ShowDialog(owner) == DialogResult.OK ? g.CurrentRow?.Tag as Tauschvorschlag : null;
+        foreach (var (n, t, w) in new[] { ("Art", "Art", 50), ("Gewinn", "Gewinn", 60), ("Auswirkungen", "Auswirkungen", 170), ("Spr", "Spr.Kla", 60), ("Gesamt", "Gesamt", 60), ("Tausch", "Tausch", 390) })
+            oben.Columns[oben.Columns.Add(n, t)].Width = w;
+        foreach (var (n, t, w) in new[] { ("Gewinn", "Gewinn", 60), ("Auswirkungen", "Auswirkungen", 170), ("Tausch", "Verlegung", 560) })
+            unten.Columns[unten.Columns.Add(n, t)].Width = w;
+        oben.Columns["Gewinn"]!.ToolTipText = "Positiv: der Stundenplan wird laut Gewichtung besser, negativ: schlechter";
+        oben.Columns["Auswirkungen"]!.ToolTipText = "Bei Verschlechterung der gröbste Verstoß, bei Verbesserung die Kategorie der größten Verbesserung";
+        oben.Columns["Spr"]!.ToolTipText = "Sprungklasse: Klasse, in der zusätzlich eine Stunde verlegt werden muss";
+        d.Controls.AddRange(new Control[] { klassensprung, verschieden, aktualisieren, tausch, stundeText, oben, untenText, unten });
+
+        void Farbe(DataGridViewCell c, double v) => c.Style.ForeColor = v > 0 ? Color.DarkGreen : v < 0 ? Color.DarkRed : Color.Black;
+        void Folge()
+        {
+            unten.Rows.Clear();
+            if (oben.CurrentRow?.Tag is not TauschvorschlagZeile z) return;
+            foreach (var f in z.Folgetausche)
+            {
+                var r = unten.Rows.Add(f.Gewinn.ToString("+0;-0;0"), f.Auswirkungen, f.Beschreibung);
+                unten.Rows[r].Tag = f;
+                Farbe(unten.Rows[r].Cells[0], f.Gewinn);
+            }
+        }
+        void Rechnen()
+        {
+            oben.Rows.Clear();
+            unten.Rows.Clear();
+            var plan = AppZustand.D.Stundenplan;
+            if (index < 0 || index >= plan.Count) { stundeText.Text = "Keine aktive Stunde."; return; }
+            var p = plan[index];
+            var ix = AppZustand.Doc.Index;
+            stundeText.Text = ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)
+                ? $"Aktive Stunde: {Planungsdienst.Tagname(AppZustand.D, p.Tag)}-{p.Stunde}  {ix.UnterrichtText(u)} (U{u.Id})" : "";
+            List<TauschvorschlagZeile> liste;
+            using (new WarteCursor())
+                liste = Tauschvorschlaege.Berechnen(AppZustand.D, p, new TauschvorschlagOptionen { MitKlassensprung = klassensprung.Checked, NurVerschiedeneLehrer = verschieden.Checked });
+            foreach (var v in liste)
+            {
+                var r = oben.Rows.Add($"{v.Art}er", v.Gewinn.ToString("+0;-0;0"), v.Auswirkungen, v.Sprungklasse, v.Sprungklasse.Length > 0 ? v.Gesamt.ToString("+0;-0;0") : "", v.Beschreibung);
+                oben.Rows[r].Tag = v;
+                Farbe(oben.Rows[r].Cells["Gewinn"], v.Gewinn);
+                if (v.Sprungklasse.Length > 0) Farbe(oben.Rows[r].Cells["Gesamt"], v.Gesamt);
+            }
+            if (liste.Count == 0) stundeText.Text += "  –  keine Tauschmöglichkeiten gefunden";
+            Folge();
+        }
+        oben.SelectionChanged += (_, _) => Folge();
+        aktualisieren.Click += (_, _) => Rechnen();
+        klassensprung.CheckedChanged += (_, _) => Rechnen();
+        verschieden.CheckedChanged += (_, _) => Rechnen();
+        tausch.Click += (_, _) =>
+        {
+            if (oben.CurrentRow?.Tag is not TauschvorschlagZeile z) { Ui.Info("Bitte zuerst einen Tauschvorschlag auswählen."); return; }
+            var folge = unten.CurrentRow?.Tag as TauschvorschlagZeile;
+            tauschen(z.AlleZuege(folge));
+            Rechnen();
+        };
+        oben.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) tausch.PerformClick(); };
+        d.Shown += (_, _) => Rechnen();
+        d.ShowDialog(owner);
     }
 }
 

@@ -130,6 +130,12 @@ public sealed class Klasse : Element
     public string Stufe { get; set; } = "";
     public int SchuelerMaennlich { get; set; }
     public int SchuelerWeiblich { get; set; }
+    /// <summary>Anzahl Studenten „x (Inter)“ (Karteikarte „Klasse“); zählt zur Schülerzahl der Klasse.</summary>
+    public int SchuelerInter { get; set; }
+    /// <summary>Abschlussklasse (Karteikarte „Klasse“).</summary>
+    public bool Abschlussklasse { get; set; }
+    /// <summary>Stammschule (für Import-/Export-Schnittstellen, rein informativ).</summary>
+    public string Stammschule { get; set; } = "";
     public string Klassengruppe { get; set; } = "";
     public DateOnly? VonDatum { get; set; }
     public DateOnly? BisDatum { get; set; }
@@ -157,7 +163,7 @@ public sealed class Klasse : Element
     /// <summary>Klassenzeitraster der Stundenplanung (Schlüssel Tag*100+Stunde): Doppelstunden, Einzelstunden, Letzte Stunde „Nein“.</summary>
     public Dictionary<int, KlassenzeitrasterArt> Klassenzeitraster { get; set; } = new();
 
-    [JsonIgnore] public int Schuelerzahl => SchuelerMaennlich + SchuelerWeiblich;
+    [JsonIgnore] public int Schuelerzahl => SchuelerMaennlich + SchuelerWeiblich + SchuelerInter;
 
     /// <summary>Kennzeichen-Zeichenfolge (P, F, 2, H, Y).</summary>
     [JsonIgnore] public string Kennzeichen => string.Concat(
@@ -190,6 +196,11 @@ public sealed class Lehrer : Element
     public string Vorname { get; set; } = "";
     public string Titel { get; set; } = "";
     public string Personalnummer { get; set; } = "";
+    /// <summary>Zweite Personalnummer („Pers. Nr 2“), wird bei Exporten mit ausgegeben.</summary>
+    public string Personalnummer2 { get; set; } = "";
+    public string Mobiltelefon { get; set; } = "";
+    /// <summary>Stammschule (rein informativ, Ausdrucke und Export).</summary>
+    public string Stammschule { get; set; } = "";
     public string Email { get; set; } = "";
     public string Telefon { get; set; } = "";
     public DateOnly? Geburtsdatum { get; set; }
@@ -293,6 +304,8 @@ public sealed class Fach : Element
     public int? FachraumgruppeId { get; set; }
     public bool Hauptfach { get; set; }
     public string Fachgruppe { get; set; } = "";
+    /// <summary>Stammschule (rein informativ, Ausdrucke und Export).</summary>
+    public string Stammschule { get; set; } = "";
     /// <summary>Werte-Faktor für die Wertrechnung (z. B. 1,0).</summary>
     public decimal WerteFaktor { get; set; } = 1m;
     /// <summary>(M) Fach darf mehrmals am Tag stattfinden.</summary>

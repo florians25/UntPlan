@@ -63,6 +63,25 @@ public sealed class Zeitraster
 
     public Stundenzeit? Zeit(int stunde) => Zeiten.FirstOrDefault(z => z.Nr == stunde);
 
+    /// <summary>„Tageszeitraster aktivieren“ (Einstellungen | Schuldaten | Allgemeines): jeder Wochentag kann eigene Beginn- und Endzeiten haben.</summary>
+    public bool TageszeitrasterAktiv { get; set; }
+    /// <summary>Abweichende Zeiten je Tag (Karteikarte „Tage“), Schlüssel = Tagindex (0 = erster Schultag). Fehlt ein Tag, gilt das allgemeine Raster.</summary>
+    public Dictionary<int, List<Stundenzeit>> TagesZeiten { get; set; } = new();
+
+    /// <summary>
+    /// Zeit der Stunde an einem bestimmten Tag: bei aktivem Tageszeitraster die Zeit des Tages (sofern eingetragen), sonst die allgemeine Zeit.
+    /// </summary>
+    public Stundenzeit? Zeit(int tag, int stunde) =>
+        TageszeitrasterAktiv && TagesZeiten.TryGetValue(tag, out var liste) && liste.FirstOrDefault(z => z.Nr == stunde) is { } t ? t : Zeit(stunde);
+
+    /// <summary>Zeiten eines Tages für die Karteikarte „Tage“: vorhandene Tageszeiten, fehlende Stunden aus dem allgemeinen Raster ergänzt.</summary>
+    public List<Stundenzeit> ZeitenDesTages(int tag) =>
+        Enumerable.Range(1, StundenProTag).Select(s => Zeit(tag, s) is { } z ? new Stundenzeit { Nr = s, Bezeichnung = z.Bezeichnung, Beginn = z.Beginn, Ende = z.Ende } : new Stundenzeit { Nr = s }).ToList();
+
+    /// <summary>Weicht der Tag vom allgemeinen Raster ab?</summary>
+    public bool TagWeichtAb(int tag) =>
+        TageszeitrasterAktiv && TagesZeiten.TryGetValue(tag, out var liste) && liste.Any(t => Zeit(t.Nr) is not { } b || b.Beginn != t.Beginn || b.Ende != t.Ende);
+
     public string StundenLabel(int stunde) => (stunde - 1 + ErsteStundennummer).ToString();
 }
 

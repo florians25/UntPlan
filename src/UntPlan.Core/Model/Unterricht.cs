@@ -18,6 +18,8 @@ public sealed class Kopplungszeile
     /// <summary>Abweichender Wert dieser Zeile (Wertrechnung), null = Wochenstunden × Faktor.</summary>
     public decimal? Wert { get; set; }
     public string Zeilentext { get; set; } = "";
+    /// <summary>„Zeilentext-2“: zweiter, vom Zeilentext unabhängiger Text der Kopplungszeile (Formularansicht des Unterrichts).</summary>
+    public string Zeilentext2 { get; set; } = "";
     /// <summary>Zeilen-Unterrichtsgruppe (z. B. Woche A), null = wie Unterricht.</summary>
     public int? UGruppeId { get; set; }
     /// <summary>Schülergruppe dieser Kopplungszeile (z. B. „SportK_1a1b_Rub“), leer = wie Unterricht.</summary>
@@ -34,7 +36,7 @@ public sealed class Kopplungszeile
     public Kopplungszeile Kopie() => new()
     {
         LehrerId = LehrerId, FachId = FachId, KlassenIds = new List<int>(KlassenIds), FachraumId = FachraumId,
-        FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, UGruppeId = UGruppeId,
+        FachraumgruppeId = FachraumgruppeId, StammraumId = StammraumId, StammraumgruppeId = StammraumgruppeId, Wert = Wert, Zeilentext = Zeilentext, Zeilentext2 = Zeilentext2, UGruppeId = UGruppeId,
         Schuelergruppe = Schuelergruppe, LehrerFix = LehrerFix, UrsprLehrerId = UrsprLehrerId,
     };
 }
@@ -69,6 +71,16 @@ public sealed class Unterricht
     /// <summary>Kursname (Kursplanung, z. B. "D-LK1").</summary>
     public string Kursname { get; set; } = "";
     public int MaxSchueler { get; set; }
+    /// <summary>
+    /// Teilungs-Nummer (0–255, leer = keine Teilung): Unterrichte einer Klasse mit derselben Teilungs-Nummer zählen zusammen nur mit der
+    /// größten Stundenzahl zur Klassenstundensumme; Teilungs-Nummer 0 trägt nichts bei.
+    /// </summary>
+    public int? Teilungsnummer { get; set; }
+    /// <summary>Am Unterricht teilnehmende Studenten / Studentinnen (Karteikarte „Unterricht“); Summe = „Gesamt“.</summary>
+    public int SchuelerMaennlich { get; set; }
+    public int SchuelerWeiblich { get; set; }
+    /// <summary>Verplanungspriorität: nur aus Kompatibilitätsgründen vorhanden, ohne Wirkung.</summary>
+    public int Verplanungsprioritaet { get; set; }
     // Mehrwochenstundenplan
     public DateOnly? VonDatum { get; set; }
     public DateOnly? BisDatum { get; set; }
@@ -139,6 +151,9 @@ public sealed class Unterricht
         KeineEinzelstunden ? "C" : "", Randstunde ? "R" : "", KlassengruppeSpaeter ? "S" : "", MehrmalsProTag ? "2" : "", VariablerLehrer ? "V" : "",
         NichtInLegende ? "L" : "", NachmittagNurDoppel ? "U" : "", ManuellPlanen ? "M" : "", ImmerSelbeZeit ? "s" : "", Zeitwuensche.Leer ? "" : "Z");
 
+    /// <summary>„Gesamt“ der Studenten des Unterrichts (0 = nicht eingetragen).</summary>
+    [JsonIgnore] public int Schuelerzahl => SchuelerMaennlich + SchuelerWeiblich;
+
     [JsonIgnore] public IEnumerable<int> LehrerIds => Zeilen.Where(z => z.LehrerId.HasValue).Select(z => z.LehrerId!.Value).Distinct();
     [JsonIgnore] public IEnumerable<int> KlassenIds => Zeilen.SelectMany(z => z.KlassenIds).Distinct();
     [JsonIgnore] public IEnumerable<int> FachIds => Zeilen.Where(z => z.FachId.HasValue).Select(z => z.FachId!.Value).Distinct();
@@ -172,7 +187,8 @@ public sealed class Unterricht
     {
         Id = neueId, Wochenstunden = Wochenstunden, Zeilen = Zeilen.Select(z => z.Kopie()).ToList(), Doppelstunden = Doppelstunden,
         Block = Block, Schuelergruppe = Schuelergruppe, Text = Text, Statistik = Statistik, Fix = Fix, Ignorieren = Ignorieren,
-        MehrmalsProTag = MehrmalsProTag, KeineVertretung = KeineVertretung, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler, VonDatum = VonDatum,
+        MehrmalsProTag = MehrmalsProTag, KeineVertretung = KeineVertretung, Band = Band, Kursname = Kursname, MaxSchueler = MaxSchueler,
+        Teilungsnummer = Teilungsnummer, SchuelerMaennlich = SchuelerMaennlich, SchuelerWeiblich = SchuelerWeiblich, Verplanungsprioritaet = Verplanungsprioritaet, VonDatum = VonDatum,
         BisDatum = BisDatum, Periodizitaet = Periodizitaet, WerteFaktor = WerteFaktor, Zeitwuensche = Zeitwuensche.Kopie(),
         UGruppeId = UGruppeId, BetreuungLehrerId = BetreuungLehrerId, Kommentar = Kommentar,
         Markiert = Markiert, DoppelstundeUeberPause = DoppelstundeUeberPause, Freifach = Freifach, NichtInRandstunde = NichtInRandstunde,
@@ -249,6 +265,8 @@ public sealed class Planstunde
     public List<int?> Raeume { get; set; } = new();
     /// <summary>Fixierte Stunde (im Stundenplan mit * gekennzeichnet).</summary>
     public bool Fixiert { get; set; }
+    /// <summary>„Text zu Stundenplanstunde“: eigener Text nur dieser einen Stunde (nicht des ganzen Unterrichts).</summary>
+    public string Text { get; set; } = "";
 
     /// <summary>
     /// Raum der Kopplungszeile. Ein einzelner Raum für einen Unterricht mit mehreren Zeilen (gemeinsamer Raum der Kopplung, z. B. aus
@@ -273,7 +291,7 @@ public sealed class Planstunde
     public string RaumKennung(int zeilen) =>
         string.Join(",", Enumerable.Range(0, Math.Max(1, Math.Max(zeilen, Raeume.Count))).Select(i => RaumFuerZeile(i)?.ToString() ?? "-"));
 
-    public Planstunde Kopie() => new() { UnterrichtId = UnterrichtId, Tag = Tag, Stunde = Stunde, Raeume = new List<int?>(Raeume), Fixiert = Fixiert };
+    public Planstunde Kopie() => new() { UnterrichtId = UnterrichtId, Tag = Tag, Stunde = Stunde, Raeume = new List<int?>(Raeume), Fixiert = Fixiert, Text = Text };
 }
 
 /// <summary>

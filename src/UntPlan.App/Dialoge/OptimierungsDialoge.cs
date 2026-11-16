@@ -5,23 +5,27 @@ using UntPlan.Core.Model;
 namespace UntPlan.App.Dialoge;
 
 /// <summary>
-/// Gewichtung: Gewichtungsziffern 0 (unwichtig) bis 5 (extrem wichtig). Links die Karteikarten, rechts die Regler,
-/// außerdem "Gewichtungs-Verteilung" (Diagramm) und "Analyse".
+/// Gewichtung (Handbuch, Kap. Optimierung | Gewichtung): links die Abschnitte Lehrer (1), Lehrer (2), Klassen, Fächer, Hauptfächer, Räume,
+/// Stundenverteilung, Zeitwünsche, Gewichtungs-Verteilung und Analyse, rechts die Schieberegler 0 (unwichtig) bis 5 (extrem wichtig).
+/// Eingabeblöcke wie „Stunden in letzter Vormittagsstunde“ (Maximal, Gewicht), „Freifach“/„Randstundenfach“ (Gewicht und drei Häkchen)
+/// und „Gewichtung zur Grenzstunde“ (Grenzstunde und zwei Gewichte) sind eingerahmt.
 /// </summary>
 public sealed class GewichtungDialog : Dialog
 {
     private readonly Dictionary<string, int> _werte;
-    private readonly ListBox _karten = new() { Left = 8, Top = 8, Width = 150, Height = 400, IntegralHeight = false };
-    private readonly Panel _inhalt = new() { Left = 166, Top = 8, Width = 560, Height = 400, AutoScroll = true };
+    private readonly ListBox _karten = new() { Left = 8, Top = 8, Width = 160, Height = 420, IntegralHeight = false };
+    private readonly Panel _inhalt = new() { Left = 176, Top = 8, Width = 580, Height = 420, AutoScroll = true };
     private readonly Button _uebernehmen = new() { Text = "Übernehmen", Width = 88, Height = 26 };
+    private readonly ToolTip _tipp = new();
+    private const string Verteilung = "Gewichtungs-Verteilung";
 
-    public GewichtungDialog() : base("Gewichtung", 736, 460)
+    public GewichtungDialog() : base("Gewichtung", 766, 480)
     {
         _werte = new Dictionary<string, int>(AppZustand.D.Gewichtung);
         foreach (var r in Gewichtung.Alle) _werte.TryAdd(r.Schluessel, r.Standard);
         foreach (var k in Gewichtung.Karteikarten) _karten.Items.Add(k);
-        _karten.Items.Add("Gewichtungs-Verteilung");
-        _karten.Items.Add($"Analyse ({AnalyseAnzahl()})");
+        _karten.Items.Add(Verteilung);
+        _karten.Items.Add(AnalyseText());
         _karten.SelectedIndexChanged += (_, _) => Anzeigen();
         Controls.Add(_karten);
         Controls.Add(_inhalt);
@@ -33,10 +37,11 @@ public sealed class GewichtungDialog : Dialog
         _uebernehmen.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         Controls.Add(_uebernehmen);
         var standard = new Button { Text = "Voreinstellung", Left = 8, Top = Ok.Top, Width = 110, Height = 26 };
-        standard.Click += (_, _) => { foreach (var r in Gewichtung.Alle) _werte[r.Schluessel] = r.Standard; Anzeigen(); };
+        standard.Click += (_, _) => { foreach (var r in Gewichtung.Alle) _werte[r.Schluessel] = r.Standard; Geaendert(); Anzeigen(); };
         Controls.Add(standard);
         _uebernehmen.Click += (_, _) => Speichern();
         Ok.Click += (_, _) => Speichern();
+        FormClosed += (_, _) => _tipp.Dispose();
         _karten.SelectedIndex = 0;
     }
 
@@ -46,75 +51,154 @@ public sealed class GewichtungDialog : Dialog
         AppZustand.Doc.Aendern("Gewichtung", AenderungsArt.Einstellungen, d => d.Gewichtung = w);
     }
 
+    private List<GewichtungsHinweis> Hinweise() => Gewichtung.Analyse(AppZustand.D, _werte);
+
+    private string AnalyseText() => $"Analyse ({Hinweise().Count})";
+
+    /// <summary>Nach jeder Änderung die Anzahl der Analyse-Hinweise in der Abschnittsliste aktualisieren.</summary>
+    private void Geaendert()
+    {
+        var i = _karten.Items.Count - 1;
+        var text = AnalyseText();
+        if (!Equals(_karten.Items[i], text)) _karten.Items[i] = text;
+    }
+
     private void Anzeigen()
     {
+        _inhalt.SuspendLayout();
         _inhalt.Controls.Clear();
         var karte = _karten.SelectedItem?.ToString() ?? "";
-        if (karte == "Gewichtungs-Verteilung")
-        {
-            var chart = new VerteilungsDiagramm(_werte.Values.ToList()) { Dock = DockStyle.Fill };
-            _inhalt.Controls.Add(chart);
-            return;
-        }
-        if (karte.StartsWith("Analyse"))
-        {
-            var g = new DataGridView { Dock = DockStyle.Fill };
-            Ui.RasterGestalten(g, false);
-            g.RowHeadersVisible = false;
-            g.Columns.Add("R", "Regler");
-            g.Columns.Add("W", "Gewicht");
-            g.Columns.Add("V", "Verstöße im aktuellen Plan");
-            g.Columns[0].Width = 330;
-            var v = Bewertung.Verstoesse(AppZustand.D);
-            var zuordnung = new Dictionary<string, VerstossArt[]>
-            {
-                ["L.Hohlstunden"] = new[] { VerstossArt.HohlstundenLehrer }, ["L.StdTag"] = new[] { VerstossArt.StdTagLehrer }, ["L.Mittagspause"] = new[] { VerstossArt.MittagspauseLehrer },
-                ["L.Nachmittage"] = new[] { VerstossArt.NachmittageLehrer }, ["L.Unbestimmt"] = new[] { VerstossArt.UnbestimmterZeitwunsch }, ["L.Tagesbelastung"] = new[] { VerstossArt.Tagesbelastung },
-                ["K.Hohlstunden"] = new[] { VerstossArt.HohlstundeKlasse }, ["K.Kernzeit"] = new[] { VerstossArt.Kernzeitverletzung }, ["K.StdTag"] = new[] { VerstossArt.StdTagKlasse },
-                ["K.Mittagspause"] = new[] { VerstossArt.MittagspauseKlasse }, ["K.Nachmittage"] = new[] { VerstossArt.NachmittageKlasse }, ["F.ZweimalTag"] = new[] { VerstossArt.FachMehrmalsProTag },
-                ["F.Doppelstunden"] = new[] { VerstossArt.DoppelstundenFehler, VerstossArt.BlockFehler }, ["F.Randstunde"] = new[] { VerstossArt.Randstunde },
-                ["H.ProTag"] = new[] { VerstossArt.HauptfaecherProTag }, ["H.Folge"] = new[] { VerstossArt.HauptfaecherFolge }, ["H.Spaet"] = new[] { VerstossArt.HauptfachSpaet },
-                ["R.Raumoptimierung"] = new[] { VerstossArt.KeinRaum }, ["S.Verteilung"] = new[] { VerstossArt.Verteilung }, ["Z.Lehrer"] = new[] { VerstossArt.ZeitwunschLehrer },
-                ["Z.Klassen"] = new[] { VerstossArt.ZeitwunschKlasse }, ["Z.Raeume"] = new[] { VerstossArt.ZeitwunschRaum }, ["Z.Unterricht"] = new[] { VerstossArt.ZeitwunschUnterricht },
-            };
-            foreach (var r in Gewichtung.Alle)
-                g.Rows.Add(r.Text, $"{_werte[r.Schluessel]} ({Gewichtung.ZifferText(_werte[r.Schluessel])})", zuordnung.TryGetValue(r.Schluessel, out var arten) ? v.Count(x => arten.Contains(x.Art)).ToString() : "–");
-            _inhalt.Controls.Add(g);
-            return;
-        }
-        // wie im Handbuch: Regler links (Überschrift „unwichtig … extrem wichtig“), Text des Parameters rechts daneben
+        if (karte == Verteilung) _inhalt.Controls.Add(new VerteilungsDiagramm(Gewichtung.Verteilung(_werte)) { Dock = DockStyle.Fill });
+        else if (karte.StartsWith("Analyse", StringComparison.Ordinal)) AnalyseAnzeigen();
+        else AbschnittAnzeigen(karte);
+        _inhalt.ResumeLayout();
+    }
+
+    private void AbschnittAnzeigen(string karte)
+    {
         var y = 4;
         _inhalt.Controls.Add(new Label { Text = "unwichtig", Left = 4, Top = y, Width = 70, ForeColor = Color.DimGray });
         _inhalt.Controls.Add(new Label { Text = "extrem wichtig", Left = 84, Top = y, Width = 100, ForeColor = Color.DimGray });
         y += 18;
-        foreach (var r in Gewichtung.Alle.Where(r => r.Karteikarte == karte))
+        var eintraege = Gewichtung.Alle.Where(r => r.Karteikarte == karte).ToList();
+        for (var i = 0; i < eintraege.Count;)
         {
-            var tb = new TrackBar { Minimum = 0, Maximum = 5, Value = _werte[r.Schluessel], Left = 4, Top = y, Width = 130, TickStyle = TickStyle.TopLeft, LargeChange = 1 };
-            var wert = new Label { Text = _werte[r.Schluessel].ToString(), Left = 138, Top = y + 8, Width = 16, Font = Ui.SchriftFett };
-            _inhalt.Controls.Add(new Label { Text = r.Text, Left = 160, Top = y + 8, Width = 390, Height = 34, AutoSize = false });
-            var key = r.Schluessel;
-            tb.ValueChanged += (_, _) => { _werte[key] = tb.Value; wert.Text = tb.Value.ToString(); };
-            _inhalt.Controls.Add(tb);
-            _inhalt.Controls.Add(wert);
-            y += 48;
+            var gruppe = eintraege[i].Gruppe;
+            if (gruppe is null)
+            {
+                y = Eintrag(_inhalt, eintraege[i], 4, y);
+                i++;
+                continue;
+            }
+            // Eingabeblock (eingerahmt)
+            var box = new GroupBox { Text = gruppe, Left = 2, Top = y, Width = 550 };
+            var by = 18;
+            for (; i < eintraege.Count && eintraege[i].Gruppe == gruppe; i++) by = Eintrag(box, eintraege[i], 8, by);
+            box.Height = by + 6;
+            _inhalt.Controls.Add(box);
+            y += box.Height + 8;
         }
         _inhalt.Controls.Add(new Label
         {
             Text = "Verwenden Sie die Prioritäten 4 und 5 nicht zu häufig. Zwischen 4 und 5 ist ein (sehr) großer Unterschied – stellen Sie Regler zunächst maximal auf 4.",
-            Left = 4, Top = y + 10, Width = 540, Height = 40, ForeColor = Color.DimGray,
+            Left = 4, Top = y + 6, Width = 540, Height = 40, ForeColor = Color.DimGray,
         });
     }
 
-    /// <summary>Anzahl der Gewichtungsparameter, auf die die Analyse hinweist (Gewicht 5).</summary>
-    private int AnalyseAnzahl() => _werte.Count(x => x.Value >= 5);
+    /// <summary>Ein Eintrag: Schieberegler mit Text, Zahleneingabe oder Häkchen.</summary>
+    private int Eintrag(Control ziel, Gewichtung.Regler r, int x, int y)
+    {
+        var key = r.Schluessel;
+        switch (r.Art)
+        {
+            case ReglerArt.Haken:
+                {
+                    var cb = new CheckBox { Text = r.Text, Left = x + 4, Top = y, AutoSize = true, Checked = _werte[key] > 0 };
+                    cb.CheckedChanged += (_, _) => { _werte[key] = cb.Checked ? 1 : 0; Geaendert(); };
+                    ziel.Controls.Add(cb);
+                    return y + 24;
+                }
+            case ReglerArt.Zahl:
+                {
+                    var nu = new NumericUpDown { Left = x + 4, Top = y, Width = 50, Minimum = 0, Maximum = r.Max, Value = Math.Clamp(_werte[key], 0, r.Max) };
+                    nu.ValueChanged += (_, _) => { _werte[key] = (int)nu.Value; Geaendert(); };
+                    ziel.Controls.Add(nu);
+                    ziel.Controls.Add(new Label { Text = r.Text, Left = x + 60, Top = y + 3, Width = 470, AutoSize = false });
+                    return y + 30;
+                }
+            default:
+                {
+                    var tb = new TrackBar { Minimum = 0, Maximum = 5, Value = Math.Clamp(_werte[key], 0, 5), Left = x, Top = y, Width = 130, TickStyle = TickStyle.TopLeft, LargeChange = 1 };
+                    var wert = new Label { Text = tb.Value.ToString(), Left = x + 134, Top = y + 8, Width = 16, Font = Ui.SchriftFett };
+                    var text = new Label { Text = r.Text, Left = x + 156, Top = y + 8, Width = 380, Height = 34, AutoSize = false };
+                    _tipp.SetToolTip(tb, Gewichtung.ZifferText(tb.Value));
+                    tb.ValueChanged += (_, _) =>
+                    {
+                        _werte[key] = tb.Value;
+                        wert.Text = tb.Value.ToString();
+                        _tipp.SetToolTip(tb, Gewichtung.ZifferText(tb.Value));
+                        Geaendert();
+                    };
+                    ziel.Controls.Add(tb);
+                    ziel.Controls.Add(wert);
+                    ziel.Controls.Add(text);
+                    return y + 46;
+                }
+        }
+    }
 
+    /// <summary>Abschnitt „Analyse“: Hinweise auf Probleme der Gewichtungsverteilung und Verstöße des aktuellen Plans je Parameter.</summary>
+    private void AnalyseAnzeigen()
+    {
+        var hinweise = Hinweise();
+        var liste = new ListView { Dock = DockStyle.Top, Height = 160, View = View.Details, FullRowSelect = true, HeaderStyle = ColumnHeaderStyle.Nonclickable };
+        liste.Columns.Add("", 24);
+        liste.Columns.Add("Hinweis", 530);
+        if (hinweise.Count == 0) liste.Items.Add(new ListViewItem(new[] { "", "Keine Probleme bei der aktuellen Verteilung der Gewichtungsparameter." }));
+        foreach (var h in hinweise)
+            liste.Items.Add(new ListViewItem(new[] { h.Warnung ? "!" : "i", h.Text }) { ForeColor = h.Warnung ? Color.DarkRed : Color.Black, ToolTipText = h.Text, Tag = h });
+        liste.ShowItemToolTips = true;
+        // Doppelklick auf einen Hinweis springt in den Abschnitt des betreffenden Parameters
+        liste.DoubleClick += (_, _) =>
+        {
+            if (liste.SelectedItems.Count == 0 || liste.SelectedItems[0].Tag is not GewichtungsHinweis { Schluessel: { } k }) return;
+            var karte = Gewichtung.Alle.First(r => r.Schluessel == k).Karteikarte;
+            _karten.SelectedItem = karte;
+        };
+        var g = new DataGridView { Dock = DockStyle.Fill };
+        Ui.RasterGestalten(g, false);
+        g.RowHeadersVisible = false;
+        g.ReadOnly = true;
+        g.AllowUserToAddRows = false;
+        g.Columns.Add("R", "Gewichtungsparameter");
+        g.Columns.Add("W", "Gewicht");
+        g.Columns.Add("V", "Verstöße im aktuellen Plan");
+        g.Columns[0].Width = 330;
+        g.Columns[1].Width = 120;
+        var anzahl = Bewertung.Verstoesse(AppZustand.D).GroupBy(x => Gewichtung.SchluesselFuer(x.Art) ?? "").ToDictionary(x => x.Key, x => x.Count());
+        foreach (var r in Gewichtung.Gewichte)
+        {
+            var titel = r.Text == "Gewicht" ? r.Gruppe ?? r.Text : r.Text;
+            var w = _werte[r.Schluessel];
+            var zeile = g.Rows.Add(titel, $"{w} ({Gewichtung.ZifferText(w)})", anzahl.GetValueOrDefault(r.Schluessel).ToString());
+            if (w >= 5) g.Rows[zeile].Cells[1].Style.ForeColor = Color.Red;
+        }
+        _inhalt.Controls.Add(g);
+        _inhalt.Controls.Add(new Splitter { Dock = DockStyle.Top, Height = 4 });
+        _inhalt.Controls.Add(liste);
+    }
+
+    /// <summary>
+    /// Gewichtungs-Verteilung: Häufigkeit der Gewichte 0–5 als Balken; die Linie zeigt die empfohlene, mit steigendem Gewicht
+    /// abnehmende Vergabehäufigkeit (bezogen auf die Gewichte 1–5).
+    /// </summary>
     private sealed class VerteilungsDiagramm : Control
     {
-        private readonly int[] _anzahl = new int[6];
+        private readonly int[] _anzahl;
 
-        public VerteilungsDiagramm(List<int> werte)
+        public VerteilungsDiagramm(int[] anzahl)
         {
-            foreach (var w in werte) _anzahl[Math.Clamp(w, 0, 5)]++;
+            _anzahl = anzahl;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
         }
 
@@ -123,22 +207,30 @@ public sealed class GewichtungDialog : Dialog
             var g = e.Graphics;
             g.Clear(Color.White);
             var max = Math.Max(1, _anzahl.Max());
-            var r = new Rectangle(50, 30, Width - 80, Height - 80);
+            var r = new Rectangle(50, 30, Width - 80, Height - 100);
             g.DrawLine(Pens.Black, r.Left, r.Top, r.Left, r.Bottom);
             g.DrawLine(Pens.Black, r.Left, r.Bottom, r.Right, r.Bottom);
             g.DrawString("Anzahl", Ui.Schrift, Brushes.Black, 4, 8);
             var bw = r.Width / 6f;
+            // empfohlene Verteilung: abnehmend mit steigendem Gewicht (1 am häufigsten)
+            var summe = _anzahl.Skip(1).Sum();
+            float[] anteil = { 0, 0.30f, 0.27f, 0.22f, 0.14f, 0.07f };
+            var punkte = new List<PointF>();
+            using var pfeil = new Pen(Color.FromArgb(220, 120, 20), 2f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
             for (var i = 0; i < 6; i++)
             {
                 var h = r.Height * _anzahl[i] / (float)max;
                 var x = r.Left + i * bw + bw * 0.25f;
-                g.FillRectangle(new SolidBrush(Color.FromArgb(100, 100, 240)), x, r.Bottom - h, bw * 0.5f, h);
+                using var b = new SolidBrush(i >= 5 ? Color.FromArgb(220, 80, 80) : Color.FromArgb(100, 100, 240));
+                g.FillRectangle(b, x, r.Bottom - h, bw * 0.5f, h);
                 g.DrawString(_anzahl[i].ToString(), Ui.Schrift, Brushes.Black, x + bw * 0.18f, r.Bottom - h - 16);
-                g.DrawString(i.ToString(), Ui.Schrift, Brushes.Black, x + bw * 0.2f, r.Bottom + 4);
+                g.DrawString(i.ToString(), Ui.SchriftFett, Brushes.Black, x + bw * 0.2f, r.Bottom + 4);
+                var t = Gewichtung.ZifferText(i);
+                g.DrawString(t, Ui.SchriftKlein, Brushes.DimGray, new RectangleF(r.Left + i * bw, r.Bottom + 22, bw, 30), new StringFormat { Alignment = StringAlignment.Center });
+                if (i >= 1 && summe > 0) punkte.Add(new PointF(x + bw * 0.25f, r.Bottom - Math.Min(r.Height, r.Height * anteil[i] * summe / max)));
             }
-            g.DrawString("unwichtig", Ui.SchriftKlein, Brushes.DimGray, r.Left, r.Bottom + 22);
-            g.DrawString("extrem wichtig", Ui.SchriftKlein, Brushes.DimGray, r.Right - 80, r.Bottom + 22);
-            g.DrawString("Ziel: wenige Regler auf 4 und 5 (glockenförmige Verteilung).", Ui.Schrift, Brushes.DimGray, r.Left, r.Bottom + 40);
+            if (punkte.Count > 1) g.DrawLines(pfeil, punkte.ToArray());
+            g.DrawString("Balken: vergebene Gewichte   ‑ ‑ ‑ empfohlen: mit steigendem Gewicht abnehmende Häufigkeit", Ui.Schrift, Brushes.DimGray, r.Left, r.Bottom + 56);
         }
     }
 }

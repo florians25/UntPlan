@@ -100,6 +100,44 @@ public static class Berichtslisten
         }).ToList();
     }
 
+    /// <summary>
+    /// Spalte „Fach“ der Vertretungs-Abrechnung wie im Handbuch: der Langname des (Vertretungs-)Fachs („Deutsch“, „Mathematik“; ohne
+    /// Langname der Kurzname), bei einer Wertkorrektur deren Art (z. B. „V“), bei Pausenaufsichten leer (der Grund lautet „PA-Vertr.“).
+    /// </summary>
+    public static string AbrechnungFach(Schuldatei d, ZaehlZeile z)
+    {
+        if (z.Code == "WK") return z.Fach;
+        if (z.Vertretung is not { } v) return z.Fach;
+        if (v.Art == VertretungsArt.Pausenaufsicht) return "";
+        var id = v.VertretungsfachId ?? v.FachId;
+        var fach = id is int f ? d.Faecher.FirstOrDefault(x => x.Id == f) : null;
+        if (fach is null) return z.Fach;
+        return string.IsNullOrWhiteSpace(fach.Langname) ? fach.Kurzname : fach.Langname;
+    }
+
+    /// <summary>Eine Wertkorrektur einer Lehrkraft für die Liste „Wertkorrektur“ (Lehrer | Stammdaten | Druckauswahl | Listart).</summary>
+    public sealed record WertkorrekturZeile(Lehrer Lehrer, DateOnly Datum, string Art, decimal Wert, string Text)
+    {
+        /// <summary>Wirkung wie im Handbuch: V/Y erhöhen, E vermindert den Vertretungszähler; „+“/„-“ ändern den Unterrichtswert.</summary>
+        public string Wirkung => Art switch
+        {
+            "V" => "Vertretungen (Zähler +)",
+            "Y" => "Sondereinsätze (Zähler +)",
+            "E" => "Entfälle (Zähler -)",
+            "+" => "Unterrichtswert erhöhen",
+            "-" => "Unterrichtswert vermindern",
+            _ => Art,
+        };
+
+        /// <summary>Wirkung auf den Vertretungszähler (0 bei „+“/„-“, die nur den Unterrichtswert ändern).</summary>
+        public decimal Zaehlerwirkung => Art switch { "V" or "Y" => Math.Abs(Wert), "E" => -Math.Abs(Wert), _ => 0 };
+    }
+
+    /// <summary>Wertkorrekturen der Lehrkräfte im Zeitraum, je Lehrkraft (Reihenfolge der Auswahl) nach Datum.</summary>
+    public static List<WertkorrekturZeile> Wertkorrekturen(IEnumerable<Lehrer> lehrer, DateOnly von, DateOnly bis) =>
+        lehrer.SelectMany(l => l.Wertkorrekturen.Where(w => w.Datum >= von && w.Datum <= bis).OrderBy(w => w.Datum)
+            .Select(w => new WertkorrekturZeile(l, w.Datum, w.Art, w.Wert, w.Text))).ToList();
+
     /// <summary>Eine Zeile der Stunden-Liste: eine reguläre Stunde einer Lehrkraft.</summary>
     public sealed record Stundenzeile(DateOnly Datum, int Stunde, string Klassen, string Fach, string Raum);
 

@@ -8,7 +8,7 @@ namespace UntPlan.App.Fenster;
 /// Übersichtsplan (z. B. "Lehrer Übersicht quer"): Elemente als Zeilen, Tage × Stunden als Spalten.
 /// Im Raum-Übersichtsplan können Raumverlegungen bzw. -täusche per Drag &amp; Drop durchgeführt werden.
 /// </summary>
-public sealed class UebersichtFenster : MdiFenster, IDruckbar
+public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
 {
     private readonly ElementTyp _typ;
     private readonly Raster _raster;
@@ -26,6 +26,7 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true)));
         // Druck-Details der Übersichtspläne (Anzahl Zeilen / Spalten pro Blatt, Zwischenüberschriften)
         ts.Items.Add(Knopf("Einstellungen (Druck)", "einstellungen", () => { using var f = Druck.UebersichtDruck.DetailsForm(Druck.UebersichtDruck.Details(_typ)); f.ShowDialog(this); }));
+        FilterLeisteAufbauen(ts);
         ts.Items.Add(new ToolStripLabel(typ == ElementTyp.Raum ? "Raumverlegung: Stunde per Drag & Drop in eine andere Raumzeile ziehen." : "Stunde per Drag & Drop innerhalb der Zeile verschieben."));
         _raster = new Raster(this) { Dock = DockStyle.Fill };
         var scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
@@ -39,13 +40,13 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
     protected override void Aktualisieren(AenderungsArt art) => _raster.Invalidate();
 
     /// <summary>Druck mit Seitenaufteilung laut Druck-Details (Zeilen / Spalten pro Blatt, Stundenplan-Blöcke, Zwischenüberschriften).</summary>
-    public void Drucken(bool vorschau) => Druck.UebersichtDruck.Drucken(this, _typ, Text, vorschau);
+    public void Drucken(bool vorschau) => Druck.UebersichtDruck.Drucken(this, _typ, Text, vorschau, _auswahl is null ? null : Angezeigt(), Beschriftung);
 
     private sealed class Raster : Control
     {
         private readonly UebersichtFenster _f;
         private (int Zeile, Planstunde P)? _drag;
-        private const int NameBreite = 60;
+        private int NameBreite => _f.ZusatzBeschriftung ? 96 : 60;
         private const int Kopf = 36;
 
         public Raster(UebersichtFenster f)
@@ -55,7 +56,7 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }
 
-        private List<Element> Elemente => Stammdaten.Sortiert(AppZustand.D, _f._typ).ToList();
+        private List<Element> Elemente => _f.Angezeigt();
         private int Spalten => AppZustand.D.Zeitraster.TageProWoche * AppZustand.D.Zeitraster.StundenProTag;
 
         public void GroesseAnpassen(Size client)
@@ -91,7 +92,7 @@ public sealed class UebersichtFenster : MdiFenster, IDruckbar
             {
                 var y = b.Y + Kopf + i * rh;
                 g.FillRectangle(i % 2 == 0 ? Brushes.White : new SolidBrush(Color.FromArgb(247, 249, 252)), b.X, y, b.Width, rh);
-                TextRenderer.DrawText(g, elemente[i].Kurzname, Ui.SchriftFett, new Rectangle(b.X + 2, (int)y, NameBreite - 4, (int)rh), Color.Black, TextFormatFlags.VerticalCenter);
+                TextRenderer.DrawText(g, _f.Beschriftung(elemente[i]), Ui.SchriftFett, new Rectangle(b.X + 2, (int)y, NameBreite - 4, (int)rh), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
                 foreach (var p in ix.PlanVon(_f._typ, elemente[i].Id))
                 {
                     if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) continue;

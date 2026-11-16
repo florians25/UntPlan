@@ -395,19 +395,22 @@ public static class ListenSuche
     public static int BenoetigteBreite(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null)
     {
         var mitLang = false;
+        var symbol = false;
         var schrift = Ui.OhneFett(cb.Font);
         var kurzMax = 0;
         var langMax = 0;
         foreach (var o in cb.Items)
         {
             var t = cb.GetItemText(o) ?? "";
-            var zusatz = stil?.Invoke(t)?.Zusatz is { Length: > 0 } sz ? sz : Zusatz(o, t, langname);
+            var st = stil?.Invoke(t);
+            if (st?.Symbol != null) symbol = true;
+            var zusatz = st?.Zusatz is { Length: > 0 } sz ? sz : Zusatz(o, t, langname);
             kurzMax = Math.Max(kurzMax, TextRenderer.MeasureText(t, schrift).Width);
             if (!string.IsNullOrEmpty(zusatz)) { mitLang = true; langMax = Math.Max(langMax, TextRenderer.MeasureText(zusatz, schrift).Width); }
         }
         // Kurzname-Spalte wie beim Zeichnen (mind. 64 px, höchstens 160 px), danach der Langname
         var kurzSpalte = mitLang ? Math.Max(64, Math.Min(kurzMax + 10, 160)) : kurzMax;
-        var w = kurzSpalte + (mitLang ? langMax + 22 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
+        var w = kurzSpalte + (mitLang ? langMax + 22 : 0) + (symbol ? 21 : 0) + SystemInformation.VerticalScrollBarWidth + 18;
         if (mitLang) w = Math.Max(w, 260);
         return w;
     }
@@ -501,6 +504,13 @@ public static class ListenSuche
         var vorder = ausgewaehlt ? SystemColors.HighlightText : s?.Text is Color t && t != Color.Empty ? t : cb.ForeColor;
         using (var b = new SolidBrush(hinter)) e.Graphics.FillRectangle(b, e.Bounds);
         var r = e.Bounds;
+        // Symbol vor dem Kurznamen (z. B. Lehrersymbol in der Vertreterliste wie im Vorbild)
+        if (s?.Symbol is { } sym)
+        {
+            var g = Math.Min(16, r.Height - 2);
+            e.Graphics.DrawImage(sym, new Rectangle(r.X + 3, r.Y + (r.Height - g) / 2, g, g));
+            r = new Rectangle(r.X + g + 5, r.Y, Math.Max(0, r.Width - g - 5), r.Height);
+        }
         // Kurzname in fester Spalte, damit die Langnamen bündig stehen – wie der Langname nie fett
         var schrift = Ui.OhneFett(cb.Font);
         var kurzBreite = string.IsNullOrEmpty(zusatz) ? r.Width - 4 : Math.Min(Math.Max(64, KurzSpalte(cb, schrift)), r.Width / 2);

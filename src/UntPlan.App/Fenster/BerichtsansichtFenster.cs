@@ -1,13 +1,14 @@
 using System.Text;
+using UntPlan.App.Dialoge;
 
 namespace UntPlan.App.Fenster;
 
 /// <summary>
 /// Berichtsansicht im Programm: zeigt einen HTML-Bericht (Vertretungsberichte, Listen) in einem eigenen Fenster statt im externen
 /// Browser. Wie die Seitenansicht des Vorbilds: weißes Blatt auf grauem Grund; Werkzeugleiste mit Verkleinern/Vergrößern, Drucken,
-/// Excel- und PDF-Ausgabe sowie Seitenansicht, Seite einrichten, Im Browser öffnen und Speichern unter (HTML).
+/// Excel-Arbeitsmappe (.xlsx) und PDF-Datei sowie Seitenansicht, Seite einrichten, Im Browser öffnen und Speichern unter (HTML).
 /// </summary>
-public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar
+public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar, IExcelExport
 {
     private readonly WebBrowser _browser = new()
     {
@@ -34,7 +35,7 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false), false));
         ts.Items.Add(Knopf("Als Excel-Datei speichern", "export", ExcelSpeichern, false));
-        ts.Items.Add(Knopf("PDF (Drucker „Microsoft Print to PDF“)", "dk", PdfAusgeben, false));
+        ts.Items.Add(Knopf("Als PDF-Datei speichern", "dk", PdfAusgeben, false));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true), false));
         ts.Items.Add(Knopf("Seite einrichten", "einstellungen", SeiteEinrichten, false));
@@ -62,26 +63,59 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar
         catch (Exception) { /* Anzeige ohne Zoom */ }
     }
 
-    /// <summary>Bericht als Excel-Datei speichern (HTML-Tabelle, die Excel direkt öffnet).</summary>
-    private void ExcelSpeichern()
-    {
-        var name = string.Concat(Titel.Split(Path.GetInvalidFileNameChars())).Trim();
-        using var sfd = new SaveFileDialog { Filter = "Excel-Datei|*.xls", FileName = (name.Length > 0 ? name : "Bericht") + ".xls", Title = "Bericht als Excel-Datei speichern" };
-        if (sfd.ShowDialog(this) != DialogResult.OK) return;
-        try
-        {
-            File.WriteAllText(sfd.FileName, Html, new UTF8Encoding(true));
-            Ui.Statushinweis($"Excel-Datei gespeichert: {sfd.FileName}");
-        }
-        catch (Exception ex) { Ui.Fehler(ex); }
-    }
+    /// <summary>Bericht als Excel-Arbeitsmappe (.xlsx) speichern: Tabellenzeilen mit ihren Spalten, Überschriften und Bilanzzeilen als eigene Zeilen.</summary>
+    private void ExcelSpeichern() => ExcelAusgabe.Speichern(this, this);
 
-    /// <summary>PDF-Ausgabe über den Druckdialog (Drucker „Microsoft Print to PDF“).</summary>
+    public string ExcelName => Titel;
+
+    public IReadOnlyList<UntPlan.Core.Austausch.Excel.Blatt> ExcelBlaetter() =>
+        new[] { new UntPlan.Core.Austausch.Excel.Blatt(Titel, UntPlan.Core.Austausch.Excel.AusHtml(Html)) };
+
+    /// <summary>
+    /// PDF-Ausgabe: direkt als PDF-Datei über den Microsoft-Edge-Browser im Hintergrund (in Windows 10/11 enthalten) – ohne
+    /// Druckerauswahl. Ist Edge nicht vorhanden, wie bisher über den Druckdialog mit dem Drucker „Microsoft Print to PDF“.
+    /// </summary>
     private void PdfAusgeben()
     {
         if (Ui.FehlerProtokoll != null) return;
-        Ui.Info("Wählen Sie im folgenden Druckdialog den Drucker \"Microsoft Print to PDF\".");
-        Drucken(false);
+        var edge = EdgePfad();
+        if (edge is null)
+        {
+            Ui.Info("Wählen Sie im folgenden Druckdialog den Drucker \"Microsoft Print to PDF\".");
+            Drucken(false);
+            return;
+        }
+        var name = string.Concat(Titel.Split(Path.GetInvalidFileNameChars())).Trim();
+        using var sfd = new SaveFileDialog { Filter = "PDF-Datei|*.pdf", FileName = (name.Length > 0 ? name : "Bericht") + ".pdf", Title = "Bericht als PDF-Datei speichern" };
+        if (sfd.ShowDialog(this) != DialogResult.OK) return;
+        var html = TempDatei();
+        try
+        {
+            File.WriteAllText(html, Html, new UTF8Encoding(true));
+            if (File.Exists(sfd.FileName)) File.Delete(sfd.FileName);
+            var psi = new System.Diagnostics.ProcessStartInfo(edge) { UseShellExecute = false, CreateNoWindow = true };
+            foreach (var a in new[] { "--headless", "--disable-gpu", "--no-pdf-header-footer", "--print-to-pdf=" + sfd.FileName, new Uri(html).AbsoluteUri })
+                psi.ArgumentList.Add(a);
+            using (new WarteCursor())
+            using (var p = System.Diagnostics.Process.Start(psi))
+                if (p != null && !p.WaitForExit(60000)) { try { p.Kill(); } catch (InvalidOperationException) { } }
+            if (!File.Exists(sfd.FileName)) throw new IOException("Die PDF-Datei konnte nicht erzeugt werden.");
+            Ui.Statushinweis($"PDF-Datei gespeichert: {sfd.FileName}");
+            if (Ui.Frage($"PDF-Datei gespeichert:\n{sfd.FileName}\n\nJetzt öffnen?")) HauptFenster.Starten(sfd.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { Ui.Fehler(ex); }
+        finally { try { File.Delete(html); } catch (Exception) { /* temporäre Datei bleibt liegen */ } }
+    }
+
+    /// <summary>Pfad von msedge.exe (Standardinstallation) oder null.</summary>
+    private static string? EdgePfad()
+    {
+        foreach (var basis in new[] { Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.LocalApplicationData })
+        {
+            var p = Path.Combine(Environment.GetFolderPath(basis), "Microsoft", "Edge", "Application", "msedge.exe");
+            if (File.Exists(p)) return p;
+        }
+        return null;
     }
 
     /// <summary>Bericht anzeigen: vorhandenes Fenster desselben Berichts übernimmt den neuen Inhalt, sonst ein neues Fenster.</summary>

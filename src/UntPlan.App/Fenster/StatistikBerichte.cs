@@ -23,9 +23,10 @@ public static class StatistikBerichte
     public const string MehrarbeitNrw = "Mehrarbeit NRW (Monate)";
     public const string Wochenwerte = "Wochenwerte";
     public const string AbrechnungAlle = "Vertretungsabrechnung (Übersicht aller Lehrer)";
+    public const string Wertkorrektur = "Wertkorrektur";
 
     /// <summary>Berichte im Baum der Karteikarte „Berichte“ (die ersten vier wie im Handbuch).</summary>
-    public static readonly string[] Namen = { Abrechnung, Entfalltage, Uebersicht, Mehrarbeit, Monatsabrechnung, MehrarbeitNrw, Wochenwerte, AbrechnungAlle };
+    public static readonly string[] Namen = { Abrechnung, Entfalltage, Uebersicht, Mehrarbeit, Monatsabrechnung, MehrarbeitNrw, Wochenwerte, AbrechnungAlle, Wertkorrektur };
 
     private const string Stil = "<style>body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;margin:16px}.el{page-break-inside:avoid;margin-bottom:28px}.neu{page-break-before:always}" +
         ".kn{font-size:20pt}.ln{font-size:13pt;margin-left:6px}h1{font-size:16pt;font-weight:normal;margin:0 0 12px}h2{font-size:11pt;margin:14px 0 4px}" +
@@ -156,10 +157,45 @@ public static class StatistikBerichte
                 Monatsabrechnung => MonatsabrechnungBericht(d, lehrer, dlg.Von),
                 MehrarbeitNrw => MehrarbeitNrwBericht(d, lehrer, dlg.Von, dlg.Bis),
                 Wochenwerte => WochenwerteBericht(d, lehrer, dlg.Von, dlg.Bis),
+                Wertkorrektur => WertkorrekturBericht(d, lehrer, dlg.Von, dlg.Bis),
                 _ => AbrechnungUebersicht(d, dlg.Von, dlg.Bis),
             };
         Oeffnen(bericht, body, dlg.Ueberschrift, dlg.Schrift);
     }
+
+    /// <summary>Listart „Stammdaten“ der Druckauswahl (die Liste der Lehrer-Stammdaten selbst).</summary>
+    public const string ListartStammdaten = "Stammdaten (Liste)";
+
+    /// <summary>Listarten der Druckauswahl im Lehrer-Stammdatenfenster wie im Handbuch (Mehrarbeit, Monatsabrechnung, Wertkorrektur …).</summary>
+    public static readonly string[] LehrerListarten = { ListartStammdaten, Mehrarbeit, Monatsabrechnung, Wertkorrektur, Abrechnung, MehrarbeitNrw };
+
+    /// <summary>
+    /// Druckauswahl der Lehrer-Stammdaten mit „Listart“: liefert true, wenn ein Bericht (Mehrarbeit, Monatsabrechnung, Wertkorrektur,
+    /// Vertretungs-Abrechnung …) gewählt und ausgegeben bzw. abgebrochen wurde, false für die Stammdatenliste selbst.
+    /// </summary>
+    public static bool LehrerDruckauswahl(IWin32Window owner)
+    {
+        if (Ui.FehlerProtokoll != null) return false; // Selbsttest: keine modalen Dialoge
+        using var f = new Dialog("Druckauswahl", 300, 110);
+        f.Controls.Add(new Label { Text = "Listart", Left = 12, Top = 14, AutoSize = true });
+        var art = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 70, Top = 10, Width = 216 };
+        art.Items.AddRange(LehrerListarten);
+        art.SelectedIndex = Math.Max(0, Array.IndexOf(LehrerListarten, _letzteListart));
+        f.Controls.Add(art);
+        f.Ok.Text = "Ok";
+        if (f.ShowDialog(owner) != DialogResult.OK) return true;
+        _letzteListart = art.SelectedItem as string ?? ListartStammdaten;
+        if (_letzteListart == ListartStammdaten) return false;
+        // Zeitraum vorbelegt wie im Handbuch: Monat des Kalenderdatums, höchstens bis Schuljahresende
+        var d = AppZustand.D;
+        var von = new DateOnly(AppZustand.Datum.Year, AppZustand.Datum.Month, 1);
+        var bis = von.AddMonths(1).AddDays(-1);
+        if (d.Einstellungen.SchuljahrBis >= von && d.Einstellungen.SchuljahrBis < bis) bis = d.Einstellungen.SchuljahrBis;
+        Starten(owner, _letzteListart, von, bis);
+        return true;
+    }
+
+    private static string _letzteListart = ListartStammdaten;
 
     /// <summary>Optionen „Druck - Details“ der Vertretungs-Abrechnung.</summary>
     public sealed class AbrechnungsDetails
@@ -212,7 +248,7 @@ public static class StatistikBerichte
                 var text = x.Text;
                 if (x.Vertretung is { NachDatum: DateOnly nach } vn) grund = $"-> {Kurz(nach)} / {vn.NachStunde}";
                 if (x.Vertretung is { VonDatum: DateOnly vd } vv && x.Code is "V" or "+V") text = $"{Kurz(vd)} / {vv.VonStunde}" + (text.Length > 0 ? " " + text : "");
-                sb.Append($"<tr><td>{Kurz(x.Datum)}</td><td>{H(stunde)}</td><td>{H(x.Code)}</td><td class=\"z\">{W(x.Wert)}</td><td class=\"z\">{W(zaehler)}</td><td>{H(x.Fach)}</td><td>{H(x.Klassen)}</td><td>{H(grund)}</td><td>{H(text)}</td></tr>");
+                sb.Append($"<tr><td>{Kurz(x.Datum)}</td><td>{H(stunde)}</td><td>{H(x.Code)}</td><td class=\"z\">{W(x.Wert)}</td><td class=\"z\">{W(zaehler)}</td><td>{H(Berichtslisten.AbrechnungFach(d, x))}</td><td>{H(x.Klassen)}</td><td>{H(grund)}</td><td>{H(text)}</td></tr>");
             }
             if (opt.ZwischensummenMonate && monat is { } mm)
                 sb.Append($"<tr class=\"s\"><td colspan=\"3\">{new DateTime(mm.Jahr, mm.Monat, 1).ToString("MMMM", Format.De)}</td><td class=\"z\">{W(monatsSumme)}</td><td class=\"z\">{W(zaehler)}</td><td colspan=\"4\"></td></tr>");
@@ -374,6 +410,25 @@ public static class StatistikBerichte
         return sb.ToString();
     }
 
+    /// <summary>
+    /// Liste „Wertkorrektur“ (Handbuch: Druckauswahl der Lehrer-Stammdaten, Listart Wertkorrektur): je Lehrkraft die Korrekturen im
+    /// Zeitraum mit Datum, Art, Wert und Text sowie der Summe der Wirkung auf den Vertretungszähler.
+    /// </summary>
+    public static string WertkorrekturBericht(Schuldatei d, IEnumerable<Lehrer> lehrer, DateOnly von, DateOnly bis)
+    {
+        var liste = Berichtslisten.Wertkorrekturen(lehrer, von, bis);
+        var sb = new StringBuilder($"<h1 class=\"b\">Wertkorrektur : {Kurz(von)} - {Kurz(bis)}</h1>");
+        foreach (var g in liste.GroupBy(z => z.Lehrer))
+        {
+            sb.Append($"<div class=\"el\">{Kopf(g.Key)}<table class=\"r\" style=\"margin-top:6px\"><tr><th>Datum</th><th>Art</th><th class=\"z\">Wert</th><th>Text</th><th>Wirkung</th></tr>");
+            foreach (var z in g)
+                sb.Append($"<tr><td>{Tag(d, z.Datum)} {Kurz(z.Datum)}</td><td>{H(z.Art)}</td><td class=\"z\">{Zaehlung.WertText(d, z.Wert)}</td><td>{H(z.Text)}</td><td>{H(z.Wirkung)}</td></tr>");
+            sb.Append($"</table><div class=\"bil\">Vertretungszähler: {Zaehlung.WertText(d, g.Sum(z => z.Zaehlerwirkung))}</div></div>");
+        }
+        if (liste.Count == 0) sb.Append("<p>Keine Wertkorrekturen im gewählten Zeitraum.</p>");
+        return sb.ToString();
+    }
+
     public static string AbrechnungUebersicht(Schuldatei d, DateOnly von, DateOnly bis)
     {
         var liste = Statistik.Abrechnung(d, von, bis);
@@ -401,6 +456,8 @@ public sealed class BerichtAuswahlDialog : Dialog
 
     public List<Lehrer> Lehrer { get; private set; }
     public StatistikBerichte.AbrechnungsDetails Details { get; } = new();
+    /// <summary>Eigener Dialog hinter „Druck - Details“ (z. B. Bereiche der Vertretungsstatistik) statt der Details der Abrechnung.</summary>
+    public Action<IWin32Window>? EigeneDetails { get; set; }
     public string Ueberschrift { get; private set; } = "";
     public int Schrift { get; private set; } = 100;
     public DateOnly Von => DateOnly.FromDateTime(_von.Value);
@@ -437,7 +494,7 @@ public sealed class BerichtAuswahlDialog : Dialog
         var details = new Button { Text = "Druck - Details", Left = 220, Top = 14, Width = 100, Height = 25, Visible = mitDetails };
         var ueber = new Button { Text = "Überschrift", Left = 220, Top = 44, Width = 100, Height = 25 };
         var schrift = new Button { Text = "Schrift", Left = 220, Top = 74, Width = 100, Height = 25 };
-        details.Click += (_, _) => DetailsZeigen();
+        details.Click += (_, _) => { if (EigeneDetails != null) EigeneDetails(this); else DetailsZeigen(); };
         ueber.Click += (_, _) => { if (Ui.Eingabe("Überschrift des Berichts:", "Überschrift", Ueberschrift) is { } t) Ueberschrift = t; };
         schrift.Click += (_, _) =>
         {

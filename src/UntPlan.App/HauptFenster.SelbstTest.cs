@@ -882,6 +882,8 @@ public sealed partial class HauptFenster
                 var bf = MdiChildren.OfType<BerichtsansichtFenster>().FirstOrDefault(f => f.Titel == titel) ?? throw new InvalidOperationException($"Berichtsansicht „{titel}“ nicht geöffnet");
                 if (!bf.Html.Contains("Schuljahr ") || !bf.Html.Contains("class=\"bkopf\"")) throw new InvalidOperationException($"Berichtsansicht „{titel}“ ohne Berichtskopf");
                 if (bf is not IDruckbar) throw new InvalidOperationException("Berichtsansicht ohne Drucken/Seitenansicht");
+                // Export nach Excel: Schnellzugriff aktiv, Arbeitsmappe mit den Tabellenzeilen des Berichts
+                if (!_excelKnopf.Enabled || bf.ExcelBlaetter().Sum(b => b.Zeilen.Count) < 2) throw new InvalidOperationException($"Berichtsansicht „{titel}“ ohne Excel-Export");
             }
             var zahl = MdiChildren.OfType<BerichtsansichtFenster>().Count();
             lf.SelbsttestAusgeben(Listenberichte.FachStundenTitel);

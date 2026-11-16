@@ -14,6 +14,7 @@ public sealed partial class HauptFenster
     {
         _autoSpeichern.Tick += (_, _) => AutoSpeichern();
         AutoSpeichernEinstellen();
+        AbsicherungVorbereiten();
         SchnellanordnungenAufbauen();
         // vor dem Speichern der Ansicht in die Schuldatei: aktuelle Fensteranordnung des Modus aufnehmen
         AppZustand.AnsichtVorSpeichern = () =>
@@ -49,30 +50,27 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>
-    /// Speichert geänderte Daten automatisch: in die geöffnete Datei bzw. – solange sie noch keinen Namen hat – als
-    /// Wiederherstellungskopie im Benutzerordner. Im MultiUser-Betrieb wird ohnehin jede Änderung sofort gespeichert.
+    /// Einstellungen | Diverses | Sichern: sichert die Daten automatisch in Generationen (Save1 = neueste … SaveN) im Ordner
+    /// „Sicherungsdateien“; „nur bei geänderten Daten“ verhindert identische Sicherungen. Optional wird zusätzlich die geöffnete Datei
+    /// gespeichert. Im MultiUser-Betrieb wird ohnehin jede Änderung sofort gespeichert.
     /// </summary>
     private void AutoSpeichern()
     {
         var doc = AppZustand.Doc;
-        if (!doc.IstGeaendert || doc.Schreibgeschuetzt || MultiUser.MultiUserSitzung.Aktiv || OwnedForms.Any(f => f.Modal) || ActiveForm is Form { Modal: true }) return;
+        var e = AppZustand.Einstellungen;
+        if (e.SicherungNurBeiAenderung && !doc.IstGeaendert) return;
+        if (MultiUser.MultiUserSitzung.Aktiv || OwnedForms.Any(f => f.Modal) || ActiveForm is Form { Modal: true }) return;
         try
         {
-            if (doc.Pfad is string pfad)
+            if (e.SicherungInGeoeffneteDatei && doc.IstGeaendert && !doc.Schreibgeschuetzt && doc.Pfad is string pfad)
             {
                 doc.Speichern(pfad);
                 DokGeaendert(AenderungsArt.Einstellungen);
                 _statusLinks.Text = $"Automatisch gespeichert um {DateTime.Now:HH:mm}";
             }
-            else
-            {
-                var ordner = Dialoge.Einstellungsseiten.Pfad("Sicherungsdateien");
-                Directory.CreateDirectory(ordner);
-                var name = string.IsNullOrWhiteSpace(doc.Daten.Einstellungen.Schulname) ? "Unbenannt" : string.Concat(doc.Daten.Einstellungen.Schulname.Split(Path.GetInvalidFileNameChars()));
-                var ziel = Path.Combine(ordner, name + Dokument.Dateiendung);
-                File.WriteAllText(ziel, JsonSerializer.Serialize(doc.Daten, Dokument.JsonOptionen));
-                _statusLinks.Text = $"Wiederherstellungskopie gespeichert um {DateTime.Now:HH:mm} ({ziel})";
-            }
+            var ordner = Dialoge.Einstellungsseiten.Pfad("Sicherungsdateien");
+            var ziel = Sicherungsgenerationen.Sichern(ordner, JsonSerializer.Serialize(doc.Daten, Dokument.JsonOptionen), Math.Max(1, e.SicherungsGenerationen), e.SicherungNurBeiAenderung);
+            if (ziel != null) _statusLinks.Text = $"Automatische Sicherung um {DateTime.Now:HH:mm} ({ziel})";
         }
         catch (Exception ex)
         {

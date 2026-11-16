@@ -186,7 +186,7 @@ public static class Diagnose
         var ix = new DatenIndex(d);
         var v = Bewertung.Verstoesse(d);
         var punkte = new List<DiagnosePunkt>();
-        foreach (var g in v.GroupBy(x => (Gruppe: GruppeVon(x), x.Art)).OrderBy(g => g.Key.Gruppe).ThenByDescending(g => g.Sum(x => x.Kosten)))
+        foreach (var g in v.Where(x => x.Art != VerstossArt.GleichzeitigeMittagspause).GroupBy(x => (Gruppe: GruppeVon(x), x.Art)).OrderBy(g => g.Key.Gruppe).ThenByDescending(g => g.Sum(x => x.Kosten)))
         {
             var p = new DiagnosePunkt
             {
@@ -194,7 +194,8 @@ public static class Diagnose
                 Gruppe = g.Key.Gruppe,
                 Titel = Bewertung.ArtText(g.Key.Art),
                 Beschreibung = Beschreibung(g.Key.Art),
-                Gewicht = g.Max(x => x.Kosten) >= PlanModell.Hart ? 5 : Math.Clamp((int)Math.Log10(1 + g.Average(x => x.Kosten)) + 1, 1, 4),
+                // Spalte „Gw.“: Gewicht laut Gewichtungsdialog; harte Verstöße (Kollisionen, Sperrungen) sind nicht gewichtbar („*“)
+                Gewicht = Gewichtung.SchluesselFuer(g.Key.Art) is { } key ? Math.Max(1, Gewichtung.Wert(d.Gewichtung, key)) : g.Max(x => x.Kosten) >= PlanModell.Hart ? 5 : 0,
             };
             foreach (var x in g.OrderBy(x => x.Tag).ThenBy(x => x.Stunde))
             {
@@ -211,7 +212,7 @@ public static class Diagnose
         {
             var mp = new DiagnosePunkt
             {
-                Rubrik = "Stundenplan", Gruppe = "Klasse", Titel = "Zu viele Klassen gleichzeitig in der Mittagspause", Gewicht = 3,
+                Rubrik = "Stundenplan", Gruppe = "Klasse", Titel = "Zu viele Klassen gleichzeitig in der Mittagspause", Gewicht = Math.Max(1, Gewichtung.Wert(d.Gewichtung, "K.GleichMittag")),
                 Beschreibung = $"Laut Zeitraster dürfen höchstens {zr.MaxKlassenGleicheMittagspause} Klassen gleichzeitig Mittagspause haben (Mittagspause zwischen Vor- und Nachmittagsunterricht).",
             };
             foreach (var (tag, stunde, klassen) in Mittagspausen(d))
@@ -301,6 +302,20 @@ public static class Diagnose
         VerstossArt.Unterrichtsfolge => "Eine Unterrichtsfolge (fixe Fachfolge, Wochenfolge, gleichzeitiger Unterricht) ist nicht eingehalten.",
         VerstossArt.Dislozierung => "Zwischen Räumen verschiedener Dislozierung (Außenstellen) liegt keine ausreichende Pause.",
         VerstossArt.SelberRaum => "Kennzeichen (r) Stunden im selben Raum: die Stunden des Unterrichts liegen in verschiedenen Räumen.",
+        VerstossArt.EinzelstundeHalbtag => "Die Lehrkraft hat an einem Halbtag nur eine einzige Stunde (Gewicht „Einzelstunden an einem Halbtag für Lehrer vermeiden“).",
+        VerstossArt.DoppelhohlstundeLehrer => "Die Lehrkraft hat zwei oder mehr Hohlstunden unmittelbar hintereinander (Gewicht „Doppelhohlstunden für Lehrer vermeiden“).",
+        VerstossArt.LetzteVormittagsstunde => "Die Lehrkraft unterrichtet öfter in der letzten Vormittagsstunde, als im Gewichtungsdialog bei „Stunden in letzter Vormittagsstunde – Maximal“ angegeben.",
+        VerstossArt.KlassenlehrerTag => "Der Klassenlehrer unterrichtet an diesem Tag nicht in seiner Klasse (Gewicht „Klassenlehrer mindestens einmal pro Tag“).",
+        VerstossArt.GleichzeitigeMittagspause => "Mehr Klassen haben gleichzeitig Mittagspause, als im Zeitraster erlaubt ist.",
+        VerstossArt.Freifach or VerstossArt.Randstunde => "Ein Frei- bzw. Randstundenfach (Kennzeichen F bzw. R) liegt nicht an einer der im Gewichtungsdialog erlaubten Randpositionen.",
+        VerstossArt.NichtInRandstunde => "Ein Fach bzw. Unterricht mit Kennzeichen G liegt in einer Randstunde des Tages.",
+        VerstossArt.HauptfachSpaet => "Ein Hauptfach liegt in der Woche mehr als einmal nach der Grenzstunde (Gewichtung, Abschnitt Hauptfächer).",
+        VerstossArt.HauptfachBisGrenzstunde => "Ein Hauptfach liegt in der Woche kein einziges Mal vor oder in der Grenzstunde.",
+        VerstossArt.Raumkapazitaet => "Die Kapazität des verplanten Raumes ist kleiner als die Studentenzahl des Unterrichts.",
+        VerstossArt.ZweiStundenFolgetage or VerstossArt.DreiStundenFolgetage => "Ein Unterricht mit 2 bzw. 3 Stundenblöcken liegt an aufeinanderfolgenden Tagen (auch letzter und erster Tag der Woche).",
+        VerstossArt.FachGleicheTagesstunde => "Die Stunden eines Unterrichts liegen an verschiedenen Tagen in derselben Tagesstunde.",
+        VerstossArt.SelbeZeitVerschiedeneTage => "Die Stunden eines Unterrichts liegen an verschiedenen Tagen nicht zur selben Zeit.",
+        VerstossArt.GrossblockRand => "Ein Block mit drei oder mehr Stunden liegt nicht am Rand des Halbtages.",
         _ => "Verstoß gegen eine Vorgabe aus Stammdaten, Unterricht oder Zeitwünschen.",
     };
 }

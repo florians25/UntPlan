@@ -23,17 +23,19 @@ public static class UebersichtDruck
     private const int NameBreite = 60, KopfHoehe = 36, MinZeile = 18, MinSpalte = 18;
 
     /// <summary>Blätter für einen Druckbereich der Größe <paramref name="r"/>.</summary>
-    public static List<UebersichtBlatt> Blaetter(ElementTyp typ, Rectangle r, StundenplanDruckdetails det)
+    public static List<UebersichtBlatt> Blaetter(ElementTyp typ, Rectangle r, StundenplanDruckdetails det, IReadOnlyList<Element>? auswahl = null)
     {
         var d = AppZustand.D;
-        var anzahl = Stammdaten.Sortiert(d, typ).Count();
+        var anzahl = (auswahl ?? Stammdaten.Sortiert(d, typ)).Count();
         var hoehe = r.Height - 30 - (det.Seitenueberschrift.Length > 0 ? 20 : 0);
         var maxZeilen = Math.Max(1, (hoehe - KopfHoehe) / MinZeile);
         var maxSpalten = Math.Max(1, (r.Width - NameBreite) / MinSpalte);
         return Druckseiten.Uebersicht(anzahl, d.Zeitraster.TageProWoche, d.Zeitraster.StundenProTag, det, maxZeilen, maxSpalten);
     }
 
-    public static void Drucken(IWin32Window owner, ElementTyp typ, string titel, bool vorschau)
+    /// <param name="auswahl">Gefilterte Elemente des Übersichtsplans (null = alle).</param>
+    /// <param name="beschriftung">Zeilenbeschriftung (null = Kurzname).</param>
+    public static void Drucken(IWin32Window owner, ElementTyp typ, string titel, bool vorschau, IReadOnlyList<Element>? auswahl = null, Func<Element, string>? beschriftung = null)
     {
         var det = Details(typ);
         var doc = new PrintDocument { DocumentName = titel };
@@ -44,8 +46,8 @@ public static class UebersichtDruck
         doc.PrintPage += (sender, e) =>
         {
             var r = ListenDruck.Seitenbereich(sender, e);
-            blaetter ??= Blaetter(typ, r, det);
-            Seite(e.Graphics!, r, typ, titel, det, blaetter[seite], seite + 1, blaetter.Count);
+            blaetter ??= Blaetter(typ, r, det, auswahl);
+            Seite(e.Graphics!, r, typ, titel, det, blaetter[seite], seite + 1, blaetter.Count, auswahl, beschriftung);
             seite++;
             e.HasMorePages = seite < blaetter.Count;
         };
@@ -53,7 +55,8 @@ public static class UebersichtDruck
     }
 
     /// <summary>Ein Blatt: Titel, Seitenüberschrift, je Tagesblock Kopf (Tage, Stunden) und die Elementzeilen (mit Zwischenüberschriften).</summary>
-    public static void Seite(Graphics g, Rectangle r, ElementTyp typ, string titel, StundenplanDruckdetails det, UebersichtBlatt blatt, int seite, int seiten)
+    public static void Seite(Graphics g, Rectangle r, ElementTyp typ, string titel, StundenplanDruckdetails det, UebersichtBlatt blatt, int seite, int seiten,
+        IReadOnlyList<Element>? auswahl = null, Func<Element, string>? beschriftung = null)
     {
         var d = AppZustand.D;
         var ix = new DatenIndex(d);
@@ -67,7 +70,7 @@ public static class UebersichtDruck
         g.DrawString($"Seite {seite} / {seiten}", fKlein, Brushes.Black, new RectangleF(r.Left, r.Top + 2, r.Width, 14), rechts);
         var y = r.Top + 22f;
         if (det.Seitenueberschrift.Length > 0) { g.DrawString(det.Seitenueberschrift, fKopf, Brushes.Black, r.Left, y); y += 18; }
-        var elemente = Stammdaten.Sortiert(d, typ).Skip(blatt.ErstesElement).Take(blatt.AnzahlElemente).ToList();
+        var elemente = (auswahl ?? Stammdaten.Sortiert(d, typ)).Skip(blatt.ErstesElement).Take(blatt.AnzahlElemente).ToList();
         var blockH = (r.Bottom - y) / Math.Max(1, blatt.Bloecke.Count);
         using var mitte = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
         foreach (var (von, bis) in blatt.Bloecke)
@@ -96,7 +99,7 @@ public static class UebersichtDruck
             {
                 if (det.ZwischenueberschriftNach > 0 && i > 0 && i % det.ZwischenueberschriftNach == 0) { Kopf(y); y += KopfHoehe; }
                 var el = elemente[i];
-                g.DrawString(el.Kurzname, fName, Brushes.Black, new RectangleF(r.Left + 2, y, NameBreite - 4, zeileH), new StringFormat { LineAlignment = StringAlignment.Center });
+                g.DrawString(beschriftung?.Invoke(el) ?? el.Kurzname, fName, Brushes.Black, new RectangleF(r.Left + 2, y, NameBreite - 4, zeileH), new StringFormat { LineAlignment = StringAlignment.Center });
                 foreach (var p in ix.PlanVon(typ, el.Id).Where(p => p.Tag >= von && p.Tag <= bis))
                 {
                     if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) continue;

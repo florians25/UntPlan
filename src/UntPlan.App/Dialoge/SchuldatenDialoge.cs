@@ -9,7 +9,7 @@ namespace UntPlan.App.Dialoge;
 /// Zeitraster: Anzahl Tage, Stunden pro Tag, Zeiten, Vormittag/Nachmittag/leer je Tag und Stunde (Karteikarte "Allgemein"),
 /// Pausen und flexible Mittagspause (Karteikarte "Pausen"), Vertretung bzw. Entfall je Stunde (Karteikarte "Vertretung").
 /// </summary>
-public sealed class ZeitrasterDialog : Dialog
+public sealed partial class ZeitrasterDialog : Dialog
 {
     private readonly Zeitraster _z;
     private readonly DataGridView _grid = new() { Left = 10, Top = 144, Width = 760, Height = 190 };
@@ -70,6 +70,8 @@ public sealed class ZeitrasterDialog : Dialog
         _stunden.ValueChanged += (_, _) => { _z.StundenProTag = (int)_stunden.Value; Dokument.Normalisieren(new Schuldatei { Zeitraster = _z }); RasterFuellen(); };
         _grenze.ValueChanged += (_, _) => { _z.LetzteVormittagsstunde = (int)_grenze.Value; RasterFuellen(); };
         tabs.TabPages.Add(allg);
+        // Handbuch 7.4.1.1: bei aktivem Tageszeitraster zusätzliche Karteikarte „Tage“
+        if (_z.TageszeitrasterAktiv) tabs.TabPages.Add(TageSeite());
 
         var pausen = new TabPage("Pausen");
         y = 10;
@@ -214,7 +216,12 @@ public sealed partial class EinstellungenDialog : Dialog
         {
             if (_e.SchuljahrBis <= _e.SchuljahrVon) { Ui.Fehler(new InvalidOperationException("Das Schuljahresende muss nach dem Beginn liegen.")); DialogResult = DialogResult.None; return; }
             var e = _e;
-            AppZustand.Doc.Aendern("Einstellungen", AenderungsArt.Einstellungen, d => d.Einstellungen = e);
+            var tzr = _tageszeitraster;
+            AppZustand.Doc.Aendern("Einstellungen", tzr is null ? AenderungsArt.Einstellungen : AenderungsArt.Alles, d =>
+            {
+                d.Einstellungen = e;
+                if (tzr is bool an) d.Zeitraster.TageszeitrasterAktiv = an;
+            });
         };
     }
 
@@ -290,6 +297,7 @@ public sealed partial class EinstellungenDialog : Dialog
         form.DropDownWidth = 260;
         form.SelectedIndex = Math.Max(0, Nrw.Schulformen.Keys.ToList().IndexOf(_e.Schulform));
         form.SelectedIndexChanged += (_, _) => _e.Schulform = Nrw.Schulformen.Keys.ElementAt(form.SelectedIndex);
+        TageszeitrasterOption(y + 6);
     }
 
     /// <summary>Vorbild „Schuldaten | Überblick“: Anzahl der Klassen, Lehrer, Räume, Fächer und Unterrichte.</summary>
@@ -351,6 +359,7 @@ public sealed partial class EinstellungenDialog : Dialog
         b.CheckedChanged += (_, _) => { AppZustand.Einstellungen.BegruessungZeigen = b.Checked; AppZustand.Einstellungen.Speichern(); };
         var m = Ui.Zeile(_seite, "Beim Start den zuletzt benutzten Modus öffnen", new CheckBox { Checked = AppZustand.Einstellungen.ModusMerken }, ref y, 280);
         m.CheckedChanged += (_, _) => { AppZustand.Einstellungen.ModusMerken = m.Checked; AppZustand.Einstellungen.Speichern(); };
+        SichernErgaenzen(ref y);
     }
 
     /// <summary>Vorbild „Diverses | Stundenplan“: Einstellungen der Stundenplanfenster.</summary>
@@ -359,6 +368,7 @@ public sealed partial class EinstellungenDialog : Dialog
         var y = 8;
         var s = Ui.Zeile(_seite, "Stundenpläne synchronisieren (Voreinstellung)", new CheckBox { Checked = AppZustand.Einstellungen.StundenplanSynchronisieren }, ref y, 280);
         s.CheckedChanged += (_, _) => { AppZustand.Einstellungen.StundenplanSynchronisieren = s.Checked; AppZustand.Einstellungen.Speichern(); };
+        StundenplanErgaenzen(ref y);
     }
 }
 
