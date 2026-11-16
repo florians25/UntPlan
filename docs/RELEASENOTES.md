@@ -26,6 +26,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Handy: Die Weboberfläche erscheint wie am Rechner (Desktop-Ansicht mit Seitenleiste und ganzer Woche, Breite 1024 px, Zoomen möglich) – keine eigene Handy-Formatierung mehr.
+- Stundenplan: Das Wochenraster reicht bis zum Seitenende – auf hohen Bildschirmen werden die Stunden entsprechend höher (mindestens wie bisher).
+- Sprechtag: Übersicht, Konfiguration, Verwaltung und Elternansicht nutzen die volle Seitenbreite.
 - Nach einem Update auf dem Server lädt die Seite beim nächsten Seitenwechsel automatisch neu – ein offener Tab zeigt nie mehr alten Code bzw. alte Stile (z. B. noch automatisches Speichern oder schmale Einstellungsseiten).
 - Notizen und Link zum Online-Unterricht speichern nur über „Speichern“ (kein automatisches Speichern).
 - Raum ersetzen/hinzufügen füllt das ganze Detailfenster wie in der Vorlage: eigener Kopf „HN011 ersetzen“ mit X (ohne Stundenkopf und Reiter); die Filter „Gebäude“ und „Abteilung“ sind immer da (Abteilung ohne gepflegte Angaben aus dem Kürzel abgeleitet).
