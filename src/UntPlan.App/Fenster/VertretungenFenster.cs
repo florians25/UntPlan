@@ -596,6 +596,17 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var regelung = AnsichtName == Vertretungsformate.Regelungsansicht;
         var warRegelung = _warRegelung;
         _warRegelung = regelung;
+        var praefix = nameof(VertretungenFenster) + "/";
+        var layouts = AppZustand.Einstellungen.Tabellenlayouts;
+        // gemerkte Anordnung beim Wechsel in die Regelungsansicht sichern (dort wird sie durch das Ein-/Ausblenden der Felder überschrieben)
+        if (regelung && !warRegelung) _layoutVorRegelung = layouts.Where(kv => kv.Key.StartsWith(praefix, StringComparison.Ordinal)).ToDictionary(kv => kv.Key, kv => kv.Value.ToList());
+        if (!regelung && warRegelung && _layoutVorRegelung is { } gesichert)
+        {
+            foreach (var k in layouts.Keys.Where(k => k.StartsWith(praefix, StringComparison.Ordinal)).ToList()) layouts.Remove(k);
+            foreach (var kv in gesichert) layouts[kv.Key] = kv.Value;
+            _layoutVorRegelung = null;
+            AppZustand.Einstellungen.Speichern();
+        }
         if (regelung)
         {
             SpaltenfolgeSetzen();
@@ -616,6 +627,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     }
 
     private bool _warRegelung;
+    private Dictionary<string, List<Tabellenspalte>>? _layoutVorRegelung;
 
     private void SpaltenfolgeSetzen()
     {

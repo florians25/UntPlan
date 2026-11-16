@@ -2021,7 +2021,9 @@ public sealed partial class HauptFenster
                 if (Steuerelemente.Tabellenbedienung.LoeschKnopf(g) is null) fehler.Add("kein Knopf „Löschen“ für Strg+Entf");
                 R3BWaehlen(g, R3BZelle(g, key, si));
                 R3BKombi(g, Keys.Control | Keys.Delete);
-                var andere = g.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Visible && r.Tag != null && R3BSchl(r) != key && r.Tag.GetType() == zeile.Tag!.GetType());
+                var andere = g.Rows.Cast<DataGridViewRow>().Where(r => r.Visible && r.Tag != null && R3BSchl(r) != key && r.Tag.GetType() == zeile.Tag!.GetType())
+                    // Vertretungen aus Absenzen/Veranstaltungen sind nicht löschbar – für die Mehrfachauswahl eine löschbare Zeile wählen
+                    .OrderBy(r => r.Tag is Vertretung v && Core.Vertretungsplanung.Vertretungen.IstAbgeleitet(v) ? 1 : 0).FirstOrDefault();
                 if (andere != null)
                 {
                     R3BWaehlen(g, R3BZelle(g, key, si));
