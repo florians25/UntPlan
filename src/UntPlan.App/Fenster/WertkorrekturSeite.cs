@@ -12,8 +12,9 @@ namespace UntPlan.App.Fenster;
 public sealed class WertkorrekturSeite : TabPage
 {
     private static readonly string[] Arten = { "V", "Y", "E", "+", "-" };
-    private readonly DataGridView _g = new() { Left = 6, Top = 6, Width = 330, Height = 120, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
-    private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 350, Top = 26, Width = 110 };
+    // Lage und Größe nach der Abbildung im Handbuch (Kap. 14.4, 96 dpi); Schrift wie im Vorbild „Microsoft Sans Serif“ 8,25 pt
+    private readonly DataGridView _g = new() { Left = 4, Top = 10, Width = 389, Height = 120, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
+    private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 479, Top = 38, Width = 79 };
     private readonly Func<Lehrer?> _lehrer;
     private readonly Action<string, Action<Schuldatei>> _aendern;
     private bool _laden;
@@ -23,14 +24,19 @@ public sealed class WertkorrekturSeite : TabPage
         _lehrer = lehrer;
         _aendern = aendern;
         BackColor = Color.White;
+        Font = new Font("Microsoft Sans Serif", 8.25f);
         Ui.RasterGestalten(_g, true);
+        _g.Font = _g.ColumnHeadersDefaultCellStyle.Font = Font;
+        _g.RowHeadersWidth = 20;
+        _g.RowTemplate.Height = Math.Max(18, Font.Height + 5);
+        _g.ColumnHeadersHeight = Math.Max(18, Font.Height + 5);
         _g.AllowUserToAddRows = true;
         _g.AllowUserToDeleteRows = true;
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Datum", HeaderText = "Datum", Width = 80 });
-        var art = new DataGridViewComboBoxColumn { Name = "Art", HeaderText = "Art", Width = 50, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing, FlatStyle = FlatStyle.Flat };
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Datum", HeaderText = "Datum", Width = 76 });
+        var art = new DataGridViewComboBoxColumn { Name = "Art", HeaderText = "Art", Width = 47, DisplayStyle = DataGridViewComboBoxDisplayStyle.Nothing, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         _g.Columns.Add(art);
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Wert", HeaderText = "Wert =", Width = 60, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Wert", HeaderText = "Wert =", Width = 46, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Text", HeaderText = "Text", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _g.Columns["Art"]!.ToolTipText = "V = Vertretungen, Y = Sondereinsätze (erhöhen den Vertretungszähler), E = Entfälle (vermindert ihn); + / - = Unterrichtswert erhöhen / vermindern";
         _g.DataError += (_, e) => e.ThrowException = false;
@@ -38,7 +44,7 @@ public sealed class WertkorrekturSeite : TabPage
         _g.UserDeletedRow += (_, _) => Speichern();
         _monat.Items.Add("Alle");
         Controls.Add(_g);
-        Controls.Add(new Label { Text = "Monat", Left = 350, Top = 8, AutoSize = true });
+        Controls.Add(new Label { Text = "Monat", Left = 478, Top = 21, AutoSize = true });
         Controls.Add(_monat);
         _monat.SelectedIndexChanged += (_, _) => { if (!_laden) Fuellen(); };
         _monat.Format += MonatText;

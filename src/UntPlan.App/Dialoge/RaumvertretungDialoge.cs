@@ -20,15 +20,17 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
     private readonly DateOnly _datum;
     private readonly int _stunde;
     private readonly List<Ziel> _ziele = new();
-    private readonly Label _info = new() { Left = 10, Top = 8, Width = 420, Height = 42, BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(3), BackColor = Color.White };
-    private readonly Label _details = new() { Left = 10, Top = 58, Width = 420, Height = 50 };
-    private readonly DataGridView _links = new() { Left = 10, Top = 132, Width = 420, Height = 300, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
-    private readonly RadioButton _stundeRb = new() { Text = "Unterrichtsstunde", Left = 10, Top = 18, Width = 160, Checked = true };
-    private readonly RadioButton _blockRb = new() { Text = "Stundenblock", Left = 10, Top = 40, Width = 160 };
-    private readonly CheckBox _lang = new() { Text = "Langname anzeigen", Left = 680, Top = 10, AutoSize = true };
-    private readonly CheckBox _resize = new() { Text = "Auto-resize beim Öffnen dieses\nFensters deaktivieren", Left = 680, Top = 32, Width = 260, Height = 34 };
-    private readonly CheckBox _zusatz = new() { Text = "Zusätzlichen Raum zuordnen", Left = 470, Top = 86, AutoSize = true };
-    private readonly RaumListe _raeume = new("raumzuordnen") { Left = 470, Top = 132, Width = 520, Height = 300, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+    // Maße wie im Handbuch-Bild (96 dpi, Kap. 7.3.11/3.8.3): Fenster 845 × 432, links Infokasten 350 × 48 mit heller Linie, Tabelle
+    // „Auswahl derzeitiger Unterricht“ ab (3, 137), rechts ab x = 389 „Anwenden auf“, Häkchen und „Mögliche Räume“ ab y = 146
+    private readonly Label _info = new() { Left = 3, Top = 9, Width = 350, Height = 48, Padding = new Padding(1, 4, 1, 1) };
+    private readonly Label _details = new() { Left = 2, Top = 61, Width = 350, Height = 46 };
+    private readonly DataGridView _links = new() { Left = 3, Top = 137, Width = 352, Height = 253, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Bottom };
+    private readonly RadioButton _stundeRb = new() { Text = "Unterrichtsstunde", Left = 3, Top = 14, AutoSize = true, Checked = true };
+    private readonly RadioButton _blockRb = new() { Text = "Stundenblock", Left = 3, Top = 33, AutoSize = true };
+    private readonly CheckBox _lang = new() { Text = "Langname anzeigen", Left = 622, Top = 12, AutoSize = true };
+    private readonly CheckBox _resize = new() { Text = "Auto-resize beim Öffnen dieses\nFensters deaktivieren", Left = 622, Top = 31, Width = 210, Height = 32 };
+    private readonly CheckBox _zusatz = new() { Text = "Zusätzlichen Raum zuordnen", Left = 390, Top = 92, AutoSize = true };
+    private readonly RaumListe _raeume = new("raumzuordnen") { Left = 389, Top = 146, Width = 436, Height = 244, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
     private bool _laedt;
 
     /// <summary>Anzahl der Änderungen (für den Aufrufer).</summary>
@@ -56,23 +58,25 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
     public static bool Zeigen(IWin32Window owner, Vertretung v) =>
         Zeigen(owner, v.Datum, v.Stunde, v.UnterrichtId, v.UnterrichtId.HasValue ? v.ZeilenIndex : null, v);
 
-    private RaumZuordnenVertretungDialog(DateOnly datum, int stunde, int? unterrichtId, int? zeile, Vertretung? v) : base("Raum zuordnen / löschen", 1000, 480)
+    private RaumZuordnenVertretungDialog(DateOnly datum, int stunde, int? unterrichtId, int? zeile, Vertretung? v) : base("Raum zuordnen / löschen", 845, 432)
     {
         _datum = datum;
         _stunde = stunde;
         FormBorderStyle = FormBorderStyle.Sizable;
-        MinimumSize = new Size(820, 420);
+        MinimumSize = new Size(760, 400);
+        // Infokasten wie im Bild: Hintergrund des Fensters mit heller Umrandung
+        _info.Paint += (_, e) => { using var p = new Pen(Color.FromArgb(221, 225, 220)); e.Graphics.DrawRectangle(p, 0, 0, _info.Width - 1, _info.Height - 1); };
         Abbrechen.Text = "Schließen";
-        Abbrechen.Width = 110;
+        Abbrechen.Size = new Size(131, 22);
         Ok.Text = "Raum zuordnen";
         Ok.Image = Symbole.Get("planen", 16);
         Ok.ImageAlign = ContentAlignment.MiddleLeft;
         Ok.TextImageRelation = TextImageRelation.ImageBeforeText;
-        Ok.Width = 130;
+        Ok.Size = new Size(131, 22);
         Ok.DialogResult = DialogResult.None;
-        Ok.Location = new Point(560, 444);
+        Ok.Location = new Point(449, 398);
         Ok.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-        Abbrechen.Location = new Point(880, 444);
+        Abbrechen.Location = new Point(715, 398);
         AcceptButton = null;
 
         var tp = Tagesplan.Berechnen(D, datum);
@@ -89,12 +93,15 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         }
         else if (v != null) _ziele.Add(new Ziel(null, null, v.Id));
 
-        var anwenden = new GroupBox { Text = "Anwenden auf", Left = 470, Top = 4, Width = 190, Height = 68 };
+        var anwenden = new GroupBox { Text = "Anwenden auf", Left = 389, Top = 0, Width = 228, Height = 71 };
         anwenden.Controls.AddRange(new Control[] { _stundeRb, _blockRb });
-        Controls.Add(new Label { Text = "Auswahl derzeitiger Unterricht:", Left = 10, Top = 112, AutoSize = true });
-        Controls.Add(new Label { Text = "Mögliche Räume:", Left = 470, Top = 112, AutoSize = true });
-        var pfeil = new Button { Text = "←", Left = 436, Top = 240, Width = 28, Height = 28, Font = new Font(Ui.Schrift.FontFamily, 12, FontStyle.Bold) };
-        var loeschen = new Button { Image = Symbole.Get("loeschen", 16), Left = 436, Top = 274, Width = 28, Height = 28 };
+        Controls.Add(new Label { Text = "Auswahl derzeitiger Unterricht:", Left = 2, Top = 121, AutoSize = true });
+        Controls.Add(new Label { Text = "Mögliche Räume:", Left = 388, Top = 130, AutoSize = true });
+        // kleiner Pfeil ohne Rahmen zwischen den Tabellen wie im Bild (bei x = 362, y = 161)
+        var pfeil = new Button { Text = "←", Left = 359, Top = 156, Width = 18, Height = 16, FlatStyle = FlatStyle.Flat, Padding = Padding.Empty, Font = new Font(Ui.Schrift.FontFamily, 7, FontStyle.Bold) };
+        pfeil.FlatAppearance.BorderSize = 0;
+        var loeschen = new Button { Image = Symbole.Get("loeschen", 16), Left = 359, Top = 176, Width = 22, Height = 22, FlatStyle = FlatStyle.Flat };
+        loeschen.FlatAppearance.BorderSize = 0;
         var tip = new ToolTip();
         tip.SetToolTip(pfeil, "Markierten Raum zuordnen (Doppelklick)");
         tip.SetToolTip(loeschen, "Raum der markierten Zeile löschen (Entf)");
@@ -104,8 +111,13 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         _links.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _links.MultiSelect = false;
         _links.RowHeadersVisible = false;
-        foreach (var (n, k, w) in new[] { ("U", "Unt.", 40), ("L", "Lehrer", 56), ("R", "Raum", 52), ("K", "Klasse(n)", 80), ("G", "Gang", 50), ("S", "Statistik", 56), ("E", "Eff. U-Gruppe", 84) })
+        // Spaltenbreiten und Zeilenhöhe wie im Bild
+        _links.ColumnHeadersHeight = 15;
+        _links.RowTemplate.Height = 15;
+        foreach (var (n, k, w) in new[] { ("U", "Unt.", 32), ("L", "Lehrer", 43), ("R", "Raum", 40), ("K", "Klasse(n)", 58), ("G", "Gang", 38), ("S", "Statistik", 49), ("E", "Eff. U-Gruppe", 79) })
             _links.Columns[_links.Columns.Add(n, k)].Width = w;
+        foreach (var (n, w) in new[] { ("Rm", 36), ("Kap", 29), ("AR", 57), ("SR", 51), ("B", 44), ("RG", 70), ("Ga", 33), ("St", 45), ("KD", 49) })
+            if (_raeume.Raster.Columns[n] is { } rc) rc.Width = w;
         Controls.AddRange(new Control[] { _info, _details, _links, pfeil, loeschen, anwenden, _lang, _resize, _zusatz, _raeume });
 
         _resize.Checked = AppZustand.Einstellungen.RaumDialogAutoResizeAus;
@@ -196,7 +208,7 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         var raum = ursprung is int r ? AppZustand.Doc.Index.Raeume.GetValueOrDefault(r) : null;
         var sr = Raumvertretungen.Stammraum(D, klassen);
         _details.Text = $"Benöt. Kapazität: {Raumvertretungen.BenoetigteKapazitaet(D, klassen, ursprung)}\n" +
-                        (raum is null ? "" : $"{raum.Kurzname}. {raum.Langname}") + $"\nStammraum: {K(ElementTyp.Raum, sr)}";
+                        (raum is null ? "" : raum.Kapazitaet > 0 ? $"{raum.Kurzname} ({raum.Kapazitaet}), {raum.Langname}" : $"{raum.Kurzname}, {raum.Langname}") + $"\nStammraum: {K(ElementTyp.Raum, sr)}";
     }
 
     private void Rechts()

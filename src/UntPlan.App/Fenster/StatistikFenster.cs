@@ -19,8 +19,9 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
     private readonly TabPage _seiteBerichte = new("Berichte") { BackColor = Abschnitt.Grund };
 
     // --- Statistik ------------------------------------------------------------------------------------
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100, Left = 4, Top = 18 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100, Left = 148, Top = 18 };
+    // Maße des Bereichs „Zeitraum“ nach dem Handbuch-Bild: Datumsfelder 91 breit, Aktualisieren 24 × 24 dazwischen
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 91, Left = 6, Top = 19, Font = Abschnitt.Schrift };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 91, Left = 134, Top = 19, Font = Abschnitt.Schrift };
     private readonly LinienGrafik _verlauf = new() { Left = 4, Top = 44, Height = 150, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
     private readonly DataGridView _stunden = Raster();
     private readonly DataGridView _woche = Raster();
@@ -76,9 +77,9 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
 
         // Zeitraum
         var zeit = new Panel { BackColor = Abschnitt.Grund };
-        zeit.Controls.Add(new Label { Text = "Von", Left = 4, Top = 2, AutoSize = true });
-        zeit.Controls.Add(new Label { Text = "Bis", Left = 148, Top = 2, AutoSize = true });
-        var neu = new Button { Left = 110, Top = 16, Width = 30, Height = 25, Image = Symbole.Get("aktualisieren", 16), FlatStyle = FlatStyle.Flat };
+        zeit.Controls.Add(new Label { Text = "Von", Left = 5, Top = 3, AutoSize = true, Font = Abschnitt.Schrift });
+        zeit.Controls.Add(new Label { Text = "Bis", Left = 133, Top = 3, AutoSize = true, Font = Abschnitt.Schrift });
+        var neu = new Button { Left = 104, Top = 17, Width = 24, Height = 24, Image = Symbole.Get("aktualisieren", 16), FlatStyle = FlatStyle.Flat };
         new ToolTip().SetToolTip(neu, "Aktualisieren");
         neu.Click += (_, _) => { _faelleStand = default; Neuaufbau(); };
         zeit.Controls.AddRange(new Control[] { _von, neu, _bis, _verlauf });
@@ -135,7 +136,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         _gruende.Dock = DockStyle.Bottom;
         _gruende.EnableHeadersVisualStyles = false;
         _gruende.ColumnHeadersDefaultCellStyle.BackColor = Abschnitt.Leiste;
-        _gruende.ColumnHeadersDefaultCellStyle.Font = Ui.SchriftFett;
+        _gruende.ColumnHeadersDefaultCellStyle.Font = Abschnitt.SchriftFett;
         _gruende.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
         _gruende.ScrollBars = ScrollBars.Vertical;
         _torte.Dock = DockStyle.Fill;
@@ -202,6 +203,11 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         g.RowHeadersVisible = false;
         g.BackgroundColor = Color.White;
         g.ShowCellToolTips = true;
+        // wie im Handbuch-Bild: Tahoma 8,25, Zeilen- und Kopfhöhe 19 px
+        g.Font = g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = Abschnitt.Schrift;
+        g.RowTemplate.Height = 19;
+        g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        g.ColumnHeadersHeight = 19;
         return g;
     }
 
@@ -421,7 +427,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         var r = e.CellBounds;
         var breite = Math.Max(2, (int)(Math.Min(prozent, 20) / 20 * 8));
         using (var b = new SolidBrush(Color.FromArgb(160, 20, 30))) e.Graphics!.FillRectangle(b, r.Left + 2, r.Top + 2, breite, r.Height - 5);
-        TextRenderer.DrawText(e.Graphics!, text, Font, new Rectangle(r.Left + breite + 4, r.Top, r.Width - breite - 4, r.Height), Color.FromArgb(180, 30, 40), TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+        TextRenderer.DrawText(e.Graphics!, text, Abschnitt.Schrift, new Rectangle(r.Left + breite + 4, r.Top, r.Width - breite - 4, r.Height), Color.FromArgb(180, 30, 40), TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
         e.Handled = true;
     }
 
@@ -471,7 +477,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         e.PaintBackground(e.CellBounds, (e.State & DataGridViewElementStates.Selected) != 0);
         var r = e.CellBounds;
         using (var b = new SolidBrush(farbe)) e.Graphics!.FillRectangle(b, r.Left + 3, r.Top + 4, 26, r.Height - 8);
-        TextRenderer.DrawText(e.Graphics!, e.Value?.ToString(), Font, new Rectangle(r.Left + 32, r.Top, r.Width - 32, r.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+        TextRenderer.DrawText(e.Graphics!, e.Value?.ToString(), Abschnitt.Schrift, new Rectangle(r.Left + 32, r.Top, r.Width - 32, r.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
         e.Handled = true;
     }
 
@@ -500,7 +506,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
             var erste = gruppe.First();
             var kopf = _entfaelle.Rows.Add(Tag(erste.Datum), "", erste.Vertretung!.GrundId is int g ? GrundName(g) : erste.Vertretung.Grund is { Length: > 0 } gt ? gt : "Kein Grund", "", "", "", "", "", "");
             _entfaelle.Rows[kopf].DefaultCellStyle.BackColor = Abschnitt.Leiste;
-            _entfaelle.Rows[kopf].DefaultCellStyle.Font = Ui.SchriftFett;
+            _entfaelle.Rows[kopf].DefaultCellStyle.Font = Abschnitt.SchriftFett;
             foreach (var f in gruppe) Zeile(_entfaelle, f.Vertretung!, f.Stunde, f.KlassenIds, f.FachId, zaehlt.TryGetValue(f.Vertretung!, out var zz) && zz);
         }
         // Vertretungen: vom Lehrer gehaltene Vertretungen bzw. vertretener Unterricht der Klasse
@@ -595,69 +601,78 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
     private enum Ausgabe { Seitenansicht, Druck, Export, Excel }
 
     private readonly TreeView _berichte = new() { Dock = DockStyle.Fill, ShowLines = true, HideSelection = false, BorderStyle = BorderStyle.FixedSingle };
-    private readonly DateTimePicker _bVon = new() { Format = DateTimePickerFormat.Short, Left = 10, Top = 18, Width = 105 };
-    private readonly DateTimePicker _bBis = new() { Format = DateTimePickerFormat.Short, Left = 122, Top = 18, Width = 105 };
-    private readonly RadioButton _bKlassen = new() { Text = "Klassen", Left = 10, Top = 18, AutoSize = true, Checked = true };
-    private readonly RadioButton _bLehrer = new() { Text = "Lehrer", Left = 10, Top = 38, AutoSize = true };
-    private readonly RadioButton _bEntfaelle = new() { Text = "Entfälle", Left = 6, Top = 6, AutoSize = true };
-    private readonly RadioButton _bVertretungen = new() { Text = "Vertretungen", Left = 6, Top = 26, AutoSize = true };
-    private readonly RadioButton _bUnterricht = new() { Text = "Unterricht", Left = 6, Top = 46, AutoSize = true, Checked = true };
-    private readonly ListBox _bElemente = new() { Left = 200, Top = 14, Width = 120, Height = 136, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
+    // Maße der Karteikarte „Berichte“ nach dem Handbuch-Bild (96 dpi, Tahoma 8,25)
+    private readonly DateTimePicker _bVon = new() { Format = DateTimePickerFormat.Short, Left = 25, Top = 20, Width = 125 };
+    private readonly DateTimePicker _bBis = new() { Format = DateTimePickerFormat.Short, Left = 157, Top = 20, Width = 125 };
+    private readonly RadioButton _bKlassen = new() { Text = "Klassen", Left = 7, Top = 23, AutoSize = true, Checked = true };
+    private readonly RadioButton _bLehrer = new() { Text = "Lehrer", Left = 7, Top = 41, AutoSize = true };
+    private readonly RadioButton _bEntfaelle = new() { Text = "Entfälle", Left = 0, Top = 0, AutoSize = true };
+    private readonly RadioButton _bVertretungen = new() { Text = "Vertretungen", Left = 0, Top = 18, AutoSize = true };
+    private readonly RadioButton _bUnterricht = new() { Text = "Unterricht", Left = 0, Top = 36, AutoSize = true, Checked = true };
+    private readonly ListBox _bElemente = new() { Left = 286, Top = 107, Width = 163, Height = 120, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
     private readonly ComboBox[] _bGliederung = { Combo(), Combo(), Combo() };
-    private readonly ListBox _bGruende = new() { Left = 200, Top = 20, Width = 120, Height = 104, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
-    private readonly ListBox _bFaecher = new() { Left = 330, Top = 20, Width = 110, Height = 104, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
-    private readonly CheckBox _bJeElement = new() { Text = "Vertretungsstatistik je Lehrer / Klasse", Left = 10, Top = 130, AutoSize = true, Checked = true };
-    private readonly CheckBox _bPersonalnummer = new() { Text = "Export mit Personalnummer", Left = 10, Top = 152, AutoSize = true };
-    private readonly CheckBox _bMatrix = new() { Text = "Matrixdruck: Fach / Grund", Left = 10, Top = 174, AutoSize = true };
+    private readonly Label _bGruendeText = new() { Text = "Absenzgrund", Left = 286, Top = 262, AutoSize = true };
+    private readonly ListBox _bGruende = new() { Left = 286, Top = 283, Width = 163, Height = 147, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
+    private readonly ListBox _bFaecher = new() { Left = 453, Top = 283, Width = 165, Height = 147, SelectionMode = SelectionMode.MultiExtended, IntegralHeight = false };
+    private readonly CheckBox _bJeElement = new() { Text = "Vertretungsstatistik je Lehrer / Klasse", Left = 16, Top = 370, AutoSize = true, Checked = true };
+    private readonly CheckBox _bPersonalnummer = new() { Text = "Export mit Personalnummer", Left = 16, Top = 393, AutoSize = true };
+    private readonly CheckBox _bMatrix = new() { Text = "Matrixdruck: Fach / Grund", Left = 16, Top = 416, AutoSize = true };
     private readonly DataGridView _bErgebnis = Raster();
     private bool _bLaedt;
 
     private static readonly string[] GliederungUnterricht = { "keine", "Fach", "Klasse", "Lehrer" };
     private static readonly string[] GliederungFaelle = { "keine", "Fach", "Grund", "Art d. Entfalls", "Statistik-Kennzeichen", "Klasse", "Lehrer" };
 
-    private static ComboBox Combo() => new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+    private static ComboBox Combo() => new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
 
     private void BerichteAufbauen()
     {
-        var split = new SplitContainer { Width = 1000, Height = 600, SplitterDistance = 200, Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
+        var split = new SplitContainer { Width = 1000, Height = 600, SplitterDistance = 180, Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
         var bilder = new ImageList { ColorDepth = ColorDepth.Depth32Bit };
         bilder.Images.Add(Symbole.Get("drucken", 16));
         _berichte.ImageList = bilder;
+        _berichte.Font = Abschnitt.Schrift;
         foreach (var b in StatistikBerichte.Namen) _berichte.Nodes.Add(b, b);
         _berichte.NodeMouseDoubleClick += (_, e) => StatistikBerichte.Starten(this, e.Node.Text, DateOnly.FromDateTime(_bVon.Value), DateOnly.FromDateTime(_bBis.Value));
         _berichte.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter && _berichte.SelectedNode is { } n) StatistikBerichte.Starten(this, n.Text, DateOnly.FromDateTime(_bVon.Value), DateOnly.FromDateTime(_bBis.Value)); };
         split.Panel1.Controls.Add(_berichte);
-        split.Panel1.Controls.Add(new Label { Text = "Doppelklick öffnet den Bericht", Dock = DockStyle.Bottom, Height = 20, ForeColor = Color.DimGray });
+        split.Panel1.Controls.Add(new Label { Text = "Doppelklick öffnet den Bericht", Dock = DockStyle.Bottom, Height = 20, ForeColor = Color.DimGray, Font = Abschnitt.Schrift });
 
-        var rechts = new Panel { Dock = DockStyle.Top, Height = 470, BackColor = Abschnitt.Grund };
-        var gZeit = new GroupBox { Text = "Von-Bis", Left = 8, Top = 4, Width = 460, Height = 50 };
+        // Anordnung wie im Handbuch-Bild: Von-Bis oben, darunter Auswahl (Klassen/Lehrer, Entfälle/Vertretungen/Unterricht) mit der
+        // Elementliste rechts daneben, Gliederung 1–3 mit den Listen Absenzgrund und Fach rechts, drei Häkchen und vier Schaltflächen
+        var rechts = new Panel { Dock = DockStyle.Top, Height = 494, BackColor = Abschnitt.Grund, Font = Abschnitt.Schrift };
+        var gZeit = new GroupBox { Text = "Von-Bis", Left = 16, Top = 18, Width = 440, Height = 59 };
         gZeit.Controls.AddRange(new Control[] { _bVon, _bBis });
-        var gAuswahl = new GroupBox { Text = "Auswahl", Left = 8, Top = 58, Width = 460, Height = 160 };
-        gAuswahl.Controls.AddRange(new Control[] { _bKlassen, _bLehrer, _bElemente });
-        var art = new Panel { Left = 4, Top = 78, Width = 180, Height = 72 };
+        var gAuswahl = new GroupBox { Text = "Auswahl", Left = 16, Top = 78, Width = 255, Height = 165 };
+        gAuswahl.Controls.AddRange(new Control[] { _bKlassen, _bLehrer });
+        var art = new Panel { Left = 7, Top = 96, Width = 180, Height = 56 };
         art.Controls.AddRange(new Control[] { _bEntfaelle, _bVertretungen, _bUnterricht });
         gAuswahl.Controls.Add(art);
-        var gGliederung = new GroupBox { Text = "Gliederung je Lehrer / Klasse", Left = 8, Top = 222, Width = 460, Height = 204 };
+        var gGliederung = new GroupBox { Text = "Gliederung je Lehrer / Klasse", Left = 16, Top = 261, Width = 255, Height = 99 };
         for (var i = 0; i < 3; i++)
         {
-            gGliederung.Controls.Add(new Label { Text = (i + 1).ToString(), Left = 10, Top = 24 + i * 30, Width = 14 });
-            _bGliederung[i].Left = 28;
-            _bGliederung[i].Top = 20 + i * 30;
+            gGliederung.Controls.Add(new Label { Text = (i + 1).ToString(), Left = 7, Top = 18 + i * 28, Width = 14 });
+            _bGliederung[i].Left = 45;
+            _bGliederung[i].Top = 15 + i * 28;
             gGliederung.Controls.Add(_bGliederung[i]);
         }
-        gGliederung.Controls.Add(new Label { Text = "Absenzgrund", Left = 200, Top = 4, AutoSize = true });
-        gGliederung.Controls.Add(new Label { Text = "Fach", Left = 330, Top = 4, AutoSize = true });
-        gGliederung.Controls.AddRange(new Control[] { _bGruende, _bFaecher, _bJeElement, _bPersonalnummer, _bMatrix });
-        _bGruende.Top = _bFaecher.Top = 20;
-        var knoepfe = new FlowLayoutPanel { Left = 8, Top = 432, Width = 470, Height = 32 };
+        var fachText = new Label { Text = "Fach", Left = 453, Top = 262, AutoSize = true };
+        var knoepfe = new List<Control>();
+        var kx = 16;
         foreach (var (text, a) in new[] { ("Seitenansicht", Ausgabe.Seitenansicht), ("Druck", Ausgabe.Druck), ("Export", Ausgabe.Export), ("Excel", Ausgabe.Excel) })
         {
-            var b = new Button { Text = text, Width = 100, Height = 25 };
+            var b = new Button { Text = text, Left = kx, Top = 462, Width = 99, Height = 22 };
+            kx += 106;
             var ausgabe = a;
             b.Click += (_, _) => BerichtAusgeben(ausgabe);
-            knoepfe.Controls.Add(b);
+            knoepfe.Add(b);
         }
-        rechts.Controls.AddRange(new Control[] { gZeit, gAuswahl, gGliederung, knoepfe });
+        // Absenzgrund-Liste und Matrixdruck nur bei Entfällen/Vertretungen (bei „Unterricht“ ausgegraut wie im Bild)
+        void Freigeben() => _bGruende.Enabled = _bGruendeText.Enabled = _bMatrix.Enabled = !_bUnterricht.Checked;
+        _bUnterricht.CheckedChanged += (_, _) => Freigeben();
+        Freigeben();
+        rechts.Controls.AddRange(new Control[] { gZeit, gAuswahl, _bElemente, gGliederung, _bGruendeText, _bGruende, fachText, _bFaecher, _bJeElement, _bPersonalnummer, _bMatrix });
+        rechts.Controls.AddRange(knoepfe.ToArray());
         _bErgebnis.Dock = DockStyle.Fill;
         split.Panel2.Controls.Add(_bErgebnis);
         split.Panel2.Controls.Add(rechts);

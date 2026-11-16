@@ -19,14 +19,14 @@ public sealed class SeitenlayoutFenster : Form
     private readonly Panel _vorschauRahmen = new() { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.FromArgb(160, 166, 176) };
     private readonly ToolStripLabel _seitenText = new("1-1 / 1");
     private readonly ToolStripComboBox _zoom = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80 };
-    private readonly ToolStripComboBox _schrift = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 130 };
-    private readonly ToolStripComboBox _groesse = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 50 };
+    private readonly ToolStripComboBox _schrift = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 140 };
+    private readonly ToolStripComboBox _groesse = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 47 };
     private readonly ToolStripButton _fett = new() { ToolTipText = "Fett", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
     private readonly ToolStripButton _umbruch = new() { ToolTipText = "Zeilenumbruch", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
     private readonly ToolStripButton _langname = new() { ToolTipText = "Wechsel Kurzname / Langname", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
     private readonly ToolStripButton[] _schnitt = new ToolStripButton[3];
     private readonly ToolStripDropDownButton _format = new() { ToolTipText = "Hochformat / Querformat", DisplayStyle = ToolStripItemDisplayStyle.Image };
-    private readonly Label _auswahlText = new() { AutoSize = false };
+    private readonly GroupBox _auswahlGruppe = new();
     private readonly ListBox _felder = new() { IntegralHeight = false, BorderStyle = BorderStyle.None, AllowDrop = true };
     private readonly Label _bildText = new() { Text = "<nicht definiert>", AutoSize = false, ForeColor = Color.DimGray, TextAlign = ContentAlignment.BottomCenter, AutoEllipsis = true };
     private readonly ComboBox _gruppierung = new() { DropDownStyle = ComboBoxStyle.DropDownList };
@@ -61,7 +61,7 @@ public sealed class SeitenlayoutFenster : Form
         Font = Ui.Schrift;
         Icon = Icon.FromHandle(Symbole.Get("drucken", 16).GetHicon());
         StartPosition = FormStartPosition.CenterScreen;
-        Size = new Size(1180, 760);
+        Size = new Size(1157, 814); // wie die Abbildung im Handbuch (96 dpi)
         MinimumSize = new Size(900, 560);
         ShowInTaskbar = false;
         BackColor = Ui.BlauSehrHell;
@@ -128,7 +128,7 @@ public sealed class SeitenlayoutFenster : Form
         var links = new Panel { Dock = DockStyle.Fill };
         links.Controls.Add(_vorschauRahmen);
         links.Controls.Add(blatt);
-        var rechts = new Panel { Dock = DockStyle.Right, Width = 452, AutoScroll = true, Padding = new Padding(8) };
+        var rechts = new Panel { Dock = DockStyle.Right, Width = 551, AutoScroll = true, BorderStyle = BorderStyle.Fixed3D };
         RechtsAufbauen(rechts);
         Controls.Add(links);
         Controls.Add(new Splitter { Dock = DockStyle.Right, Width = 4 });
@@ -169,55 +169,63 @@ public sealed class SeitenlayoutFenster : Form
         Neuzeichnen();
     }
 
+    /// <summary>Datum „01.01.1990“ im Feld „Druck nur, wenn geändert nach ..“ bedeutet wie im Vorbild: keine Einschränkung.</summary>
+    internal static readonly DateTime OhneAenderungsdatum = new(1990, 1, 1, 1, 0, 0);
+
+    /// <summary>
+    /// Rechte Seite des Seitenlayouts. Lage, Größe und Reihenfolge der Steuerelemente nach der Abbildung im Handbuch (Kap. 13.2,
+    /// umgerechnet auf 96 dpi): oben „Lehrer: 10/10“ mit „Auswahl“ und „Druck nur, wenn geändert nach ..“, darunter drei Häkchen,
+    /// „Felder“ und „Hintergrund-Bild“, unten die Karten „Aktuelle Ansicht“ und „Global“.
+    /// </summary>
     private void RechtsAufbauen(Panel p)
     {
-        var y = 8;
-        void Add(Control c, int x, int w, int h = 22) { c.SetBounds(x, y, w, h); p.Controls.Add(c); }
-
-        // Auswahl der Elemente (Lehrer: 10/10) und „Druck nur, wenn geändert nach“
-        Add(_auswahlText, 8, 150, 18);
-        var gGeaendert = new GroupBox { Text = "Druck nur, wenn geändert nach", Left = 170, Top = y, Width = 262, Height = 56 };
-        p.Controls.Add(gGeaendert);
-        y += 22;
-        var auswahl = new Button { Text = "Auswahl" };
+        // Auswahl der Elemente („Lehrer: 10/10“ als Rahmentitel) und „Druck nur, wenn geändert nach ..“
+        _auswahlGruppe.SetBounds(5, 6, 136, 51);
+        p.Controls.Add(_auswahlGruppe);
+        var auswahl = new Button { Text = "Auswahl", Left = 6, Top = 20, Width = 124, Height = 23 };
         auswahl.Click += (_, _) => AuswahlDialog();
-        Add(auswahl, 8, 150, 26);
-        var ab = E.NurGeaendertNach ?? DateTime.Today.AddHours(8);
-        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, ShowCheckBox = true, Value = ab.Date, Left = 8, Top = 22, Width = 104 };
-        datum.Checked = E.NurGeaendertNach.HasValue; // nach Value setzen (Value setzt das Häkchen)
-        var zeit = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm:ss", ShowUpDown = true, Value = ab, Left = 116, Top = 22, Width = 72 };
-        var heute = new Button { Text = "Heute", Left = 192, Top = 21, Width = 62, Height = 24 };
+        _auswahlGruppe.Controls.Add(auswahl);
+        var gGeaendert = new GroupBox { Text = "Druck nur, wenn geändert nach ..", Left = 147, Top = 6, Width = 271, Height = 51 };
+        p.Controls.Add(gGeaendert);
+        var ab = E.NurGeaendertNach ?? OhneAenderungsdatum;
+        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = ab.Date, Left = 8, Top = 20, Width = 92 };
+        var zeit = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm:ss", ShowUpDown = true, Value = ab, Left = 108, Top = 20, Width = 69 };
+        var heute = new Button { Text = "Heute", Left = 184, Top = 20, Width = 75, Height = 23 };
         gGeaendert.Controls.AddRange(new Control[] { datum, zeit, heute });
+        new ToolTip().SetToolTip(datum, "01.01.1990 = alle Vertretungen drucken");
         void Geaendert()
         {
             if (_laden) return;
-            E.NurGeaendertNach = datum.Checked ? datum.Value.Date + zeit.Value.TimeOfDay : null;
+            E.NurGeaendertNach = datum.Value.Date <= OhneAenderungsdatum.Date ? null : datum.Value.Date + zeit.Value.TimeOfDay;
             Neuzeichnen();
         }
         datum.ValueChanged += (_, _) => Geaendert();
         zeit.ValueChanged += (_, _) => Geaendert();
-        heute.Click += (_, _) => { datum.Value = DateTime.Today; datum.Checked = true; Geaendert(); };
-        y += 38;
-        Add(Haken("Erste Beschriftungsspalte auf jeder Seite", () => E.ErsteBeschriftungJedeSeite, v => E.ErsteBeschriftungJedeSeite = v), 8, 300, 20);
-        y += 20;
-        Add(Haken("Raster", () => E.Raster, v => E.Raster = v), 8, 300, 20);
-        y += 20;
-        Add(Haken("Beschränkung auf Seitenbreite", () => E.BeschraenkungSeitenbreite, v => E.BeschraenkungSeitenbreite = v), 8, 300, 20);
-        y += 26;
+        heute.Click += (_, _) => { datum.Value = DateTime.Today; Geaendert(); };
+        void HakenOben(string text, Func<bool> lesen, Action<bool> schreiben, int y)
+        {
+            var c = Haken(text, lesen, schreiben);
+            c.SetBounds(5, y, 300, 17);
+            p.Controls.Add(c);
+        }
+        HakenOben("Erste Beschriftungsspalte auf jeder Seite", () => E.ErsteBeschriftungJedeSeite, v => E.ErsteBeschriftungJedeSeite = v, 64);
+        HakenOben("Raster", () => E.Raster, v => E.Raster = v, 81);
+        HakenOben("Beschränkung auf Seitenbreite", () => E.BeschraenkungSeitenbreite, v => E.BeschraenkungSeitenbreite = v, 98);
 
         // Felder (nicht gedruckte Felder – per Drag&Drop in die Vorschau einblenden) und Hintergrund-Bild
-        var gFelder = new GroupBox { Text = "Felder", Left = 8, Top = y, Width = 296, Height = 150 };
-        _felder.SetBounds(8, 18, 280, 124);
+        var gFelder = new GroupBox { Text = "Felder", Left = 5, Top = 120, Width = 381, Height = 149 };
+        _felder.SetBounds(12, 22, 362, 120);
+        _felder.ItemHeight = 20;
         _felder.BackColor = gFelder.BackColor = Ui.BlauSehrHell;
         gFelder.Controls.Add(_felder);
         p.Controls.Add(gFelder);
         new ToolTip().SetToolTip(_felder, "Nicht gedruckte Felder – mit der Maus in die Vorschau ziehen (oder Doppelklick), um sie einzublenden;\nSpalten aus der Vorschau hierher ziehen, um sie auszublenden.");
         FelderZiehenAnbinden();
-        var gBild = new GroupBox { Text = "Hintergrund-Bild", Left = 310, Top = y, Width = 122, Height = 150 };
+        var gBild = new GroupBox { Text = "Hintergrund-Bild", Left = 392, Top = 120, Width = 151, Height = 149 };
         p.Controls.Add(gBild);
-        var bildWahl = new Button { Image = Symbole.Get("oeffnen", 16), Left = 22, Top = 26, Width = 34, Height = 28 };
-        var bildWeg = new Button { Image = Symbole.Get("loeschen", 16), Left = 62, Top = 26, Width = 34, Height = 28 };
-        _bildText.SetBounds(4, 100, 114, 44);
+        var bildWahl = new Button { Image = Symbole.Get("oeffnen", 16), Left = 44, Top = 21, Width = 31, Height = 32 };
+        var bildWeg = new Button { Image = Symbole.Get("loeschen", 16), Left = 82, Top = 21, Width = 31, Height = 32 };
+        _bildText.SetBounds(4, 110, 143, 36);
         gBild.Controls.AddRange(new Control[] { bildWahl, bildWeg, _bildText });
         new ToolTip().SetToolTip(bildWahl, "Hintergrund-Bild wählen");
         new ToolTip().SetToolTip(bildWeg, "Hintergrund-Bild entfernen");
@@ -230,29 +238,28 @@ public sealed class SeitenlayoutFenster : Form
             Neuzeichnen();
         };
         bildWeg.Click += (_, _) => { E.Hintergrundbild = ""; EinstellungenLaden(); Neuzeichnen(); };
-        y += 158;
 
         // Karten „Aktuelle Ansicht“ und „Global“
-        var tabs = new TabControl();
-        Add(tabs, 8, 426, 372);
+        var tabs = new TabControl { Left = 5, Top = 319, Width = 520, Height = 306 };
+        p.Controls.Add(tabs);
         var ansicht = new TabPage("Aktuelle Ansicht") { BackColor = Ui.BlauSehrHell };
         var global = new TabPage("Global") { BackColor = Ui.BlauSehrHell };
         tabs.TabPages.Add(ansicht);
         tabs.TabPages.Add(global);
 
-        var gAuswahl = Gruppe(ansicht, "Auswahl", 4, 4, 204, 84);
-        Haken(gAuswahl, "Nur neue Vertretungen", () => E.NurNeue, v => E.NurNeue = v, 18, 194);
-        Haken(gAuswahl, "Abwesende Lehrer/Klassen nicht drucken", () => E.AbwesendeNichtDrucken, v => E.AbwesendeNichtDrucken = v, 38, 194);
-        Haken(gAuswahl, "Auch Elemente ohne Vertretung", () => E.AuchElementeOhneVertretung, v => E.AuchElementeOhneVertretung = v, 58, 194);
+        var gAuswahl = Gruppe(ansicht, "Auswahl", 6, 5, 247, 80);
+        Haken(gAuswahl, "Nur neue Vertretungen", () => E.NurNeue, v => E.NurNeue = v, 19, 236, 7);
+        Haken(gAuswahl, "Abwesende Lehrer/Klassen nicht drucken", () => E.AbwesendeNichtDrucken, v => E.AbwesendeNichtDrucken = v, 38, 236, 7);
+        Haken(gAuswahl, "Auch Elemente ohne Vertretung", () => E.AuchElementeOhneVertretung, v => E.AuchElementeOhneVertretung = v, 57, 236, 7);
 
-        var gGliederung = Gruppe(ansicht, "Gliederung", 4, 92, 204, 212);
-        var proElement = Haken(gGliederung, "Überschrift / Element", () => E.UeberschriftJeElement, v => E.UeberschriftJeElement = v, 18);
-        var eineSeite = Haken(gGliederung, "1 Seite / Element", () => E.EineSeiteJeElement, v => E.EineSeiteJeElement = v, 40, 170, 26);
+        var gGliederung = Gruppe(ansicht, "Gliederung", 6, 91, 247, 177);
+        var proElement = Haken(gGliederung, "Überschrift / Element", () => E.UeberschriftJeElement, v => E.UeberschriftJeElement = v, 19, 236, 7);
+        var eineSeite = Haken(gGliederung, "1 Seite / Element", () => E.EineSeiteJeElement, v => E.EineSeiteJeElement = v, 39, 200, 26);
         eineSeite.Enabled = proElement.Checked;
         proElement.CheckedChanged += (_, _) => eineSeite.Enabled = proElement.Checked;
-        Haken(gGliederung, "Elementüberschrift komprimiert", () => E.ElementueberschriftKomprimiert, v => E.ElementueberschriftKomprimiert = v, 64);
-        var gGruppierung = new GroupBox { Text = "Gruppierung (=Sortierkriterium 1)", Left = 6, Top = 90, Width = 192, Height = 54 };
-        _gruppierung.SetBounds(8, 20, 176, 23);
+        Haken(gGliederung, "Elementüberschrift komprimiert", () => E.ElementueberschriftKomprimiert, v => E.ElementueberschriftKomprimiert = v, 61, 236, 7);
+        var gGruppierung = new GroupBox { Text = "Gruppierung (=Sortierkriterium 1)", Left = 6, Top = 84, Width = 235, Height = 85 };
+        _gruppierung.SetBounds(7, 21, 143, 23);
         _gruppierung.SelectedIndexChanged += (_, _) =>
         {
             if (_laden || _gruppierung.SelectedIndex < 0) return;
@@ -260,61 +267,62 @@ public sealed class SeitenlayoutFenster : Form
             Neuzeichnen();
         };
         gGruppierung.Controls.Add(_gruppierung);
-        gGliederung.Controls.Add(gGruppierung);
-        var sortierung = new Button { Text = "Sortierung", Left = 6, Top = 152, Width = 192, Height = 28 };
+        var sortierung = new Button { Text = "Sortierung", Left = 6, Top = 49, Width = 223, Height = 23 };
         sortierung.Click += (_, _) => SortierungDialog();
-        gGliederung.Controls.Add(sortierung);
+        gGruppierung.Controls.Add(sortierung);
+        gGliederung.Controls.Add(gGruppierung);
 
-        var gForm = Gruppe(ansicht, "Form", 214, 4, 200, 156);
-        Haken(gForm, "Entfallslehrer durchstreichen", () => E.EntfallslehrerDurchstreichen, v => E.EntfallslehrerDurchstreichen = v, 18, 190);
-        Haken(gForm, "Komb. Klassen (2a,2b->2ab)", () => E.KombinierteKlassen, v => E.KombinierteKlassen = v, 40, 190);
-        Haken(gForm, "Stundenbezeichnung", () => E.Stundenbezeichnung, v => E.Stundenbezeichnung = v, 62, 190);
-        Haken(gForm, "Stammdaten in einzelnem Feld", () => E.StammdatenEinzeln, v => E.StammdatenEinzeln = v, 84, 190);
-        Haken(gForm, "Blockvertretungen zusammenfassen", () => E.BlockvertretungenZusammenfassen, v => E.BlockvertretungenZusammenfassen = v, 106, 190);
-        Haken(gForm, "Kein Entfall bei Ersatz in Stunde", () => E.KeinEntfallBeiErsatz, v => E.KeinEntfallBeiErsatz = v, 128, 190);
+        var gForm = Gruppe(ansicht, "Form", 260, 5, 245, 135);
+        Haken(gForm, "Entfallslehrer durchstreichen", () => E.EntfallslehrerDurchstreichen, v => E.EntfallslehrerDurchstreichen = v, 19, 234, 7);
+        Haken(gForm, "Komb. Klassen (2a,2b->2ab)", () => E.KombinierteKlassen, v => E.KombinierteKlassen = v, 37, 234, 7);
+        Haken(gForm, "Stundenbezeichnung", () => E.Stundenbezeichnung, v => E.Stundenbezeichnung = v, 55, 234, 7);
+        Haken(gForm, "Stammdaten in einzelnem Feld", () => E.StammdatenEinzeln, v => E.StammdatenEinzeln = v, 73, 234, 7);
+        Haken(gForm, "Blockvertretungen zusammenfassen", () => E.BlockvertretungenZusammenfassen, v => E.BlockvertretungenZusammenfassen = v, 92, 234, 7);
+        Haken(gForm, "Kein Entfall bei Ersatz in Stunde", () => E.KeinEntfallBeiErsatz, v => E.KeinEntfallBeiErsatz = v, 111, 234, 7);
 
         // Absenzkopf: Spalten „Absenz“ und „Vertretung“
-        var gAbs = Gruppe(ansicht, "Absenzkopf", 214, 164, 200, 118);
-        gAbs.Controls.Add(new Label { Text = "Absenz", Left = 70, Top = 14, Width = 50, Height = 16 });
-        gAbs.Controls.Add(new Label { Text = "Vertretung", Left = 136, Top = 14, Width = 62, Height = 16 });
-        gAbs.Controls.Add(new Label { Text = "Lehrer", Left = 8, Top = 34, Width = 60, Height = 16 });
-        gAbs.Controls.Add(new Label { Text = "Klassen", Left = 8, Top = 74, Width = 60, Height = 16 });
-        gAbs.Controls.Add(new Label { Text = "Räume", Left = 8, Top = 94, Width = 60, Height = 16 });
-        Haken(gAbs, "", () => E.AbwesendeLehrer, v => E.AbwesendeLehrer = v, 32, 18, 82);
-        Haken(gAbs, "", () => E.VertretungLehrer, v => E.VertretungLehrer = v, 32, 18, 156);
-        Haken(gAbs, "mit Absenzgrund", () => E.LehrerMitAbsenzgrund, v => E.LehrerMitAbsenzgrund = v, 52, 116, 82);
-        Haken(gAbs, "", () => E.AbwesendeKlassen, v => E.AbwesendeKlassen = v, 72, 18, 82);
-        Haken(gAbs, "", () => E.VertretungKlassen, v => E.VertretungKlassen = v, 72, 18, 156);
-        Haken(gAbs, "", () => E.BlockierteRaeume, v => E.BlockierteRaeume = v, 92, 18, 82);
-        Haken(gAbs, "", () => E.VertretungRaeume, v => E.VertretungRaeume = v, 92, 18, 156);
+        var gAbs = Gruppe(ansicht, "Absenzkopf", 260, 143, 245, 100);
+        gAbs.Controls.Add(new Label { Text = "Absenz", Left = 65, Top = 14, AutoSize = true });
+        gAbs.Controls.Add(new Label { Text = "Vertretung", Left = 134, Top = 14, AutoSize = true });
+        gAbs.Controls.Add(new Label { Text = "Lehrer", Left = 8, Top = 31, AutoSize = true });
+        gAbs.Controls.Add(new Label { Text = "Klassen", Left = 8, Top = 63, AutoSize = true });
+        gAbs.Controls.Add(new Label { Text = "Räume", Left = 8, Top = 79, AutoSize = true });
+        Haken(gAbs, "", () => E.AbwesendeLehrer, v => E.AbwesendeLehrer = v, 31, 15, 76);
+        Haken(gAbs, "", () => E.VertretungLehrer, v => E.VertretungLehrer = v, 31, 15, 151);
+        Haken(gAbs, "mit Absenzgrund", () => E.LehrerMitAbsenzgrund, v => E.LehrerMitAbsenzgrund = v, 47, 140, 76);
+        Haken(gAbs, "", () => E.AbwesendeKlassen, v => E.AbwesendeKlassen = v, 64, 15, 76);
+        Haken(gAbs, "", () => E.VertretungKlassen, v => E.VertretungKlassen = v, 64, 15, 151);
+        Haken(gAbs, "", () => E.BlockierteRaeume, v => E.BlockierteRaeume = v, 80, 15, 76);
+        Haken(gAbs, "", () => E.VertretungRaeume, v => E.VertretungRaeume = v, 80, 15, 151);
 
-        var ueberschrift = new Button { Text = "Überschrift", Left = 314, Top = 290, Width = 100, Height = 28 };
+        var ueberschrift = new Button { Text = "Überschrift", Left = 424, Top = 249, Width = 83, Height = 23 };
         ueberschrift.Click += (_, _) => UeberschriftsfelderDialog();
         ansicht.Controls.Add(ueberschrift);
 
         // Global: Absenzkopf und Tagestexte (Schriftgröße in %, Rahmen), Langnamen im Absenzkopf
-        var gAbsG = Gruppe(global, "Absenzkopf", 4, 4, 204, 280);
+        var gAbsG = Gruppe(global, "Absenzkopf", 7, 5, 244, 228);
         Regler(gAbsG, () => E.AbsenzkopfGroesse, v => E.AbsenzkopfGroesse = v);
-        Haken(gAbsG, "Ausdruck mit Rahmen", () => E.AbsenzkopfRahmen, v => E.AbsenzkopfRahmen = v, 96, 194);
-        Haken(gAbsG, "Absenzkopf nicht für Veranstaltungen", () => E.AbsenzkopfNichtVeranstaltungen, v => E.AbsenzkopfNichtVeranstaltungen = v, 118, 194);
-        var gLang = new GroupBox { Text = "Langname", Left = 6, Top = 146, Width = 192, Height = 100 };
+        Haken(gAbsG, "Ausdruck mit Rahmen", () => E.AbsenzkopfRahmen, v => E.AbsenzkopfRahmen = v, 88, 230, 7);
+        Haken(gAbsG, "Absenzkopf nicht für Veranstaltungen", () => E.AbsenzkopfNichtVeranstaltungen, v => E.AbsenzkopfNichtVeranstaltungen = v, 107, 230, 7);
+        var gLang = new GroupBox { Text = "Langname", Left = 6, Top = 129, Width = 231, Height = 93 };
         gAbsG.Controls.Add(gLang);
-        Haken(gLang, "Lehrer", () => E.AbsenzkopfLangLehrer, v => E.AbsenzkopfLangLehrer = v, 20);
-        Haken(gLang, "Klassen", () => E.AbsenzkopfLangKlassen, v => E.AbsenzkopfLangKlassen = v, 44);
-        Haken(gLang, "Räume", () => E.AbsenzkopfLangRaeume, v => E.AbsenzkopfLangRaeume = v, 68);
-        var gTag = Gruppe(global, "Tagestexte", 214, 4, 200, 150);
+        Haken(gLang, "Lehrer", () => E.AbsenzkopfLangLehrer, v => E.AbsenzkopfLangLehrer = v, 19, 200, 7);
+        Haken(gLang, "Klassen", () => E.AbsenzkopfLangKlassen, v => E.AbsenzkopfLangKlassen = v, 44, 200, 7);
+        Haken(gLang, "Räume", () => E.AbsenzkopfLangRaeume, v => E.AbsenzkopfLangRaeume = v, 70, 200, 7);
+        // „Tagestexte drucken“ zusätzlich zum Vorbild (Rahmen dafür etwas höher)
+        var gTag = Gruppe(global, "Tagestexte", 257, 5, 226, 130);
         Regler(gTag, () => E.TagestexteGroesse, v => E.TagestexteGroesse = v);
-        Haken(gTag, "Ausdruck mit Rahmen", () => E.TagestexteRahmen, v => E.TagestexteRahmen = v, 96, 190);
-        Haken(gTag, "Tagestexte drucken", () => E.Nachrichten, v => E.Nachrichten = v, 118, 190);
+        Haken(gTag, "Ausdruck mit Rahmen", () => E.TagestexteRahmen, v => E.TagestexteRahmen = v, 88, 212, 7);
+        Haken(gTag, "Tagestexte drucken", () => E.Nachrichten, v => E.Nachrichten = v, 107, 212, 7);
     }
 
     /// <summary>Schieberegler „Schriftgröße in %“ (25–200 %).</summary>
     private void Regler(GroupBox g, Func<int> lesen, Action<int> schreiben)
     {
-        var wert = new Label { Text = lesen().ToString(), Left = 8, Top = 18, Width = 50, Height = 16 };
+        var wert = new Label { Text = lesen().ToString(), Left = 8, Top = 19, Width = 50, Height = 15 };
         g.Controls.Add(wert);
-        g.Controls.Add(new Label { Text = "Schriftgröße in %", Left = g.Width - 118, Top = 18, Width = 110, Height = 16, TextAlign = ContentAlignment.TopRight });
-        var tb = new TrackBar { Minimum = 25, Maximum = 200, SmallChange = 5, LargeChange = 25, TickFrequency = 25, Value = Math.Clamp(lesen(), 25, 200), Left = 6, Top = 38, Width = g.Width - 14, Height = 40 };
+        g.Controls.Add(new Label { Text = "Schriftgröße in %", Left = g.Width - 124, Top = 19, Width = 110, Height = 15, TextAlign = ContentAlignment.TopRight });
+        var tb = new TrackBar { Minimum = 25, Maximum = 200, SmallChange = 5, LargeChange = 25, TickFrequency = 25, Value = Math.Clamp(lesen(), 25, 200), Left = 4, Top = 26, Width = g.Width - 12, Height = 45 };
         tb.ValueChanged += (_, _) => { wert.Text = tb.Value.ToString(); if (!_laden) { schreiben(tb.Value); Neuzeichnen(); } };
         g.Controls.Add(tb);
     }
@@ -339,7 +347,7 @@ public sealed class SeitenlayoutFenster : Form
     private CheckBox Haken(GroupBox g, string text, Func<bool> lesen, Action<bool> schreiben, int y, int w = 186, int x = 8)
     {
         var c = Haken(text, lesen, schreiben);
-        c.SetBounds(x, y, w, 20);
+        c.SetBounds(x, y, w, 17);
         g.Controls.Add(c);
         return c;
     }
@@ -368,10 +376,7 @@ public sealed class SeitenlayoutFenster : Form
             _gruppierung.Items.Clear();
             _gruppierung.Items.AddRange(felder.Select(x => (object)x.Text).ToArray());
             _gruppierung.SelectedIndex = Math.Max(0, Array.FindIndex(felder, x => x.Schluessel == E.Gruppierung));
-            var d = AppZustand.D;
-            var auswahl = _lehrer ? E.LehrerAuswahl : E.KlassenAuswahl;
-            var alle = _lehrer ? d.Lehrer.Count : d.Klassen.Count;
-            _auswahlText.Text = $"{(_lehrer ? "Lehrer" : "Klasse(n)")}: {(auswahl.Count == 0 ? alle : auswahl.Count)}/{alle}";
+            _auswahlGruppe.Text = AuswahlText(_lehrer);
         }
         finally { _laden = false; }
     }
@@ -591,10 +596,27 @@ public sealed class SeitenlayoutFenster : Form
 
     private void AuswahlDialog()
     {
+        if (!ElementAuswahl(this, _lehrer)) return;
+        EinstellungenLaden();
+        Neuzeichnen();
+    }
+
+    /// <summary>Text „Lehrer: 10/10“ bzw. „Klasse(n): 3/12“ (Rahmentitel über der Schaltfläche „Auswahl“).</summary>
+    internal static string AuswahlText(bool lehrer)
+    {
         var d = AppZustand.D;
-        var namen = (_lehrer ? d.Lehrer.Select(x => (x.Kurzname, x.Langname)) : d.Klassen.Select(x => (x.Kurzname, x.Langname))).ToList();
-        var auswahl = _lehrer ? E.LehrerAuswahl : E.KlassenAuswahl;
-        using var dlg = new Dialog(_lehrer ? "Lehrer auswählen" : "Klassen auswählen", 320, 460);
+        var auswahl = lehrer ? E.LehrerAuswahl : E.KlassenAuswahl;
+        var alle = lehrer ? d.Lehrer.Count : d.Klassen.Count;
+        return $"{(lehrer ? "Lehrer" : "Klasse(n)")}: {(auswahl.Count == 0 ? alle : auswahl.Count)}/{alle}";
+    }
+
+    /// <summary>„Auswahl“: Lehrer bzw. Klassen für den Ausdruck wählen (auch aus der Druckauswahl). Rückgabe: übernommen.</summary>
+    internal static bool ElementAuswahl(IWin32Window owner, bool lehrer)
+    {
+        var d = AppZustand.D;
+        var namen = (lehrer ? d.Lehrer.Select(x => (x.Kurzname, x.Langname)) : d.Klassen.Select(x => (x.Kurzname, x.Langname))).ToList();
+        var auswahl = lehrer ? E.LehrerAuswahl : E.KlassenAuswahl;
+        using var dlg = new Dialog(lehrer ? "Lehrer auswählen" : "Klassen auswählen", 320, 460);
         var liste = new CheckedListBox { Left = 10, Top = 10, Width = 298, Height = 360, CheckOnClick = true };
         foreach (var (k, l) in namen) liste.Items.Add($"{k}  {l}", auswahl.Count == 0 || auswahl.Contains(k));
         var alle = new Button { Text = "Alle", Left = 10, Top = 376, Width = 80 };
@@ -602,34 +624,38 @@ public sealed class SeitenlayoutFenster : Form
         alle.Click += (_, _) => { for (var i = 0; i < liste.Items.Count; i++) liste.SetItemChecked(i, true); };
         keine.Click += (_, _) => { for (var i = 0; i < liste.Items.Count; i++) liste.SetItemChecked(i, false); };
         dlg.Controls.AddRange(new Control[] { liste, alle, keine });
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
+        if (dlg.ShowDialog(owner) != DialogResult.OK) return false;
         var gewaehlt = Enumerable.Range(0, namen.Count).Where(liste.GetItemChecked).Select(i => namen[i].Kurzname).ToList();
         auswahl.Clear();
         if (gewaehlt.Count < namen.Count) auswahl.AddRange(gewaehlt);
-        EinstellungenLaden();
-        Neuzeichnen();
+        return true;
     }
 
     /// <summary>„Sortierkriterien“: Sortieren nach (= Gruppierung) und dann nach, je auf- oder absteigend.</summary>
     private void SortierungDialog()
     {
         var felder = VertretungsplanDruck.Sortierfelder(_lehrer);
-        using var d = new Dialog("Sortierkriterien", 330, 210);
+        // Maße nach der Abbildung im Handbuch (96 dpi): Rahmen 291 breit im Abstand von 75, Auswahlliste 254 breit, Ok/Abbrechen 75×23
+        using var d = new Dialog("Sortierkriterien", 340, 196);
+        d.Ok.Text = "Ok";
+        d.Ok.Size = d.Abbrechen.Size = new Size(75, 23);
+        d.Ok.Location = new Point(68, 161);
+        d.Abbrechen.Location = new Point(154, 161);
         (ComboBox Cb, RadioButton Ab) Block(string titel, int y, string wert, bool absteigend, bool leerErlaubt)
         {
-            var g = new GroupBox { Text = titel, Left = 10, Top = y, Width = 310, Height = 72 };
-            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 10, Top = 20, Width = 290 };
-            if (leerErlaubt) cb.Items.Add("");
+            var g = new GroupBox { Text = titel, Left = 22, Top = y, Width = 291, Height = 63 };
+            var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 15, Top = 17, Width = 254 };
+            if (leerErlaubt) cb.Items.Add("--Keine--");
             cb.Items.AddRange(felder.Select(x => (object)x.Text).ToArray());
             var i = Array.FindIndex(felder, x => x.Schluessel == wert);
             cb.SelectedIndex = i < 0 ? 0 : i + (leerErlaubt ? 1 : 0);
-            var auf = new RadioButton { Text = "Aufsteigend", Left = 10, Top = 46, Width = 120, Checked = !absteigend };
-            var ab = new RadioButton { Text = "Absteigend", Left = 150, Top = 46, Width = 120, Checked = absteigend };
+            var auf = new RadioButton { Text = "Aufsteigend", Left = 19, Top = 41, AutoSize = true, Checked = !absteigend };
+            var ab = new RadioButton { Text = "Absteigend", Left = 141, Top = 41, AutoSize = true, Checked = absteigend };
             g.Controls.AddRange(new Control[] { cb, auf, ab });
             d.Controls.Add(g);
             return (cb, ab);
         }
-        var (cb1, ab1) = Block("Sortieren nach", 8, E.Gruppierung, E.SortierungAbsteigend, false);
+        var (cb1, ab1) = Block("Sortieren nach", 11, E.Gruppierung, E.SortierungAbsteigend, false);
         var (cb2, ab2) = Block("dann nach", 86, E.Sortierung2, E.Sortierung2Absteigend, true);
         if (d.ShowDialog(this) != DialogResult.OK) return;
         E.Gruppierung = felder[Math.Max(0, cb1.SelectedIndex)].Schluessel;
@@ -647,18 +673,25 @@ public sealed class SeitenlayoutFenster : Form
         if (E.Gruppierung == "Vertreter") art = _lehrer ? "Klasse" : "Lehrer";
         else if (E.Gruppierung is not "Element") art = VertretungsplanDruck.Sortierfelder(_lehrer).FirstOrDefault(x => x.Schluessel == E.Gruppierung).Text ?? art;
         var arten = new[] { "<kein Feld>", $"{art} Kurzname", $"{art} Langname" };
-        using var d = new Dialog("Überschriftsfelder", 300, 300);
-        d.Controls.Add(new Label { Text = "Überschriftsfelder", Left = 10, Top = 8, Width = 200, Height = 18 });
-        var g = new DataGridView { Left = 10, Top = 28, Width = 280, Height = 220 };
+        // Maße nach der Abbildung im Handbuch (96 dpi): Raster über die ganze Breite, Ok/Abbrechen unten links
+        using var d = new Dialog("Überschriftsfelder", 265, 255);
+        d.Controls.Add(new Label { Text = "Überschriftsfelder", Left = 9, Top = 13, AutoSize = true });
+        var g = new DataGridView { Left = 0, Top = 30, Width = 265, Height = 189, BorderStyle = BorderStyle.Fixed3D };
         Ui.RasterGestalten(g, true);
+        g.BorderStyle = BorderStyle.Fixed3D;
         g.AllowUserToAddRows = false;
         g.AllowUserToDeleteRows = false;
         g.RowHeadersVisible = true;
-        g.RowHeadersWidth = 34;
-        var feldart = new DataGridViewComboBoxColumn { Name = "Feldart", HeaderText = "Feldart", Width = 150, FlatStyle = FlatStyle.Flat };
+        g.RowHeadersWidth = 15;
+        g.RowTemplate.Height = Math.Max(17, g.Font.Height + 1);
+        g.ColumnHeadersHeight = Math.Max(17, g.Font.Height + 1);
+        var feldart = new DataGridViewComboBoxColumn { Name = "Feldart", HeaderText = "Feldart", Width = 113, FlatStyle = FlatStyle.Flat, DisplayStyleForCurrentCellOnly = true };
         feldart.Items.AddRange(arten);
         g.Columns.Add(feldart);
-        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Groesse", HeaderText = "Größe (in %)", Width = 86, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Groesse", HeaderText = "Größe (in %)", Width = 71, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        d.Ok.Size = d.Abbrechen.Size = new Size(75, 23);
+        d.Ok.Location = new Point(10, 229);
+        d.Abbrechen.Location = new Point(106, 229);
         for (var i = 0; i < 6; i++)
         {
             var f = E.UeberschriftsFelder.ElementAtOrDefault(i);
@@ -678,21 +711,7 @@ public sealed class SeitenlayoutFenster : Form
     }
 
     /// <summary>HTML-Ausgabe wie im Handbuch: Datei „Druck_Leh.htm“ bzw. „Druck_Kla.htm“ in einem frei wählbaren Ordner.</summary>
-    private void HtmlAusgabe()
-    {
-        var d = AppZustand.D;
-        var tage = Kalender.Tage(_von, _bis).Where(t => Kalender.IstUnterrichtstag(d, t)).ToList();
-        if (tage.Count == 0) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
-        using var dlg = new FolderBrowserDialog { Description = "Ordner für die HTML-Ausgabe", UseDescriptionForTitle = true };
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-        var pfad = Path.Combine(dlg.SelectedPath, _lehrer ? "Druck_Leh.htm" : "Druck_Kla.htm");
-        try
-        {
-            File.WriteAllText(pfad, Core.Austausch.Export.VertretungsplanHtml(d, tage, _lehrer));
-            HauptFenster.Starten(pfad);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Ui.Fehler(ex); }
-    }
+    private void HtmlAusgabe() => VertretungsplanDruck.HtmlAusgeben(this, _von, _bis, _lehrer);
 
     /// <summary>Stift „Listenüberschrift“: eigene Überschrift des Ausdrucks.</summary>
     private void ListenueberschriftAendern()

@@ -81,11 +81,11 @@ public static class VertretungsplanDruck
         _ => "",
     };
 
-    /// <summary>Seitenansicht: das Seitenlayout mit Vorschau öffnen; Drucken: direkt auf den Drucker.</summary>
+    /// <summary>Seitenansicht: das Seitenlayout mit Vorschau öffnen; Drucken: die Druckauswahl (Ok druckt, „HTML-Ausg.“, „PDF“).</summary>
     public static void Drucken(IWin32Window owner, DateOnly von, DateOnly bis, bool lehrerVersion, bool vorschau)
     {
         if (vorschau) { SeitenlayoutFenster.Zeigen(owner, von, bis, lehrerVersion); return; }
-        Ausgeben(owner, von, bis, lehrerVersion, false);
+        VertretungsDruckauswahl.Zeigen(owner, von, bis, lehrerVersion);
     }
 
     /// <summary>Druck bzw. Windows-Seitenansicht mit den aktuellen Einstellungen.</summary>
@@ -95,6 +95,44 @@ public static class VertretungsplanDruck
         var doc = DruckDokument(von, bis, lehrerVersion, "");
         if (doc is null) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
         ListenDruck.Ausgeben(owner, doc, vorschau);
+    }
+
+    /// <summary>HTML-Ausgabe wie im Handbuch (Kap. 13.6.1): Datei „Druck_Leh.htm“ bzw. „Druck_Kla.htm“ in einem frei wählbaren Ordner.</summary>
+    internal static void HtmlAusgeben(IWin32Window owner, DateOnly von, DateOnly bis, bool lehrer)
+    {
+        var d = AppZustand.D;
+        var tage = Kalender.Tage(von, bis).Where(t => Kalender.IstUnterrichtstag(d, t)).ToList();
+        if (tage.Count == 0) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
+        using var dlg = new FolderBrowserDialog { Description = "Ordner für die HTML-Ausgabe", UseDescriptionForTitle = true };
+        if (dlg.ShowDialog(owner) != DialogResult.OK) return;
+        var pfad = Path.Combine(dlg.SelectedPath, lehrer ? "Druck_Leh.htm" : "Druck_Kla.htm");
+        try
+        {
+            File.WriteAllText(pfad, Export.VertretungsplanHtml(d, tage, lehrer));
+            HauptFenster.Starten(pfad);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Ui.Fehler(ex); }
+    }
+
+    /// <summary>Schaltfläche „PDF“ der Druckauswahl: Vertretungsliste mit „Microsoft Print to PDF“ in eine wählbare Datei.</summary>
+    internal static void PdfSpeichern(IWin32Window owner, DateOnly von, DateOnly bis, bool lehrer)
+    {
+        AppZustand.Einstellungen.Speichern();
+        var doc = DruckDokument(von, bis, lehrer, "");
+        if (doc is null) { Ui.Info("Im gewählten Zeitraum gibt es keinen Unterrichtstag."); return; }
+        using var sfd = new SaveFileDialog { Filter = "PDF-Datei (*.pdf)|*.pdf", FileName = $"{(lehrer ? "Druck_Leh" : "Druck_Kla")}_{von:yyyy-MM-dd}.pdf", Title = "PDF" };
+        if (sfd.ShowDialog(owner) != DialogResult.OK) return;
+        try
+        {
+            doc.PrinterSettings.PrinterName = "Microsoft Print to PDF";
+            if (!doc.PrinterSettings.IsValid) { Ui.Info("Für die PDF-Ausgabe wird der Drucker „Microsoft Print to PDF“ benötigt."); return; }
+            doc.PrinterSettings.PrintToFile = true;
+            doc.PrinterSettings.PrintFileName = sfd.FileName;
+            doc.PrintController = new StandardPrintController();
+            doc.Print();
+        }
+        catch (InvalidPrinterException) { Ui.Info("Für die PDF-Ausgabe wird der Drucker „Microsoft Print to PDF“ benötigt."); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception) { Ui.Fehler(ex); }
     }
 
     /// <summary>Druckdokument des Vertretungsplans (null, wenn der Zeitraum keinen Unterrichtstag enthält).</summary>

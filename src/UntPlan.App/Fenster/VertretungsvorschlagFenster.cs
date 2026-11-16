@@ -36,19 +36,21 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     /// <summary>Spalte „Stundenplan“ (früher drei Spalten S1–S3; zeigt jetzt so viele Stunden, wie Platz ist).</summary>
     private static readonly string[] Stundenplanspalten = { "S1" };
     /// <summary>Breite einer Stunde in der Spalte „Stundenplan“ (per Ziehen an einer Stundengrenze änderbar).</summary>
-    private static int _zellBreite = 44;
+    private static int _zellBreite = 42;
 
     private readonly Klappleiste _kopfLeiste = new(false) { Text = "" };
     private readonly Label _kopfDetails = new() { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 3, 4, 0), BackColor = Color.White, Visible = false };
     private readonly Klappleiste _optLeiste = new(false) { Offen = true };
-    private readonly Panel _optionen = new() { Dock = DockStyle.Top, Height = 44 };
-    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(12, 3) };
-    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(230, 3) };
-    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(12, 23) };
-    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(230, 23), Visible = false };
+    // Maße wie im Handbuch-Bild (96 dpi, Kap. 7.3): Leisten 20 hoch, Optionen 38 hoch (Häkchen bei x = 13 bzw. 229, Zeilen 19 Pixel),
+    // Reiter 22 hoch, Tabellenzeilen 17, Spalten Name 42 / Merker zur Stunde 110 / je Stunde 42, Vorziehungen-Kopf 40 hoch
+    private readonly Panel _optionen = new() { Dock = DockStyle.Top, Height = 38 };
+    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(13, 2) };
+    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(229, 2) };
+    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(13, 21) };
+    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(229, 21), Visible = false };
     // Reiter „Räume“ wie in der Vorlage: rechts neben Stundenblock bzw. Dauervertretung untereinander, „Auch besetzte Räume anzeigen“ vorbelegt
-    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(290, 3), Visible = false, Checked = true };
-    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(290, 23), Visible = false };
+    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(229, 2), Visible = false, Checked = true };
+    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(229, 21), Visible = false };
     private readonly Reiterleiste _reiter = new() { Dock = DockStyle.Top };
     private readonly Panel _inhalt = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _vorschlag = new() { Dock = DockStyle.Fill, Name = "Vorschlag" };
@@ -57,9 +59,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly Klappleiste _vorzLeiste = new(true) { Dock = DockStyle.Bottom };
     /// <summary>Unterer Fensterteil „Vorziehungen“: Auswahl „Art“ und „Nur späteren Unterricht“ über der Liste.</summary>
     private readonly Panel _vorzBereich = new() { Dock = DockStyle.Bottom, Height = 176, Visible = false };
-    private readonly Panel _vorzKopf = new() { Dock = DockStyle.Top, Height = 28 };
-    private readonly ComboBox _vorzArt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 34, Top = 3, Width = 250 };
-    private readonly CheckBox _vorzSpaeter = new() { Text = "Nur späteren Unterricht", AutoSize = true, Left = 296, Top = 5 };
+    private readonly Panel _vorzKopf = new() { Dock = DockStyle.Top, Height = 40 };
+    private readonly ComboBox _vorzArt = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 59, Top = 6, Width = 237 };
+    private readonly CheckBox _vorzSpaeter = new() { Text = "Nur späteren Unterricht", AutoSize = true, Left = 304, Top = 10 };
     private readonly DataGridView _vorziehung = new() { Dock = DockStyle.Fill, Name = "Vorziehung" };
     /// <summary>Vorziehungen mit Schritt 1 und Schritt 2 (zweistufig bzw. Doppelstunde, Handbuch Kap. 7.3.7).</summary>
     private readonly DataGridView _vorziehung2 = new() { Dock = DockStyle.Fill, Name = "Vorziehung2", Visible = false };
@@ -113,7 +115,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Spalten(_vorschlag, new (string, string, int)[]
         {
             // Breiten der vorderen Spalten wie in der Vorlage (Name, Merker zur Stunde breit, Klasse … Punkte, Zeitwünsche zum Element)
-            ("Name", "Name", 76), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 160), ("Vertr", "Vertr.", 52),
+            ("Name", "Name", 42), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 110), ("Vertr", "Vertr.", 52),
             ("Entf", "Entfall", 56), ("Zaehler", "Zähler", 52), ("ZW", "Zeitwünsche zum Element", 150), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42),
             ("RegB", "reg. Ber.", 46), ("DepB", "Dep. Ber.", 46), ("Dep", "Dep.", 58), ("Fach", "Fach", 46), ("Klasse", "Klasse", 60), ("StdTag", "Unt./Tag", 50),
             ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 80), ("Statistik", "Statistik", 52), ("Sperr", "Sperrvermerk", 70),
@@ -121,7 +123,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             ("Kr", "Kriterien", 220),
         });
         // Standard-Reihenfolge der Anzeige (gespeicherte Tabellenformate des Benutzers gehen vor): die für die Auswahl wichtigsten Spalten vorn
-        var reihe = new[] { "Name", "Merker", "Klasse", "Fach", "Zaehler", "Vertr", "Entf", "Vorwoche", "Punkte", "ZW" };
+        // wie in den Handbuch-Bildern (Kap. 7.3, 7.3.7, 7.3.9): Name, Merker zur Stunde, gleich danach der Stundenplan
+        var reihe = new[] { "Name", "Merker", "S1", "Klasse", "Fach", "Zaehler", "Vertr", "Entf", "Vorwoche", "Punkte", "ZW" };
         var anzeige = reihe.Concat(_vorschlag.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.Index).Select(c => c.Name).Where(n => !reihe.Contains(n))).ToList();
         for (var i = 0; i < anzeige.Count; i++) _vorschlag.Columns[anzeige[i]]!.DisplayIndex = i;
         _vorschlag.Columns["RegB"]!.ToolTipText = "Genutzte reguläre Bereitschaften";
@@ -147,11 +150,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Spalten(_betreuung, new (string, string, int)[]
         {
             // wie in der Vorlage: Name, Raum, Klasse, Fach, Zähler, Zeitwünsche, Jahres-Zähler, Kennzeichen, Kopplungslehrer (Stundenplan dahinter)
-            ("Name", "Name", 92), ("S1", "Stundenplan", StandardPlanBreite), ("Raum", "Raum", 108), ("Klasse", "Klasse", 110), ("Fach", "Fach", 68),
-            ("Zaehler", "Zähler", 50), ("ZW", "Zeitwünsche zum Element", 50), ("Jahr", "Jahres-Zähler", 50), ("Kennz", "Kennzeichen", 80), ("Kopplung", "Kopplungslehrer", 120),
+            // Breiten wie im Handbuch-Bild (Kap. 7.3.8, auf 96 dpi umgerechnet)
+            ("Name", "Name", 43), ("S1", "Stundenplan", StandardPlanBreite), ("Raum", "Raum", 42), ("Klasse", "Klasse", 48), ("Fach", "Fach", 37),
+            ("Zaehler", "Zähler", 44), ("ZW", "Zeitwünsche zum Element", 24), ("Jahr", "Jahres-Zähler", 84), ("Kennz", "Kennzeichen", 80), ("Kopplung", "Kopplungslehrer", 95),
             ("Gang", "Gang", 64), ("Naehe", "Nähe", 110), ("Heute", "Betr. heute", 60),
         });
-        var betrReihe = new[] { "Name", "Raum", "Klasse", "Fach", "Zaehler", "ZW", "Jahr", "Kennz", "Kopplung" };
+        // wie im Handbuch-Bild (Kap. 7.3.8): Name, Stundenplan, Raum, Klasse, Fach, Zähler, Zeitwünsche, Jahres-Zähler, Kennzeichen, Kopplungslehrer
+        var betrReihe = new[] { "Name", "S1", "Raum", "Klasse", "Fach", "Zaehler", "ZW", "Jahr", "Kennz", "Kopplung" };
         var betrAnzeige = betrReihe.Concat(_betreuung.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.Index).Select(c => c.Name).Where(n => !betrReihe.Contains(n))).ToList();
         for (var i = 0; i < betrAnzeige.Count; i++) _betreuung.Columns[betrAnzeige[i]]!.DisplayIndex = i;
         _betreuung.Columns["Kopplung"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
@@ -169,8 +174,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 g.Columns[n]!.ContextMenuStrip = PlanMenue();
 
         // --- Räume ---
-        // Spaltenbreiten wie in der Vorlage (Rm. breit, Kap., Ausw-Rm., Ausw-Sr., Besetzt, Raumgruppe)
-        foreach (var (n, b) in new[] { ("Rm", 160), ("Kap", 42), ("AR", 92), ("SR", 92), ("B", 72), ("RG", 92) })
+        // Spaltenbreiten wie im Handbuch-Bild (Kap. 7.3.10, auf 96 dpi umgerechnet): Rm., Kap., Ausw-Rm., Ausw-Sr., Besetzt (schmal, „Beset“), Raumgruppe
+        foreach (var (n, b) in new[] { ("Rm", 62), ("Kap", 26), ("AR", 61), ("SR", 60), ("B", 26), ("RG", 58) })
             if (_raeume.Raster.Columns[n] is { } rc) rc.Width = b;
         _raeume.Gewaehlt += _ => Raum();
         _raeume.Raster.ContextMenuStrip = Menue(("Raum übernehmen (Doppelklick, Enter)", Raum));
@@ -179,7 +184,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         RasterEinrichten(_vorziehung);
         Spalten(_vorziehung, new (string, string, int)[]
         {
-            ("Name", "Name", 72), ("Tag", "von", 70), ("Merker", "Merker", 50), ("Klasse", "Klasse", 60), ("Fach", "Fach", 56), ("Raum", "Raum", 50), ("Art", "Art", 140),
+            ("Name", "Name", 45), ("Tag", "von", 53), ("Merker", "Merker", 50), ("Klasse", "Klasse", 60), ("Fach", "Fach", 56), ("Raum", "Raum", 50), ("Art", "Art", 140),
         });
         // wie im Vorbild: Name, von, Merker; die übrigen Angaben lassen sich per Rechtsklick auf die Spaltenüberschrift einblenden
         foreach (var n in new[] { "Klasse", "Fach", "Raum", "Art" }) _vorziehung.Columns[n]!.Visible = false;
@@ -188,7 +193,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _vorzSpaeter.Checked = D.Vertretungseinstellungen.Vorschlag.NurSpaeterenUnterricht;
         _vorzArt.SelectedIndexChanged += (_, _) => Neuaufbau();
         _vorzSpaeter.CheckedChanged += (_, _) => Neuaufbau();
-        _vorzKopf.Controls.AddRange(new Control[] { new Label { Text = "Art:", Left = 4, Top = 6, AutoSize = true }, _vorzArt, _vorzSpaeter });
+        _vorzKopf.Controls.AddRange(new Control[] { new Label { Text = "Art:", Left = 5, Top = 14, AutoSize = true }, _vorzArt, _vorzSpaeter });
         _vorzBereich.Controls.Add(_vorziehung);
         _vorzBereich.Controls.Add(_vorzKopf);
         _vorziehung.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Vorziehen(); };
@@ -198,7 +203,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         RasterEinrichten(_vorziehung2);
         Spalten(_vorziehung2, new (string, string, int)[]
         {
-            ("Name", "Name", 60), ("Tag", "von", 64), ("Merker", "Merker", 46), ("Name2", "Name", 60), ("Tag2", "von", 64), ("Merker2", "Merker", 46),
+            ("Name", "Name", 45), ("Tag", "von", 53), ("Merker", "Merker", 50), ("Name2", "Name", 45), ("Tag2", "von", 53), ("Merker2", "Merker", 50),
             ("Klasse", "Klasse", 60), ("Fach", "Fach", 56), ("Raum", "Raum", 50), ("Art", "Art", 140),
         });
         foreach (var n in new[] { "Klasse", "Fach", "Raum", "Art" }) _vorziehung2.Columns[n]!.Visible = false;
@@ -247,7 +252,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         StundenplanZiehenEinrichten(_betreuung);
         LayoutUmstellen();
 
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(6, 2, 6, 4), BackColor = Ui.BlauSehrHell };
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
@@ -301,7 +306,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung, _vorziehung2, _pause, _raeume.Raster })
         {
             g.DefaultCellStyle.Font = schrift;
-            g.RowTemplate.Height = Math.Max(21, schrift.Height + 6);
+            g.RowTemplate.Height = Math.Max(17, schrift.Height + 1);
         }
     }
 
@@ -364,8 +369,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.RowHeadersVisible = false;
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.MultiSelect = false;
-        g.ColumnHeadersHeight = 20;
-        g.RowTemplate.Height = 21;
+        g.ColumnHeadersHeight = 17;
+        g.RowTemplate.Height = 17;
         g.AllowUserToResizeColumns = true;
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         g.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
@@ -747,7 +752,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     }
 
     /// <summary>Standardbreite der Spalte „Stundenplan“: drei Stunden.</summary>
-    private const int StandardPlanBreite = 3 * 44 + 2;
+    private const int StandardPlanBreite = 3 * 42 + 2;
 
     /// <summary>
     /// Gemerkte Spaltenanordnung älterer Versionen (drei Spalten S1–S3 für den Stundenplan) einmalig auf die eine Spalte „Stundenplan“
@@ -1217,7 +1222,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private int? BetreuungFragen(string text, out bool raumUebernehmen)
     {
         raumUebernehmen = false;
-        var optionen = new[] { "Lehrer nicht verplanen", "Lehrer hält sowohl Unterricht als auch Vertretung (Mitbetreuung)", "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)" };
+        var optionen = new[] { "Lehrer nicht verplanen", "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)", "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)" };
         // Selbsttest: wie die übrigen Auswahlfragen über den Antwort-Haken (Vorgabe „Betreuung“, Raum nicht übernehmen)
         if (Ui.AuswahlAntwort is { } hook)
         {
@@ -1225,18 +1230,26 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             raumUebernehmen = false;
             return w;
         }
-        using var d = new Dialog("Frage", 520, 290);
-        d.Controls.Add(new TextBox { Text = text.Replace("\n", Environment.NewLine), Left = 12, Top = 10, Width = 496, Height = 100, Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = d.BackColor });
-        var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 116, Width = 496, Height = 28 + optionen.Length * 24 };
-        // wie in der Vorlage: „Lehrer nicht verplanen“ ausgegraut (dafür „Abbrechen“), „Mitbetreuung“ vorgewählt
-        var knoepfe = optionen.Select((o, i) => new RadioButton { Text = o, Left = 12, Top = 20 + i * 24, Width = 476, Checked = i == 1, Enabled = i != 0 }).ToList();
+        // Maße wie in den Handbuch-Bildern (Kap. 3.6 und 7.3.8, 96 dpi): Fenster 519 × 232, Text oben links, Rahmen „Optionen“ mit
+        // Optionsfeldern im Abstand von 17 Pixeln, unten links „Raum des Betreuungslehrers übernehmen“ und nur die Schaltfläche „OK“
+        using var d = new Dialog("Frage", 519, 232);
+        d.Controls.Add(new TextBox { Text = text.Replace("\n", Environment.NewLine), Left = 9, Top = 12, Width = 500, Height = 86, Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = d.BackColor, TabStop = false });
+        var grp = new GroupBox { Text = "Optionen", Left = 11, Top = 103, Width = 497, Height = 93 };
+        // wie in der Vorlage: „Betreuung“ vorgewählt; „Lehrer nicht verplanen“ bricht ab
+        var knoepfe = optionen.Select((o, i) => new RadioButton { Text = o, Left = 14, Top = 20 + i * 17, Width = 476, Height = 17, Checked = i == 1 }).ToList();
         grp.Controls.AddRange(knoepfe.ToArray<Control>());
         // Vorgabe: Raum nicht übernehmen (ausdrücklicher Wunsch) – die betreute Klasse bleibt in ihrem Raum
-        var raum = new CheckBox { Text = "Raum des Betreuungslehrers übernehmen", Left = 12, Top = grp.Bottom + 8, AutoSize = true, Checked = false };
+        var raum = new CheckBox { Text = "Raum des Betreuungslehrers übernehmen", Left = 10, Top = 204, AutoSize = true, Checked = false };
         knoepfe[1].CheckedChanged += (_, _) => raum.Enabled = knoepfe[1].Checked;
         d.Controls.AddRange(new Control[] { grp, raum });
-        // Knöpfe „OK“ und „Abbrechen“ wie in der Vorlage
+        // nur „OK“ wie in der Vorlage (75 × 23); Esc bricht ab
         d.Ok.Text = "OK";
+        d.Ok.Size = new Size(75, 23);
+        d.Ok.Location = new Point(352, 203);
+        d.Abbrechen.Visible = false;
+        d.CancelButton = null;
+        d.KeyPreview = true;
+        d.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.Handled = true; d.DialogResult = DialogResult.Cancel; } };
         if (d.ShowDialog(this) != DialogResult.OK) return null;
         var wahl = knoepfe.FindIndex(k => k.Checked);
         raumUebernehmen = wahl == 1 && raum.Checked;
@@ -1432,7 +1445,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         {
             _unten = unten;
             Dock = unten ? DockStyle.Bottom : DockStyle.Top;
-            Height = 24;
+            // wie im Bild 20 Pixel hoch; übereinanderliegende Leisten teilen sich die Trennlinie
+            Height = 20;
             Font = Ui.SchriftFett;
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
@@ -1467,17 +1481,18 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(Parent?.BackColor ?? Ui.BlauSehrHell);
-            var r = _unten ? new Rectangle(0, 2, Width - 1, Height - 3) : new Rectangle(0, 0, Width - 1, Height - 3);
+            var r = _unten ? new Rectangle(0, 0, Width - 1, Height - 1) : new Rectangle(0, 0, Width - 1, Height);
             e.Graphics.FillRectangle(Brushes.White, r);
             using (var p = new Pen(Color.FromArgb(160, 160, 160))) e.Graphics.DrawRectangle(p, r);
             // Pfeil: oben ▲ = aufgeklappt, unten ▲ = zugeklappt (klappt nach oben auf)
             var hoch = _unten ? !_offen : _offen;
-            var m = new Point(r.X + 10, r.Y + r.Height / 2);
+            // kleiner grauer Pfeil wie im Bild (4 × 2 Pixel bei x = 13 … 16)
+            var m = new Point(r.X + 10, r.Y + 10);
             var pfeil = hoch
-                ? new[] { new Point(m.X - 4, m.Y + 2), new Point(m.X + 4, m.Y + 2), new Point(m.X, m.Y - 2) }
-                : new[] { new Point(m.X - 4, m.Y - 2), new Point(m.X + 4, m.Y - 2), new Point(m.X, m.Y + 2) };
-            e.Graphics.FillPolygon(Brushes.Black, pfeil);
-            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(r.X + 20, r.Y, r.Width - 22, r.Height), Color.Black,
+                ? new[] { new Point(m.X - 2, m.Y + 1), new Point(m.X + 2, m.Y + 1), new Point(m.X, m.Y - 1) }
+                : new[] { new Point(m.X - 2, m.Y - 1), new Point(m.X + 2, m.Y - 1), new Point(m.X, m.Y + 1) };
+            using (var pb = new SolidBrush(Color.FromArgb(130, 130, 130))) e.Graphics.FillPolygon(pb, pfeil);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(r.X + 18, r.Y, r.Width - 20, 20), Color.Black,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
     }
@@ -1491,7 +1506,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
         public Reiterleiste()
         {
-            Height = 24;
+            Height = 22;
             Font = Ui.Schrift;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }

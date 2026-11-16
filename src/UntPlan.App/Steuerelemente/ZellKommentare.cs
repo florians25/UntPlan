@@ -21,6 +21,93 @@ public sealed class ZellKommentare
         _bezug = bezug;
         g.CellPainting += Zeichnen;
         g.CellToolTipTextNeeded += Hinweis;
+        // Hinweisfenster wie im Handbuch-Bild (Kap. 4.5): Rahmen in der Farbe der Kategorie, „Kommentar“ fett, Kategorie fett im weißen
+        // Kästchen, Kommentartext, „Änderungsdatum: 13. 9.2023“ kursiv
+        _tip.Popup += (_, e) => { if (_tipInhalt != null) e.ToolTipSize = TipGroesse(_tipInhalt); };
+        _tip.Draw += (_, e) => { if (_tipInhalt != null) TipZeichnen(e.Graphics, e.Bounds, _tipInhalt); };
+        g.CellMouseEnter += (_, e) =>
+        {
+            var ks = Kommentare(e.RowIndex, e.ColumnIndex);
+            if (ks.Count == 0) { TipVerbergen(); return; }
+            _tipInhalt = ks;
+            var r = g.GetCellDisplayRectangle(e.ColumnIndex, e.RowIndex, false);
+            _tip.Show(" ", g, new Point(r.Right - 8, r.Top - TipGroesse(ks).Height - 2), 8000);
+        };
+        g.CellMouseLeave += (_, _) => TipVerbergen();
+        g.MouseLeave += (_, _) => TipVerbergen();
+        g.Disposed += (_, _) => _tip.Dispose();
+    }
+
+    private readonly ToolTip _tip = new() { OwnerDraw = true, UseAnimation = false, UseFading = false };
+    private List<Kommentar>? _tipInhalt;
+    private static readonly Font TipSchrift = new("Tahoma", 8.25f);
+    private static readonly Font TipFett = new("Tahoma", 8.25f, FontStyle.Bold);
+    private static readonly Font TipKursiv = new("Tahoma", 8.25f, FontStyle.Italic);
+    private static readonly Color TipRand = Color.FromArgb(227, 238, 254);
+
+    private void TipVerbergen()
+    {
+        if (_tipInhalt is null) return;
+        _tipInhalt = null;
+        _tip.Hide(_g);
+    }
+
+    private static string Kategorie(Kommentar k) => D.KommentarKategorien.FirstOrDefault(x => x.Nr == k.Kategorie)?.Name ?? "Kategorie " + k.Kategorie;
+
+    /// <summary>Änderungsdatum wie im Vorbild: Monat zweistellig mit Leerzeichen („13. 9.2023“).</summary>
+    private static string DatumText(DateTime d) => $"{d.Day}.{d.Month,2}.{d.Year}";
+
+    private static IEnumerable<(string Text, Font Schrift, bool Mitte, bool Kasten)> TipZeilen(List<Kommentar> ks)
+    {
+        foreach (var k in ks)
+        {
+            yield return ("Kommentar", TipFett, true, false);
+            yield return (Kategorie(k), TipFett, true, true);
+            yield return ("", TipSchrift, false, false);
+            foreach (var z in k.Text.Replace("\r", "").Split('\n')) yield return (z, TipSchrift, false, false);
+            yield return ("", TipSchrift, false, false);
+            yield return ($"Änderungsdatum: {DatumText(k.Erstellt)}", TipKursiv, false, false);
+        }
+    }
+
+    private static Size TipGroesse(List<Kommentar> ks)
+    {
+        int breite = 60, hoehe = 0;
+        foreach (var (text, schrift, _, kasten) in TipZeilen(ks))
+        {
+            var g = TextRenderer.MeasureText(text.Length == 0 ? " " : text, schrift, Size.Empty, TextFormatFlags.NoPadding);
+            breite = Math.Max(breite, g.Width + (kasten ? 6 : 0));
+            hoehe += text.Length == 0 ? g.Height / 2 + 2 : g.Height + (kasten ? 3 : 1);
+        }
+        return new Size(breite + 2 * 5 + 2 * 4, hoehe + 2 * 4 + 2 * 4);
+    }
+
+    private static void TipZeichnen(Graphics g, Rectangle r, List<Kommentar> ks)
+    {
+        using (var rand = new SolidBrush(TipRand)) g.FillRectangle(rand, r);
+        g.DrawRectangle(Pens.Gray, r.X, r.Y, r.Width - 1, r.Height - 1);
+        var innen = Rectangle.Inflate(r, -4, -4);
+        using (var b = new SolidBrush(ks.Count > 0 ? Farbe(ks[0]) : Color.Orange)) g.FillRectangle(b, innen);
+        var y = innen.Top + 4;
+        foreach (var (text, schrift, mitte, kasten) in TipZeilen(ks))
+        {
+            var groesse = TextRenderer.MeasureText(g, text.Length == 0 ? " " : text, schrift, Size.Empty, TextFormatFlags.NoPadding);
+            if (text.Length == 0) { y += groesse.Height / 2 + 2; continue; }
+            var x = mitte ? innen.Left + (innen.Width - groesse.Width) / 2 : innen.Left + 5;
+            if (kasten)
+            {
+                var k = new Rectangle(x - 3, y, groesse.Width + 6, groesse.Height + 2);
+                g.FillRectangle(Brushes.White, k);
+                g.DrawRectangle(Pens.Gray, k);
+                TextRenderer.DrawText(g, text, schrift, new Point(x, y + 1), Color.Black, TextFormatFlags.NoPadding);
+                y += groesse.Height + 3;
+            }
+            else
+            {
+                TextRenderer.DrawText(g, text, schrift, new Point(x, y), Color.Black, TextFormatFlags.NoPadding);
+                y += groesse.Height + 1;
+            }
+        }
     }
 
     /// <summary>Kommentare für eine Tabelle aktivieren. <paramref name="bezug"/> liefert zu einer Zeile Schlüssel („Absenz:17“) und Titel („Absenz Nr. 17“).</summary>
@@ -59,8 +146,8 @@ public sealed class ZellKommentare
     {
         var ks = Kommentare(e.RowIndex, e.ColumnIndex);
         if (ks.Count == 0) return;
-        e.ToolTipText = string.Join("\n\n", ks.Select(k =>
-            $"Kommentar\n{D.KommentarKategorien.FirstOrDefault(x => x.Nr == k.Kategorie)?.Name ?? "Kategorie " + k.Kategorie}\n{k.Text}\nÄnderungsdatum: {k.Erstellt:d.M.yyyy}"));
+        // der Kommentar erscheint im eigenen Hinweisfenster (siehe CellMouseEnter) – kein zusätzlicher Standard-Tooltip
+        e.ToolTipText = "";
     }
 
     /// <summary>Menüeinträge wie im Vorbild: Kommentar erstellen, Kommentar bearbeiten ▸, Kommentar(e) löschen, Kommentar Übersichtsfenster.</summary>

@@ -14,6 +14,8 @@ namespace UntPlan.App.Fenster;
 public sealed class AbwesenheitenFenster : MdiFenster
 {
     private static readonly string[] Reiter = { "Lehrer", "Klassen", "Räume" };
+    /// <summary>Schrift der Absenzliste wie in den Handbuch-Bildern (Segoe UI 8,25 statt 9).</summary>
+    private static readonly Font TabellenSchrift = new("Segoe UI", 8.25f);
     private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -25,6 +27,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private bool _neuaufbauAusstehend;
     private readonly Label _tage = new() { AutoSize = true };
     private readonly ToolStripButton _filterKnopf;
+    private readonly ToolStripDropDownButton _sortierMenue = new("Sortieren", Symbole.Get("sortieren", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Sortieren" };
+    /// <summary>Summenzeile unter der Liste (Kontextmenü „Summenzeile“).</summary>
+    private readonly Label _summe = new() { Dock = DockStyle.Bottom, Height = 17, Visible = false, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf };
     /// <summary>Filtertext (Kurzname, Grund oder Text enthält ihn); leer = alle Absenzen.</summary>
     private string _filter = "";
     /// <summary>Sortierung der Liste: 0 = Element und Datum (Standard), 1 = Datum, 2 = Absenznummer, 3 = Absenzgrund.</summary>
@@ -55,7 +60,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Text = "Absenzen / Lehrer";
         HilfeThema = "Abwesenheiten";
         Icon = SymbolIcon("abwesenheit");
-        Size = new Size(780, 320);
+        // Fenstergröße wie im Handbuch-Bild (Kap. 3.2, 96 dpi)
+        Size = new Size(612, 277);
         Positionieren();
         foreach (var t in Reiter) _tabs.Hinzufuegen(t + " (0)");
         // Reiterwechsel: offenen Entwurf zuerst übernehmen (früher blieb die alte Liste unter dem neuen Reiter stehen)
@@ -77,17 +83,11 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         _filterKnopf = Knopf("Filter", "filter", FilterSetzen);
         ts.Items.Add(_filterKnopf);
-        var sortieren = new ToolStripDropDownButton("Sortieren", Symbole.Get("sortieren", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Sortieren" };
+        var sortieren = _sortierMenue;
         foreach (var (text, art) in new[] { ("nach Element und Datum", 0), ("nach Datum", 1), ("nach Absenznummer", 2), ("nach Absenzgrund", 3) })
         {
             var mi = new ToolStripMenuItem(text) { Checked = art == 0, Tag = art };
-            mi.Click += (_, _) =>
-            {
-                _sortierung = art;
-                foreach (ToolStripMenuItem x in sortieren.DropDownItems) x.Checked = x == mi;
-                EntwurfSofortUebernehmen();
-                Neuaufbau();
-            };
+            mi.Click += (_, _) => SortierungSetzen(art);
             sortieren.DropDownItems.Add(mi);
         }
         ts.Items.Add(sortieren);
@@ -120,22 +120,30 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern
         _g.RowHeadersVisible = false;
         _g.BorderStyle = BorderStyle.Fixed3D;
+        // Handbuch-Bilder (Kap. 3.2/5.2, auf 96 dpi umgerechnet): Tabellenschrift Segoe UI 8,25, Zeilen 16, Überschrift 17 Pixel hoch
+        _g.Font = TabellenSchrift;
+        _g.DefaultCellStyle.Font = TabellenSchrift;
+        _g.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
+        _g.RowTemplate.Height = 16;
+        _g.ColumnHeadersHeight = 17;
         Ui.ZeilenmarkeErsteSpalte(_g);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
-        // Überschriften und Breiten wie in der Vorlage: AbsNr | Lehrer | Von TT.MM. | ab St. | Bis TT.MM. | bis St. | Grund | Text
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr", Width = 44, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 80, Array.Empty<string>()));
-        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 86), ("SV", "ab St.", 68), ("B", "Bis TT.MM.", 81), ("SB", "bis St.", 78) })
+        // Überschriften und Breiten wie in der Vorlage (96 dpi): AbsNr. 47 | Lehrer 70 | Von TT.MM. 69 | ab St. 40 | Bis TT.MM. 64 |
+        // bis St. 42 | Grund 54 | Text 33 – rechts davon bleibt die Fläche frei (keine Spalte füllt das Fenster)
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 47, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 70, Array.Empty<string>()));
+        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 69), ("SV", "ab St.", 40), ("B", "Bis TT.MM.", 64), ("SB", "bis St.", 42) })
             _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 66, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 54, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 33 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true });
+        // weitere Felder sind wie im Vorbild (Kap. 15.8) zunächst ausgeblendet und werden über „Felder der Ansicht“ eingeblendet
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true, Visible = false });
         // wie im Vorbild: Anrechnung, Entfalltage und Absenztage (Unterrichtstage im Zeitraum)
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 80, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 75, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 80, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 75, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 75, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         // Reihenfolge wie im Vorbild: … Grund, Text, Anrechnung, Entfalltage, Absenztage, dann die weiteren Spalten
         var nachText = _g.Columns["T"]!.DisplayIndex;
         _g.Columns["Anr"]!.DisplayIndex = nachText + 1;
@@ -223,6 +231,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         kopf.Controls.Add(rechts);
 
         Controls.Add(_g);
+        Controls.Add(_summe);
         Controls.Add(_tabs);
         Controls.Add(kopf);
         Controls.Add(ts);
@@ -462,6 +471,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _zuMarkierungSpringen = false;
         try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, Schluessel, Schluessel, ZeileSetzen, aktuell: springe); }
         finally { _laedt = false; }
+        SummeAktualisieren();
         for (var i = 0; i < 3; i++)
         {
             var art = (AbwesenheitsArt)i;
@@ -534,6 +544,13 @@ public sealed class AbwesenheitenFenster : MdiFenster
         EntwurfSofortUebernehmen();
         var text = Ui.Eingabe("Nur Absenzen anzeigen, deren Element, Grund oder Text Folgendes enthält (leer = alle):", "Filter", _filter);
         if (text is null) return;
+        FilterAnwenden(text);
+    }
+
+    /// <summary>Filter setzen (leer = aus) und die Liste neu aufbauen.</summary>
+    private void FilterAnwenden(string text)
+    {
+        EntwurfSofortUebernehmen();
         _filter = text.Trim();
         _filterKnopf.Checked = _filter.Length > 0;
         _filterKnopf.ToolTipText = _filter.Length > 0 ? $"Filter: {_filter}" : "Filter";
@@ -756,25 +773,28 @@ public sealed class AbwesenheitenFenster : MdiFenster
     }
 
     /// <summary>
-    /// Kontextmenü wie im Vorbild (Handbuch Kap. 4.5): Felder der Ansicht, Spaltenbreite anpassen, Alle Spalten anpassen, Alle Spalten an
-    /// Inhalt anpassen, Zeilenumbruch, Kommentar erstellen/bearbeiten/löschen, Kommentar Übersichtsfenster – davor die Bearbeitungsfunktionen.
+    /// Kontextmenü wie im Handbuch-Bild (Kap. 4.5): Sortieren ▸ | Felder der Ansicht, Summenzeile, Spaltenbreite anpassen, Alle Spalten
+    /// anpassen (Strg+E), Alle Spalten an Inhalt anpassen (Strg+F), Aktuellen Feldinhalt als Filter setzen, Zeilenumbruch | Kommentar
+    /// erstellen, Kommentar bearbeiten ▸, Kommentar(e) löschen, Kommentar Übersichtsfenster. Neu, Bearbeiten, Löschen, Splitten, Kopieren
+    /// und Zusammenfassen stehen in der Symbolleiste.
     /// </summary>
     private ContextMenuStrip Kontextmenue(int zeile, int spalte)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         cm.Closed += (_, _) => BeginInvoke(cm.Dispose);
-        cm.Items.Add("Neue Absenz…", Symbole.Get("neu"), (_, _) => Neu());
-        cm.Items.Add("Bearbeiten…", Symbole.Get("einstellungen"), (_, _) => Bearbeiten());
-        cm.Items.Add("Absenz splitten…", Symbole.Get("tausch"), (_, _) => Teilen());
-        cm.Items.Add("Absenz kopieren…", null, (_, _) => Kopieren());
-        cm.Items.Add("Absenzen zusammenfassen", null, (_, _) => Zusammenfassen());
-        cm.Items.Add("Löschen", Symbole.Get("loeschen"), (_, _) => Loeschen());
+        var sortieren = new ToolStripMenuItem("Sortieren");
+        foreach (var (text, art) in new[] { ("nach Element und Datum", 0), ("nach Datum", 1), ("nach Absenznummer", 2), ("nach Absenzgrund", 3) })
+            sortieren.DropDownItems.Add(new ToolStripMenuItem(text, null, (_, _) => SortierungSetzen(art)) { Checked = _sortierung == art });
+        cm.Items.Add(sortieren);
         cm.Items.Add(new ToolStripSeparator());
         cm.Items.Add("Felder der Ansicht", null, (_, _) => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position));
+        cm.Items.Add(new ToolStripMenuItem("Summenzeile", null, (_, _) => { _summe.Visible = !_summe.Visible; SummeAktualisieren(); }) { Checked = _summe.Visible });
         var col = _g.Columns[spalte];
         cm.Items.Add("Spaltenbreite anpassen", null, (_, _) => col.Width = Math.Max(col.MinimumWidth, col.GetPreferredWidth(DataGridViewAutoSizeColumnMode.AllCells, true)));
         cm.Items.Add(new ToolStripMenuItem("Alle Spalten anpassen", null, (_, _) => SpaltenAnpassen(DataGridViewAutoSizeColumnMode.AllCells)) { ShortcutKeyDisplayString = "Strg+E" });
         cm.Items.Add(new ToolStripMenuItem("Alle Spalten an Inhalt anpassen", null, (_, _) => SpaltenAnpassen(DataGridViewAutoSizeColumnMode.AllCellsExceptHeader)) { ShortcutKeyDisplayString = "Strg+F" });
+        var feldinhalt = zeile >= 0 && zeile < _g.Rows.Count ? _g[spalte, zeile].FormattedValue?.ToString()?.Trim() ?? "" : "";
+        cm.Items.Add(new ToolStripMenuItem("Aktuellen Feldinhalt als Filter setzen", null, (_, _) => FilterAnwenden(feldinhalt)) { Enabled = feldinhalt.Length > 0 || _filter.Length > 0 });
         var umbruch = new ToolStripMenuItem("Zeilenumbruch") { Checked = _g.DefaultCellStyle.WrapMode == DataGridViewTriState.True };
         umbruch.Click += (_, _) =>
         {
@@ -785,6 +805,24 @@ public sealed class AbwesenheitenFenster : MdiFenster
         cm.Items.Add(new ToolStripSeparator());
         cm.Items.AddRange(_kommentare.MenueEintraege(zeile, spalte).ToArray());
         return cm;
+    }
+
+    /// <summary>Sortierung wählen (Symbolleiste und Kontextmenü).</summary>
+    private void SortierungSetzen(int art)
+    {
+        _sortierung = art;
+        foreach (var x in _sortierMenue.DropDownItems.OfType<ToolStripMenuItem>()) x.Checked = x.Tag is int t && t == art;
+        EntwurfSofortUebernehmen();
+        Neuaufbau();
+    }
+
+    /// <summary>Summenzeile: Anzahl der angezeigten Absenzen sowie Summen der Absenz- und Entfalltage.</summary>
+    private void SummeAktualisieren()
+    {
+        if (!_summe.Visible) return;
+        var zeilen = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Abwesenheit).ToList();
+        int Summe(string spalte) => zeilen.Sum(r => int.TryParse(r.Cells[spalte].Value?.ToString(), out var n) ? n : 0);
+        _summe.Text = $"Summe: {zeilen.Count} {(zeilen.Count == 1 ? "Absenz" : "Absenzen")}   Absenztage: {Summe("Abs")}   Entfalltage: {Summe("Ent")}";
     }
 
     private void SpaltenAnpassen(DataGridViewAutoSizeColumnMode modus)

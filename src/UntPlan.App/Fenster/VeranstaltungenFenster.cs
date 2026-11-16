@@ -21,7 +21,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
-    private readonly NumericUpDown _nr = new() { Width = 70, Maximum = int.MaxValue, Minimum = 0 };
+    private readonly NumericUpDown _nr = new() { Width = 72, Maximum = int.MaxValue, Minimum = 0 };
     private readonly ZeitraumAuswahl _zeitraum;
     private bool _laedt;
     private readonly ZellKommentare _kommentare;
@@ -89,13 +89,14 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.MultiSelect = true;
         foreach (var (n, k, b) in new[]
         {
-            ("Nr", "VA-Nr.", 50), ("K", "Klasse", 70), ("KT", "Kl-Teil", 60), ("L", "Lehrer", 80), ("R", "Raum", 55), ("V", "Von TT.MM.", 100), ("SV", "ab St.", 48),
-            ("B", "Bis TT.MM.", 100), ("SB", "bis St.", 48),
+            // Spaltenbreiten wie im Handbuch-Bild (Kap. 6.2, auf 96 dpi umgerechnet)
+            ("Nr", "VA-Nr.", 40), ("K", "Klasse", 40), ("KT", "Kl-Teil", 38), ("L", "Lehrer", 39), ("R", "Raum", 36), ("V", "Von TT.MM.", 67), ("SV", "ab St.", 36),
+            ("B", "Bis TT.MM.", 63), ("SB", "bis St.", 38),
         })
             _g.Columns.Add(n is "V" or "B" ? DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr" });
-        _g.Columns.Add(SuchKombi.Spalte("G", "Grund", 60, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 140 });
-        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählen", Width = 46 });
+        _g.Columns.Add(SuchKombi.Spalte("G", "Grund", 38, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 28 });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählen", Width = 39 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "SG", HeaderText = "Schülergruppe", Width = 140 });
         // Handbuch „Wert der Veranstaltung ändern“: selbst definierter Wert für den Vertretungszähler (Wie zählen: Werte)
         _g.Columns.Add(new DataGridViewTextBoxColumn
@@ -155,8 +156,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         gruppe.Controls.Add(_zeitraum);
         _zeitraum.Location = new Point(6, 18);
         kopf.Controls.Add(gruppe);
-        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 30, Padding = new Padding(16, 3, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = true, Padding = new Padding(0, 5, 6, 0) });
+        // Fußleiste wie im Bild: 28 hoch, „VA-Nr.“ bei x = 31, Zahlenfeld 72 breit bei x = 79
+        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(28, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 45, Height = 22 });
         unten.Controls.Add(_nr);
         _nr.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Springen((int)_nr.Value); } };
         _g.SelectionChanged += (_, _) => { if (!_laedt && !_nr.Focused && _g.CurrentRow?.Tag is Veranstaltung v) _nr.Value = Math.Min(_nr.Maximum, v.Id); };

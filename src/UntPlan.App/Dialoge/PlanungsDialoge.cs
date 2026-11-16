@@ -65,15 +65,25 @@ public static class OptionenDialog
 {
     public static int? Fragen(IWin32Window owner, string titel, string meldung, IReadOnlyList<string> optionen, int vorgabe = 0)
     {
-        var hoehe = 140 + optionen.Count * 24;
-        using var d = new Dialog(titel, 520, Math.Max(220, hoehe + 60));
-        var text = new TextBox { Text = meldung.Replace("\n", Environment.NewLine), Left = 12, Top = 10, Width = 496, Height = 110, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = d.BackColor };
-        d.Controls.Add(text);
-        var grp = new GroupBox { Text = "Optionen", Left = 12, Top = 126, Width = 496, Height = 28 + optionen.Count * 24 };
+        // Maße wie in der Handbuch-Abbildung „Frage“ (96 dpi): Fenster 521 × 236, Meldung oben links, Gruppe „Optionen“
+        // 508 × 99 mit Optionsfeldern im Abstand 17, OK/Abbrechen 75 × 23 unten rechts; längere Meldungen bzw. mehr
+        // Optionen vergrößern das Fenster nach unten
+        var schrift = Dialoge.VorbildMasse.Schrift;
+        var text = meldung.Replace("\n", Environment.NewLine);
+        var textHoehe = Math.Min(400, TextRenderer.MeasureText(text, schrift, new Size(496, 0), TextFormatFlags.WordBreak).Height);
+        var mehrText = Math.Max(0, textHoehe - 88);
+        var mehrOptionen = Math.Max(0, optionen.Count - 4) * 17;
+        using var d = new Dialog(titel, 521, 236 + mehrText + mehrOptionen) { Font = schrift };
+        d.Ok.Size = d.Abbrechen.Size = Dialoge.VorbildMasse.Knopf;
+        d.Ok.Location = new Point(356, 210 + mehrText + mehrOptionen);
+        d.Abbrechen.Location = new Point(444, 210 + mehrText + mehrOptionen);
+        var label = new Label { Text = text, Left = 12, Top = 12, Width = 496, Height = 88 + mehrText, AutoSize = false };
+        d.Controls.Add(label);
+        var grp = new GroupBox { Text = "Optionen", Left = 11, Top = 106 + mehrText, Width = 508, Height = 99 + mehrOptionen, Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         var knoepfe = new List<RadioButton>();
         for (var i = 0; i < optionen.Count; i++)
         {
-            var r = new RadioButton { Text = optionen[i], Left = 12, Top = 20 + i * 24, Width = 470, Checked = i == vorgabe };
+            var r = new RadioButton { Text = optionen[i], Left = 15, Top = 23 + i * 17, Width = 486, Height = 17, Checked = i == vorgabe };
             grp.Controls.Add(r);
             knoepfe.Add(r);
         }

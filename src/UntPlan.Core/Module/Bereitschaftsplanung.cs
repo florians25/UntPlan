@@ -78,10 +78,13 @@ public static class Bereitschaftsplanung
         return res.OrderBy(k => k.Punkte).ThenBy(k => k.Lehrer.Kurzname).ToList();
     }
 
-    /// <summary>Bereitschaft eintragen: Bereitschafts-Unterricht des Lehrers (wird bei Bedarf angelegt) um eine fixierte Stunde ergänzen.</summary>
-    public static void Setzen(Schuldatei d, int lehrerId, int tag, int stunde)
+    /// <summary>
+    /// Bereitschaft eintragen: Bereitschafts-Unterricht des Lehrers (wird bei Bedarf angelegt) um eine fixierte Stunde ergänzen.
+    /// <paramref name="fachId"/> wählt eines von mehreren Bereitschaftsfächern (null = das erste bzw. ein neu angelegtes).
+    /// </summary>
+    public static void Setzen(Schuldatei d, int lehrerId, int tag, int stunde, int? fachId = null)
     {
-        var fach = FachSicherstellen(d);
+        var fach = fachId is int fid && d.Faecher.FirstOrDefault(f => f.Id == fid && f.Bereitschaft) is { } gewaehlt ? gewaehlt : FachSicherstellen(d);
         var u = d.Unterrichte.FirstOrDefault(x => x.Zeilen.Count == 1 && x.Zeilen[0].FachId == fach.Id && x.Zeilen[0].LehrerId == lehrerId);
         if (u is null)
         {

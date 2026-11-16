@@ -91,7 +91,15 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             ts.Items.Add(Knopf("Zeitwünsche", "zeitwunsch", () => ZeitwuenscheFenster.Zeigen(_typ, _aktuell?.Id)));
         }
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Schuljahreskalender", "kalender", () => HauptFenster.Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
+        // wie im Handbuch Vertretungsplanung (Kap. 5.3): im Vertretungsmodus öffnet der Schuljahreskalender bei Lehrern, Klassen und Räumen
+        // die Absenzeingabe „Absenzen - <Element>“ des gewählten Elements, sonst den Ferienkalender
+        var sjk = Knopf("Schuljahreskalender", "kalender", () =>
+        {
+            if (AppZustand.Vertretungsmodus && _typ is ElementTyp.Lehrer or ElementTyp.Klasse or ElementTyp.Raum && _aktuell is { } el) AbsenzKalenderDialog.Zeigen(this, _typ, el.Id);
+            else HauptFenster.Oeffnen<FerienFenster>("ferien", () => new FerienFenster());
+        });
+        sjk.ToolTipText = "Schuljahreskalender\nDatumsanzeige mit Hilfe des Schuljahreskalenders";
+        ts.Items.Add(sjk);
         // Klassenzeitraster (Verplanung / Vertretung) wie in der Vorlage direkt neben dem Schuljahreskalender
         if (typ == ElementTyp.Klasse)
             ts.Items.Add(Knopf("Klassenzeitraster", "zeitraster", () => { if ((_aktuell as Klasse ?? D.Klassen.FirstOrDefault()) is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }));

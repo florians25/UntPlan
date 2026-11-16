@@ -62,6 +62,46 @@ public class VertretungsausgabeTests
         Assert.Equal("Aushang_heute.pdf", Vertretungsformate.PdfDateiname(vorlage, new DateOnly(2026, 11, 5), "Aushang/heute"));
     }
 
+    [Fact]
+    public void GeschuetztesFormatKannNichtGeloeschtWerdenUndKopieIstUngeschuetzt()
+    {
+        var liste = Vertretungsformate.Ergaenzen(null);
+        var vorlage = liste.First(f => f.Langname == "Druck - Klasse");
+        var neu = Vertretungsformate.Kopieren(liste, vorlage, "Kla2", "Schülerliste");
+        neu.Geschuetzt = true;
+        Assert.False(Vertretungsformate.Loeschen(liste, neu));
+        Assert.Contains(neu, liste);
+        var kopie = Vertretungsformate.Kopieren(liste, neu, "Kla3", "Schülerliste 2");
+        Assert.False(kopie.Geschuetzt);
+        neu.Geschuetzt = false;
+        Assert.True(Vertretungsformate.Loeschen(liste, neu));
+    }
+
+    [Fact]
+    public void FarbenUndBezeichnungenZeilenUndStandardfarben()
+    {
+        var z = VertretungsartFarben.Zeilen;
+        Assert.Equal("Neue Vertretung", z[0].Art);
+        Assert.Equal(new[] { "verlegt", "Verlegung", "Tausch", "Betreuung", "Sondereins." }, z.Skip(1).Take(5).Select(x => x.Art));
+        Assert.Equal("Bereitschaftsvertretung", z[28].Art);
+        // jede Vertretungsart hat eine Zeile, kein Schlüssel doppelt
+        Assert.All(Enum.GetNames<VertretungsArt>(), n => Assert.Contains(z, x => x.Schluessel == n));
+        Assert.Equal(z.Count, z.Select(x => x.Schluessel).Distinct().Count());
+
+        var e = new VertretungsEinstellungen();
+        Assert.Equal(0xFF0000, VertretungsartFarben.Vordergrund(e, "Entfall"));
+        Assert.Equal(0x80FFFF, VertretungsartFarben.Hintergrund(e, "Pausenaufsicht"));
+        Assert.Null(VertretungsartFarben.Hintergrund(e, "Vertretung"));
+        VertretungsartFarben.VordergrundSetzen(e, "Entfall", 0xFF0000);
+        Assert.Empty(e.Vordergrundfarben); // Standardwert wird nicht gespeichert
+        VertretungsartFarben.VordergrundSetzen(e, "Entfall", 0x123456);
+        VertretungsartFarben.HintergrundSetzen(e, "Vertretung", 0x00FF00);
+        Assert.Equal(0x123456, VertretungsartFarben.Vordergrund(e, "Entfall"));
+        Assert.Equal(0x00FF00, e.Farben["Vertretung"]);
+        VertretungsartFarben.HintergrundSetzen(e, "Vertretung", null);
+        Assert.False(e.Farben.ContainsKey("Vertretung"));
+    }
+
     private static (Schuldatei quelle, DateOnly tag, int lehrer) QuelleMitAbsenz()
     {
         var d = Testdaten.Verplant();

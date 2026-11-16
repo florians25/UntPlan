@@ -75,7 +75,7 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar, IExcelExport
     /// PDF-Ausgabe: direkt als PDF-Datei über den Microsoft-Edge-Browser im Hintergrund (in Windows 10/11 enthalten) – ohne
     /// Druckerauswahl. Ist Edge nicht vorhanden, wie bisher über den Druckdialog mit dem Drucker „Microsoft Print to PDF“.
     /// </summary>
-    private void PdfAusgeben()
+    internal void PdfAusgeben()
     {
         if (Ui.FehlerProtokoll != null) return;
         var edge = EdgePfad();

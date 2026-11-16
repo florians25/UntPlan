@@ -28,6 +28,8 @@ public sealed class Vertretungsformat
     public bool Tagesliste { get; set; }
     /// <summary>Vom Benutzer angelegt (kann gelöscht werden); die mitgelieferten Formate bleiben immer erhalten.</summary>
     public bool Eigen { get; set; }
+    /// <summary>„Geschützt“: das Format kann weder umbenannt noch gelöscht werden (Spalte im Fenster „Formate / Vertretung“).</summary>
+    public bool Geschuetzt { get; set; }
 
     public Vertretungsformat Kopie() => (Vertretungsformat)MemberwiseClone();
 
@@ -123,6 +125,7 @@ public static class Vertretungsformate
         neu.Standard = false;
         neu.Tagesliste = false;
         neu.Eigen = true;
+        neu.Geschuetzt = false;
         var i = liste.IndexOf(vorlage);
         liste.Insert(i < 0 ? liste.Count : i + 1, neu);
         return neu;
@@ -154,10 +157,10 @@ public static class Vertretungsformate
         return neu;
     }
 
-    /// <summary>Format löschen (nur eigene Formate). Rückgabe: gelöscht.</summary>
+    /// <summary>Format löschen (nur eigene, nicht geschützte Formate). Rückgabe: gelöscht.</summary>
     public static bool Loeschen(List<Vertretungsformat> liste, Vertretungsformat f)
     {
-        if (!f.Eigen) return false;
+        if (!f.Eigen || f.Geschuetzt) return false;
         var weg = liste.Remove(f);
         if (weg && f.Standard) Ergaenzen(liste);
         return weg;

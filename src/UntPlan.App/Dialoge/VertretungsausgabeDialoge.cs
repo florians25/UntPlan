@@ -10,11 +10,15 @@ public static class NeuesFormatDialog
 {
     internal static Dialog Erzeugen(string name, string langname, out TextBox n, out TextBox l)
     {
-        var d = new Dialog("Neues Format", 360, 128);
-        n = new TextBox { Text = name, Left = 12, Top = 16, Width = 92 };
-        l = new TextBox { Text = langname, Left = 12, Top = 50, Width = 204 };
-        d.Controls.AddRange(new Control[] { n, new Label { Text = "Name", Left = 112, Top = 19, AutoSize = true }, l, new Label { Text = "Langname", Left = 224, Top = 53, AutoSize = true } });
+        // Maße nach der Abbildung im Handbuch (96 dpi): Name 84 breit, Langname 187 breit, Beschriftung rechts daneben, Ok/Abbrechen 75×23
+        var d = new Dialog("Neues Format", 331, 118);
+        n = new TextBox { Text = name, Left = 11, Top = 12, Width = 84 };
+        l = new TextBox { Text = langname, Left = 11, Top = 42, Width = 187 };
+        d.Controls.AddRange(new Control[] { n, new Label { Text = "Name", Left = 102, Top = 16, AutoSize = true }, l, new Label { Text = "Langname", Left = 205, Top = 46, AutoSize = true } });
         d.Ok.Text = "Ok";
+        d.Ok.Size = d.Abbrechen.Size = new Size(75, 23);
+        d.Ok.Location = new Point(165, 83);
+        d.Abbrechen.Location = new Point(246, 83);
         return d;
     }
 

@@ -6,172 +6,193 @@ using UntPlan.Core.Planung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Bereitschaftsplanung wie im Handbuch (Fenster „Bereitschaften“): mit „Anzahl Bereitsch. anzeigen“ zeigt und ändert das Wochenraster die
-/// Anzahl der nötigen Bereitschaften je Stunde, ohne den Haken die eingeteilten Lehrkräfte („???“ = fehlt; grün = gedeckt, rot = fehlt).
-/// Lehrer-Vorschlag mit Merker, Anz.Bereit., Max.Bereit., Punkte und Zeitwünsche; automatische Verteilung; „Doppelstundenmodell“.
+/// Bereitschaftsplanung wie im Handbuch (Fenster „Bereitschaften“): oben Bereitschaftsfach, Bereitschaft (1, 2 … – die wievielte
+/// Bereitschaft einer Stunde das Raster zeigt), „Anzahl Bereitsch. anzeigen“ und „Doppelstundenmodell“, darunter das Wochenraster.
+/// Mit Haken zeigt und ändert das Raster die Anzahl der nötigen Bereitschaften je Stunde, ohne Haken die eingeteilten Lehrkräfte
+/// („???“ = fehlt; Kurzname direkt eintragbar). Werkzeugleiste: Lehrer-Vorschlag (eigenes Fenster mit „Übernahme“), Löschen,
+/// Automatik, Bereitschaften in Unterricht übertragen, Aktualisieren.
 /// </summary>
 public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
 {
-    private readonly DataGridView _raster = new() { Dock = DockStyle.Fill };
-    private readonly DataGridView _vorschlag = new() { Dock = DockStyle.Fill };
-    private readonly ListBox _eingeteilt = new() { Dock = DockStyle.Fill, IntegralHeight = false };
-    private readonly NumericUpDown _bedarf = new() { Minimum = 0, Maximum = 20, Width = 50 };
-    private readonly Label _zelle = new() { AutoSize = true, Font = Ui.SchriftFett, Padding = new Padding(0, 4, 8, 0) };
-    private readonly CheckBox _anzahl = new() { Text = "Anzahl Bereitsch. anzeigen", AutoSize = true, Left = 8, Top = 8 };
+    // Maße nach dem Handbuch-Bild (auf 96 dpi umgerechnet): Fenster 461 × 305, Raster ab y = 103, Zeilen 15 px, Tagesspalten 67 px
+    private readonly DataGridView _raster = new() { Left = 6, Top = 103, Width = 421, Height = 160, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
+    private readonly ComboBox _fach = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 20, Top = 33, Width = 72 };
+    private readonly NumericUpDown _nummer = new() { Minimum = 1, Maximum = 20, Value = 1, Left = 20, Top = 56, Width = 43 };
+    private readonly CheckBox _anzahl = new() { Text = "Anzahl Bereitsch. anzeigen", AutoSize = true, Left = 20, Top = 83 };
+    private readonly CheckBox _doppelt = new() { Text = "Doppelstundenmodell", AutoSize = true, Left = 232, Top = 83 };
     private (int Tag, int Stunde)? _gewaehlt;
     private bool _laedt;
+    private VorschlagFenster? _vorschlag;
 
     public BereitschaftsplanungFenster()
     {
         Text = "Bereitschaften";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("bereitschaft");
-        Size = new Size(1000, 520);
+        Size = new Size(461, 305);
         Positionieren();
         var ts = Werkzeugleiste();
-        ts.Items.Add(Knopf("Fehlende Bereitschaften automatisch besetzen", "optimierung", Automatisch, false));
-        var doppelt = new CheckBox { Text = "Doppelstundenmodell", AutoSize = true, Left = 220, Top = 8, Checked = D.Einstellungen.BereitschaftNurDoppelstunden };
-        doppelt.CheckedChanged += (_, _) =>
-        {
-            if (doppelt.Checked != D.Einstellungen.BereitschaftNurDoppelstunden)
-                Aendern("Bereitschaften nur als Doppelstunden", AenderungsArt.Einstellungen, d => d.Einstellungen.BereitschaftNurDoppelstunden = doppelt.Checked);
-        };
-        new ToolTip().SetToolTip(doppelt, "Die Automatik besetzt Bereitschaften immer paarweise in zwei aufeinanderfolgenden Stunden");
-        var oben = new Panel { Dock = DockStyle.Top, Height = 32 };
-        oben.Controls.AddRange(new Control[] { _anzahl, doppelt });
-        _anzahl.CheckedChanged += (_, _) => Neuaufbau();
-        ts.Items.Add(Knopf("Bedarf für alle Vormittagsstunden setzen", "bereitschaft", BedarfVormittag, false));
-        ts.Items.Add(Knopf("Alle Bereitschaften entfernen", "loeschen", AlleEntfernen, false));
+        ts.Items.Add(Knopf("Lehrer-Vorschlag", "lehrer", VorschlagOeffnen));
+        ts.Items.Add(Knopf("Löschen", "loeschen", Entfernen));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Automatik", "optimierung", Automatisch));
+        ts.Items.Add(Knopf("Bereitschaften in Unterricht übertragen", "unterricht", InUnterrichtUebertragen));
+        ts.Items.Add(Knopf("Aktualisieren", "aktualisieren", Neuaufbau));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Bedarf für alle Vormittagsstunden setzen", "bereitschaft", BedarfVormittag));
+        ts.Items.Add(Knopf("Alle Bereitschaften entfernen", "minus", AlleEntfernen));
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
+
+        var flaeche = new Panel { Dock = DockStyle.Fill };
+        _fach.Format += (_, e) => e.Value = e.ListItem is Fach f ? f.Kurzname : e.ListItem?.ToString();
+        FaecherLaden();
+        _fach.SelectionChangeCommitted += (_, _) => Neuaufbau();
+        _nummer.ValueChanged += (_, _) => { if (!_laedt) Neuaufbau(); };
+        _doppelt.Checked = D.Einstellungen.BereitschaftNurDoppelstunden;
+        _doppelt.CheckedChanged += (_, _) =>
+        {
+            if (_doppelt.Checked != D.Einstellungen.BereitschaftNurDoppelstunden)
+                Aendern("Bereitschaften nur als Doppelstunden", AenderungsArt.Einstellungen, d => d.Einstellungen.BereitschaftNurDoppelstunden = _doppelt.Checked);
+        };
+        new ToolTip().SetToolTip(_doppelt, "Die Automatik besetzt Bereitschaften immer paarweise in zwei aufeinanderfolgenden Stunden");
+        new ToolTip().SetToolTip(_nummer, "Die wievielte Bereitschaft einer Stunde das Raster zeigt (bei mehreren Bereitschaften je Stunde)");
+        _anzahl.CheckedChanged += (_, _) => Neuaufbau();
+        flaeche.Controls.AddRange(new Control[]
+        {
+            _fach, new Label { Text = "Bereitschaftsfach", Left = 95, Top = 37, AutoSize = true },
+            _nummer, new Label { Text = "Bereitschaft", Left = 68, Top = 59, AutoSize = true },
+            _anzahl, _doppelt, _raster,
+        });
+        flaeche.Resize += (_, _) => { _raster.Width = Math.Max(100, flaeche.ClientSize.Width - 12); _raster.Height = Math.Max(60, flaeche.ClientSize.Height - _raster.Top - 6); };
 
         Ui.RasterGestalten(_raster, false);
         _raster.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _raster.MultiSelect = false;
-        _raster.RowTemplate.Height = 40;
-        _raster.CellClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex > 0) Waehlen(e.ColumnIndex - 1, e.RowIndex + 1); };
-        // „Anzahl Bereitsch. anzeigen“: Anzahl direkt in die Zelle eintragen
-        _raster.CellEndEdit += (_, e) =>
+        _raster.AllowUserToAddRows = false;
+        _raster.RowHeadersVisible = false;
+        _raster.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        _raster.ColumnHeadersHeight = 15;
+        _raster.RowTemplate.Height = 15;
+        _raster.CurrentCellChanged += (_, _) =>
         {
-            if (_laedt || !_anzahl.Checked || e.RowIndex < 0 || e.ColumnIndex < 1) return;
-            var t = e.ColumnIndex - 1;
-            var s = e.RowIndex + 1;
-            if (!int.TryParse(_raster.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString(), out var n)) n = 0;
-            n = Math.Clamp(n, 0, 20);
-            if (n != Bereitschaftsplanung.Bedarf(D, t, s)) Aendern("Bereitschaftsbedarf", AenderungsArt.Einstellungen, d => Bereitschaftsplanung.BedarfSetzen(d, t, s, n));
-            else Neuaufbau();
+            if (_laedt || _raster.CurrentCell is not { } c || c.ColumnIndex < 1) return;
+            _gewaehlt = (c.ColumnIndex - 1, c.RowIndex + 1);
+            _vorschlag?.Fuellen();
         };
+        _raster.CellEndEdit += ZelleGeaendert;
         _raster.CellFormatting += Formatieren;
-        _raster.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
 
-        Ui.RasterGestalten(_vorschlag, false);
-        _vorschlag.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-        _vorschlag.MultiSelect = false;
-        foreach (var (n, k, w) in new[] { ("L", "Name", 60), ("M", "Merker", 50), ("W", "Anz.Bereit.", 70), ("Max", "Max.Bereit.", 70), ("P", "Punkte", 50), ("Z", "Zeitwünsche", 75), ("F", "freies Dep.", 70), ("H", "Lage", 150) })
-            _vorschlag.Columns[_vorschlag.Columns.Add(n, k)].Width = w;
-        _vorschlag.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Eintragen(); };
-
-        var rechts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
-        rechts.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
-        rechts.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        rechts.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
-        rechts.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-        rechts.RowStyles.Add(new RowStyle(SizeType.Percent, 65));
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
-        kopf.Controls.Add(_zelle);
-        kopf.Controls.Add(new Label { Text = "Bedarf:", AutoSize = true, Padding = new Padding(0, 4, 0, 0) });
-        kopf.Controls.Add(_bedarf);
-        var entfernen = new Button { Text = "Entfernen", Height = 24, Width = 80 };
-        entfernen.Click += (_, _) => Entfernen();
-        var eintragen = new Button { Text = "Übernahme", Height = 24, Width = 80 };
-        eintragen.Click += (_, _) => Eintragen();
-        kopf.Controls.Add(eintragen);
-        kopf.Controls.Add(entfernen);
-        rechts.Controls.Add(kopf, 0, 0);
-        rechts.Controls.Add(new Label { Text = "Eingeteilt:", AutoSize = true }, 0, 1);
-        rechts.Controls.Add(_eingeteilt, 0, 2);
-        rechts.Controls.Add(new Label { Text = "Lehrer-Vorschlag (Doppelklick = Übernahme):", AutoSize = true }, 0, 3);
-        rechts.Controls.Add(_vorschlag, 0, 4);
-        _bedarf.ValueChanged += (_, _) => BedarfGeaendert();
-
-        var split = new SplitContainer { Dock = DockStyle.Fill };
-        split.Panel1.Controls.Add(_raster);
-        split.Panel1.Controls.Add(oben);
-        split.Panel2.Controls.Add(rechts);
-        Controls.Add(split);
+        Controls.Add(flaeche);
         Controls.Add(ts);
-        Load += (_, _) => split.SplitterDistance = Math.Max(300, (int)(split.Width * 0.58));
+        FormClosed += (_, _) => _vorschlag?.Close();
         Neuaufbau();
     }
 
     protected override bool EigeneAenderungenAnzeigen => true;
-    protected override void Aktualisieren(AenderungsArt art) => Neuaufbau();
+
+    protected override void Aktualisieren(AenderungsArt art)
+    {
+        FaecherLaden();
+        Neuaufbau();
+    }
+
+    private void FaecherLaden()
+    {
+        var alt = (_fach.SelectedItem as Fach)?.Id;
+        _fach.Items.Clear();
+        foreach (var f in Stammdaten.Sortiert(D.Faecher).Where(f => f.Bereitschaft)) _fach.Items.Add(f);
+        var idx = _fach.Items.Cast<Fach>().ToList().FindIndex(f => f.Id == alt);
+        if (_fach.Items.Count > 0) _fach.SelectedIndex = Math.Max(0, idx);
+    }
+
+    /// <summary>Gewähltes Bereitschaftsfach (null = noch keines angelegt; wird beim ersten Eintrag angelegt).</summary>
+    private int? FachId => (_fach.SelectedItem as Fach)?.Id;
+
+    private List<Bereitschaftsstunde> Stunden() =>
+        Bereitschaftsplanung.Stunden(D).Where(b => FachId is not int f || b.Unterricht.Zeilen.Any(z => z.FachId == f)).ToList();
 
     private void Neuaufbau()
     {
         _laedt = true;
-        var stunden = Bereitschaftsplanung.Stunden(D);
+        var stunden = Stunden();
         _raster.Columns.Clear();
         _raster.Rows.Clear();
-        _raster.Columns[_raster.Columns.Add("S", "")].Width = 40;
-        _raster.Columns["S"]!.ReadOnly = true;
-        _raster.ReadOnly = !_anzahl.Checked;
-        _raster.RowTemplate.Height = _anzahl.Checked ? 22 : 40;
+        var kopf = _raster.Columns[_raster.Columns.Add("S", "")];
+        kopf.Width = 44;
+        kopf.ReadOnly = true;
+        kopf.DefaultCellStyle.BackColor = Color.FromArgb(240, 240, 240);
+        kopf.SortMode = DataGridViewColumnSortMode.NotSortable;
+        _raster.ReadOnly = false;
         for (var t = 0; t < D.Zeitraster.TageProWoche; t++)
         {
             var c = _raster.Columns[_raster.Columns.Add("T" + t, Planungsdienst.Tagname(D, t, true))];
-            c.Width = _anzahl.Checked ? 80 : 110;
+            c.Width = 67;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
         }
+        var n = (int)_nummer.Value;
         for (var s = 1; s <= D.Zeitraster.StundenProTag; s++)
         {
             var werte = new object[1 + D.Zeitraster.TageProWoche];
             werte[0] = D.Zeitraster.StundenLabel(s);
             for (var t = 0; t < D.Zeitraster.TageProWoche; t++)
             {
-                var namen = stunden.Where(b => b.Tag == t && b.Stunde == s).Select(b => b.Lehrer.Kurzname).ToList();
                 var bedarf = Bereitschaftsplanung.Bedarf(D, t, s);
-                werte[1 + t] = _anzahl.Checked ? bedarf.ToString()
-                    : string.Join(", ", namen.Concat(Enumerable.Repeat("???", Math.Max(0, bedarf - namen.Count))));
+                if (_anzahl.Checked) { werte[1 + t] = bedarf.ToString(); continue; }
+                // die n-te Bereitschaft der Stunde: Kurzname, „???“ wenn laut Bedarf noch offen, sonst leer
+                var namen = stunden.Where(b => b.Tag == t && b.Stunde == s).Select(b => b.Lehrer.Kurzname).OrderBy(k => k, StringComparer.CurrentCultureIgnoreCase).ToList();
+                werte[1 + t] = n <= namen.Count ? namen[n - 1] : n <= bedarf ? "???" : "";
             }
             _raster.Rows.Add(werte);
         }
-        var gesamtBedarf = D.Bereitschaftsbedarf.Sum(b => b.Anzahl);
-        Text = $"Bereitschaften – {stunden.Count} verplant, Bedarf {gesamtBedarf}";
+        if (_gewaehlt is { } g && g.Stunde - 1 < _raster.Rows.Count && g.Tag + 1 < _raster.Columns.Count)
+            _raster.CurrentCell = _raster.Rows[g.Stunde - 1].Cells[g.Tag + 1];
         _laedt = false;
-        if (_gewaehlt is { } g) Waehlen(g.Tag, g.Stunde);
+        _vorschlag?.Fuellen();
     }
 
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
     {
         if (e.RowIndex < 0 || e.ColumnIndex < 1 || e.CellStyle is null) return;
-        var t = e.ColumnIndex - 1;
-        var s = e.RowIndex + 1;
-        if (!D.Zeitraster.Verfuegbar(t, s)) { e.CellStyle.BackColor = Color.FromArgb(225, 225, 225); return; }
-        var bedarf = Bereitschaftsplanung.Bedarf(D, t, s);
-        if (bedarf == 0) return;
-        var ist = Bereitschaftsplanung.Stunden(D).Count(b => b.Tag == t && b.Stunde == s);
-        e.CellStyle.BackColor = ist >= bedarf ? Color.FromArgb(205, 238, 205) : Color.FromArgb(255, 210, 210);
+        if (!D.Zeitraster.Verfuegbar(e.ColumnIndex - 1, e.RowIndex + 1)) e.CellStyle.BackColor = Color.FromArgb(225, 225, 225);
     }
 
-    private void Waehlen(int tag, int stunde)
+    /// <summary>Eingabe in eine Zelle: mit „Anzahl Bereitsch. anzeigen“ der Bedarf, sonst der Kurzname der Lehrkraft (leer = entfernen).</summary>
+    private void ZelleGeaendert(object? sender, DataGridViewCellEventArgs e)
     {
-        _gewaehlt = (tag, stunde);
-        _laedt = true;
-        _zelle.Text = $"{Planungsdienst.Tagname(D, tag)}, {stunde}. Std.";
-        _bedarf.Value = Bereitschaftsplanung.Bedarf(D, tag, stunde);
-        _eingeteilt.Items.Clear();
-        foreach (var b in Bereitschaftsplanung.Stunden(D).Where(b => b.Tag == tag && b.Stunde == stunde)) _eingeteilt.Items.Add(new Eintrag(b.Lehrer));
-        _vorschlag.Rows.Clear();
-        foreach (var k in Bereitschaftsplanung.Vorschlag(D, tag, stunde))
+        if (_laedt || e.RowIndex < 0 || e.ColumnIndex < 1) return;
+        var t = e.ColumnIndex - 1;
+        var s = e.RowIndex + 1;
+        var text = _raster.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
+        if (_anzahl.Checked)
         {
-            var zw = k.Lehrer.Zeitwuensche.Get(tag, stunde);
-            var r = _vorschlag.Rows.Add(k.Lehrer.Kurzname, Merker(k.Lehrer, tag, stunde), k.BereitschaftenWoche, k.Lehrer.BereitschaftenMax, (int)k.Punkte, zw == 0 ? "" : zw.ToString("+0;-0"),
-                k.FreiesDeputat.ToString("+0.#;-0.#;0"), k.Hinweis);
-            _vorschlag.Rows[r].Tag = k.Lehrer;
-            if (zw > 0) _vorschlag.Rows[r].Cells["Z"].Style.BackColor = Color.FromArgb(140, 240, 140);
-            else if (zw < 0) _vorschlag.Rows[r].Cells["Z"].Style.BackColor = Color.FromArgb(255, 190, 190);
+            if (!int.TryParse(text, out var anzahl)) anzahl = 0;
+            anzahl = Math.Clamp(anzahl, 0, 20);
+            if (anzahl != Bereitschaftsplanung.Bedarf(D, t, s)) BeginInvoke(() => Aendern("Bereitschaftsbedarf", AenderungsArt.Einstellungen, d => Bereitschaftsplanung.BedarfSetzen(d, t, s, anzahl)));
+            else BeginInvoke(Neuaufbau);
+            return;
         }
-        _laedt = false;
+        var bisher = Aktuell(t, s);
+        if (text == "???" || string.Equals(text, bisher?.Kurzname, StringComparison.CurrentCultureIgnoreCase)) { BeginInvoke(Neuaufbau); return; }
+        Lehrer? neu = null;
+        if (text.Length > 0)
+        {
+            neu = D.Lehrer.FirstOrDefault(l => string.Equals(l.Kurzname, text, StringComparison.CurrentCultureIgnoreCase));
+            if (neu is null) { Ui.Info($"Lehrer \"{text}\" ist nicht vorhanden."); BeginInvoke(Neuaufbau); return; }
+        }
+        var fach = FachId;
+        BeginInvoke(() => Aendern($"Bereitschaft {neu?.Kurzname ?? bisher?.Kurzname}", AenderungsArt.Stundenplan, d =>
+        {
+            if (bisher != null) Bereitschaftsplanung.Entfernen(d, bisher.Id, t, s);
+            if (neu != null) Bereitschaftsplanung.Setzen(d, neu.Id, t, s, fach);
+        }));
+    }
+
+    /// <summary>Lehrkraft der gezeigten (n-ten) Bereitschaft an Tag/Stunde.</summary>
+    private Lehrer? Aktuell(int tag, int stunde)
+    {
+        var n = (int)_nummer.Value;
+        var liste = Stunden().Where(b => b.Tag == tag && b.Stunde == stunde).Select(b => b.Lehrer).OrderBy(l => l.Kurzname, StringComparer.CurrentCultureIgnoreCase).ToList();
+        return n <= liste.Count ? liste[n - 1] : null;
     }
 
     /// <summary>Merker wie im Vertretungsvorschlag: Abstand der Bereitschaft zur nächsten eigenen Stunde am Tag (leer = kein Unterricht).</summary>
@@ -181,29 +202,32 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
         return eigene.Count == 0 ? "" : eigene.Min().ToString();
     }
 
-    private sealed record Eintrag(Lehrer L)
+    private void VorschlagOeffnen()
     {
-        public override string ToString() => $"{L.Kurzname} – {L.VollerName}";
+        if (_vorschlag is { IsDisposed: false }) { _vorschlag.Activate(); return; }
+        _vorschlag = new VorschlagFenster(this);
+        _vorschlag.FormClosed += (_, _) => _vorschlag = null;
+        _vorschlag.Show(FindForm()?.MdiParent ?? (IWin32Window?)FindForm() ?? this);
+        _vorschlag.Fuellen();
     }
 
-    private void BedarfGeaendert()
+    private void Eintragen(Lehrer l)
     {
-        if (_laedt || _gewaehlt is not { } g) return;
-        var n = (int)_bedarf.Value;
-        Aendern("Bereitschaftsbedarf", AenderungsArt.Einstellungen, d => Bereitschaftsplanung.BedarfSetzen(d, g.Tag, g.Stunde, n));
-    }
-
-    private void Eintragen()
-    {
-        if (_gewaehlt is not { } g || _vorschlag.CurrentRow?.Tag is not Lehrer l) return;
-        Aendern($"Bereitschaft {l.Kurzname}", AenderungsArt.Stundenplan, d => Bereitschaftsplanung.Setzen(d, l.Id, g.Tag, g.Stunde));
+        if (_gewaehlt is not { } g) return;
+        var bisher = Aktuell(g.Tag, g.Stunde);
+        var fach = FachId;
+        Aendern($"Bereitschaft {l.Kurzname}", AenderungsArt.Stundenplan, d =>
+        {
+            if (bisher != null && bisher.Id != l.Id) Bereitschaftsplanung.Entfernen(d, bisher.Id, g.Tag, g.Stunde);
+            Bereitschaftsplanung.Setzen(d, l.Id, g.Tag, g.Stunde, fach);
+        });
     }
 
     private void Entfernen()
     {
-        if (_gewaehlt is not { } g || _eingeteilt.SelectedItem is not Eintrag e) return;
-        if (!Ui.LoeschenBestaetigen(1, "Bereitschaft", "Bereitschaften", e.L.Kurzname)) return;
-        Aendern($"Bereitschaft {e.L.Kurzname} entfernen", AenderungsArt.Stundenplan, d => Bereitschaftsplanung.Entfernen(d, e.L.Id, g.Tag, g.Stunde));
+        if (_gewaehlt is not { } g || Aktuell(g.Tag, g.Stunde) is not { } l) return;
+        if (!Ui.LoeschenBestaetigen(1, "Bereitschaft", "Bereitschaften", l.Kurzname)) return;
+        Aendern($"Bereitschaft {l.Kurzname} entfernen", AenderungsArt.Stundenplan, d => Bereitschaftsplanung.Entfernen(d, l.Id, g.Tag, g.Stunde));
     }
 
     private void Automatisch()
@@ -212,6 +236,18 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
         Aendern("Bereitschaften automatisch besetzen", AenderungsArt.Stundenplan, d => n = Bereitschaftsplanung.Automatisch(d));
         var fehlt = D.Bereitschaftsbedarf.Sum(b => Math.Max(0, b.Anzahl - Bereitschaftsplanung.Stunden(D).Count(x => x.Tag == b.Tag && x.Stunde == b.Stunde)));
         Ui.Info($"{n} Bereitschaften wurden eingeteilt.{(fehlt > 0 ? $"\n{fehlt} Bereitschaften konnten nicht besetzt werden (keine freie Lehrkraft bzw. Höchstzahl erreicht)." : "")}", "Bereitschaftsplanung");
+    }
+
+    /// <summary>
+    /// „Bereitschaften in Unterricht übertragen“: In UntPlan steht jede eingeteilte Bereitschaft bereits als fixierte Stunde eines
+    /// Bereitschafts-Unterrichts im Stundenplan; die Funktion meldet deshalb nur, wie viele Bereitschaften je Lehrkraft übertragen sind.
+    /// </summary>
+    private void InUnterrichtUebertragen()
+    {
+        var stunden = Stunden();
+        var lehrer = stunden.Select(b => b.Lehrer.Id).Distinct().Count();
+        Ui.Info($"{stunden.Count} Bereitschaften von {lehrer} Lehrkräften stehen im Unterricht und im Stundenplan.", "Bereitschaften in Unterricht übertragen");
+        Neuaufbau();
     }
 
     private void BedarfVormittag()
@@ -236,4 +272,74 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
     }
 
     public void Drucken(bool vorschau) => ListenDruck.DruckenTabelle(this, "Bereitschaftsplanung", _raster, vorschau);
+
+    /// <summary>
+    /// Lehrer-Vorschlag der Bereitschaftsplanung wie im Handbuch: eigenes Fenster mit „Übernahme“ und den Spalten Name, Merker,
+    /// Anz.Bereit., Max.Bereit., Punkte, Zeitwünsche (dahinter freies Deputat und Lage); Doppelklick übernimmt die Lehrkraft.
+    /// </summary>
+    private sealed class VorschlagFenster : Form
+    {
+        private readonly BereitschaftsplanungFenster _f;
+        private readonly DataGridView _g = new() { Left = 6, Top = 33, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
+
+        public VorschlagFenster(BereitschaftsplanungFenster f)
+        {
+            _f = f;
+            Text = "Lehrer-Vorschlag";
+            Font = Ui.Schrift;
+            ShowInTaskbar = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            ClientSize = new Size(354, 200);
+            var uebernahme = new Button { Text = "Übernahme", Left = 18, Top = 9, Width = 132, Height = 21 };
+            uebernahme.Click += (_, _) => Uebernehmen();
+            Ui.RasterGestalten(_g, false);
+            _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _g.MultiSelect = false;
+            _g.RowHeadersVisible = false;
+            _g.ReadOnly = true;
+            _g.AllowUserToAddRows = false;
+            _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            _g.ColumnHeadersHeight = 15;
+            _g.RowTemplate.Height = 15;
+            foreach (var (n, k, w) in new[] { ("L", "Name", 38), ("M", "Merker", 41), ("W", "Anz.Bereit.", 60), ("Max", "Max.Bereit.", 61), ("P", "Punkte", 41), ("Z", "Zeitwünsche", 68), ("F", "freies Dep.", 60), ("H", "Lage", 120) })
+            {
+                var c = _g.Columns[_g.Columns.Add(n, k)];
+                c.Width = w;
+                if (n is "M" or "W" or "Max" or "P" or "Z" or "F") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            }
+            _g.SetBounds(6, 33, ClientSize.Width - 12, ClientSize.Height - 39);
+            _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Uebernehmen(); };
+            Controls.Add(uebernahme);
+            Controls.Add(_g);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Ui.TitelleisteFaerben(this);
+        }
+
+        private void Uebernehmen()
+        {
+            if (_g.CurrentRow?.Tag is Lehrer l) _f.Eintragen(l);
+        }
+
+        public void Fuellen()
+        {
+            _g.Rows.Clear();
+            if (_f._gewaehlt is not { } g) { Text = "Lehrer-Vorschlag"; return; }
+            var d = _f.D;
+            Text = $"Lehrer-Vorschlag – {Planungsdienst.Tagname(d, g.Tag)}, {g.Stunde}. Std.";
+            foreach (var k in Bereitschaftsplanung.Vorschlag(d, g.Tag, g.Stunde))
+            {
+                var zw = k.Lehrer.Zeitwuensche.Get(g.Tag, g.Stunde);
+                var r = _g.Rows.Add(k.Lehrer.Kurzname, _f.Merker(k.Lehrer, g.Tag, g.Stunde), k.BereitschaftenWoche, k.Lehrer.BereitschaftenMax, (int)k.Punkte,
+                    zw == 0 ? "" : zw.ToString("+0;-0"), k.FreiesDeputat.ToString("+0.#;-0.#;0"), k.Hinweis);
+                _g.Rows[r].Tag = k.Lehrer;
+                if (zw > 0) _g.Rows[r].Cells["Z"].Style.BackColor = Color.FromArgb(140, 240, 140);
+                else if (zw < 0) _g.Rows[r].Cells["Z"].Style.BackColor = Color.FromArgb(255, 190, 190);
+            }
+        }
+    }
 }

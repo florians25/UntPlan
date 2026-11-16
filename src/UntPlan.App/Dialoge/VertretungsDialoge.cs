@@ -140,36 +140,40 @@ public static class SondereinsatzDialog
     {
         var d = AppZustand.D;
         var ix = AppZustand.Doc.Index;
-        using var f = new Dialog("Sondereinsätze", 860, 380);
+        // Maße wie in den Handbuch-Abbildungen (96 dpi): Fenster 768 × 240, oben Datum, Stunde von/bis und die Schaltflächen
+        // Klassen, Lehrer, Klassenkonferenz; Tabelle über die ganze Breite mit neun gleich breiten Spalten (83); Ok / Abbrechen mittig
+        using var f = new Dialog("Sondereinsätze", 768, 240);
         f.FormBorderStyle = FormBorderStyle.Sizable;
-        f.MinimumSize = new Size(700, 300);
+        f.MinimumSize = new Size(620, 240);
         f.Ok.Text = "Ok";
-        f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 10, AutoSize = true });
-        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 12, Top = 30, Width = 120, Value = datum.ToDateTime(TimeOnly.MinValue) };
-        f.Controls.Add(new Label { Text = "Stunde von", Left = 150, Top = 10, AutoSize = true });
+        f.Ok.Size = f.Abbrechen.Size = VorbildMasse.Knopf;
+        f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 12, AutoSize = true });
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 11, Top = 38, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
+        f.Controls.Add(new Label { Text = "Stunde von", Left = 142, Top = 12, AutoSize = true });
         var von = ElementListe.Stunde(stunde);
-        von.SetBounds(150, 30, 60, 23);
-        f.Controls.Add(new Label { Text = "Stunde bis", Left = 220, Top = 10, AutoSize = true });
+        von.SetBounds(144, 38, 64, 23);
+        f.Controls.Add(new Label { Text = "Stunde bis", Left = 213, Top = 12, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
-        bis.SetBounds(220, 30, 60, 23);
-        // drei gleich breite Schaltflächen rechts neben „Stunde bis“, Ok / Abbrechen unten mittig (wie im Vorbild)
-        var bKl = new Button { Text = "Klassen", Left = 300, Top = 28, Width = 130, Height = 26 };
-        var bLe = new Button { Text = "Lehrer", Left = 438, Top = 28, Width = 130, Height = 26 };
-        var bKk = new Button { Text = "Klassenkonferenz", Left = 576, Top = 28, Width = 130, Height = 26 };
+        bis.SetBounds(214, 38, 64, 23);
+        var bKl = new Button { Text = "Klassen", Left = 297, Top = 37, Width = 118, Height = 23 };
+        var bLe = new Button { Text = "Lehrer", Left = 422, Top = 37, Width = 126, Height = 23 };
+        var bKk = new Button { Text = "Klassenkonferenz", Left = 555, Top = 37, Width = 118, Height = 23 };
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
-        f.Ok.Left = f.ClientSize.Width / 2 - f.Ok.Width - 3;
-        f.Abbrechen.Left = f.ClientSize.Width / 2 + 3;
+        f.Ok.Location = new Point(f.ClientSize.Width / 2 - 77, 209);
+        f.Abbrechen.Location = new Point(f.ClientSize.Width / 2 + 5, 209);
         f.Controls.AddRange(new Control[] { dat, von, bis, bKl, bLe, bKk });
-        var g = new DataGridView { Left = 12, Top = 66, Width = 836, Height = 260, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 2, Top = 85, Width = 764, Height = 107, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, true);
         g.AllowUserToAddRows = true;
         g.AllowUserToDeleteRows = true;
-        foreach (var (n, k, w) in new[] { ("D", "Datum", 90), ("SV", "Stunde von", 75), ("SB", "Stunde bis", 75), ("L", "Lehrer", 110), ("K", "Klassen", 110) })
-            g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = w });
-        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("F", "Fach", 80, Stammdaten.Sortiert(d.Faecher).Select(x => x.Kurzname)));
-        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 80, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
-        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 95 });
-        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        g.RowHeadersVisible = false;
+        foreach (var (n, k) in new[] { ("D", "Datum"), ("SV", "Stunde von"), ("SB", "Stunde bis"), ("L", "Lehrer"), ("K", "Klassen") })
+            g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = 83 });
+        g.Columns["SV"]!.DefaultCellStyle.Alignment = g.Columns["SB"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("F", "Fach", 83, Stammdaten.Sortiert(d.Faecher).Select(x => x.Kurzname)));
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 83, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 83 });
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 83 });
         // Auswahllisten mit Langnamen wie im Veranstaltungsfenster
         Steuerelemente.SuchKombi.Aktivieren(g, (zelle, text) => (zelle.OwningColumn.Name == "F"
                 ? (Element?)d.Faecher.FirstOrDefault(x => x.Kurzname == text) : d.Raeume.FirstOrDefault(x => x.Kurzname == text)) is { } el
@@ -560,24 +564,30 @@ public static class SondereinsatzAuswahl
     {
         var d = AppZustand.D;
         var lehrer = typ == ElementTyp.Lehrer;
-        using var f = new Dialog("Auswahl", lehrer ? 300 : 280, 420);
-        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        // Maße wie im Handbuch (96 dpi): Fenster 275 × 376, Tabelle oben über die ganze Breite, Spalten nach Inhalt;
+        // (Lehrer: „Filter“ mit Auswahlliste), Alle | Inverse | Markierte und darunter Ok / Abbrechen
+        using var f = new Dialog("Auswahl", 275, 376);
+        f.FormBorderStyle = FormBorderStyle.Sizable;
+        f.MinimumSize = new Size(290, 300);
         f.Ok.Text = "Ok";
-        var g = new DataGridView { Left = 6, Top = 6, Width = f.ClientSize.Width - 12, Height = lehrer ? 290 : 322, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        var g = new DataGridView { Left = 0, Top = 0, Width = 275, Height = 278, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
         g.RowHeadersVisible = false;
-        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
-        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        g.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 56;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = 117;
         var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
         string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
-        if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 70;
+        if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 53;
         foreach (var e in Stammdaten.Sortiert(d, typ).Where(x => !x.Ignorieren))
         {
             var i = lehrer ? g.Rows.Add(e.Kurzname, e is Lehrer l ? l.VollerName : e.Langname, KlassenVon(e)) : g.Rows.Add(e.Kurzname, e.Langname);
             g.Rows[i].Tag = e;
-            if (rot?.Invoke(e.Id) == true) g.Rows[i].DefaultCellStyle.ForeColor = Color.Red;
+            // wie im Handbuch: belegte Elemente mit rot hinterlegtem Langnamen
+            if (rot?.Invoke(e.Id) == true) { g.Rows[i].Cells["L"].Style.BackColor = Color.Red; g.Rows[i].Cells["L"].Style.SelectionBackColor = Color.FromArgb(200, 40, 40); }
         }
         var vor = vorauswahl.ToHashSet();
         f.Shown += (_, _) =>
@@ -586,15 +596,14 @@ public static class SondereinsatzAuswahl
             foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
         };
         f.Controls.Add(g);
-        var y = g.Bottom + 6;
+        var y = 316;
         if (lehrer)
         {
             // Filter: Lehrer / Klassenlehrer (Klassen) / Lehrer im Unterricht (Klassen)
             var kText = AppZustand.Doc.Index.KKlassen(klassenAlle);
             // wie im Vorbild: „Filter“ links, Auswahlliste ab gut einem Drittel der Breite bis zum rechten Rand
-            f.Controls.Add(new Label { Text = "Filter", Left = 14, Top = y + 4, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
-            var fx = f.ClientSize.Width * 37 / 100;
-            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = fx, Top = y, Width = f.ClientSize.Width - fx - 8, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            f.Controls.Add(new Label { Text = "Filter", Left = 13, Top = 289, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 103, Top = 284, Width = 166, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             filter.Items.AddRange(new object[] { "Lehrer", $"Klassenlehrer ({kText})", $"Lehrer im Unterricht ({kText})" });
             filter.SelectedIndex = 0;
             var kls = d.Klassen.Where(k => klassenAlle.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
@@ -610,21 +619,19 @@ public static class SondereinsatzAuswahl
                 }
             };
             f.Controls.Add(filter);
-            y += 30;
         }
         var nurMarkierte = false;
-        // Alle | Inverse | Markierte gleichmäßig über die ganze Breite verteilt, darunter Ok / Abbrechen mittig (wie im Vorbild)
-        var kb = (f.ClientSize.Width - 32) / 3;
+        // Alle (81) | Inverse | Markierte (75) über die Breite verteilt, darunter Ok / Abbrechen mittig (wie im Vorbild)
         void Knopf(string text, int x, Action a)
         {
             var anker = x == 0 ? AnchorStyles.Left : x == 2 ? AnchorStyles.Right : AnchorStyles.None;
-            var b = new Button { Text = text, Left = 8 + x * (kb + 8), Top = y, Width = kb, Height = 24, Anchor = AnchorStyles.Bottom | anker };
+            var b = new Button { Text = text, Left = x switch { 0 => 7, 1 => 103, _ => 195 }, Top = y, Width = x == 0 ? 81 : 75, Height = 23, Anchor = AnchorStyles.Bottom | anker };
             b.Click += (_, _) => a();
             f.Controls.Add(b);
         }
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
-        f.Ok.Left = f.ClientSize.Width / 2 - f.Ok.Width - 3;
-        f.Abbrechen.Left = f.ClientSize.Width / 2 + 3;
+        f.Ok.Location = new Point(62, 348);
+        f.Abbrechen.Location = new Point(144, 348);
         Knopf("Alle", 0, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
         Knopf("Inverse", 1, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
         Knopf("Markierte", 2, () =>
@@ -641,18 +648,24 @@ public static class SondereinsatzAuswahl
     public static (int Klasse, List<int> Lehrer)? Klassenkonferenz(IWin32Window owner, int? klasse)
     {
         var d = AppZustand.D;
-        using var f = new Dialog("Klassenkonferenz", 280, 400);
-        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        // Maße wie im Handbuch (96 dpi): Fenster 280 × 348, Frage oben (zweizeilig), Auswahlliste 146 breit, darunter die
+        // Lehrkräfte der Klasse (Kurzname | Langname), Ok / Abbrechen unten mittig
+        using var f = new Dialog("Klassenkonferenz", 280, 348);
+        f.FormBorderStyle = FormBorderStyle.Sizable;
+        f.MinimumSize = new Size(296, 300);
         f.Ok.Text = "Ok";
-        f.Controls.Add(new Label { Text = "Für welche Klasse soll die Klassenkonferenz angelegt werden?", Left = 8, Top = 6, Width = 264, Height = 32 });
-        var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 8, Top = 40, Width = 150 };
+        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        f.Ok.Location = new Point(65, 318);
+        f.Abbrechen.Location = new Point(147, 318);
+        f.Controls.Add(new Label { Text = "Für welche Klasse soll die Klassenkonferenz angelegt werden?", Left = 3, Top = 13, Width = 272, Height = 34 });
+        var cb = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 0, Top = 64, Width = 146 };
         var klassen = Stammdaten.Sortiert(d.Klassen).Where(k => !k.Ignorieren).ToList();
         foreach (var k in klassen) cb.Items.Add(k.Kurzname);
-        var g = new DataGridView { Left = 8, Top = 70, Width = 264, Height = 280, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 0, Top = 97, Width = 280, Height = 213, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
         g.RowHeadersVisible = false;
-        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 70;
-        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 48;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = 83;
         var lehrer = new List<int>();
         cb.SelectedIndexChanged += (_, _) =>
         {
@@ -704,63 +717,93 @@ public static class KlausurDialog
     {
         var d = AppZustand.D;
         var ix = AppZustand.Doc.Index;
-        using var f = new Dialog(neu ? "Neue Klausur" : "Klausur", 640, 404);
+        // Maße wie in den Handbuch-Abbildungen (96 dpi): Fenster 615 × 362 (größenveränderlich), links Name und Text (271),
+        // rechts Datum, Stunde von, Stunde bis und Statistik-Kennzeichen (118) mit Beschriftung rechts daneben; darunter die
+        // Reiter Kurse | Studenten | Lehrer/Räume mit Tabelle links und Schaltflächen (138 × 23) rechts im Reiter
+        using var f = new Dialog(neu ? "Neue Klausur" : "Klausur", 615, 362);
+        f.FormBorderStyle = FormBorderStyle.Sizable;
+        f.MaximizeBox = true;
+        f.MinimumSize = new Size(560, 330);
         f.Ok.Text = "Ok";
-        var name = new TextBox { Text = k.Name, Left = 10, Top = 12, Width = 280 };
-        var tx = new TextBox { Text = k.Text, Left = 10, Top = 40, Width = 280 };
+        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        f.Ok.Location = new Point(452, 329);
+        f.Abbrechen.Location = new Point(533, 329);
+        var name = new TextBox { Text = k.Name, Left = 11, Top = 12, Width = 271 };
+        var tx = new TextBox { Text = k.Text, Left = 11, Top = 39, Width = 271 };
         Steuerelemente.Textverlauf.Anbinden(tx, "Klausur:Text");
-        f.Controls.AddRange(new Control[] { name, new Label { Text = "Name", Left = 298, Top = 15, AutoSize = true }, tx, new Label { Text = "Text", Left = 298, Top = 43, AutoSize = true } });
-        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 380, Top = 12, Width = 120 };
+        f.Controls.AddRange(new Control[] { name, new Label { Text = "Name", Left = 291, Top = 15, AutoSize = true }, tx, new Label { Text = "Text", Left = 291, Top = 42, AutoSize = true } });
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 367, Top = 12, Width = 118 };
         var von = ElementListe.Stunde(k.StundeVon);
-        von.SetBounds(380, 40, 120, 23);
+        von.SetBounds(367, 39, 118, 23);
         var bis = ElementListe.Stunde(k.StundeBis);
-        bis.SetBounds(380, 68, 120, 23);
+        bis.SetBounds(367, 65, 118, 23);
         f.Controls.AddRange(new Control[]
         {
-            dat, new Label { Text = "Datum", Left = 506, Top = 15, AutoSize = true }, von, new Label { Text = "Stunde von", Left = 506, Top = 43, AutoSize = true },
-            bis, new Label { Text = "Stunde bis", Left = 506, Top = 71, AutoSize = true },
+            dat, new Label { Text = "Datum", Left = 496, Top = 15, AutoSize = true }, von, new Label { Text = "Stunde von", Left = 496, Top = 42, AutoSize = true },
+            bis, new Label { Text = "Stunde bis", Left = 496, Top = 68, AutoSize = true },
         });
         // Statistik-Kennzeichen wie im Handbuch (rechts unter „Stunde bis“): geht auf die Klausurzeilen der Vertretungsliste über
-        var statistik = new TextBox { Text = k.Statistik, Left = 380, Top = 96, Width = 120 };
-        f.Controls.AddRange(new Control[] { statistik, new Label { Text = "Statistik-Kennzeichen", Left = 506, Top = 99, AutoSize = true } });
+        var statistik = new TextBox { Text = k.Statistik, Left = 367, Top = 92, Width = 118 };
+        f.Controls.AddRange(new Control[] { statistik, new Label { Text = "Statistik-Kennzeichen", Left = 496, Top = 95, AutoSize = true } });
         von.ValueChanged += (_, _) => { if (bis.Value < von.Value) bis.Value = von.Value; };
         bis.ValueChanged += (_, _) => { if (bis.Value < von.Value) von.Value = bis.Value; };
 
-        var tabs = new TabControl { Left = 10, Top = 128, Width = 420, Height = 178 };
+        var tabs = new TabControl { Left = 10, Top = 120, Width = 597, Height = 190, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         var kurse = new TabPage("Kurse");
+        var studenten = new TabPage("Studenten");
         var lr = new TabPage("Lehrer/Räume");
-        tabs.TabPages.AddRange(new[] { kurse, lr });
+        tabs.TabPages.AddRange(new[] { kurse, studenten, lr });
         f.Controls.Add(tabs);
-        // Reiter „Kurse“: der Unterricht, aus dem die Klausur entstand, und die Klassen
+        // Reiter „Kurse“: der Unterricht, aus dem die Klausur entstand (Unterricht | Fa. | Le. | Studenten), und die Klassen
         var u = k.UnterrichtId is int uid ? d.Unterrichte.FirstOrDefault(x => x.Id == uid) : null;
-        var kg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 70 };
+        var kg = new DataGridView { Left = 3, Top = 5, Width = 435, Height = 85, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
         Ui.RasterGestalten(kg, false);
         kg.RowHeadersVisible = false;
-        foreach (var (n, h, w) in new[] { ("U", "Unterricht", 70), ("Fa", "Fa.", 60), ("Le", "Le.", 90), ("St", "Studenten", 90) }) kg.Columns[kg.Columns.Add(n, h)].Width = w;
-        if (u != null) kg.Rows.Add(u.Id, string.Join(",", u.FachIds.Select(x => ix.KFach(x))), string.Join(",", u.LehrerIds.Select(ix.KLehrer)), "");
+        foreach (var (n, h, w) in new[] { ("U", "Unterricht", 53), ("Fa", "Fa.", 25), ("Le", "Le.", 33), ("St", "Studenten", 56) }) kg.Columns[kg.Columns.Add(n, h)].Width = w;
+        kg.Columns["U"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        // Reiter „Studenten“: Schüler, die den Kurs gewählt haben
+        var sg = new DataGridView { Left = 3, Top = 5, Width = 435, Height = 150, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        Ui.RasterGestalten(sg, false);
+        sg.RowHeadersVisible = false;
+        foreach (var (n, h, w) in new[] { ("N", "Name", 90), ("V", "Vorname", 90), ("K", "Klasse", 60) }) sg.Columns[sg.Columns.Add(n, h)].Width = w;
+        studenten.Controls.Add(sg);
+        void KursZeigen()
+        {
+            kg.Rows.Clear();
+            sg.Rows.Clear();
+            if (u is null) return;
+            var schueler = d.Schueler.Where(x => x.KurswahlIds.Contains(u.Id)).ToList();
+            kg.Rows.Add(u.Id, string.Join(",", u.FachIds.Select(x => ix.KFach(x))), string.Join(",", u.LehrerIds.Select(ix.KLehrer)), schueler.Count > 0 ? schueler.Count.ToString() : "");
+            foreach (var x in schueler) sg.Rows.Add(x.Langname, x.Vorname, ix.KKlassen(x.KlasseId is int kid ? new[] { kid } : Array.Empty<int>()));
+        }
+        KursZeigen();
         kurse.Controls.Add(kg);
-        kurse.Controls.Add(new Label { Text = "Klasse(n):", Left = 4, Top = 86, AutoSize = true });
-        var kl = new ElementWahl(ElementTyp.Klasse, k.KlassenIds) { Left = 80, Top = 82, Width = 324 };
+        kurse.Controls.Add(new Label { Text = "Klasse(n):", Left = 3, Top = 102, AutoSize = true });
+        var kl = new ElementWahl(ElementTyp.Klasse, k.KlassenIds) { Left = 70, Top = 98, Width = 368, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
         kurse.Controls.Add(kl);
-        var ent = new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, Left = 4, Top = 114, AutoSize = true };
+        var ent = new CheckBox { Text = "Kollidierender Unterricht der Klassen entfällt", Checked = k.UnterrichtEntfaellt, Left = 3, Top = 128, AutoSize = true };
         kurse.Controls.Add(ent);
-        // Reiter „Lehrer/Räume“: Aufsicht und Räume
+        // Reiter „Lehrer/Räume“: je Stunde der Klausur Aufsicht und Raum (Std. | Lehrer | Raum)
         var lehrer = k.LehrerIds.ToList();
         var raeume = k.RaumIds.ToList();
-        var lg = new DataGridView { Left = 4, Top = 4, Width = 404, Height = 140 };
+        var lg = new DataGridView { Left = 3, Top = 5, Width = 435, Height = 150, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(lg, false);
         lg.RowHeadersVisible = false;
-        lg.Columns[lg.Columns.Add("L", "Lehrer")].Width = 190;
-        lg.Columns[lg.Columns.Add("R", "Räume")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        lg.Columns[lg.Columns.Add("S", "Std.")].Width = 30;
+        lg.Columns[lg.Columns.Add("L", "Lehrer")].Width = 70;
+        lg.Columns[lg.Columns.Add("R", "Raum")].Width = 70;
+        lg.Columns["S"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         void LehrerRaeume()
         {
             lg.Rows.Clear();
-            for (var i = 0; i < Math.Max(1, Math.Max(lehrer.Count, raeume.Count)); i++)
-                lg.Rows.Add(i < lehrer.Count ? ix.KLehrer(lehrer[i]) : "", i < raeume.Count ? ix.KRaum(raeume[i]) : "");
+            for (var st = (int)von.Value; st <= (int)Math.Max(von.Value, bis.Value); st++)
+                lg.Rows.Add(st, string.Join(",", lehrer.Select(ix.KLehrer)), string.Join(",", raeume.Select(ix.KRaum)));
         }
         LehrerRaeume();
+        von.ValueChanged += (_, _) => LehrerRaeume();
+        bis.ValueChanged += (_, _) => LehrerRaeume();
         lr.Controls.Add(lg);
-        var akt = new CheckBox { Text = "Aktiv", Checked = k.Aktiv, Left = 14, Top = 314, AutoSize = true };
+        var akt = new CheckBox { Text = "Aktiv", Checked = k.Aktiv, Left = 12, Top = 331, AutoSize = true, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
         f.Controls.Add(akt);
 
         // belegt zum Zeitpunkt der Klausur (rot in den Auswahllisten)
@@ -772,27 +815,56 @@ public static class KlausurDialog
                 foreach (var e in tp.Stunde(s).Where(e => e.Findetstatt)) res.UnionWith(raum ? e.RaumIds : e.LehrerIds);
             return res;
         }
-        Button Knopf(string text, int y, Action a)
+        Button? bLk = null, bRk = null;
+        void bLkRk() { if (bLk != null) bLk.Enabled = u != null; if (bRk != null) bRk.Enabled = u != null; }
+        Button Knopf(TabPage seite, string text, int y, Action a)
         {
-            var b = new Button { Text = text, Left = 446, Top = y + 24, Width = 160, Height = 26 };
-            b.Click += (_, _) => { a(); tabs.SelectedTab = lr; LehrerRaeume(); };
-            f.Controls.Add(b);
+            var b = new Button { Text = text, Left = 446, Top = y, Width = 138, Height = 23, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            b.Click += (_, _) => { a(); if (seite == lr) LehrerRaeume(); };
+            seite.Controls.Add(b);
             return b;
         }
-        var bL = Knopf("Lehrer", 126, () =>
+        var bKurse = Knopf(kurse, "Kurse...", 7, () =>
+        {
+            // Unterricht (Kurs) der Klausur wählen: Unterrichte der Klassen der Klausur
+            var klassen = kl.Ids;
+            var liste = d.Unterrichte.Where(x => klassen.Count == 0 || x.Zeilen.Any(z => z.KlassenIds.Intersect(klassen).Any())).OrderBy(x => x.Id).ToList();
+            using var w = new Dialog("Kurse", 360, 300) { FormBorderStyle = FormBorderStyle.Sizable };
+            w.Ok.Text = "Ok";
+            w.Ok.Size = w.Abbrechen.Size = new Size(74, 23);
+            var g = new DataGridView { Left = 0, Top = 0, Width = 360, Height = 258, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+            Ui.RasterGestalten(g, false);
+            g.RowHeadersVisible = false;
+            g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            g.MultiSelect = false;
+            foreach (var (n, h, b) in new[] { ("U", "Unterricht", 64), ("Fa", "Fa.", 60), ("Le", "Le.", 80), ("K", "Klasse(n)", 120) }) g.Columns[g.Columns.Add(n, h)].Width = b;
+            foreach (var x in liste)
+            {
+                var i = g.Rows.Add(x.Id, string.Join(",", x.FachIds.Select(y => ix.KFach(y))), string.Join(",", x.LehrerIds.Select(ix.KLehrer)), ix.KKlassen(x.Zeilen.SelectMany(z => z.KlassenIds).Distinct()));
+                g.Rows[i].Tag = x;
+                if (x == u) g.Rows[i].Selected = true;
+            }
+            g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) w.DialogResult = DialogResult.OK; };
+            w.Controls.Add(g);
+            if (w.ShowDialog(f) == DialogResult.OK && g.SelectedRows.Count > 0 && g.SelectedRows[0].Tag is Unterricht neuU) { u = neuU; KursZeigen(); bLkRk(); }
+        });
+        // „Bänder“ gehören zur Kursplanung (Kursbänder): ohne Kursbänder nicht verfügbar
+        var bBaender = Knopf(kurse, "Bänder", 37, () => { });
+        bBaender.Enabled = false;
+        var bL = Knopf(lr, "Lehrer...", 7, () =>
         {
             var belegt = Belegt(false);
             var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Lehrer, lehrer, kl.Ids, belegt.Contains);
             if (w != null) lehrer = w.Select(x => x.Id).ToList();
         });
-        var bLk = Knopf("Lehrer aus Kurs", 156, () => { if (u != null) lehrer = u.LehrerIds.ToList(); });
-        var bR = Knopf("Räume", 192, () =>
+        bLk = Knopf(lr, "Lehrer aus Kurs", 37, () => { if (u != null) lehrer = u.LehrerIds.ToList(); });
+        var bR = Knopf(lr, "Räume", 93, () =>
         {
             var belegt = Belegt(true);
             var w = SondereinsatzAuswahl.Waehlen(f, ElementTyp.Raum, raeume, Array.Empty<int>(), belegt.Contains);
             if (w != null) raeume = w.Select(x => x.Id).ToList();
         });
-        var bRk = Knopf("Raum aus Kurs", 222, () =>
+        bRk = Knopf(lr, "Raum aus Kurs", 123, () =>
         {
             if (u is null) return;
             var tp = Tagesplan.Berechnen(d, DateOnly.FromDateTime(dat.Value));
@@ -800,11 +872,11 @@ public static class KlausurDialog
             if (r.Count == 0) r = u.Zeilen.Select(z => z.StammraumId ?? z.FachraumId).OfType<int>().Distinct().ToList();
             raeume = r;
         });
-        bLk.Enabled = bRk.Enabled = u != null;
+        bLkRk();
         if (k.Importiert)
         {
             // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
-            foreach (var c in new Control[] { name, dat, von, bis, kl, ent, tx }) c.Enabled = false;
+            foreach (var c in new Control[] { name, dat, von, bis, kl, ent, tx, bKurse }) c.Enabled = false;
             f.Text = "Klausur (aus UntPlanWeb – nur Lehrer und Raum änderbar)";
         }
         // Frage bei belegtem Raum (wie im Handbuch Kap. 11.2): nicht verplanen, mit Kollision, ohne Kollision (Raumvertretung)
@@ -814,7 +886,7 @@ public static class KlausurDialog
             var probe = new Klausur
             {
                 Id = k.Id, Datum = DateOnly.FromDateTime(dat.Value), StundeVon = (int)von.Value, StundeBis = (int)Math.Max(von.Value, bis.Value), KlassenIds = kl.Ids,
-                RaumIds = raeume, UnterrichtId = k.UnterrichtId, UnterrichtEntfaellt = ent.Checked,
+                RaumIds = raeume, UnterrichtId = u?.Id, UnterrichtEntfaellt = ent.Checked,
             };
             var belegt = Klausurraeume.Belegungen(d, probe);
             if (belegt.Count == 0) { k.RaumVerdraengen = false; return; }
@@ -840,6 +912,7 @@ public static class KlausurDialog
         k.StundeVon = (int)von.Value;
         k.StundeBis = (int)Math.Max(von.Value, bis.Value);
         k.KlassenIds = kl.Ids;
+        k.UnterrichtId = u?.Id;
         k.LehrerIds = lehrer;
         k.RaumIds = raeume;
         k.UnterrichtEntfaellt = ent.Checked;
@@ -1058,13 +1131,18 @@ public static class VertretungsEinstellungenDialog
         var d = AppZustand.D;
         var e = System.Text.Json.JsonSerializer.Deserialize<VertretungsEinstellungen>(System.Text.Json.JsonSerializer.Serialize(d.Vertretungseinstellungen))!;
         var klassenRaster = d.Klassen.ToDictionary(k => k.Id, k => new Dictionary<int, VertretungsRegel>(k.VertretungsZeitraster));
-        var f = new Dialog("Einstellungen", 856, 470);
+        // Maße nach der Abbildung im Handbuch (Seite „Vtr-Zähler“, 96 dpi): links der Baum (270 breit), rechts die Seite, darunter die
+        // Fußzeile mit dem Hinweis „Kursiv = …“ und Ok/Abbrechen (75×23). Größenveränderbar: breite Seiten lassen sich aufziehen.
+        var f = new Dialog("Einstellungen", 734, 420) { FormBorderStyle = FormBorderStyle.Sizable, MinimumSize = new Size(640, 400) };
         f.Ok.Text = "Ok";
-        var baum = new TreeView { Left = 8, Top = 8, Width = 192, Height = 410, HideSelection = false, ShowLines = true };
-        var host = new Panel { Left = 206, Top = 8, Width = 642, Height = 410, BackColor = Color.FromArgb(232, 240, 228) };
+        f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
+        f.Ok.Location = new Point(567, 388);
+        f.Abbrechen.Location = new Point(652, 388);
+        var baum = new TreeView { Left = 0, Top = 0, Width = 270, Height = 378, HideSelection = false, ShowLines = true, BorderStyle = BorderStyle.None, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left };
+        var host = new Panel { Left = 270, Top = 0, Width = 464, Height = 378, BackColor = Color.FromArgb(232, 240, 228), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
         f.Controls.Add(baum);
         f.Controls.Add(host);
-        f.Controls.Add(new Label { Text = "Kursiv = lokal gespeicherte Einstellungen (.ini Dateien)", Left = 8, Top = 438, AutoSize = true, Font = new Font(Ui.Schrift, FontStyle.Italic) });
+        f.Controls.Add(new Label { Text = "Kursiv = lokal gespeicherte Einstellungen (.ini Dateien)", Left = 8, Top = 389, AutoSize = true, Font = new Font(Ui.Schrift, FontStyle.Italic), Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
         var seiten = new Dictionary<string, Panel>();
         Panel Seite(string name)
         {
@@ -1126,6 +1204,8 @@ public static class VertretungsEinstellungenDialog
 
         // --- Vtr-Zähler (wie im Handbuch: Was zählen, Zeitraum, Wie zählen, Nicht zählen, Statt-Vertretungen und Klausuren) ------
         var tzae = Seite("Vtr-Zähler");
+        // Maße und Schrift nach der Abbildung im Handbuch (96 dpi): die Seite verwendet wie im Vorbild „Microsoft Sans Serif“ 8,25 pt
+        tzae.Font = new Font("Microsoft Sans Serif", 8.25f);
         var z = e.Zaehler;
         GroupBox Gruppe(string text, int x, int y0, int w, int h)
         {
@@ -1133,52 +1213,51 @@ public static class VertretungsEinstellungenDialog
             tzae.Controls.Add(g);
             return g;
         }
-        CheckBox Haken(Control g, string text, bool an, int y0) { var c = new CheckBox { Text = text, Checked = an, Left = 10, Top = y0, AutoSize = true }; g.Controls.Add(c); return c; }
-        RadioButton Option(Control g, string text, bool an, int y0) { var r = new RadioButton { Text = text, Checked = an, Left = 10, Top = y0, AutoSize = true }; g.Controls.Add(r); return r; }
-        var gWas = Gruppe("Was zählen", 8, 6, 290, 150);
-        var c1 = Haken(gWas, "Vertretungen", z.VertretungenZaehlen, 20);
-        var c2 = Haken(gWas, "Sondereins.", z.SondereinsaetzeZaehlen, 41);
-        var c3 = Haken(gWas, "Entfälle", z.EntfaelleZaehlen, 62);
-        var c4 = Haken(gWas, "Freisetzungen", z.FreisetzungenZaehlen, 83);
-        var c6 = Haken(gWas, "Betreuungen halb zählen", z.BetreuungenHalb, 104);
-        var c5 = Haken(gWas, "Pausenaufsichten", z.PausenaufsichtenZaehlen, 125);
-        var gZeit = Gruppe("Zeitraum", 310, 6, 300, 150);
+        CheckBox Haken(Control g, string text, bool an, int y0, int x = 9) { var c = new CheckBox { Text = text, Checked = an, Left = x, Top = y0, AutoSize = true }; g.Controls.Add(c); return c; }
+        RadioButton Option(Control g, string text, bool an, int y0, int x = 9) { var r = new RadioButton { Text = text, Checked = an, Left = x, Top = y0, AutoSize = true }; g.Controls.Add(r); return r; }
+        var gWas = Gruppe("Was zählen", 11, 11, 198, 144);
+        var c1 = Haken(gWas, "Vertretungen", z.VertretungenZaehlen, 19);
+        var c2 = Haken(gWas, "Sondereins.", z.SondereinsaetzeZaehlen, 39);
+        var c3 = Haken(gWas, "Entfälle", z.EntfaelleZaehlen, 58);
+        var c4 = Haken(gWas, "Freisetzungen", z.FreisetzungenZaehlen, 78);
+        var c6 = Haken(gWas, "Betreuungen halb zählen", z.BetreuungenHalb, 97);
+        var c5 = Haken(gWas, "Pausenaufsichten", z.PausenaufsichtenZaehlen, 117);
+        var gZeit = Gruppe("Zeitraum", 227, 11, 200, 144);
         var halbjahr = z.Zeitraum == ZaehlZeitraum.Halbjahr;
-        var rTag = Option(gZeit, "Tag", z.Zeitraum == ZaehlZeitraum.Tag, 18);
-        var rWoche = Option(gZeit, "Woche", z.Zeitraum == ZaehlZeitraum.Woche, 38);
-        var rMonat = Option(gZeit, "Monat", z.Zeitraum == ZaehlZeitraum.Monat, 58);
-        var rJahr = Option(gZeit, "Jahr", z.Zeitraum == ZaehlZeitraum.Schuljahr, 78);
-        var rZeitraum = Option(gZeit, "Zeitraum", z.Zeitraum is ZaehlZeitraum.Benutzerdefiniert or ZaehlZeitraum.Halbjahr, 98);
+        var rTag = Option(gZeit, "Tag", z.Zeitraum == ZaehlZeitraum.Tag, 18, 6);
+        var rWoche = Option(gZeit, "Woche", z.Zeitraum == ZaehlZeitraum.Woche, 37, 6);
+        var rMonat = Option(gZeit, "Monat", z.Zeitraum == ZaehlZeitraum.Monat, 57, 6);
+        var rJahr = Option(gZeit, "Jahr", z.Zeitraum == ZaehlZeitraum.Schuljahr, 76, 6);
+        var rZeitraum = Option(gZeit, "Zeitraum", z.Zeitraum is ZaehlZeitraum.Benutzerdefiniert or ZaehlZeitraum.Halbjahr, 96, 6);
         // ein früher gewähltes Halbjahr erscheint als selbst gewählter Zeitraum (bleibt erhalten, solange die Daten nicht geändert werden)
         var (hjVon, hjBis) = halbjahr ? Zaehlung.Zeitraum(d, AppZustand.Datum) : (z.ZeitraumVon ?? AppZustand.Datum, z.ZeitraumBis ?? AppZustand.Datum);
-        var zVon = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 122, Width = 110, Value = hjVon.ToDateTime(TimeOnly.MinValue) };
-        var zBis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 130, Top = 122, Width = 110, Value = hjBis.ToDateTime(TimeOnly.MinValue) };
+        var zVon = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 11, Top = 113, Width = 83, Value = hjVon.ToDateTime(TimeOnly.MinValue) };
+        var zBis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 104, Top = 113, Width = 83, Value = hjBis.ToDateTime(TimeOnly.MinValue) };
         gZeit.Controls.AddRange(new Control[] { zVon, zBis });
         void ZeitraumFreigeben() => zVon.Enabled = zBis.Enabled = rZeitraum.Checked;
         rZeitraum.CheckedChanged += (_, _) => ZeitraumFreigeben();
         ZeitraumFreigeben();
-        var gWie = Gruppe("Wie zählen", 8, 162, 290, 110);
-        var wAnzahl = Option(gWie, "Anzahl", z.WieZaehlen == ZaehlArt.Anzahl, 20);
+        var gWie = Gruppe("Wie zählen", 11, 162, 198, 148);
+        var wAnzahl = Option(gWie, "Anzahl", z.WieZaehlen == ZaehlArt.Anzahl, 19);
         var wWerte = Option(gWie, "Werte", z.WieZaehlen == ZaehlArt.Werte, 41);
         var wHhMm = Option(gWie, "Stunden (HH:MM)", z.WieZaehlen == ZaehlArt.StundenHhMm, 62);
         var wReal = Option(gWie, "Realstunden", z.WieZaehlen == ZaehlArt.Realstunden, 83);
-        var gNicht = Gruppe("Nicht zählen", 310, 162, 300, 70);
-        var kn = new TextBox { Text = z.NichtZaehlenKennzeichen, Left = 10, Top = 20, Width = 34 };
+        var gNicht = Gruppe("Nicht zählen", 227, 162, 200, 75);
+        var kn = new TextBox { Text = z.NichtZaehlenKennzeichen, Left = 9, Top = 18, Width = 33 };
         gNicht.Controls.Add(kn);
-        gNicht.Controls.Add(new Label { Text = "Statistik-Kennzeichen", Left = 52, Top = 23, AutoSize = true });
+        gNicht.Controls.Add(new Label { Text = "Statistik-Kennzeichen", Left = 47, Top = 23, AutoSize = true });
         var bezahltAlt = z.BezahltKennzeichen.Length > 0 && z.BezahltKennzeichen == z.NichtZaehlenKennzeichen;
-        var kb = Haken(gNicht, "bezahlte Vertretungen", bezahltAlt, 44);
-        kb.Left = 52;
+        var kb = Haken(gNicht, "bezahlte Vertretungen", bezahltAlt, 45, 45);
         var tip = new ToolTip();
         tip.SetToolTip(kb, $"Vertretungen mit diesem Statistik-Kennzeichen gelten als bezahlt (Vertretungsvorschlag, Vertretungsabrechnung)." +
                            (z.BezahltKennzeichen.Length > 0 && !bezahltAlt ? $"\nKennzeichen für bezahlte Vertretungen bisher: „{z.BezahltKennzeichen}“." : ""));
         void BezahltFreigeben() => kb.Enabled = kn.Text.Trim().Length > 0;
         kn.TextChanged += (_, _) => BezahltFreigeben();
         BezahltFreigeben();
-        var gStatt = Gruppe("Statt-Vertretungen und Klausuren", 310, 238, 300, 64);
-        var c8 = Haken(gStatt, "Statt-Vertretungen nicht zählen", z.StattVertretungNeutral, 18);
-        var c9 = Haken(gStatt, "Klausuren neutral zählen", z.KlausurenNeutral, 39);
-        var c7 = new CheckBox { Text = "Entfallszählung nur für Absenzen mit Absenzgrund", Checked = z.EntfallNurMitGrund, Left = 14, Top = 312, AutoSize = true };
+        var gStatt = Gruppe("Statt-Vertretungen und Klausuren", 227, 244, 200, 65);
+        var c8 = Haken(gStatt, "Statt-Vertretungen nicht zählen", z.StattVertretungNeutral, 24);
+        var c9 = Haken(gStatt, "Klausuren neutral zählen", z.KlausurenNeutral, 43);
+        var c7 = new CheckBox { Text = "Entfallszählung nur für Absenzen mit Absenzgrund", Checked = z.EntfallNurMitGrund, Left = 12, Top = 315, AutoSize = true };
         tzae.Controls.Add(c7);
         var y = 12;
 
@@ -1215,25 +1294,52 @@ public static class VertretungsEinstellungenDialog
         tv.Controls.AddRange(new Control[] { cGes, cTeil, cRg, cSp, cWo, new Label { Text = "Vorziehungen:", Left = 400, Top = 158, AutoSize = true }, vz });
 
         // --- Sonstiges ---------------------------------------------------------------------------
+        // Aufbau und Maße wie im Handbuch-Bild (Kap. 7.3, „Vertretungsplanung | Sonstiges“, 96 dpi): oben die Häkchen im Abstand
+        // von 20 Pixeln, darunter die Rahmen „Tagestexte“, „Druck der Tageslisten“ und „Raum für eigenverantwortliches Arbeiten“
+        // (je 375 breit, links bei x = 22); weitere Einstellungen von UntPlan folgen darunter
         var ta = Seite("Sonstiges");
-        y = 12;
-        var eva = Ui.Zeile(ta, "Raum für EVA:", ElementListe.Combo(ElementTyp.Raum, e.EvaRaumId), ref y, 260, 200);
-        var lrp = Ui.Zeile(ta, "", new CheckBox { Text = "Lehrer-Raum-Prinzip (Raum des Vertreters verwenden)", Checked = e.LehrerRaumPrinzip, AutoSize = true }, ref y, 10);
-        var fpa = Ui.Zeile(ta, "", new CheckBox { Text = "Freisetzungen erzeugen Pausenaufsicht-Vertretungen", Checked = e.FreisetzungPausenaufsicht, AutoSize = true }, ref y, 10);
-        var mad = Ui.Zeile(ta, "", new CheckBox { Text = "Vertretungsplanung mit aktuellem Datum starten", Checked = e.MitAktuellemDatumStarten, AutoSize = true }, ref y, 10);
+        y = 9;
+        CheckBox SoHaken(string text, bool an, Font? schrift = null)
+        {
+            var c = new CheckBox { Text = text, Checked = an, AutoSize = true, Left = 15, Top = y };
+            if (schrift != null) c.Font = schrift;
+            ta.Controls.Add(c);
+            y += 20;
+            return c;
+        }
+        var lokal = AppZustand.Einstellungen;
+        var lrp = SoHaken("Lehrer-Raum-Prinzip berücksichtigen", e.LehrerRaumPrinzip);
+        // Vorbild: „Keine Pausenaufsichtsvtr. für freigesetzte Lehrer anlegen“ (Gegenteil von „Freisetzungen erzeugen Pausenaufsicht-Vertretungen“)
+        var fpa = SoHaken("Keine Pausenaufsichtsvtr. für freigesetzte Lehrer anlegen", !e.FreisetzungPausenaufsicht);
+        var vmu = SoHaken("Lehrer mit Unterricht im Auswahlmenü im Vertretungsfenster hervorheben", lokal.VertreterMitUnterrichtHervorheben, Lokal);
+        var gTt = new GroupBox { Text = "Tagestexte", Left = 22, Top = y + 9, Width = 375, Height = 78 };
+        var tgGr = new NumericUpDown { Left = 7, Top = 17, Width = 40, Minimum = 50, Maximum = 300, Value = Math.Clamp(lokal.Vertretungsdruck.TagestexteGroesse, 50, 300) };
+        var tgRahmen = new CheckBox { Text = "Ausdruck mit Rahmen", Checked = lokal.Vertretungsdruck.TagestexteRahmen, AutoSize = true, Left = 7, Top = 49 };
+        gTt.Controls.AddRange(new Control[] { tgGr, new Label { Text = "Schriftgröße in %", Left = 53, Top = 22, AutoSize = true }, tgRahmen });
+        ta.Controls.Add(gTt);
+        var gTl = new GroupBox { Text = "Druck der Tageslisten", Left = 22, Top = gTt.Bottom + 11, Width = 375, Height = 63 };
+        // Tageslisten (Handbuch Kap. 13.3) – lokal am Arbeitsplatz gespeichert (kursiv)
+        var tlPdf = new CheckBox { Text = "PDF-Ausgabe der Tageslisten", Checked = lokal.TageslistenPdf, AutoSize = true, Left = 10, Top = 18, Font = Lokal };
+        var tlName = new CheckBox { Text = "Benutzerdefinierte Dateinamen", Checked = lokal.TageslistenEigeneDateinamen, AutoSize = true, Left = 28, Top = 40, Font = Lokal };
+        gTl.Controls.AddRange(new Control[] { tlPdf, tlName });
+        ta.Controls.Add(gTl);
+        // wie im Handbuch (Kap. 4.2.1): Rahmen „Raum für eigenverantwortliches Arbeiten“ mit Raumauswahl und „Standardraum“
+        var gEva = new GroupBox { Text = "Raum für eigenverantwortliches Arbeiten", Left = 22, Top = gTl.Bottom + 9, Width = 375, Height = 46 };
+        var eva = ElementListe.Combo(ElementTyp.Raum, e.EvaRaumId);
+        eva.SetBounds(7, 17, 216, eva.Height);
+        gEva.Controls.Add(eva);
+        gEva.Controls.Add(new Label { Text = "Standardraum", Left = 225, Top = 21, AutoSize = true });
+        ta.Controls.Add(gEva);
+        y = gEva.Bottom + 12;
+        var mad = Ui.Zeile(ta, "", new CheckBox { Text = "Vertretungsplanung mit aktuellem Datum starten", Checked = e.MitAktuellemDatumStarten, AutoSize = true }, ref y, 15);
         var mag = Ui.Zeile(ta, "Mehrarbeitsgrenze je Monat (Vollzeit):", new NumericUpDown { Minimum = 0, Maximum = 20, Value = Math.Clamp(d.Einstellungen.Mehrarbeitsgrenze, 0, 20) }, ref y, 260, 70);
         var eab = Ui.Zeile(ta, "Entfall sinnvoll ab Jahrgang:", new TextBox { Text = d.Einstellungen.EntfallAbJahrgang }, ref y, 260, 70);
         ta.Controls.Add(new Label
         {
             Text = "NRW: Mehrarbeit ist vergütungsfähig, wenn im Kalendermonat mehr als die Mehrarbeitsgrenze (bei Teilzeit anteilig)\ngeleistet wurde – dann sind alle Stunden vergütungsfähig. Minderstunden (Entfall/Freisetzung) werden verrechnet.",
-            Left = 10, Top = y + 4, Width = 620, Height = 40, ForeColor = Color.DimGray,
+            Left = 15, Top = y + 4, Width = 620, Height = 40, ForeColor = Color.DimGray,
         });
         y += 50;
-        // Tageslisten (Handbuch Kap. 13.3) – lokal am Arbeitsplatz gespeichert (kursiv)
-        var lokal = AppZustand.Einstellungen;
-        var vmu = Ui.Zeile(ta, "", new CheckBox { Text = "Lehrer mit Unterricht im Auswahlmenü im Vertretungsfenster hervorheben", Checked = lokal.VertreterMitUnterrichtHervorheben, AutoSize = true, Font = Lokal }, ref y, 10);
-        var tlPdf = Ui.Zeile(ta, "", new CheckBox { Text = "Tageslisten automatisch als PDF ausgeben", Checked = lokal.TageslistenPdf, AutoSize = true, Font = Lokal }, ref y, 10);
-        var tlName = Ui.Zeile(ta, "", new CheckBox { Text = "Benutzerdefinierte Dateinamen", Checked = lokal.TageslistenEigeneDateinamen, AutoSize = true, Font = Lokal }, ref y, 10);
         var tlOrdner = new TextBox { Text = lokal.TageslistenPdfOrdner, Left = 150, Top = y, Width = 380, Font = Lokal };
         var tlWahl = new Button { Text = "…", Left = 534, Top = y - 1, Width = 30, Height = 24 };
         tlWahl.Click += (_, _) =>
@@ -1241,7 +1347,7 @@ public static class VertretungsEinstellungenDialog
             using var fb = new FolderBrowserDialog { Description = "Ordner für die PDF-Tageslisten", UseDescriptionForTitle = true, SelectedPath = tlOrdner.Text };
             if (fb.ShowDialog(f) == DialogResult.OK) tlOrdner.Text = fb.SelectedPath;
         };
-        ta.Controls.AddRange(new Control[] { new Label { Text = "PDF-Ordner:", Left = 10, Top = y + 3, AutoSize = true, Font = Lokal }, tlOrdner, tlWahl });
+        ta.Controls.AddRange(new Control[] { new Label { Text = "PDF-Ordner (Tageslisten):", Left = 15, Top = y + 3, AutoSize = true, Font = Lokal }, tlOrdner, tlWahl });
         void PdfFreigeben() => tlName.Enabled = tlOrdner.Enabled = tlWahl.Enabled = tlPdf.Checked;
         tlPdf.CheckedChanged += (_, _) => PdfFreigeben();
         PdfFreigeben();
@@ -1307,36 +1413,61 @@ public static class VertretungsEinstellungenDialog
 
         // --- Farben und Bezeichnungen ------------------------------------------------------------
         var tb = Seite("Farben und Bezeichnungen");
-        var bg = new DataGridView { Left = 10, Top = 10, Width = 620, Height = 390 };
+        // wie im Handbuch: Art (in der Vordergrundfarbe auf der Hintergrundfarbe), Vordergrund, Hintergrund, Bezeichnung; Klick in eine
+        // Farbspalte öffnet die Farbauswahl, rechte Maustaste setzt die Standardfarbe zurück. Maße nach der Abbildung (96 dpi).
+        var bg = new DataGridView { Left = 0, Top = 0, Width = 365, Height = 378, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left };
         Ui.RasterGestalten(bg, true);
-        bg.Columns[bg.Columns.Add("A", "Vertretungsart")].ReadOnly = true;
-        bg.Columns[0].Width = 180;
-        bg.Columns[bg.Columns.Add("S", "Standard")].ReadOnly = true;
-        bg.Columns[1].Width = 160;
-        bg.Columns[bg.Columns.Add("B", "Bezeichnung")].Width = 160;
-        bg.Columns[bg.Columns.Add("F", "Farbe")].ReadOnly = true;
-        bg.Columns[3].Width = 80;
-        foreach (var art in Enum.GetValues<VertretungsArt>())
+        bg.RowHeadersVisible = false;
+        bg.AllowUserToAddRows = false;
+        bg.AllowUserToDeleteRows = false;
+        bg.RowTemplate.Height = Math.Max(17, bg.Font.Height + 1);
+        bg.ColumnHeadersHeight = Math.Max(17, bg.Font.Height + 1);
+        bg.Columns[bg.Columns.Add("A", "Art")].ReadOnly = true;
+        bg.Columns[0].Width = 159;
+        bg.Columns[bg.Columns.Add("V", "Vordergrund")].ReadOnly = true;
+        bg.Columns[1].Width = 69;
+        bg.Columns[bg.Columns.Add("H", "Hintergrund")].ReadOnly = true;
+        bg.Columns[2].Width = 65;
+        bg.Columns[bg.Columns.Add("B", "Bezeichnung")].Width = 72;
+        foreach (DataGridViewColumn c in bg.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
+        static Color Rgb(int rgb) => Color.FromArgb(unchecked((int)0xFF000000) | (rgb & 0xFFFFFF));
+        void FarbenZeigen(DataGridViewRow r)
         {
-            var r = bg.Rows.Add(art.ToString(), Vertretungsplan.ArtText(art), e.Bezeichnungen.GetValueOrDefault(art.ToString(), ""), "");
-            bg.Rows[r].Tag = art;
-            if (e.Farben.TryGetValue(art.ToString(), out var fa)) bg.Rows[r].Cells[3].Style.BackColor = Ui.Farbe(fa, Color.White);
+            if (r.Tag is not string k) return;
+            var vorne = Rgb(VertretungsartFarben.Vordergrund(e, k));
+            var hinten = VertretungsartFarben.Hintergrund(e, k) is int h ? Rgb(h) : Color.White;
+            r.Cells[0].Style.ForeColor = r.Cells[0].Style.SelectionForeColor = vorne;
+            r.DefaultCellStyle.BackColor = r.DefaultCellStyle.SelectionBackColor = hinten;
+            r.Cells[0].Style.SelectionBackColor = hinten;
+            r.Cells[1].Style.BackColor = r.Cells[1].Style.SelectionBackColor = vorne;
+            r.Cells[2].Style.BackColor = r.Cells[2].Style.SelectionBackColor = hinten;
+            r.Cells[3].Style.ForeColor = r.Cells[3].Style.SelectionForeColor = vorne;
         }
-        bg.CellDoubleClick += (_, ev) =>
+        foreach (var zeile in VertretungsartFarben.Zeilen)
         {
-            if (ev.RowIndex < 0 || ev.ColumnIndex != 3 || bg.Rows[ev.RowIndex].Tag is not VertretungsArt art) return;
-            using var cd = new ColorDialog { FullOpen = true };
-            if (cd.ShowDialog(f) == DialogResult.OK)
+            var r = bg.Rows.Add(zeile.Art, "", "", e.Bezeichnungen.GetValueOrDefault(zeile.Schluessel, ""));
+            bg.Rows[r].Tag = zeile.Schluessel;
+            FarbenZeigen(bg.Rows[r]);
+        }
+        bg.CellMouseClick += (_, ev) =>
+        {
+            if (ev.RowIndex < 0 || ev.ColumnIndex is not (1 or 2) || bg.Rows[ev.RowIndex].Tag is not string k) return;
+            var vorne = ev.ColumnIndex == 1;
+            if (ev.Button == MouseButtons.Right)
             {
-                e.Farben[art.ToString()] = cd.Color.ToArgb() & 0xFFFFFF;
-                bg.Rows[ev.RowIndex].Cells[3].Style.BackColor = cd.Color;
+                if (vorne) VertretungsartFarben.VordergrundSetzen(e, k, null); else VertretungsartFarben.HintergrundSetzen(e, k, null);
             }
-            else if (Ui.Frage("Farbe entfernen?"))
+            else if (ev.Button == MouseButtons.Left)
             {
-                e.Farben.Remove(art.ToString());
-                bg.Rows[ev.RowIndex].Cells[3].Style.BackColor = Color.White;
+                var alt = vorne ? VertretungsartFarben.Vordergrund(e, k) : VertretungsartFarben.Hintergrund(e, k) ?? 0xFFFFFF;
+                using var cd = new ColorDialog { Color = Rgb(alt) };
+                if (cd.ShowDialog(f) != DialogResult.OK) return;
+                var neu = cd.Color.ToArgb() & 0xFFFFFF;
+                if (vorne) VertretungsartFarben.VordergrundSetzen(e, k, neu); else VertretungsartFarben.HintergrundSetzen(e, k, neu);
             }
+            FarbenZeigen(bg.Rows[ev.RowIndex]);
         };
+        new ToolTip().SetToolTip(bg, "Klick in „Vordergrund“ bzw. „Hintergrund“: Farbe wählen – rechte Maustaste: Standardfarbe");
         tb.Controls.Add(bg);
 
         // Baum wie im Handbuch: Vertretungsplanung mit den Unterseiten. Kursiv = nur lokal gespeicherte Einstellungen (alle Steuerelemente
@@ -1408,13 +1539,14 @@ public static class VertretungsEinstellungenDialog
             vo.Vorziehungen = (VorziehungsModus)vz.SelectedIndex;
             e.EvaRaumId = ElementListe.Id(eva);
             e.LehrerRaumPrinzip = lrp.Checked;
-            e.FreisetzungPausenaufsicht = fpa.Checked;
+            e.FreisetzungPausenaufsicht = !fpa.Checked;
             e.MitAktuellemDatumStarten = mad.Checked;
+            bg.EndEdit();
             foreach (DataGridViewRow r in bg.Rows)
-                if (r.Tag is VertretungsArt art)
+                if (r.Tag is string art)
                 {
-                    var t = r.Cells[2].Value?.ToString()?.Trim() ?? "";
-                    if (t.Length == 0) e.Bezeichnungen.Remove(art.ToString()); else e.Bezeichnungen[art.ToString()] = t;
+                    var t = r.Cells[3].Value?.ToString()?.Trim() ?? "";
+                    if (t.Length == 0) e.Bezeichnungen.Remove(art); else e.Bezeichnungen[art] = t;
                 }
             na.Betreff = nBetreff.Text;
             na.Text = nText.Text.Replace("\r\n", "\n");
@@ -1423,6 +1555,8 @@ public static class VertretungsEinstellungenDialog
             na.AbwesendeInformieren = nAbw.Checked;
             // lokal gespeichert (einstellungen.json, nicht in der Schuldatei)
             lokal.TageslistenPdf = tlPdf.Checked;
+            lokal.Vertretungsdruck.TagestexteGroesse = (int)tgGr.Value;
+            lokal.Vertretungsdruck.TagestexteRahmen = tgRahmen.Checked;
             lokal.VertreterMitUnterrichtHervorheben = vmu.Checked;
             lokal.TageslistenEigeneDateinamen = tlName.Checked;
             lokal.TageslistenPdfOrdner = tlOrdner.Text.Trim();

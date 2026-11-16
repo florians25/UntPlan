@@ -10,11 +10,13 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class WochenwerteFenster : MdiFenster, IDruckbar
 {
-    private readonly ComboBox _art = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 30, Top = 8, Width = 150, Enabled = false };
-    private readonly ComboBox _modus = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 200, Top = 8, Width = 190 };
-    private readonly ComboBox _lehrer = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 30, Top = 38, Width = 150 };
-    private readonly CheckBox _komprimiert = new() { Text = "komprimiert", Left = 200, Top = 40, AutoSize = true };
-    private readonly CheckBox _hhmm = new() { Text = "HH:MM", Left = 560, Top = 40, AutoSize = true };
+    // Maße nach dem Handbuch-Bild (96 dpi, Tahoma 8,25): Fenster 568 × 370, Auswahlfelder 134 bzw. 177 breit
+    private static readonly Font Schrift = new("Tahoma", 8.25f);
+    private readonly ComboBox _art = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 25, Top = 6, Width = 134 };
+    private readonly ComboBox _modus = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 170, Top = 6, Width = 177 };
+    private readonly ComboBox _lehrer = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 25, Top = 33, Width = 134 };
+    private readonly CheckBox _komprimiert = new() { Text = "komprimiert", Left = 172, Top = 37, AutoSize = true };
+    private readonly CheckBox _hhmm = new() { Text = "HH:MM", Left = 500, Top = 37, AutoSize = true };
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
 
     public WochenwerteFenster()
@@ -22,9 +24,10 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
         Text = "Wochenwerte";
         HilfeThema = "Unterrichtsplanung";
         Icon = SymbolIcon("wertrechnung");
-        Size = new Size(720, 460);
+        Size = new Size(568, 370);
+        Font = Schrift;
         Positionieren();
-        var kopf = new Panel { Dock = DockStyle.Top, Height = 100 };
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 89 };
         _art.Items.Add("Lehrer");
         _art.SelectedIndex = 0;
         _modus.Items.AddRange(new object[] { "Vertretungsplan / Stunden", "Vertretungsplan / Werte" });
@@ -32,25 +35,32 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
         foreach (var l in Stammdaten.Sortiert(D.Lehrer)) _lehrer.Items.Add(l);
         _lehrer.Format += (_, e) => e.Value = e.ListItem is Lehrer l ? l.Kurzname : e.ListItem?.ToString();
         if (_lehrer.Items.Count > 0) _lehrer.SelectedIndex = 0;
-        var aktualisieren = new Button { Text = "Aktualisieren", Left = 30, Top = 66, Width = 150, Height = 26 };
+        var aktualisieren = new Button { Text = "Aktualisieren", Left = 25, Top = 56, Width = 135, Height = 23 };
         aktualisieren.Click += (_, _) => Neuaufbau();
         kopf.Controls.AddRange(new Control[] { _art, _modus, _lehrer, _komprimiert, _hhmm, aktualisieren,
-            new Label { Text = "Gehaltener Unterricht incl Vertretungen und zu zählenden Veranstaltungen", Left = 200, Top = 71, AutoSize = true } });
+            new Label { Text = "Gehaltener Unterricht incl Vertretungen und zu zählenden Veranstaltungen", Left = 172, Top = 64, AutoSize = true } });
         Ui.RasterGestalten(_g, false);
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.RowHeadersVisible = false;
-        foreach (var (n, k, b) in new[] { ("W", "Woche", 55), ("VB", "Von - Bis", 90), ("G", "geplant", 60), ("Vp", "Verplant", 60), ("Ge", "Gehalten", 60), ("E", "Entf.", 50), ("V", "Vertr.", 50), ("S", "Sondereins.", 75), ("Su", "Gesamt", 60) })
+        _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Schrift;
+        _g.RowTemplate.Height = 19;
+        _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        _g.ColumnHeadersHeight = 19;
+        // Spaltenbreiten wie im Bild; nur die Wochennummer rechtsbündig, die Werte linksbündig
+        foreach (var (n, k, b) in new[] { ("W", "Woche", 50), ("VB", "Von - Bis", 78), ("G", "geplant", 52), ("Vp", "Verplant", 52), ("Ge", "Gehalten", 58), ("E", "Entf.", 40), ("V", "Vertr.", 46), ("S", "Sondereins.", 73), ("Su", "Gesamt", 57) })
         {
             var c = _g.Columns[_g.Columns.Add(n, k)];
             c.Width = b;
-            if (n != "VB") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+            if (n == "W") c.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         }
         _g.Columns["S"]!.HeaderCell.Style.BackColor = Color.FromArgb(255, 220, 170);
         _lehrer.SelectedIndexChanged += (_, _) => Neuaufbau();
         _modus.SelectedIndexChanged += (_, _) => Neuaufbau();
         _komprimiert.CheckedChanged += (_, _) => Neuaufbau();
         _hhmm.CheckedChanged += (_, _) => Neuaufbau();
-        Controls.Add(_g);
+        var rahmen = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 0, 7, 8) };
+        rahmen.Controls.Add(_g);
+        Controls.Add(rahmen);
         Controls.Add(kopf);
         Neuaufbau();
     }
@@ -78,7 +88,8 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
             var sonder = D.Vertretungen.Count(v => v.Datum >= w.Montag && v.Datum <= w.Montag.AddDays(6) && v.VertreterId == l.Id && v.Art is VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung);
             var gehalten = w.Unterricht - w.Entfaelle + w.Vertretungen + (werte ? w.Korrektur : 0);
             if (_komprimiert.Checked && w.Entfaelle == 0 && w.Vertretungen == 0 && sonder == 0 && w.Korrektur == 0) continue;
-            var nr = System.Globalization.ISOWeek.GetWeekOfYear(w.Montag.ToDateTime(TimeOnly.MinValue));
+            // Woche wie im Handbuch: Schulwoche (1 = Woche des Schuljahresbeginns), nicht die Kalenderwoche
+            var nr = (w.Montag.DayNumber - Kalender.Montag(D.Einstellungen.SchuljahrVon).DayNumber) / 7 + 1;
             var r = _g.Rows.Add(nr, $"{w.Montag.Day}.{w.Montag.Month}.-{w.Montag.AddDays(6).Day}.{w.Montag.AddDays(6).Month}.", Z(w.Soll), Z(w.Unterricht), Z(gehalten), Z(w.Entfaelle), Z(w.Vertretungen), Z(sonder), Z(gehalten + sonder - w.Soll));
             if (w.Montag == heute) _g.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 200);
         }

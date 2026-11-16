@@ -28,9 +28,10 @@ public sealed class StundeAendernDialog : Dialog
 
     private readonly DateOnly _datum;
     private readonly int _stunde;
-    private readonly TabControl _tabs = new() { Left = 8, Top = 8, Width = 404, Height = 382 };
-    private readonly RadioButton _einzeln = new() { Text = "Unterrichtsstunde", Left = 10, Top = 18, Width = 150, Checked = true };
-    private readonly RadioButton _block = new() { Text = "Stundenblock", Left = 10, Top = 38, Width = 150 };
+    // Maße wie im Handbuch-Screenshot (auf 96 dpi umgerechnet): Fenster 471 × 458, Reiter oben, Schaltflächen unten rechts
+    private readonly TabControl _tabs = new() { Left = 3, Top = 0, Width = 466, Height = 412, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+    private readonly RadioButton _einzeln = new() { Text = "Unterrichtsstunde", Left = 8, Top = 18, Width = 150, Height = 17, Checked = true };
+    private readonly RadioButton _block = new() { Text = "Stundenblock", Left = 8, Top = 36, Width = 150, Height = 17 };
     private readonly List<Seite> _seiten = new();
 
     private static Schuldatei D => AppZustand.D;
@@ -62,8 +63,14 @@ public sealed class StundeAendernDialog : Dialog
         return f;
     }
 
-    private StundeAendernDialog(DateOnly datum, int stunde, IReadOnlyList<TagesEintrag> eintraege) : base($"Stunde ändern:  {datum.Day}.{datum.Month}. / {stunde}", 420, 440)
+    private StundeAendernDialog(DateOnly datum, int stunde, IReadOnlyList<TagesEintrag> eintraege) : base($"Stunde ändern:  {datum.Day}.{datum.Month}. / {stunde}", 471, 458)
     {
+        Font = VorbildMasse.Schrift;
+        Ok.Size = Abbrechen.Size = VorbildMasse.Knopf;
+        Ok.Location = new Point(308, 419);
+        Abbrechen.Location = new Point(389, 419);
+        // Reiter in der Dialogfarbe (wie im Vorbild, nicht weiß)
+        Load += (_, _) => { foreach (TabPage p in _tabs.TabPages) p.BackColor = BackColor; };
         _datum = datum;
         _stunde = stunde;
         Controls.Add(_tabs);
@@ -77,11 +84,11 @@ public sealed class StundeAendernDialog : Dialog
             };
             SeiteHinzufuegen(s);
         }
-        var neu = new Button { Text = "Neuer Lehrer", Left = 140, Top = 404, Width = 96, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+        var neu = new Button { Text = "Neuer Lehrer", Left = 228, Top = 419, Width = 78, Height = 23, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
         neu.Click += (_, _) =>
         {
             var vorlage = _seiten.FirstOrDefault();
-            SeiteHinzufuegen(new Seite { UnterrichtId = null, Klassen = vorlage?.Klassen.ToList() ?? new(), Fach = vorlage is null ? null : ElementListe.Id(vorlage.FachCb), Raum = null, Gruppe = vorlage?.GruppeCb.Text ?? "" });
+            SeiteHinzufuegen(new Seite { UnterrichtId = null, Klassen = vorlage?.Klassen.ToList() ?? new(), Fach = vorlage is null ? null : Wert(vorlage.FachCb, D.Faecher), Raum = null, Gruppe = vorlage?.GruppeCb.Text ?? "" });
             _tabs.SelectedIndex = _tabs.TabCount - 1;
         };
         Controls.Add(neu);
@@ -98,38 +105,39 @@ public sealed class StundeAendernDialog : Dialog
     {
         var ix = AppZustand.Doc.Index;
         var seite = new TabPage(titel ?? (s.UnterrichtId is null ? "Neuer Lehrer" : $"{ix.KLehrer(s.Lehrer)}, {ix.KFach(s.Fach)}".Trim(' ', ',')));
-        var anwenden = new GroupBox { Text = "Anwenden auf", Left = 8, Top = 6, Width = 170, Height = 62 };
+        seite.UseVisualStyleBackColor = false;
+        seite.BackColor = BackColor;
+        // Positionen in Reiter-Koordinaten wie im Handbuch: Gruppe „Anwenden auf“, darunter Beschriftung über dem Feld,
+        // Auswahlfelder 142 breit, Häkchen rechts daneben auf Feldmitte, „Text“ über die ganze Breite
+        var anwenden = new GroupBox { Text = "Anwenden auf", Left = 10, Top = 14, Width = 240, Height = 58 };
         if (_seiten.Count == 0) anwenden.Controls.AddRange(new Control[] { _einzeln, _block });
-        else anwenden.Controls.Add(new Label { Text = "(wie erster Reiter)", Left = 10, Top = 26, AutoSize = true, ForeColor = Color.DimGray });
+        else anwenden.Controls.Add(new Label { Text = "(wie erster Reiter)", Left = 8, Top = 27, AutoSize = true, ForeColor = Color.DimGray });
         seite.Controls.Add(anwenden);
-        var y = 76;
-        seite.Controls.Add(new Label { Text = "Klasse", Left = 8, Top = y, AutoSize = true });
-        s.KlassenKnopf = new Button { Left = 8, Top = y + 18, Width = 90, Height = 24, BackColor = Ui.BlauHell, FlatStyle = FlatStyle.Flat };
-        s.KlassenText = new Label { Left = 108, Top = y + 22, Width = 270, AutoEllipsis = true };
+        seite.Controls.Add(new Label { Text = "Klasse", Left = 10, Top = 82, AutoSize = true });
+        s.KlassenKnopf = new Button { Left = 10, Top = 100, Width = 101, Height = 24, UseVisualStyleBackColor = true };
+        s.KlassenText = new Label { Left = 123, Top = 105, Width = 220, AutoEllipsis = true };
         seite.Controls.AddRange(new Control[] { s.KlassenKnopf, s.KlassenText });
-        y += 48;
-        ComboBox Feld(string titel, string option, bool haken, out CheckBox cb)
+        ComboBox Feld(string titel, int y, string option, bool haken, out CheckBox cb)
         {
-            seite.Controls.Add(new Label { Text = titel, Left = 8, Top = y, AutoSize = true });
-            var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 8, Top = y + 18, Width = 180 };
-            c.Format += (_, ev) => ev.Value = ev.ListItem is Element el ? Ui.ElementName(el) : "";
-            cb = new CheckBox { Text = option, Left = 200, Top = y + 19, AutoSize = true, Checked = haken };
+            seite.Controls.Add(new Label { Text = titel, Left = 10, Top = y - 17, AutoSize = true });
+            // Vorbild: editierbares Auswahlfeld (weißes Textfeld mit Pfeil), Kürzel eintippen oder aus der Liste wählen
+            var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDown, Left = 10, Top = y, Width = 142, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
+            c.Format += (_, ev) => ev.Value = ev.ListItem is Element el ? el.Kurzname : "";
+            cb = new CheckBox { Text = option, Left = 170, Top = y + 2, Height = 17, AutoSize = true, Checked = haken };
             seite.Controls.Add(c);
             seite.Controls.Add(cb);
-            y += 46;
             return c;
         }
-        s.LehrerCb = Feld("Lehrer", "Nur verfügbare Lehrer", true, out s.NurVerfuegbar);
-        s.FachCb = Feld("Fach", "Nur Fächer des Lehrers", true, out s.NurFaecher);
-        s.RaumCb = Feld("Raum", "Nur freie Räume", true, out s.NurFrei);
-        seite.Controls.Add(new Label { Text = "Schülergruppe", Left = 8, Top = y, AutoSize = true });
-        s.GruppeCb = new ComboBox { Left = 8, Top = y + 18, Width = 180, Text = s.Gruppe };
+        s.LehrerCb = Feld("Lehrer", 145, "Nur verfügbare Lehrer", true, out s.NurVerfuegbar);
+        s.FachCb = Feld("Fach", 191, "Nur Fächer des Lehrers", true, out s.NurFaecher);
+        s.RaumCb = Feld("Raum", 236, "Nur freie Räume", true, out s.NurFrei);
+        seite.Controls.Add(new Label { Text = "Schülergruppe", Left = 10, Top = 267, AutoSize = true });
+        s.GruppeCb = new ComboBox { Left = 10, Top = 285, Width = 142, Text = s.Gruppe };
         s.GruppeCb.Items.AddRange(D.Unterrichte.Select(u => u.Schuelergruppe).Where(g => g.Length > 0).Distinct().OrderBy(g => g).Cast<object>().ToArray());
         s.GruppeCb.Text = s.Gruppe;
         seite.Controls.Add(s.GruppeCb);
-        y += 50;
-        seite.Controls.Add(new Label { Text = "Text", Left = 8, Top = y, AutoSize = true });
-        s.TextTb = new TextBox { Left = 8, Top = y + 18, Width = 370, Text = s.Text };
+        seite.Controls.Add(new Label { Text = "Text", Left = 10, Top = 332, AutoSize = true });
+        s.TextTb = new TextBox { Left = 10, Top = 351, Width = 328, Text = s.Text };
         Steuerelemente.Textverlauf.Anbinden(s.TextTb, "Stunde ändern:Text");
         seite.Controls.Add(s.TextTb);
         _tabs.TabPages.Add(seite);
@@ -152,12 +160,12 @@ public sealed class StundeAendernDialog : Dialog
         {
             var st = Stunden(s);
             var lehrer = s.NurVerfuegbar.Checked ? Stundenaenderung.VerfuegbareLehrer(D, _datum, st).Cast<Element>().ToList() : Stammdaten.Sortiert(D.Lehrer).Cast<Element>().ToList();
-            Fuellen(s.LehrerCb, lehrer, ElementListe.Id(s.LehrerCb) ?? s.Lehrer, s.Lehrer, D.Lehrer);
-            var l = ElementListe.Id(s.LehrerCb);
+            Fuellen(s.LehrerCb, lehrer, Wert(s.LehrerCb, D.Lehrer) ?? s.Lehrer, s.Lehrer, D.Lehrer);
+            var l = Wert(s.LehrerCb, D.Lehrer);
             var faecher = s.NurFaecher.Checked && l is int li ? Stundenaenderung.FaecherDesLehrers(D, li).Cast<Element>().ToList() : Stammdaten.Sortiert(D.Faecher).Cast<Element>().ToList();
-            Fuellen(s.FachCb, faecher, ElementListe.Id(s.FachCb) ?? s.Fach, s.Fach, D.Faecher);
+            Fuellen(s.FachCb, faecher, Wert(s.FachCb, D.Faecher) ?? s.Fach, s.Fach, D.Faecher);
             var raeume = s.NurFrei.Checked ? Stundenaenderung.FreieRaeume(D, _datum, st).Cast<Element>().ToList() : Stammdaten.Sortiert(D.Raeume).Cast<Element>().ToList();
-            Fuellen(s.RaumCb, raeume, ElementListe.Id(s.RaumCb) ?? s.Raum, s.Raum, D.Raeume);
+            Fuellen(s.RaumCb, raeume, Wert(s.RaumCb, D.Raeume) ?? s.Raum, s.Raum, D.Raeume);
         }
         s.KlassenKnopf.Click += (_, _) =>
         {
@@ -171,6 +179,15 @@ public sealed class StundeAendernDialog : Dialog
         _block.CheckedChanged += (_, _) => Listen();
         Klassen();
         Listen();
+    }
+
+    /// <summary>Gewähltes bzw. eingetipptes Element (Kürzel, Groß-/Kleinschreibung egal) eines editierbaren Auswahlfelds.</summary>
+    private static int? Wert<T>(ComboBox c, IEnumerable<T> alle) where T : Element
+    {
+        if (c.SelectedItem is Element e) return e.Id;
+        var t = c.Text.Trim();
+        if (t.Length == 0) return null;
+        return alle.FirstOrDefault(x => string.Equals(x.Kurzname, t, StringComparison.OrdinalIgnoreCase))?.Id;
     }
 
     /// <summary>Auswahlliste füllen; der ursprüngliche Wert ist immer enthalten.</summary>
@@ -202,8 +219,8 @@ public sealed class StundeAendernDialog : Dialog
         foreach (var s in _seiten)
         {
             var st = Stunden(s);
-            var lehrer = ElementListe.Id(s.LehrerCb);
-            var werte = new StundeAendernWerte(lehrer, ElementListe.Id(s.FachCb), s.Klassen.ToList(), ElementListe.Id(s.RaumCb), s.GruppeCb.Text.Trim(), s.TextTb.Text.Trim());
+            var lehrer = Wert(s.LehrerCb, D.Lehrer);
+            var werte = new StundeAendernWerte(lehrer, Wert(s.FachCb, D.Faecher), s.Klassen.ToList(), Wert(s.RaumCb, D.Raeume), s.GruppeCb.Text.Trim(), s.TextTb.Text.Trim());
             var loesung = LehrerKonfliktLoesung.NichtVerplanen;
             if (lehrer is int l && lehrer != s.Lehrer)
             {
@@ -234,21 +251,36 @@ public sealed class StundeAendernDialog : Dialog
     }
 }
 
-/// <summary>Auswahlliste „Klasse(n)“ mit Name und Langname, Schaltflächen Alle, Markierte, Inverse, Ok und Abbrechen.</summary>
+/// <summary>
+/// Auswahlliste „Klasse(n)“ wie im Handbuch: Tabelle Name | Langname (94 | 124, Zeilenhöhe 19) über die ganze Fensterbreite,
+/// darunter Alle, Markierte, Inverse (64 × 23) und Ok, Abbrechen (75 × 23); Mehrfachauswahl mit Strg.
+/// </summary>
 public static class KlassenAuswahlDialog
 {
     public static List<int>? Waehlen(IWin32Window owner, IReadOnlyCollection<int> gewaehlt)
     {
-        using var f = new Dialog("Klasse(n)", 330, 330);
-        f.FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        using var f = new Dialog("Klasse(n)", 230, 362);
+        f.Font = VorbildMasse.Schrift;
+        f.FormBorderStyle = FormBorderStyle.Sizable;
+        f.ShowIcon = true;
+        f.Icon = Application.OpenForms.Count > 0 ? Application.OpenForms[0]!.Icon : f.Icon;
+        f.MinimumSize = new Size(246, 260);
         f.Ok.Text = "Ok";
-        var g = new DataGridView { Left = 6, Top = 6, Width = 318, Height = 244, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        f.Ok.Size = f.Abbrechen.Size = VorbildMasse.Knopf;
+        f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        f.Ok.Location = new Point(16, 335);
+        f.Abbrechen.Location = new Point(107, 335);
+        var g = new DataGridView { Left = 0, Top = 0, Width = 230, Height = 296, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
+        g.BorderStyle = BorderStyle.Fixed3D;
+        g.Font = g.ColumnHeadersDefaultCellStyle.Font = VorbildMasse.Schrift;
+        g.ColumnHeadersHeight = 19;
+        g.RowTemplate.Height = 19;
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
         g.RowHeadersVisible = false;
-        g.Columns[g.Columns.Add("N", "Name")].Width = 70;
-        g.Columns[g.Columns.Add("L", "Langname")].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        g.Columns[g.Columns.Add("N", "Name")].Width = 94;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = 124;
         foreach (var k in Stammdaten.Sortiert(AppZustand.D.Klassen))
         {
             var i = g.Rows.Add(k.Kurzname, k.Langname);
@@ -262,20 +294,20 @@ public static class KlassenAuswahlDialog
         var nurMarkierte = false;
         Button Knopf(string text, int x, Action a)
         {
-            var b = new Button { Text = text, Left = x, Top = 256, Width = 74, Height = 24, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            var b = new Button { Text = text, Left = x, Top = 304, Width = 64, Height = 23, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
             b.Click += (_, _) => a();
             f.Controls.Add(b);
             return b;
         }
-        Knopf("Alle", 92, () => { foreach (DataGridViewRow r in g.Rows) { r.Visible = true; r.Selected = true; } nurMarkierte = false; });
-        Knopf("Markierte", 170, () =>
+        Knopf("Alle", 2, () => { foreach (DataGridViewRow r in g.Rows) { r.Visible = true; r.Selected = true; } nurMarkierte = false; });
+        Knopf("Markierte", 70, () =>
         {
             // nur die markierten Klassen anzeigen bzw. wieder alle
             nurMarkierte = !nurMarkierte;
             g.CurrentCell = null;
             foreach (DataGridViewRow r in g.Rows) r.Visible = !nurMarkierte || r.Selected;
         });
-        Knopf("Inverse", 248, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
+        Knopf("Inverse", 137, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
         f.Controls.Add(g);
         if (f.ShowDialog(owner) != DialogResult.OK) return null;
         return g.Rows.Cast<DataGridViewRow>().Where(r => r.Selected).Select(r => (int)r.Tag!).ToList();

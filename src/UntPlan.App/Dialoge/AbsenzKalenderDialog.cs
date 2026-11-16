@@ -16,15 +16,26 @@ public sealed class AbsenzKalenderDialog : Dialog
 {
     private static readonly Color FerienOrange = Color.FromArgb(255, 153, 51);
     private static readonly Color FeiertagRot = Color.FromArgb(240, 40, 40);
-    private static readonly Color SchuljahrGrau = Color.FromArgb(200, 200, 200);
+    private static readonly Color SchuljahrGrau = Color.FromArgb(190, 190, 190);
+    private static readonly Color LeerGrau = Color.FromArgb(220, 220, 220);
+    private static readonly Color Rasterlinie = Color.FromArgb(192, 210, 219);
+    /// <summary>Schrift des Jahreskalenders und der Legende wie im Handbuch-Bild.</summary>
+    private static readonly Font KalenderSchrift = new("Segoe UI", 8.25f);
+    private static readonly Font KalenderSchriftFett = new("Segoe UI", 8.25f, FontStyle.Bold);
     private static readonly Color AbsenzWeiss = Color.White;
     private static readonly Color NeuBlau = Color.FromArgb(150, 200, 255);
 
     private readonly AbwesenheitsArt _art;
     private readonly int _elementId;
     private readonly Jahresraster _raster;
-    private readonly Label _datum = new() { AutoSize = true, Left = 90, Top = 10 };
-    private readonly Label _kw = new() { AutoSize = true, Left = 90, Top = 28 };
+    // Kopf wie im Handbuch-Bild (Kap. 5.3, 96 dpi): zwei Knöpfe links, „Datum: Mo 30.10.2023“ und „Kalenderwoche: 44“ untereinander,
+    // daneben die (nur anzeigenden) Kästchen „Unterrichtsfrei“ und „Feiertag“ des gezeigten Tages, rechts die Legende
+    private readonly Label _datum = new() { AutoSize = true, Left = 80, Top = 5 };
+    private readonly Label _kw = new() { AutoSize = true, Left = 80, Top = 25 };
+    private readonly CheckBox _unterrichtsfrei = new() { Text = "Unterrichtsfrei", AutoSize = true, Left = 239, Top = 3, Enabled = false };
+    private readonly CheckBox _feiertag = new() { Text = "Feiertag", AutoSize = true, Left = 239, Top = 21, Enabled = false };
+    /// <summary>Überstreichen: 0 = automatisch (eintragen bzw. bei schon absenten Tagen löschen), 1 = nur eintragen, 2 = nur löschen.</summary>
+    private int _modus;
     /// <summary>Noch nicht übernommene Bereiche: hinzufügen (true) bzw. Absenz entfernen (false).</summary>
     private readonly List<(DateOnly Von, DateOnly Bis, bool Neu)> _offen = new();
 
@@ -36,33 +47,48 @@ public sealed class AbsenzKalenderDialog : Dialog
         f.ShowDialog(owner);
     }
 
-    private AbsenzKalenderDialog(AbwesenheitsArt art, ElementTyp typ, int elementId) : base("Absenzen - " + AppZustand.Doc.Index.K(typ, elementId), 1000, 380)
+    private AbsenzKalenderDialog(AbwesenheitsArt art, ElementTyp typ, int elementId) : base("Absenzen - " + AppZustand.Doc.Index.K(typ, elementId), 1070, 300)
     {
         _art = art;
         _elementId = elementId;
         FormBorderStyle = FormBorderStyle.Sizable;
         MinimumSize = new Size(760, 330);
+        // Schaltflächen wie im Handbuch-Bild: Ok, Abbrechen, Übernahme (je 76 × 23) unter dem Kalender
         Ok.Text = "Ok";
-        var uebernahme = new Button { Text = "Übernahme", Width = 88, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
-        uebernahme.Location = new Point(ClientSize.Width - 96, ClientSize.Height - 36);
-        Ok.Left -= 96;
-        Abbrechen.Left -= 96;
+        var uebernahme = new Button { Text = "Übernahme", Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+        Ok.Anchor = Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        Ok.SetBounds(742, 243, 76, 23);
+        Abbrechen.SetBounds(822, 243, 76, 23);
+        uebernahme.SetBounds(902, 243, 76, 23);
         uebernahme.Click += (_, _) => Uebernehmen();
         Ok.Click += (_, _) => Uebernehmen();
         Controls.Add(uebernahme);
 
-        Controls.Add(new Label { Text = "Datum:", AutoSize = true, Left = 40, Top = 10 });
-        Controls.Add(new Label { Text = "Kalenderwoche:", AutoSize = true, Left = 4, Top = 28 });
-        _kw.Left = 96;
-        _datum.Left = 96;
+        // zwei Knöpfe links oben: Überstreichen trägt nur ein bzw. löscht nur (nicht gedrückt: automatisch)
+        var tip = new ToolTip();
+        CheckBox Modusknopf(int modus, string symbol, string hinweis, int links)
+        {
+            var k = new CheckBox { Appearance = Appearance.Button, Image = Symbole.Get(symbol, 16), Bounds = new Rectangle(links, 8, 25, 25), FlatStyle = FlatStyle.Standard };
+            tip.SetToolTip(k, hinweis);
+            k.CheckedChanged += (_, _) =>
+            {
+                if (k.Checked) _modus = modus;
+                else if (_modus == modus) _modus = 0;
+                foreach (var andere in Controls.OfType<CheckBox>().Where(c => c != k && c.Appearance == Appearance.Button)) if (k.Checked) andere.Checked = false;
+            };
+            Controls.Add(k);
+            return k;
+        }
+        Modusknopf(1, "neu", "Absenz eintragen: überstrichene Tage werden absent gesetzt", 11);
+        Modusknopf(2, "loeschen", "Absenz löschen: überstrichene Tage werden aus den Absenzen entfernt", 45);
+        Disposed += (_, _) => tip.Dispose();
+
         Controls.Add(_datum);
         Controls.Add(_kw);
-        Controls.Add(new Legende { Left = 300, Top = 6, Width = 520, Height = 40 });
-        _raster = new Jahresraster(this)
-        {
-            Left = 6, Top = 54, Width = ClientSize.Width - 12, Height = ClientSize.Height - 100,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-        };
+        Controls.Add(_unterrichtsfrei);
+        Controls.Add(_feiertag);
+        Controls.Add(new Legende { Left = 375, Top = 3, Width = 440, Height = 40 });
+        _raster = new Jahresraster(this) { Left = 3, Top = 70, Width = 1046, Height = 170 };
         Controls.Add(_raster);
         DatumZeigen(AppZustand.Datum);
     }
@@ -71,8 +97,12 @@ public sealed class AbsenzKalenderDialog : Dialog
 
     private void DatumZeigen(DateOnly t)
     {
-        _datum.Text = $"{Core.Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {t:dd.MM.yyyy}";
-        _kw.Text = System.Globalization.ISOWeek.GetWeekOfYear(t.ToDateTime(TimeOnly.MinValue)).ToString();
+        _datum.Text = $"Datum: {Core.Planung.Planungsdienst.TageKurz[((int)t.DayOfWeek + 6) % 7]} {t:dd.MM.yyyy}";
+        _kw.Text = "Kalenderwoche: " + System.Globalization.ISOWeek.GetWeekOfYear(t.ToDateTime(TimeOnly.MinValue));
+        var kt = Kalender.KalendertagAm(D, t);
+        var ferien = Kalender.FerienAm(D, t);
+        _unterrichtsfrei.Checked = kt is { Unterrichtsfrei: true } || ferien is { Feiertag: false };
+        _feiertag.Checked = kt is { Feiertag: true } || ferien is { Feiertag: true };
     }
 
     /// <summary>Ist das Element an diesem Tag (laut gespeicherter Absenzen und noch nicht übernommener Bereiche) absent?</summary>
@@ -87,7 +117,7 @@ public sealed class AbsenzKalenderDialog : Dialog
     private void Ueberstrichen(DateOnly von, DateOnly bis)
     {
         var alleAbsent = Kalender.Tage(von, bis).All(t => Status(t).Absent);
-        _offen.Add((von, bis, !alleAbsent));
+        _offen.Add((von, bis, _modus switch { 1 => true, 2 => false, _ => !alleAbsent }));
         DatumZeigen(bis);
         _raster.Invalidate();
     }
@@ -167,27 +197,31 @@ public sealed class AbsenzKalenderDialog : Dialog
     private bool AbsenzFrage(Abwesenheit a)
     {
         var d = D;
-        using var f = new Dialog("Absenz", 270, 290);
+        // Maße nach dem Handbuch-Bild (Kap. 5.3, 96 dpi): Client 276 × 236, Felder „ab“/„bis St.“ 61 breit, Absenzgrund und
+        // Absenz-Text 259 breit, OK/Cancel 76 × 23 unten rechts
+        using var f = new Dialog("Absenz", 276, 236);
         f.Ok.Text = "OK";
         f.Abbrechen.Text = "Cancel";
+        f.Ok.SetBounds(110, 200, 76, 23);
+        f.Abbrechen.SetBounds(194, 200, 76, 23);
         var typ = _art switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum };
         var tag = Core.Planung.Planungsdienst.TageKurz[((int)a.Von.DayOfWeek + 6) % 7];
-        f.Controls.Add(new Label { Text = AppZustand.Doc.Index.K(typ, a.ElementId), Left = 10, Top = 12, AutoSize = true });
-        f.Controls.Add(new Label { Text = a.Von == a.Bis ? $"{a.Von:d.M.} / {tag}" : $"{a.Von:d.M.} - {a.Bis:d.M.}", Left = 10, Top = 34, AutoSize = true });
-        f.Controls.Add(new Label { Text = "ab", Left = 10, Top = 54, AutoSize = true });
-        f.Controls.Add(new Label { Text = "bis St.", Left = 140, Top = 54, AutoSize = true });
-        var ab = new TextBox { Left = 10, Top = 72, Width = 70 };
-        var bis = new TextBox { Left = 140, Top = 72, Width = 70 };
+        f.Controls.Add(new Label { Text = AppZustand.Doc.Index.K(typ, a.ElementId), Left = 7, Top = 12, AutoSize = true });
+        f.Controls.Add(new Label { Text = a.Von == a.Bis ? $"{a.Von:d.M.} / {tag}" : $"{a.Von:d.M.} - {a.Bis:d.M.}", Left = 7, Top = 32, AutoSize = true });
+        f.Controls.Add(new Label { Text = "ab", Left = 7, Top = 49, AutoSize = true });
+        f.Controls.Add(new Label { Text = "bis St.", Left = 112, Top = 49, AutoSize = true });
+        var ab = new TextBox { Left = 8, Top = 65, Width = 61 };
+        var bis = new TextBox { Left = 113, Top = 65, Width = 61 };
         f.Controls.Add(ab);
         f.Controls.Add(bis);
-        f.Controls.Add(new Label { Text = "Absenzgrund", Left = 10, Top = 108, AutoSize = true });
-        var grund = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 10, Top = 126, Width = 250 };
+        f.Controls.Add(new Label { Text = "Absenzgrund", Left = 7, Top = 99, AutoSize = true });
+        var grund = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 8, Top = 115, Width = 259 };
         grund.Items.Add("");
         foreach (var g in d.Abwesenheitsgruende) grund.Items.Add(g.Langname.Length > 0 ? $"{g.Kurzname} // {g.Langname}" : g.Kurzname);
         grund.SelectedIndex = 0;
         f.Controls.Add(grund);
-        f.Controls.Add(new Label { Text = "Absenz-Text", Left = 10, Top = 162, AutoSize = true });
-        var text = new TextBox { Left = 10, Top = 180, Width = 250 };
+        f.Controls.Add(new Label { Text = "Absenz-Text", Left = 7, Top = 144, AutoSize = true });
+        var text = new TextBox { Left = 8, Top = 161, Width = 259 };
         f.Controls.Add(text);
         if (f.ShowDialog(this) != DialogResult.OK) return false;
         var letzte = Math.Max(1, d.Zeitraster.StundenProTag);
@@ -207,31 +241,33 @@ public sealed class AbsenzKalenderDialog : Dialog
         {
             var g = e.Graphics;
             g.Clear(Parent?.BackColor ?? SystemColors.Control);
-            void Feld(int x, int y, Color farbe, string text, bool fett = false, bool rand = false)
+            // wie im Handbuch-Bild: Farbe nur hinter dem (unterstrichenen) Text von „Ferien“ und „Feiertag“, „Wochenende“ fett;
+            // Spalten im Abstand von 120 Pixeln, zweite Zeile 20 Pixel tiefer
+            using var unterstrichen = new Font(KalenderSchrift, FontStyle.Underline);
+            void Feld(int x, int y, Color farbe, string text, Font schrift)
             {
-                var r = new Rectangle(x, y, 90, 16);
-                if (farbe != Color.Empty) using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
-                if (rand) g.DrawRectangle(Pens.Black, r);
-                using var f = new Font(Ui.Schrift, fett ? FontStyle.Bold : FontStyle.Regular);
-                TextRenderer.DrawText(g, text, f, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                var groesse = TextRenderer.MeasureText(g, text, schrift, Size.Empty, TextFormatFlags.NoPadding);
+                if (farbe != Color.Empty) using (var b = new SolidBrush(farbe)) g.FillRectangle(b, x, y, groesse.Width + 2, groesse.Height + 1);
+                TextRenderer.DrawText(g, text, schrift, new Point(x + 1, y + 1), Color.Black, TextFormatFlags.NoPadding);
             }
-            TextRenderer.DrawText(g, "Legende", Ui.Schrift, new Point(0, 2), Color.Black);
-            Feld(110, 1, FerienOrange, "Ferien");
-            Feld(230, 1, FeiertagRot, "Feiertag");
-            Feld(350, 1, Color.Empty, "Wochenende", true);
-            TextRenderer.DrawText(g, "Schuljahr", Ui.Schrift, new Point(0, 22), Color.Black);
-            Feld(110, 21, AbsenzWeiss, "Absenzen", rand: true);
-            Feld(230, 21, Color.Empty, "Freie Tage");
+            Feld(0, 2, Color.Empty, "Legende", Ui.Schrift);
+            Feld(102, 1, FerienOrange, "Ferien", unterstrichen);
+            Feld(222, 1, FeiertagRot, "Feiertag", unterstrichen);
+            Feld(342, 1, Color.Empty, "Wochenende", KalenderSchriftFett);
+            Feld(0, 22, Color.Empty, "Schuljahr", Ui.Schrift);
+            Feld(120, 22, Color.Empty, "Absenzen", Ui.Schrift);
+            Feld(240, 22, Color.Empty, "Freie Tage", Ui.Schrift);
         }
     }
 
     /// <summary>Jahreskalender: Zeilen = Monate des Schuljahres (links das Jahr), Spalten = Mo–So über sechs Wochen.</summary>
     private sealed class Jahresraster : Control
     {
-        private const int Spalten = 37;
-        private const int JahrBreite = 40;
-        private const int MonatBreite = 70;
-        private const int KopfHoehe = 18;
+        // Maße wie im Handbuch-Bild (96 dpi): Jahr 33, Monat 60, 42 Tagesspalten (sechs Wochen) zu 21,5 Pixeln, Zeilen 15 Pixel
+        private const int Spalten = 42;
+        private const int JahrBreite = 33;
+        private const int MonatBreite = 60;
+        private const int KopfHoehe = 15;
         private static readonly string[] Monate = { "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember" };
         private static readonly string[] Wochentage = { "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So" };
         private readonly AbsenzKalenderDialog _f;
@@ -252,8 +288,8 @@ public sealed class AbsenzKalenderDialog : Dialog
             return res;
         }
 
-        private float ZellBreite => Math.Max(8f, (Width - JahrBreite - MonatBreite - 2) / (float)Spalten);
-        private float ZeilenHoehe(int monate) => Math.Max(12f, Math.Min(20f, (Height - KopfHoehe - 2) / (float)Math.Max(1, monate)));
+        private float ZellBreite => Math.Max(8f, Math.Min(21.5f, (Width - JahrBreite - MonatBreite - 2) / (float)Spalten));
+        private float ZeilenHoehe(int monate) => Math.Max(12f, Math.Min(15f, (Height - KopfHoehe - 2) / (float)Math.Max(1, monate)));
         private static int Versatz(DateOnly ersterTag) => ((int)ersterTag.DayOfWeek + 6) % 7;
 
         private RectangleF Zelle(int zeile, int spalte, int monate) =>
@@ -267,7 +303,10 @@ public sealed class AbsenzKalenderDialog : Dialog
             if (p.Y < KopfHoehe || p.X < JahrBreite + MonatBreite || zeile < 0 || zeile >= monate.Count || spalte < 0 || spalte >= Spalten) return null;
             var m = monate[zeile];
             var tag = spalte - Versatz(m) + 1;
-            return tag >= 1 && tag <= DateTime.DaysInMonth(m.Year, m.Month) ? new DateOnly(m.Year, m.Month, tag) : null;
+            if (tag < 1 || tag > DateTime.DaysInMonth(m.Year, m.Month)) return null;
+            var t = new DateOnly(m.Year, m.Month, tag);
+            var e = AppZustand.D.Einstellungen;
+            return t >= e.SchuljahrVon && t <= e.SchuljahrBis ? t : null;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -278,14 +317,15 @@ public sealed class AbsenzKalenderDialog : Dialog
             var monate = MonatsListe();
             var von = d.Einstellungen.SchuljahrVon;
             var bis = d.Einstellungen.SchuljahrBis;
-            using var raster = new Pen(Color.FromArgb(170, 170, 170));
+            using var raster = new Pen(Rasterlinie);
             using var fettRand = new Pen(Color.Black, 2);
-            using var fett = new Font(Ui.SchriftKlein, FontStyle.Bold);
-            using (var kopf = new SolidBrush(Color.FromArgb(232, 236, 242))) g.FillRectangle(kopf, 0, 0, Width, KopfHoehe);
+            var fett = KalenderSchriftFett;
+            var schrift = KalenderSchrift;
+            using (var kopf = new SolidBrush(Color.FromArgb(225, 237, 243))) g.FillRectangle(kopf, 0, 0, Width, KopfHoehe);
             for (var s = 0; s < Spalten; s++)
             {
                 var r = Zelle(0, s, monate.Count);
-                TextRenderer.DrawText(g, Wochentage[s % 7], Ui.SchriftKlein, Rectangle.Round(new RectangleF(r.X, 1, r.Width, KopfHoehe - 2)), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(g, Wochentage[s % 7], schrift, Rectangle.Round(new RectangleF(r.X, 1, r.Width, KopfHoehe - 2)), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
             var (sa, se) = _start is { } a && _ende is { } b ? (a < b ? (a, b) : (b, a)) : (DateOnly.MaxValue, DateOnly.MinValue);
             for (var z = 0; z < monate.Count; z++)
@@ -294,18 +334,19 @@ public sealed class AbsenzKalenderDialog : Dialog
                 var zr = Zelle(z, 0, monate.Count);
                 var monatGewaehlt = AppZustand.Datum.Year == m.Year && AppZustand.Datum.Month == m.Month;
                 if (monatGewaehlt) using (var hb = new SolidBrush(Color.FromArgb(255, 236, 200))) g.FillRectangle(hb, JahrBreite, zr.Y, MonatBreite, zr.Height);
-                TextRenderer.DrawText(g, Monate[m.Month - 1], Ui.SchriftKlein, new Rectangle(JahrBreite + 2, (int)zr.Y, MonatBreite - 2, (int)zr.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+                TextRenderer.DrawText(g, Monate[m.Month - 1], schrift, new Rectangle(JahrBreite + 2, (int)zr.Y, MonatBreite - 2, (int)zr.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
                 if (z == 0 || m.Month == 1)
-                    TextRenderer.DrawText(g, m.Year.ToString(), Ui.Schrift, new Rectangle(0, (int)zr.Y, JahrBreite, (int)zr.Height * 2), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+                    TextRenderer.DrawText(g, m.Year.ToString(), schrift, new Rectangle(0, (int)zr.Y, JahrBreite, (int)zr.Height * 2), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
                 var vs = Versatz(m);
                 var tage = DateTime.DaysInMonth(m.Year, m.Month);
                 for (var s = 0; s < Spalten; s++)
                 {
                     var r = Zelle(z, s, monate.Count);
                     var tagNr = s - vs + 1;
-                    if (tagNr < 1 || tagNr > tage)
+                    // wie im Vorbild: Tage außerhalb des Schuljahres erscheinen als leere Felder
+                    if (tagNr < 1 || tagNr > tage || new DateOnly(m.Year, m.Month, tagNr) is var td && (td < von || td > bis))
                     {
-                        using var leer = new SolidBrush(Color.FromArgb(225, 225, 225));
+                        using var leer = new SolidBrush(LeerGrau);
                         g.FillRectangle(leer, r);
                         g.DrawRectangle(raster, r.X, r.Y, r.Width, r.Height);
                         continue;
@@ -317,14 +358,12 @@ public sealed class AbsenzKalenderDialog : Dialog
                     var (absent, offen) = _f.Status(t);
                     Color farbe = ferien is { Feiertag: true } || kt is { Feiertag: true } ? FeiertagRot
                         : ferien != null || kt is { Unterrichtsfrei: true } ? FerienOrange
-                        : t < von || t > bis ? Color.White
                         : absent ? (offen ? NeuBlau : AbsenzWeiss)
                         : SchuljahrGrau;
                     if (t >= sa && t <= se) farbe = NeuBlau;
                     using (var pinsel = new SolidBrush(farbe)) g.FillRectangle(pinsel, r);
                     g.DrawRectangle(raster, r.X, r.Y, r.Width, r.Height);
-                    if (absent && !wochenende && ferien is null) g.DrawRectangle(Pens.Black, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
-                    TextRenderer.DrawText(g, tagNr.ToString(), wochenende ? fett : Ui.SchriftKlein, Rectangle.Round(r), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g, tagNr.ToString(), wochenende ? fett : schrift, Rectangle.Round(r), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                     if (wochenende) g.DrawRectangle(fettRand, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
                 }
             }
