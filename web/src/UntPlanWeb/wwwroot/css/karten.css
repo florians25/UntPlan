@@ -266,7 +266,7 @@ html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .s
     padding-top: calc((var(--lbl-h) - 1cap) / 2); padding-bottom: calc((var(--lbl-h) - 1cap) / 2);
   }
 }
-html:root.is-mac :is(.std.entfall :is(.z1, .z2, .zt), .std:not(.lehrer-abwesend) .lbl.weg, .std.lehrer-abwesend.entfall .lbl.weg, .std .kl-weg, .sd-lbl-weg, .sd-lbl-weg .sd-link,
+html:root.is-mac :is(.std.entfall :is(.z1, .z2, .zt), .std .lbl.weg, .std .kl-weg, .sd-lbl-weg, .sd-lbl-weg .sd-link,
   .sd-alt, .std-lbl.weg, .vt-zeile .lbl-neu.weg, .v-lbl.weg) {
   --strich: 1px;
   text-decoration-line: underline; text-decoration-style: solid; text-decoration-skip-ink: none; text-underline-position: auto;
