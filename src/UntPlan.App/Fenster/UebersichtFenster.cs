@@ -47,7 +47,11 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
         private readonly UebersichtFenster _f;
         private (int Zeile, Planstunde P)? _drag;
         private int NameBreite => _f.ZusatzBeschriftung ? 96 : 60;
-        private const int Kopf = 36;
+        // Vorbild „Leh20“ (Handbuch-Bild Übersichtsplan im Querformat): Tageszeile 19 px, Stundenzeile 21 px, Zeilen 21 px, Stunden 22 px breit
+        private const int TagZeile = 19;
+        private const int Kopf = 40;
+        private const int Zeile = 21;
+        private const int MindestSpalte = 22;
 
         public Raster(UebersichtFenster f)
         {
@@ -61,16 +65,20 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
 
         public void GroesseAnpassen(Size client)
         {
-            var hoehe = Kopf + Elemente.Count * 22 + 2;
-            Size = new Size(Math.Max(client.Width - 2, NameBreite + Spalten * 18), Math.Max(client.Height - 2, hoehe));
+            var hoehe = Kopf + Elemente.Count * Zeile + 2;
+            Size = new Size(Math.Max(client.Width - 2, NameBreite + Spalten * MindestSpalte + 2), Math.Max(client.Height - 2, hoehe));
             Invalidate();
         }
 
-        private float ZellBreite(Rectangle b) => (b.Width - NameBreite) / (float)Spalten;
-        private float ZeilenHoehe(Rectangle b) => Math.Min(26, (b.Height - Kopf) / (float)Math.Max(1, Elemente.Count));
+        private float ZellBreite(Rectangle b) => (b.Width - NameBreite - 1) / (float)Spalten;
+        private float ZeilenHoehe(Rectangle b) => Math.Max(14, Math.Min(Zeile, (b.Height - Kopf - 1) / (float)Math.Max(1, Elemente.Count)));
 
         protected override void OnPaint(PaintEventArgs e) => Zeichnen(e.Graphics, ClientRectangle);
 
+        /// <summary>
+        /// Übersichtsplan wie im Vorbild: Kopf und Namensspalte hellblau, schwarze 1-px-Linien, 2 px zwischen den Tagen, Namen fett,
+        /// Stunden in der Farbe des Elements (Lehrer-/Raumübersicht: Klasse, Klassenübersicht: Fach), Kopplungen mit „.“, Fixierung mit „*“.
+        /// </summary>
         public void Zeichnen(Graphics g, Rectangle b)
         {
             var d = AppZustand.D;
@@ -78,28 +86,46 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
             var zr = d.Zeitraster;
             var cw = ZellBreite(b);
             var rh = ZeilenHoehe(b);
+            var elemente = Elemente;
+            var unten = b.Y + Kopf + (int)Math.Round(rh * elemente.Count);
+            var familie = (AppZustand.D.Formate.FirstOrDefault(x => x.Typ == _f._typ) ?? new StundenplanFormat()).SchriftartWirksam;
+            using var normal = new Font(familie, 9f);
+            using var fett = new Font(familie, 9f, FontStyle.Bold);
+            using var hell = new SolidBrush(Steuerelemente.PlanAnsicht.Hellblau);
             g.FillRectangle(Brushes.White, b);
+            g.FillRectangle(hell, b.X, b.Y, b.Width, Kopf);
+            g.FillRectangle(hell, b.X, b.Y, NameBreite, unten - b.Y);
+            int X(int spalte) => b.X + NameBreite + (int)Math.Round(spalte * cw);
+            int Y(int zeile) => b.Y + Kopf + (int)Math.Round(zeile * rh);
+            const TextFormatFlags mitte = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
             for (var t = 0; t < zr.TageProWoche; t++)
             {
-                var x = b.X + NameBreite + t * zr.StundenProTag * cw;
-                TextRenderer.DrawText(g, Planungsdienst.Tagname(d, t, true), Ui.SchriftFett, new Rectangle((int)x, b.Y, (int)(zr.StundenProTag * cw), 18), Color.Black, TextFormatFlags.HorizontalCenter);
+                var x0 = X(t * zr.StundenProTag);
+                var x1 = X((t + 1) * zr.StundenProTag);
+                TextRenderer.DrawText(g, Planungsdienst.Tagname(d, t, true), normal, new Rectangle(x0, b.Y, x1 - x0, TagZeile), Color.Black, mitte);
                 for (var s = 1; s <= zr.StundenProTag; s++)
-                    TextRenderer.DrawText(g, zr.StundenLabel(s), Ui.SchriftKlein, new Rectangle((int)(x + (s - 1) * cw), b.Y + 18, (int)cw, 16), Color.DimGray, TextFormatFlags.HorizontalCenter);
-                g.DrawLine(Pens.Black, x, b.Y, x, b.Y + Kopf + rh * Elemente.Count);
+                {
+                    var sx = X(t * zr.StundenProTag + s - 1);
+                    TextRenderer.DrawText(g, zr.StundenLabel(s), normal, new Rectangle(sx, b.Y + TagZeile, X(t * zr.StundenProTag + s) - sx, Kopf - TagZeile), Color.Black, mitte);
+                }
             }
-            var elemente = Elemente;
             for (var i = 0; i < elemente.Count; i++)
             {
-                var y = b.Y + Kopf + i * rh;
-                g.FillRectangle(i % 2 == 0 ? Brushes.White : new SolidBrush(Color.FromArgb(247, 249, 252)), b.X, y, b.Width, rh);
-                TextRenderer.DrawText(g, _f.Beschriftung(elemente[i]), Ui.SchriftFett, new Rectangle(b.X + 2, (int)y, NameBreite - 4, (int)rh), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                var y0 = Y(i);
+                var y1 = Y(i + 1);
+                TextRenderer.DrawText(g, _f.Beschriftung(elemente[i]), fett, new Rectangle(b.X + 3, y0, NameBreite - 5, y1 - y0), Color.Black,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
                 foreach (var p in ix.PlanVon(_f._typ, elemente[i].Id))
                 {
                     if (!ix.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) continue;
-                    var x = b.X + NameBreite + (p.Tag * zr.StundenProTag + p.Stunde - 1) * cw;
-                    var fach = u.HauptfachId is int fid ? ix.Faecher.GetValueOrDefault(fid) : null;
-                    var farbe = Ui.Farbe(fach?.Hintergrund ?? 0, Color.FromArgb(210, 220, 240));
-                    var r = new RectangleF(x + 1, y + 1, cw - 2, rh - 2);
+                    var spalte = p.Tag * zr.StundenProTag + p.Stunde - 1;
+                    var r = new Rectangle(X(spalte) + 1, y0 + 1, X(spalte + 1) - X(spalte) - 1, y1 - y0 - 1);
+                    Element? farbElement = _f._typ == ElementTyp.Klasse
+                        ? (u.HauptfachId is int fid ? ix.Faecher.GetValueOrDefault(fid) : null)
+                        : u.KlassenIds.FirstOrDefault() is int kid and > 0 ? ix.Klassen.GetValueOrDefault(kid) : null;
+                    if (farbElement is null or { Hintergrund: 0 } && u.HauptfachId is int fid2) farbElement = ix.Faecher.GetValueOrDefault(fid2);
+                    var farbe = Ui.Farbe(farbElement?.Hintergrund ?? 0, Steuerelemente.PlanAnsicht.Hellblau);
+                    var schrift = farbElement is { Vordergrund: not 0 } ? Ui.Farbe(farbElement.Vordergrund, Color.Black) : Ui.Textfarbe(farbe);
                     using (var br = new SolidBrush(farbe)) g.FillRectangle(br, r);
                     var text = _f._typ switch
                     {
@@ -107,10 +133,22 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
                         ElementTyp.Klasse => string.Join(",", u.LehrerIds.Select(ix.KLehrer)),
                         _ => ix.KKlassen(u.KlassenIds),
                     };
-                    TextRenderer.DrawText(g, (p.Fixiert ? "*" : "") + text, Ui.SchriftKlein, Rectangle.Round(r), Ui.Textfarbe(farbe), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                    TextRenderer.DrawText(g, (p.Fixiert ? "*" : "") + text + (u.Zeilen.Count > 1 ? "." : ""), normal, r, schrift, mitte);
                 }
-                g.DrawLine(Pens.Gainsboro, b.X, y + rh, b.Right, y + rh);
             }
+            // Raster: schwarze Linien, 2 px zwischen den Tagen und unter dem Kopf
+            using var linie = new Pen(Color.Black);
+            for (var c = 0; c <= Spalten; c++)
+            {
+                var x = X(c);
+                var tagGrenze = c % zr.StundenProTag == 0;
+                g.DrawLine(linie, x, b.Y + (tagGrenze ? 0 : TagZeile), x, unten);
+                if (tagGrenze && c > 0 && c < Spalten) g.DrawLine(linie, x + 1, b.Y, x + 1, unten);
+            }
+            g.DrawLine(linie, b.X, b.Y, b.X, unten);
+            g.DrawLine(linie, b.X + NameBreite, b.Y + TagZeile, b.Right - 1, b.Y + TagZeile);
+            g.DrawLine(linie, b.X, b.Y, b.Right - 1, b.Y);
+            for (var i = 0; i <= elemente.Count; i++) g.DrawLine(linie, b.X, Y(i), X(Spalten), Y(i));
         }
 
         private (int Zeile, int Tag, int Stunde)? Treffer(Point p)

@@ -212,6 +212,16 @@ public sealed class PlanungsdialogFenster : MdiFenster
         _raster.ZiehenBeginnt += ZiehenBeginnt;
         _raster.Abgelegt += Abgelegt;
         _raster.ZielGeaendert += (z, s) => { if (_raster.Ziehdaten != null) LupeFuellen(z, s); };
+        // geplante Verschiebung mit roten Pfeilen in den offenen Stundenplänen (Handbuch 5.4.2.4)
+        _raster.ZielGeaendert += (z, s) =>
+        {
+            if (_raster.Ziehdaten is { } zd && zd.StartsWith("pd:") && PlanDaten(zd) is { } zp && z < _zeilen.Count)
+            {
+                var (zt, zs) = Position(z, s);
+                PlanAnsicht.FremdeVorschauSetzen((zp.UnterrichtId, zp.Tag, zp.Stunde, zt, zs));
+            }
+        };
+        _raster.ZiehenBeendet += () => PlanAnsicht.FremdeVorschauSetzen(null);
         _raster.Kontext += Kontextmenue;
         _raster.KeyDown += RasterTaste;
         _raster.KeyPress += RasterZeichen;
@@ -1186,33 +1196,45 @@ public sealed class PlanungsdialogFenster : MdiFenster
     {
         var u = Ix.Unterrichte[p.UnterrichtId];
         if (p.Fixiert && !Warnhinweis.Frage(this, "fixiert", $"Unterricht ist fixiert. Unterricht: {u.Id}\n{Planungsdienst.Tagname(D, p.Tag)}-{p.Stunde}\nUnterricht trotzdem verschieben ?")) return;
-        var tausch = Planungsdienst.TauschPruefen(D, Ix, new[] { p }, tag, stunde, out var grund);
-        var erzwingen = false;
-        if (tausch != null)
+        // Rückfrage „Block speichern“ wie im Stundenplan (Handbuch 5.2.5/5.4.2.3): Block speichern, Kollision erzeugen, 2-er-Tausch, Tauschkette
+        var q = new List<Planstunde> { p };
+        var (vonTag, vonStunde) = (p.Tag, p.Stunde);
+        var tausch = Planungsdienst.TauschPruefen(D, Ix, q, tag, stunde, out _);
+        var behindernd = Behinderung.AnStellen(D, Ix, u, new[] { (tag, stunde) }, q);
+        var kette = behindernd.Count > 0 ? Ziehbewertung.KettePruefen(D, Ix, q, tag, stunde) : null;
+        var wahl = BlockSpeichernWahl.BlockSpeichern;
+        var raumKollision = false;
+        if (behindernd.Count > 0 || tausch != null)
         {
-            var wahl = PlanungsKonfliktDialog.Fragen(this, $"Stunden tauschen – Unterricht {u.Id} {Ix.UnterrichtText(u)}", tausch.Beschreibung, "2-er-Tausch", "Kollision erzeugen");
-            if (wahl is null) return;
-            if (wahl == 0)
+            var tauschText = tausch is { Partner.Count: > 0 } && Ix.Unterrichte.TryGetValue(tausch.Partner[0].UnterrichtId, out var pu)
+                ? Ziehbewertung.TauschOption(D, Ix, u, vonTag, vonStunde, pu, tag, stunde) : null;
+            var antwort = BlockSpeichernDialog.Fragen(this, Ziehbewertung.BlockSpeichernTitel(Ix, u), Ziehbewertung.BlockSpeichernText(D, Ix, u, (vonTag, vonStunde), tag, stunde, behindernd),
+                tauschText, kette is null ? null : Ziehbewertung.KettenOption(D, kette), Ziehbewertung.RaumBelegt(D, Ix, u, tag, stunde, 1, q));
+            if (antwort is null) return;
+            wahl = antwort.Wahl;
+            raumKollision = antwort.RaumKollision;
+        }
+        if (wahl == BlockSpeichernWahl.Tausch && tausch != null)
+        {
+            Aendern("Stunden tauschen", AenderungsArt.Stundenplan, d => Planungsdienst.Tauschen(d, tausch));
+            Neuaufbau();
+            return;
+        }
+        if (wahl == BlockSpeichernWahl.Tauschkette && kette != null)
+        {
+            Aendern($"{Ziehbewertung.KettenOption(D, kette)}", AenderungsArt.Stundenplan, d =>
             {
-                Aendern("Stunden tauschen", AenderungsArt.Stundenplan, d => Planungsdienst.Tauschen(d, tausch));
-                Neuaufbau();
-                return;
-            }
-            erzwingen = true;
+                if (!Ziehbewertung.KetteAusfuehren(d, kette)) throw new InvalidOperationException("Die Tauschkette ist nicht mehr möglich.");
+            });
+            Neuaufbau();
+            return;
         }
-        var behindernd = erzwingen ? new List<Hindernis>() : Behinderung.AnStellen(D, Ix, u, new[] { (tag, stunde) }, new[] { p });
-        var weg = new List<Planstunde>();
-        if (behindernd.Count > 0)
-        {
-            var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd, $"Stunde verschieben – U-Nr. {u.Id} {Ix.UnterrichtText(u)} nach {Planungsdienst.Tagname(D, tag)}-{stunde}" +
-                (grund.Length > 0 ? $"\n(kein Tausch möglich: {grund})" : ""));
-            if (antwort == BehinderungsAntwort.Abbrechen) return;
-            if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => h.Planstunde).ToList();
-        }
+        var weg = wahl == BlockSpeichernWahl.BlockSpeichern ? behindernd.Select(h => h.Planstunde).ToList() : new List<Planstunde>();
         Aendern(weg.Count > 0 ? $"Stunde verschieben ({weg.Count} behindernde entplant)" : "Stunde verschieben", AenderungsArt.Stundenplan, d =>
         {
             foreach (var x in weg) d.Stundenplan.Remove(x);
             Planungsdienst.Verschieben(d, p, tag, stunde, false, false);
+            if (raumKollision) Ziehbewertung.RaumKollisionSetzen(new DatenIndex(d), u, p);
         });
         Neuaufbau();
     }

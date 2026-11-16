@@ -42,8 +42,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripLabel _bisText = new() { Margin = new Padding(2, 1, 0, 2) };
     /// <summary>Fußzeile mit der Formatauswahl unten rechts (wie im Vorbild „Rau1A - Raumplan …“).</summary>
     private readonly Fussleiste _fuss = new();
-    /// <summary>Hellblau des Vorbild-Stundenplanmodus für die Flächen um den Plan (Zeitzeile, Fuß, Ablage).</summary>
-    internal static readonly Color PlanFlaeche = Color.FromArgb(220, 240, 255);
+    /// <summary>Fläche des Vorbild-Stundenplanmodus um den Plan (Zeitzeile, Fuß, Ablage), gemessen in den Handbuch-Bildern: 227,233,240.</summary>
+    internal static readonly Color PlanFlaeche = Color.FromArgb(227, 233, 240);
     private readonly ToolStripDropDownButton _typKnopf = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Planart: Klasse, Lehrer oder Raum" };
     private readonly Panel _planRahmen = new() { Dock = DockStyle.Fill };
     private bool _laden;
@@ -328,6 +328,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         mitte.Controls.Add(planRahmen);
         mitte.Controls.Add(_pool);
         Controls.Add(mitte);
+        ZiehenEinrichten(mitte);
         Controls.Add(_reiter);
         Controls.Add(_lupe);
         Controls.Add(_fuss);
@@ -1174,19 +1175,24 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _pool.SetFlowBreak(titel, true);
         if (_typ != ElementTyp.Raum)
         {
-            // offene Stunden direkt als Blöcke in ihrer Blockgröße (Doppelstunde doppelt hoch), jeder Block einzeln ziehbar
+            // offene Stunden als Stapel in ihrer Blockgröße (Doppelstunde doppelt hoch), mehrere gleich lange Blöcke gestapelt;
+            // Strg+Klick in die Ablage teilt Doppelstunden und Blöcke in Einzelstunden (Handbuch 5.2.1)
             foreach (var u in Ix.UnterrichteVon(_typ, _id).Where(u => !u.Ignorieren && Ix.NichtVerplant(u) > 0).OrderBy(u => u.Id))
             {
                 var fach = string.Join(",", u.FachIds.Select(f => Ix.KFach(f)).Distinct());
                 var info = _typ == ElementTyp.Lehrer ? Ix.KKlassen(u.KlassenIds) : string.Join(",", u.LehrerIds.Select(Ix.KLehrer));
-                foreach (var b in Planungsdienst.OffeneBloecke(D, Ix, u))
+                var fachFarbe = u.FachIds.Select(f => Ix.Faecher.GetValueOrDefault(f)).FirstOrDefault(f => f is { Hintergrund: not 0 });
+                foreach (var (b, anzahl) in PoolStapel(u))
                 {
-                    var block = new PoolBlock(u, b, fach.Length > 0 ? fach : "?", info, (u.Zeilen.Count > 1 ? "." : ""));
+                    var block = new PoolBlock(u, b, fach.Length > 0 ? fach : "?", info, (u.Zeilen.Count > 1 ? "." : ""), anzahl, Ix.NichtVerplant(u),
+                        fachFarbe is null ? PlanAnsicht.Grund : Ui.Farbe(fachFarbe.Hintergrund, PlanAnsicht.Grund));
                     block.MouseDown += (_, e) =>
                     {
                         if (e.Button != MouseButtons.Left) return;
-                        // Strg+Klick: mehrere Unterrichte markieren und gemeinsam verplanen
-                        if ((ModifierKeys & Keys.Control) != 0)
+                        // Strg+Klick: Doppelstunden teilen bzw. wieder zusammenfassen
+                        if ((ModifierKeys & Keys.Control) != 0) { PoolTeilen(); return; }
+                        // Umschalt+Klick: mehrere Unterrichte markieren und gemeinsam verplanen
+                        if ((ModifierKeys & Keys.Shift) != 0)
                         {
                             var neu = !block.Markiert;
                             foreach (var x in _pool.Controls.OfType<PoolBlock>().Where(x => x.Unterricht == u)) { x.Markiert = neu; x.Invalidate(); }
@@ -1222,10 +1228,18 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         private readonly string _info;
         private readonly string _praefix;
 
-        public PoolBlock(Unterricht u, int laenge, string fach, string info, string praefix)
+        /// <summary>Anzahl gleich langer Blöcke im Stapel.</summary>
+        public int Anzahl { get; }
+        private readonly int _offen;
+        private readonly Color _farbe;
+
+        public PoolBlock(Unterricht u, int laenge, string fach, string info, string praefix, int anzahl = 1, int offen = 0, Color? farbe = null)
         {
             Unterricht = u;
             Laenge = Math.Max(1, laenge);
+            Anzahl = Math.Max(1, anzahl);
+            _offen = offen;
+            _farbe = farbe ?? PlanAnsicht.Grund;
             _fach = fach;
             _info = info;
             _praefix = praefix;
@@ -1233,24 +1247,45 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             Margin = new Padding(3);
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
-            new ToolTip().SetToolTip(this, $"U-Nr. {u.Id}: {(Laenge > 1 ? $"{Laenge}er-Block (Doppelstunde = 2)" : "Einzelstunde")} nicht verplant.\nIn den Stundenplan ziehen zum Verplanen. Strg+Klick markiert mehrere Unterrichte.");
+            new ToolTip().SetToolTip(this, $"U-Nr. {u.Id}: {(anzahl > 1 ? $"{anzahl} × " : "")}{(Laenge > 1 ? $"{Laenge}er-Block (Doppelstunde = 2)" : "Einzelstunde")} nicht verplant.\n" +
+                "In den Stundenplan ziehen zum Verplanen. Strg+Klick teilt Doppelstunden in Einzelstunden, Umschalt+Klick markiert mehrere Unterrichte.");
         }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            var r = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var b = new SolidBrush(PlanAnsicht.Grund)) g.FillRectangle(b, r);
+            g.Clear(Parent?.BackColor ?? Color.White);
+            // gestapelt wie im Handbuch: weitere gleich lange Blöcke versetzt dahinter (innerhalb der Blockhöhe)
+            var tiefe = Math.Min(Anzahl - 1, 3) * 3;
+            for (var i = tiefe; i > 0; i -= 3)
+            {
+                var hinten = new Rectangle(i, tiefe - i, Width - 1 - tiefe, Height - 1 - tiefe);
+                using (var b = new SolidBrush(_farbe)) g.FillRectangle(b, hinten);
+                g.DrawRectangle(Pens.DimGray, hinten);
+            }
+            var r = new Rectangle(0, tiefe, Width - 1 - tiefe, Height - 1 - tiefe);
+            using (var b = new SolidBrush(_farbe)) g.FillRectangle(b, r);
+            var tf = Ui.Textfarbe(_farbe);
             // Stundenlinien im Block (gestrichelt) wie die Zeilen im Plan
             using (var p = new Pen(Color.FromArgb(150, 170, 190)) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot })
-                for (var i = 1; i < Laenge; i++) g.DrawLine(p, 2, i * Einheit + 1, Width - 3, i * Einheit + 1);
+                for (var i = 1; i < Laenge; i++) g.DrawLine(p, 2, r.Y + i * r.Height / Laenge, r.Right - 2, r.Y + i * r.Height / Laenge);
             g.DrawRectangle(Pens.Black, r);
             var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
-            var mitte = Math.Max(1, (Height - 30) / 2);
-            TextRenderer.DrawText(g, _praefix + _fach, Ui.SchriftFett, new Rectangle(2, mitte, Width - 4, 15), Color.Black, flags);
-            TextRenderer.DrawText(g, _info, Ui.SchriftKlein, new Rectangle(2, mitte + 15, Width - 4, 14), Color.Black, flags);
-            if (Laenge > 1) TextRenderer.DrawText(g, $"{Laenge} Std.", Ui.SchriftKlein, new Rectangle(2, Height - 15, Width - 5, 13), Color.FromArgb(40, 70, 120), TextFormatFlags.Right | TextFormatFlags.NoPrefix);
-            if (Markiert) using (var p = new Pen(Color.FromArgb(255, 140, 0), 2.5f)) g.DrawRectangle(p, 1, 1, Width - 3, Height - 3);
+            var mitte = r.Y + Math.Max(1, (r.Height - 30) / 2);
+            TextRenderer.DrawText(g, _praefix + _fach, Ui.SchriftFett, new Rectangle(2, mitte, r.Width - 3, 15), tf, flags);
+            TextRenderer.DrawText(g, _info, Ui.SchriftKlein, new Rectangle(2, mitte + 15, r.Width - 3, 14), tf, flags);
+            if (Laenge > 1) TextRenderer.DrawText(g, $"{Laenge} Std.", Ui.SchriftKlein, new Rectangle(2, r.Bottom - 14, r.Width - 4, 13), tf == Color.Black ? Color.FromArgb(40, 70, 120) : tf, TextFormatFlags.Right | TextFormatFlags.NoPrefix);
+            // mehr als drei nicht verplante Stunden: Anzahl im Kreis (Handbuch 5.2.1)
+            if (_offen > 3)
+            {
+                var kreis = new Rectangle(r.X + r.Width / 2 - 8, r.Y + 1, 16, 14);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.FillEllipse(Brushes.White, kreis);
+                g.DrawEllipse(Pens.Black, kreis);
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
+                TextRenderer.DrawText(g, _offen.ToString(), Ui.SchriftKlein, kreis, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            }
+            if (Markiert) using (var p = new Pen(Color.FromArgb(255, 140, 0), 2.5f)) g.DrawRectangle(p, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
         }
     }
 
@@ -1466,62 +1501,13 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             var dt = tag - prim.Tag;
             var ds = stunde - prim.Stunde;
             if (dt == 0 && ds == 0) return;
-            var idx = D.Stundenplan.IndexOf(prim);
-            // eine Stunde bzw. ein ganzer Block eines Unterrichts: geprüfter Tausch mit dem Unterricht am Ziel (wie im Vorbild)
-            var erzwingen = false;
-            var tauschGrund = "";
+            // eine Stunde bzw. ein ganzer Block eines Unterrichts: frei = verschieben, sonst Rückfrage „Block speichern“ (Handbuch 5.2.5/5.2.8)
             if (alle.All(x => x.UnterrichtId == prim.UnterrichtId && x.Tag == prim.Tag))
             {
-                var start = alle.Min(x => x.Stunde) + ds;
-                var tausch = Planungsdienst.TauschPruefen(D, Ix, alle, tag, start, out tauschGrund);
-                if (tausch != null)
-                {
-                    var wahl = PlanungsKonfliktDialog.Fragen(this, $"Stunden tauschen – Unterricht {prim.UnterrichtId} {Ix.UnterrichtText(Ix.Unterrichte[prim.UnterrichtId])}",
-                        tausch.Beschreibung + (tausch.Partner.Count > tausch.Laenge ? $"\n(mit {tausch.Partner.Count} parallelen Stunden des Bandes)" : ""), "Stunden tauschen", "Kollision erzeugen");
-                    if (wahl is null) return;
-                    if (wahl == 0)
-                    {
-                        var idxs = alle.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0).ToList();
-                        Aendern(tausch.Laenge > 1 ? $"Block tauschen ({tausch.Laenge} Stunden)" : "Stunden tauschen", AenderungsArt.Stundenplan, d =>
-                        {
-                            var t = Planungsdienst.TauschPruefen(d, new DatenIndex(d), idxs.Select(i => d.Stundenplan[i]).ToList(), tag, start, out var g);
-                            if (t is null) throw new InvalidOperationException(g);
-                            Planungsdienst.Tauschen(d, t);
-                        });
-                        _plan.Ausgewaehlt = D.Stundenplan.ElementAtOrDefault(idx);
-                        Neuaufbau(false);
-                        return;
-                    }
-                    erzwingen = true;
-                }
+                BlockAblegen(alle, tag, alle.Min(x => x.Stunde) + ds);
+                return;
             }
-            if (alle.Count > 1) { MehrereVerschieben(alle, dt, ds, erzwingen); return; }
-            var p = prim;
-            var u = Ix.Unterrichte[p.UnterrichtId];
-            // Rückfragen wie im Vorbild: klein neben der Maus, mit „nicht mehr anzeigen“
-            if (p.Fixiert && !Warnhinweis.Frage(this, "fixiert", $"Unterricht ist fixiert. Unterricht: {u.Id}\n{Planungsdienst.Tagname(D, p.Tag)}-{p.Stunde}\nUnterricht trotzdem entplanen ?")) return;
-            if (FachZweimalAmTag(u, tag, stunde, p) && !Warnhinweis.Frage(this, "fach2x", $"Fach 2x / Tag\nTrotzdem verplanen ? (Unterricht: {u.Id})", dauerhaft: true)) return;
-            var raeumeVorher = p.Raeume.Where(r => r.HasValue).Select(r => r!.Value).Distinct().ToList();
-            // „Soll behindernder Unterricht entplant werden?“ (Lehrer, Klasse bzw. fester Raum belegt)
-            var behindernd = erzwingen ? new List<Hindernis>() : Behinderung.AnStellen(D, Ix, u, new[] { (tag, stunde) }, new[] { p });
-            var weg = new List<int>();
-            if (behindernd.Count > 0)
-            {
-                var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd, $"Stunde verschieben – U-Nr. {u.Id} {Ix.UnterrichtText(u)} nach {Planungsdienst.Tagname(D, tag)}-{stunde}" +
-                    (tauschGrund.Length > 0 ? $"\n(kein Tausch möglich: {tauschGrund})" : ""));
-                if (antwort == BehinderungsAntwort.Abbrechen) return;
-                if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
-            }
-            Aendern(weg.Count > 0 ? $"Stunde verschieben ({weg.Count} behindernde entplant)" : "Stunde verschieben", AenderungsArt.Stundenplan, d =>
-            {
-                var stundeRef = d.Stundenplan[idx];
-                var entfernen = weg.Select(i => d.Stundenplan[i]).ToList();
-                foreach (var x in entfernen) d.Stundenplan.Remove(x);
-                Planungsdienst.Verschieben(d, stundeRef, tag, stunde, false, false);
-            });
-            _plan.Ausgewaehlt = D.Stundenplan.FirstOrDefault(x => x.UnterrichtId == u.Id && x.Tag == tag && x.Stunde == stunde);
-            Neuaufbau(false);
-            RaeumeNichtVerplantMelden(raeumeVorher, _plan.Ausgewaehlt);
+            MehrereVerschieben(alle, dt, ds);
         }
         else if (daten.StartsWith("unterricht:"))
         {
@@ -1539,13 +1525,24 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             var behindernd = unts.SelectMany(u => Behinderung.AnStellen(D, Ix, u, stellen)).Where(h => !uids.Contains(h.Unterricht.Id))
                 .DistinctBy(h => D.Stundenplan.IndexOf(h.Planstunde)).ToList();
             var weg = new List<int>();
+            var raumKollision = false;
             if (behindernd.Count > 0)
             {
                 var anlass = unts.Count > 1 ? $"{unts.Count} Unterrichte gleichzeitig in {Planungsdienst.Tagname(D, tag)}-{stunde} verplanen"
                     : $"{(laenge > 1 ? $"{laenge}er-Block" : "Stunde")} verplanen – U-Nr. {unts[0].Id} {Ix.UnterrichtText(unts[0])} in {Planungsdienst.Tagname(D, tag)}-{stunde}";
-                var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd, anlass);
-                if (antwort == BehinderungsAntwort.Abbrechen) return;
-                if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
+                // ein Unterricht: Rückfrage „Block speichern“ wie im Handbuch (Kap. 5.2.8), mehrere: „Soll behindernder Unterricht entplant werden?“
+                if (unts.Count == 1)
+                {
+                    if (NeuAblegenFragen(unts[0], tag, stunde, laenge, behindernd) is not { } a) return;
+                    if (a.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
+                    raumKollision = a.RaumKollision;
+                }
+                else
+                {
+                    var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd, anlass);
+                    if (antwort == BehinderungsAntwort.Abbrechen) return;
+                    if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
+                }
             }
             // Violettes Feld (Handbuch 5.2.1): Raum und Ausweichräume belegt – verdrängen, Kollision erzeugen oder Raum nicht verplanen
             var raumWahl = RaumBelegtWahl.RaumNichtVerplanen;
@@ -1567,6 +1564,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                         // nicht „neu ??= Verplanen(…)“: das würde nach der ersten Stunde nichts mehr verplanen
                         var p = Planungsdienst.Verplanen(d, u, tag, stunde + k, false);
                         RaumBelegtVerplanen.Anwenden(d, p, raumWahl);
+                        if (raumKollision) Ziehbewertung.RaumKollisionSetzen(new DatenIndex(d), u, p);
                         neu ??= p;
                     }
             });

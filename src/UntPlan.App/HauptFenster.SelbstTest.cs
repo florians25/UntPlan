@@ -425,7 +425,7 @@ public sealed partial class HauptFenster
             var einzel = bloecke.FirstOrDefault(b => b.Laenge == 1);
             if (doppel == default) throw new InvalidOperationException($"Entplante Doppelstunde fehlt unter „nicht verplant“ ({string.Join(",", bloecke)}).");
             if (einzel != default && doppel.Hoehe < einzel.Hoehe * 1.7) throw new InvalidOperationException("Doppelstunde ist nicht doppelt so hoch wie eine Einzelstunde.");
-            // Block auf belegte Stunden ziehen: „Soll behindernder Unterricht entplant werden?“ → Ja
+            // Block auf belegte Stunden ziehen: Rückfrage „Block speichern“ → Block speichern (behindernder Unterricht wird entplant)
             var vorher = fragen.Count;
             dd = AppZustand.D;
             ix = AppZustand.Doc.Index;
@@ -434,7 +434,8 @@ public sealed partial class HauptFenster
                 .First(z => z.t != bt && Core.Planung.Planungsdienst.Hindernisse(dd, ix, unt, z.t, z.s).Count > 0 && dd.Zeitraster.Verfuegbar(z.t, z.s + 1));
             f.SelbsttestAblegen($"unterricht:{uid}|2", ziel.t, ziel.s);
             Warten(300);
-            if (fragen.Count == vorher || !fragen[^1].Contains("Soll behindernder Unterricht entplant werden?")) throw new InvalidOperationException($"Keine Abfrage „Soll behindernder Unterricht entplant werden?“ (U{uid} nach {ziel.t}/{ziel.s}, Hinweis: {hinweise.LastOrDefault()}, Plan: {string.Join(",", AppZustand.D.Stundenplan.Where(p => p.UnterrichtId == uid).Select(p => $"{p.Tag}/{p.Stunde}"))}).");
+            // Handbuch 5.2.8: Ablegen auf ein belegtes Feld fragt mit „Block speichern - Unterricht: …“ (früher „Soll behindernder Unterricht entplant werden?“)
+            if (fragen.Count == vorher || !fragen[^1].StartsWith("Block speichern - Unterricht: ") || !fragen[^1].Contains("Anderer Unterricht behindert Verplanung")) throw new InvalidOperationException($"Keine Abfrage „Block speichern“ (U{uid} nach {ziel.t}/{ziel.s}, Hinweis: {hinweise.LastOrDefault()}, Plan: {string.Join(",", AppZustand.D.Stundenplan.Where(p => p.UnterrichtId == uid).Select(p => $"{p.Tag}/{p.Stunde}"))}).");
             var gesetzt = AppZustand.D.Stundenplan.Count(p => p.UnterrichtId == uid && p.Tag == ziel.t && (p.Stunde == ziel.s || p.Stunde == ziel.s + 1));
             if (gesetzt != 2) throw new InvalidOperationException($"Block wurde nicht als Doppelstunde gesetzt ({gesetzt}; Ziel {ziel.t}/{ziel.s}; Plan U{uid}: {string.Join(",", AppZustand.D.Stundenplan.Where(p => p.UnterrichtId == uid).Select(p => $"{p.Tag}/{p.Stunde}"))}; Frage: {fragen[^1].Replace("\n", " / ")}).");
             if (AppZustand.Doc.Index.PlanVon(ElementTyp.Klasse, kl).Any(p => p.Tag == ziel.t && p.Stunde == ziel.s && p.UnterrichtId != uid && !AppZustand.Doc.Index.Unterrichte[p.UnterrichtId].Band.Any()))
@@ -443,6 +444,36 @@ public sealed partial class HauptFenster
             log.Add($"INFO  UP5c Pool danach: {string.Join(", ", f.PoolBloecke.Select(b => $"U{b.Unterricht}:{b.Laenge}"))}");
         }, 3);
         Schritt("UP5c1_Pool_zurueck", () => { Up5Zurueck(); Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false)); }, 3);
+        Schritt("UP5c2_Ziehen_Farben_Hohlstunden_Ablage", () =>
+        {
+            // Handbuch 5.2.1–5.2.6: Grünschattierung und Legende beim Ziehen, Vorschläge für Hohlstunden, Strg+Klick teilt Doppelstunden in der Ablage
+            var dd = AppZustand.D;
+            var ix = AppZustand.Doc.Index;
+            var kl = dd.Klassen.First();
+            var f = Max(StundenplanFenster.Neu(ElementTyp.Klasse, kl.Id, false));
+            Warten(200);
+            var p = ix.PlanVon(ElementTyp.Klasse, kl.Id).FirstOrDefault(x => !x.Fixiert && Core.Planung.Planungsdienst.BlockVon(dd, x).Count == 1);
+            if (p != null)
+            {
+                var frei = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag).Select(st => (t, st)))
+                    .FirstOrDefault(z => Core.Planung.Planungsdienst.Zielstatus(dd, ix, new[] { p }, z.t, z.st) == Core.Planung.Feldstatus.Frei);
+                if (frei.st < 1) frei = (0, 1);
+                f.Plan.Ziehvorschau($"plan:{dd.Stundenplan.IndexOf(p)};{dd.Stundenplan.IndexOf(p)}", frei.t, frei.st);
+                if (!f.LegendenTexte.Contains("Tauschkette möglich")) throw new InvalidOperationException("Legende der Ziehfarben fehlt: " + string.Join(", ", f.LegendenTexte));
+                var stufen = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag).Select(st => f.Plan.Gruenstufe(t, st))).Where(x => x >= 0).Distinct().OrderBy(x => x).ToList();
+                log.Add($"INFO  UP5c2 Grünstufen: {string.Join(",", stufen)}");
+                f.Plan.ZiehenBeenden();
+            }
+            var leer = Enumerable.Range(0, dd.Zeitraster.TageProWoche).SelectMany(t => Enumerable.Range(1, dd.Zeitraster.StundenProTag).Select(st => (t, st)))
+                .FirstOrDefault(z => dd.Zeitraster.Verfuegbar(z.t, z.st) && !ix.PlanVon(ElementTyp.Klasse, kl.Id).Any(x => x.Tag == z.t && x.Stunde == z.st));
+            f.Plan.HohlstundenZeigen(leer.t, leer.st);
+            if (f.Plan.HohlstundenVorschlaege.Any(x => !ix.PlanVon(ElementTyp.Klasse, kl.Id).Contains(x))) throw new InvalidOperationException("Hohlstunden-Vorschlag gehört nicht zur Klasse.");
+            log.Add($"INFO  UP5c2 Hohlstunden-Vorschläge für {leer.t}/{leer.st}: {f.Plan.HohlstundenVorschlaege.Count}");
+            f.Plan.HohlstundenEnde();
+            f.PoolTeilen();
+            if (!f.PoolEinzeln || f.PoolBloecke.Any(b => b.Laenge != 1)) throw new InvalidOperationException("Strg+Klick in die Ablage teilt die Doppelstunden nicht.");
+            f.PoolTeilen();
+        }, 3);
         Schritt("UP5d_Unterrichtseingabe", () =>
         {
             var dd = AppZustand.D;
