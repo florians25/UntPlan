@@ -70,6 +70,9 @@ public sealed class KalenderFenster : MdiFenster
             c.Width = w;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
         }
+        // Anzeige-Reihenfolge wie im Vorbild: Datum | Tag | Abw.Le. | Vertr. | Offen | Abw.Kl. | Freis. | Bl.Räume. | Raum-Vtr. … (Pausenaufsichten danach)
+        var anzeige = new[] { "D", "T", "AL", "V", "O", "AK", "F", "BR", "RV", "RO", "PV", "PO", "TT", "KL", "KR" };
+        for (var i = 0; i < anzeige.Length; i++) _woche.Columns[anzeige[i]]!.DisplayIndex = i;
         _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
         _woche.CellFormatting += (_, e) =>
         {
@@ -79,12 +82,17 @@ public sealed class KalenderFenster : MdiFenster
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
 
-        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Gültig bis | Tagestext […] | Webportal;
+        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Art | Elemente | gültig für [Tage] | Tagestext […] | Webportal;
         // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)
         Ui.RasterGestalten(_texte, true);
         _texte.AllowUserToAddRows = true;
         _texte.AllowUserToDeleteRows = true;
-        _texte.Columns.Add(Steuerelemente.DatumSpalte.Neu("G", "Gültig bis", 90));
+        // „gültig für [Tage]“ wie im Vorbild: Anzahl Tage ab dem ersten Tag des Tagestextes
+        _texte.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "G", HeaderText = "gültig für [Tage]", Width = 96, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
+            ToolTipText = "Anzahl der Tage, an denen der Tagestext gilt (ab seinem ersten Tag)",
+        });
         var textSpalte = _texte.Columns[_texte.Columns.Add("X", "Tagestext")];
         textSpalte.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         textSpalte.MinimumWidth = 80;
@@ -93,11 +101,11 @@ public sealed class KalenderFenster : MdiFenster
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
         _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
-        // Reihenfolge wie im Handbuch: Art | Elemente | Gültig bis | Tagestext | Webportal
+        // Reihenfolge wie im Vorbild: Art | Elemente | gültig für [Tage] | Tagestext | Webportal
         var reihe = new[] { "A", "E", "G", "X", "P" };
         for (var i = 0; i < reihe.Length; i++) _texte.Columns[reihe[i]]!.DisplayIndex = i;
         Steuerelemente.SuchKombi.Aktivieren(_texte);
-        _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["G"].Value = Format.Datum(AppZustand.Datum); e.Row.Cells["P"].Value = true; };
+        _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["E"].Value = "Alle"; e.Row.Cells["G"].Value = 1; e.Row.Cells["P"].Value = true; };
         _texte.CellEndEdit += (_, _) => TexteSpeichern();
         _texte.UserDeletedRow += (_, _) => TexteSpeichern();
         _texte.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _texte.Columns[e.ColumnIndex].Name == "P") _texte.EndEdit(); };
@@ -235,7 +243,8 @@ public sealed class KalenderFenster : MdiFenster
         {
             var a = x.NurLehrer ? TagestextArt.NurLehrer : x.Art;
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
-            var r = _texte.Rows.Add(Format.Datum(x.Datum.AddDays(Math.Max(1, x.GueltigTage) - 1)), x.Text, x.Portal, Arten[(int)a], string.Join(",", x.ElementIds.Select(id => ix.K(typ, id))));
+            var elemente = x.ElementIds.Count == 0 ? "Alle" : string.Join(",", x.ElementIds.Select(id => ix.K(typ, id)));
+            var r = _texte.Rows.Add(Math.Max(1, x.GueltigTage), x.Text, x.Portal, Arten[(int)a], elemente);
             _texte.Rows[r].Tag = x;
         }
         _tabs.TabPages[0].Text = $"Tagestexte ({D.Tagestexte.Count(x => x.GiltAm(datum))})";
@@ -260,10 +269,12 @@ public sealed class KalenderFenster : MdiFenster
     {
         var p = D.PeriodeAm(datum);
         var name = p.Name.Length > 0 ? p.Name : p.Langname;
-        Text = $"{Format.Datum(datum)} {Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)} / {name} ({Format.Datum(p.Von)}–{Format.Datum(Perioden.Ende(D, p))})";
+        var ende = Perioden.Ende(D, p);
+        // wie im Vorbild: „2.7.2020 Donnerstag / Periode1 (11.9.-29.7.)“
+        Text = $"{datum.Day}.{datum.Month}.{datum.Year} {Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)} / {name} ({p.Von.Day}.{p.Von.Month}.-{ende.Day}.{ende.Month}.)";
         var mitWochen = D.Einstellungen.Wochenperiodizitaet > 1;
         _wochenTyp.Visible = mitWochen;
-        _wochenTyp.Text = mitWochen ? $"{Kalender.WochenTyp(D, datum)}-Woche" : "";
+        _wochenTyp.Text = mitWochen ? $"{Kalender.WochenTyp(D, datum)}" : "";
         _tipp.SetToolTip(_wochenTyp, mitWochen ? $"Schulwoche {Kalender.Schulwoche(D, datum)} – Wochenbuchstabe laut Wochenperiodizität" : "");
     }
 
@@ -279,8 +290,7 @@ public sealed class KalenderFenster : MdiFenster
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
             var alt = r.Tag as Tagestext;
             var start = alt?.Datum ?? datum;
-            DateOnly bis;
-            try { bis = Ui.DatumLesen(r.Cells["G"].Value?.ToString() ?? "", datum); } catch (Exception) { bis = datum; }
+            var tage = int.TryParse(r.Cells["G"].Value?.ToString()?.Trim(), out var g) ? Math.Clamp(g, 1, 366) : Math.Max(1, alt?.GueltigTage ?? 1);
             var text = r.Cells["X"].Value!.ToString()!;
             // Formatierung bleibt erhalten, solange der Text nicht direkt in der Zelle geändert wurde
             var formatiert = alt != null && alt.Text == text && alt.TextHtml.Length > 0;
@@ -289,7 +299,7 @@ public sealed class KalenderFenster : MdiFenster
                 Datum = start, Art = a, Text = text, TextRtf = formatiert ? alt!.TextRtf : "", TextHtml = formatiert ? alt!.TextHtml : "",
                 ElementIds = (r.Cells["E"].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(n => D.AlleElemente(typ).FirstOrDefault(e => e.Kurzname.Equals(n, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList(),
-                GueltigTage = Math.Max(1, bis.DayNumber - start.DayNumber + 1), Portal = r.Cells["P"].Value is true,
+                GueltigTage = tage, Portal = r.Cells["P"].Value is true,
             });
         }
         Aendern("Tagestexte", AenderungsArt.Vertretung, d =>
@@ -337,7 +347,7 @@ public sealed class KalenderFenster : MdiFenster
         }
         if (r.IsNewRow)
         {
-            var neu = _texte.Rows.Add(Format.Datum(datum), t.Text, true, Arten[0], "");
+            var neu = _texte.Rows.Add(1, t.Text, true, Arten[0], "Alle");
             r = _texte.Rows[neu];
         }
         else r.Cells["X"].Value = t.Text;

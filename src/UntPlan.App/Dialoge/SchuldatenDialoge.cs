@@ -7,7 +7,7 @@ namespace UntPlan.App.Dialoge;
 
 /// <summary>
 /// Zeitraster: Anzahl Tage, Stunden pro Tag, Zeiten, Vormittag/Nachmittag/leer je Tag und Stunde (Karteikarte "Allgemein"),
-/// Pausen und flexible Mittagspause (Karteikarte "Pausen").
+/// Pausen und flexible Mittagspause (Karteikarte "Pausen"), Vertretung bzw. Entfall je Stunde (Karteikarte "Vertretung").
 /// </summary>
 public sealed class ZeitrasterDialog : Dialog
 {
@@ -22,6 +22,7 @@ public sealed class ZeitrasterDialog : Dialog
     private readonly NumericUpDown _mittagVon = new() { Minimum = 0, Maximum = 16 };
     private readonly NumericUpDown _mittagBis = new() { Minimum = 0, Maximum = 16 };
     private readonly NumericUpDown _maxKlassen = new() { Minimum = 0, Maximum = 500 };
+    private readonly VertretungsZeitrasterSeite _vertretung;
 
     public ZeitrasterDialog() : base("Zeitraster", 800, 440)
     {
@@ -90,6 +91,10 @@ public sealed class ZeitrasterDialog : Dialog
         pausen.Controls.Add(_pausen);
         pausen.Controls.Add(new Label { Text = "Die Mittagspause wird automatisch in die letzten Vormittags- bzw. ersten Nachmittagsstunden gelegt. Die Länge legen Sie bei den Klassen (Spalte \"Mitt-pause\", z. B. 1-2) fest.", Left = 10, Top = 306, Width = 760, Height = 34, ForeColor = Color.DimGray });
         tabs.TabPages.Add(pausen);
+        // wie in der Vorlage: letzte Registerkarte „Vertretung“ (Vertretung bzw. Entfall je Stunde); im Vertretungsmodus vorgewählt
+        _vertretung = new VertretungsZeitrasterSeite(AppZustand.D, this, false);
+        tabs.TabPages.Add(_vertretung.Seite);
+        if (AppZustand.Vertretungsmodus) tabs.SelectedTab = _vertretung.Seite;
         Controls.Add(tabs);
         RasterFuellen();
         Ok.Click += (_, _) => Uebernehmen();
@@ -160,10 +165,12 @@ public sealed class ZeitrasterDialog : Dialog
                 DauerMinuten = int.TryParse(r.Cells[2].Value?.ToString(), out var dm) ? dm : 0, Aufsicht = r.Cells[3].Value is true,
             }).ToList();
         var z = _z;
+        var vertretung = _vertretung.Geaendert ? _vertretung : null;
         AppZustand.Doc.Aendern("Zeitraster", AenderungsArt.Alles, d =>
         {
             d.Zeitraster = z;
             Dokument.Normalisieren(d);
+            vertretung?.Uebernehmen(d);
         });
     }
 }

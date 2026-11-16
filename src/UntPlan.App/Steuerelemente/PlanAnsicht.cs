@@ -758,7 +758,9 @@ public sealed class PlanAnsicht : Control
         // Vorbild-Stundenplanmodus: unterrichtsfreier Tag als weiße Spalte mit senkrechtem Datum bzw. Bezeichnung über alle Stunden
         for (var t = 0; t < Tage; t++)
         {
-            var frei = Tagesmodus ? !AppZustand.Vertretungsmodus && _woche?.AddDays(t) is DateOnly wd && Kalender.GanzerTagFrei(D, wd) ? wd : (DateOnly?)null
+            // im Vertretungsmodus wie im Vorbild nur Tage außerhalb des Schuljahres („Vor Schulbeginn“ / „Nach Schulende“) als weiße Spalte
+            var frei = Tagesmodus ? _woche?.AddDays(t) is DateOnly wd && Kalender.GanzerTagFrei(D, wd)
+                    && (!AppZustand.Vertretungsmodus || Kalender.AusserhalbSchuljahr(D, wd)) ? wd : (DateOnly?)null
                 : RegelTagFrei(t) ? RegelDatum(t) : null;
             if (frei is DateOnly fd) FreiSpalteZeichnen(g, bounds, t, fd, linie);
         }

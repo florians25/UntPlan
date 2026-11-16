@@ -63,7 +63,10 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         Positionieren();
         var heute = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _von.Value = new DateTime(heute.Year, heute.Month, 1);
-        _bis.Value = _von.Value.AddMonths(1).AddDays(-1);
+        // wie im Vorbild: Monatsende, höchstens aber das Schuljahresende (z. B. 01.07.–29.07.)
+        var monatsende = _von.Value.AddMonths(1).AddDays(-1);
+        var schuljahrEnde = AppZustand.D.Einstellungen.SchuljahrBis.ToDateTime(TimeOnly.MinValue);
+        _bis.Value = schuljahrEnde >= _von.Value && schuljahrEnde < monatsende ? schuljahrEnde : monatsende;
 
         var ts = Werkzeugleiste();
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
@@ -128,9 +131,16 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         _gruende.CellPainting += GrundFarbeZeichnen;
         _gruende.CellClick += (_, e) => { if (e.RowIndex >= 0 && _gruende.Rows[e.RowIndex].Tag is int g) GrundFiltern(g); };
         _torte.Gewaehlt += k => { if (k is int g) GrundFiltern(g); };
-        _gruende.Dock = DockStyle.Fill;
-        gp.Controls.Add(_gruende);
+        // wie im Vorbild: großes Tortendiagramm, darunter die Legende als kompakte Tabelle mit grünem Kopf
+        _gruende.Dock = DockStyle.Bottom;
+        _gruende.EnableHeadersVisualStyles = false;
+        _gruende.ColumnHeadersDefaultCellStyle.BackColor = Abschnitt.Leiste;
+        _gruende.ColumnHeadersDefaultCellStyle.Font = Ui.SchriftFett;
+        _gruende.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _gruende.ScrollBars = ScrollBars.Vertical;
+        _torte.Dock = DockStyle.Fill;
         gp.Controls.Add(_torte);
+        gp.Controls.Add(_gruende);
         _aGruende = new Abschnitt("Absenzgründe", gp, 400);
 
         // Detailansicht: Überblick der Entfälle und Vertretungen
@@ -316,6 +326,9 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
             var w = Math.Max(200, p.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8);
             foreach (Control c in p.Controls) c.Width = w;
         }
+        // dreispaltig wie im Vorbild: Lehrerübersicht und Absenzgründe reichen über die ganze Spaltenhöhe
+        _aLehrer.HoeheSetzen(_dreiSpaltig ? _spalten[1].ClientSize.Height - 8 : null);
+        _aGruende.HoeheSetzen(_dreiSpaltig ? _spalten[2].ClientSize.Height - 8 : null);
     }
 
     // --- Stundenverteilung ----------------------------------------------------------------------------
@@ -449,6 +462,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
             if (_grundFilter == g.Key) _gruende.Rows[r].DefaultCellStyle.BackColor = Color.FromArgb(255, 245, 200);
         }
         _torte.Setzen(stuecke);
+        _gruende.Height = Math.Min(180, _gruende.ColumnHeadersHeight + Math.Max(1, _gruende.Rows.Count) * _gruende.RowTemplate.Height + 4);
     }
 
     private void GrundFarbeZeichnen(object? sender, DataGridViewCellPaintingEventArgs e)

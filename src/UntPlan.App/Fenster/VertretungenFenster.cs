@@ -106,7 +106,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(new ToolStripButton("Entfall", Symbole.Get("loeschen", 16), (_, _) => Entfall())
         {
-            ToolTipText = "Entfall – Unterricht entfällt (Taste - beim Vertreter); erneut klicken macht wieder eine offene Vertretung daraus", DisplayStyle = ToolStripItemDisplayStyle.Image,
+            // wie in der Vorlage: Titel „Entfall“, darunter „Unterricht entfällt“
+            ToolTipText = "Entfall\nUnterricht entfällt\n(Taste - beim Vertreter; erneut klicken macht wieder eine offene Vertretung daraus)", DisplayStyle = ToolStripItemDisplayStyle.Image,
         });
         ts.Items.Add(Knopf("Vertr. o. Lehrkr. (+)", "planen", OhneLehrkraft));
         ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
@@ -190,11 +191,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Fußleiste wie im Vorbild: Vtr-Nr. links, Ansicht ganz rechts (keine Zeilen-/Offen-Zählung)
         var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
         var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 5, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
-        links.Controls.Add(new Label { Text = "Vtr-Nr.:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        // wie in der Vorlage: „Vtr-Nr.“ links, rechts nur das Auswahlfeld der Ansicht (ohne Beschriftung)
+        links.Controls.Add(new Label { Text = "Vtr-Nr.", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
         links.Controls.Add(_nr);
         links.Controls.Add(_status);
         var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = Padding.Empty, Margin = Padding.Empty, WrapContents = false, BackColor = Ui.Kopf };
-        rechts.Controls.Add(new Label { Text = "Ansicht:", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
         _ansicht.Margin = new Padding(3, 0, 0, 0);
         rechts.Controls.Add(_ansicht);
         unten.Controls.Add(links);
@@ -227,7 +228,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (!lesbar && !Ui.Vertretungsmodus) c.DefaultCellStyle.BackColor = Color.FromArgb(255, 255, 236);
         }
         // Reihenfolge wie im Vorbild: Vtr-Nr. Art Stunde Klasse(n) (Lehrer) Vertreter (Raum) Raum (Fach) Fach Vertr. von (Le.) nach Text …
-        var reihenfolge = StandardReihenfolge.Concat(Spalten.Select(x => x.Name).Except(StandardReihenfolge)).ToList();
+        var reihenfolge = Reihenfolge(AnsichtName);
         for (var i = 0; i < reihenfolge.Count; i++) _g.Columns[reihenfolge[i]]!.DisplayIndex = i;
         _g.Columns["Nr"]!.Frozen = true;
         // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
@@ -244,6 +245,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             if (AppZustand.Einstellungen.VertretungsFelder.Remove(AnsichtName)) AppZustand.Einstellungen.Speichern();
             if (_inhalt.Checked) _inhalt.Checked = false;
+            ReihenfolgeAnwenden();
             FelderAnwenden();
         });
         _g.CellEndEdit += ZelleGeaendert;
@@ -363,6 +365,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _behalten.Leeren();
             _sortSpalte = null;
             Neuaufbau(true);
+            ReihenfolgeAnwenden();
             FelderAnwenden();
         };
         _nr.KeyDown += (_, e) =>
@@ -540,11 +543,37 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Gespeicherte Felder der Ansicht: Feld → Kennzeichen ("a" aktiv, "d" drucken, "L" Langname); fehlt = Standard.</summary>
     private Dictionary<string, string> FeldEinstellungen()
     {
+        var std = StandardFelder(AnsichtName);
         if (!AppZustand.Einstellungen.VertretungsFelder.TryGetValue(AnsichtName, out var f))
-            f = Spalten.ToDictionary(s => s.Name, s => StandardFeld(s.Name, s.Standard));
-        foreach (var s in Spalten.Where(s => !f.ContainsKey(s.Name))) f[s.Name] = StandardFeld(s.Name, s.Standard);
+            f = Spalten.ToDictionary(s => s.Name, s => StandardFeld(s.Name, std(s)));
+        foreach (var s in Spalten.Where(s => !f.ContainsKey(s.Name))) f[s.Name] = StandardFeld(s.Name, std(s));
         f["Nr"] = "a" + (f["Nr"].Contains('d') ? "d" : "") + (f["Nr"].Contains('L') ? "L" : ""); // am Bildschirm nicht ausblendbar
         return f;
+    }
+
+    /// <summary>
+    /// Standardfelder einer Ansicht: die „Vertretungs-Regelungsansicht“ zeigt wie in der Vorlage Vtr-Nr., Stunde, (Lehrer), Vertreter,
+    /// (Klasse(n)), Klasse(n), (Fach), Fach, (Raum), Raum, Art und Text; alle übrigen Ansichten die Standardfelder aus <see cref="Spalten"/>.
+    /// </summary>
+    internal static Func<(string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang), bool> StandardFelder(string ansicht) =>
+        ansicht == Vertretungsformate.Regelungsansicht ? s => Vertretungsformate.RegelungsFelder.Contains(s.Name) : s => s.Standard;
+
+    /// <summary>Standard-Reihenfolge der Spalten einer Ansicht (siehe <see cref="StandardReihenfolge"/>).</summary>
+    internal static IReadOnlyList<string> Reihenfolge(string ansicht)
+    {
+        var vorn = ansicht == Vertretungsformate.Regelungsansicht ? Vertretungsformate.RegelungsFelder : StandardReihenfolge;
+        return vorn.Concat(StandardReihenfolge).Concat(Spalten.Select(x => x.Name)).Distinct().ToList();
+    }
+
+    /// <summary>
+    /// Spaltenreihenfolge der gewählten Ansicht anwenden – nur solange der Benutzer keine eigene Anordnung der Tabelle gemerkt hat
+    /// (gespeicherte Tabellenformate gehen immer vor).
+    /// </summary>
+    private void ReihenfolgeAnwenden()
+    {
+        if (AppZustand.Einstellungen.Tabellenlayouts.Any(kv => kv.Key.StartsWith(nameof(VertretungenFenster) + "/", StringComparison.Ordinal) && kv.Value.Count > 0)) return;
+        var reihe = Reihenfolge(AnsichtName);
+        for (var i = 0; i < reihe.Count; i++) _g.Columns[reihe[i]]!.DisplayIndex = i;
     }
 
     /// <summary>Standard-Kennzeichen eines Feldes: aktiv und drucken; das Datum erscheint automatisch („m“), sobald mehrere Tage gezeigt werden.</summary>
@@ -608,7 +637,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             var x = f[s.Name];
             var r = t.Rows.Add(s.Feld, x.Contains('a'), x.Contains('d'), s.Lang ? (x.Contains('L') ? "Langname" : "Kurzname") : "");
             t.Rows[r].Tag = s.Name;
-            if (s.Standard) t.Rows[r].Cells[0].Style.Font = Ui.SchriftFett;
+            if (StandardFelder(AnsichtName)(s)) t.Rows[r].Cells[0].Style.Font = Ui.SchriftFett;
             if (s.Name == "Datum") t.Rows[r].Cells[0].ToolTipText = "Wird automatisch eingeblendet, sobald mehrere Tage angezeigt werden.";
             if (!s.Lang) t.Rows[r].Cells["L"].ReadOnly = true;
             // Vertretungsnummer kann am Bildschirm nicht ausgeblendet werden (für den Druck schon)
@@ -1290,8 +1319,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         return e is Lehrer l ? l.VollerName : e is null ? "?" : string.IsNullOrEmpty(e.Langname) ? e.Kurzname : e.Langname;
     }
 
-    /// <summary>Klassen wie im Vorbild ohne Leerzeichen getrennt („07A,07B,07C“) – bei Kopplungen alle Klassen in einer Zeile.</summary>
-    private string Klassen(IEnumerable<int> ids, string spalte) => string.Join(",", ids.Select(k => Anzeige(ElementTyp.Klasse, k, spalte)));
+    /// <summary>
+    /// Klassen wie in der Vorlage mit Komma und Leerzeichen getrennt („09A, 09B, 09C, 09D“); passt die Kopplung nicht in die Spalte,
+    /// bricht die Zelle an den Leerzeichen um („09A, 09B,“ / „09C, 09D“) und die Zeile wird höher.
+    /// </summary>
+    private string Klassen(IEnumerable<int> ids, string spalte) => string.Join(", ", ids.Select(k => Anzeige(ElementTyp.Klasse, k, spalte)));
 
     private object?[] Werte(Vertretung v)
     {
@@ -1358,6 +1390,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     };
     private static readonly int[] WerteZuSpalten = Spalten.Select(x => Array.IndexOf(WerteFolge, x.Name)).ToArray();
 
+    /// <summary>Schriftfarbe von Vertreter, Klasse(n) und Raum einer Betreuung (wie in der Vorlage grün).</summary>
+    internal static readonly Color BetreuungSchrift = Color.FromArgb(0, 140, 40);
+
     /// <summary>Hintergrund des Vertreterfeldes einer Pausenaufsicht (wie im Vorbild türkis).</summary>
     private static readonly Color PausenFarbe = Color.FromArgb(160, 236, 246);
 
@@ -1394,16 +1429,17 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         if (e.RowIndex < 0 || e.CellStyle is null || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
         var name = _g.Columns[e.ColumnIndex].Name;
         e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Black;
-        // Wie im Vorbild: passen die Klassen einer Kopplung nicht in die Spalte, steht jede in einer eigenen Zeile („06A,“ / „06B,“ / „06C“),
-        // die Zeile wird entsprechend höher; bei breiter Spalte bleibt „06A,06B,06C“ einzeilig
-        if (name is "Klassen" or "AKlassen" && e.Value is string kl0 && kl0.Contains(',') && !kl0.Contains('\n')
-            && TextRenderer.MeasureText(kl0, e.CellStyle.Font ?? _g.Font).Width > _g.Columns[e.ColumnIndex].Width - 6)
-        {
-            e.Value = kl0.Replace(",", ",\n");
-            e.FormattingApplied = true;
-        }
+        // Klassen einer Kopplung („09A, 09B, 09C, 09D“) brechen wie in der Vorlage an den Leerzeichen um (WrapMode der Spalten)
         if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
         if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
+        // Betreuung wie in der Vorlage: Vertreter, Klasse(n) und Raum in grüner Schrift
+        if (v.Art == VertretungsArt.Betreuung && name is "Vertreter" or "Klassen" or "NRaum") e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = BetreuungSchrift;
+        // (Fach) und Fach in der Farbe des Faches (Stammdaten), z. B. WP2IF rosa wie in der Vorlage
+        if (name is "Fach" or "NFach" && e.Value is string fk && fk.Length > 0 && fk != "---" && D.Faecher.FirstOrDefault(x => x.Kurzname == fk || x.Langname == fk) is { Hintergrund: not 0 } fachFarbe)
+        {
+            e.CellStyle.BackColor = Ui.Farbe(fachFarbe.Hintergrund, Color.White);
+            if (fachFarbe.Vordergrund != 0) e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Ui.Farbe(fachFarbe.Vordergrund, Color.Black);
+        }
         // „Zu zählende farbig“ (Handbuch Kap. 14.2, Tipp Spalte „Zählen“): positiv gezählt grün (Vertreter), negativ rot (entfallende Lehrkraft)
         if (_zaehlendeFarbig && v.Id != 0 && name is "Vertreter" or "Lehrer" or "Zaehler" && _g.Columns.Contains("Zaehler") &&
             _g.Rows[e.RowIndex].Cells["Zaehler"].Value is string zk && zk.Length > 0)

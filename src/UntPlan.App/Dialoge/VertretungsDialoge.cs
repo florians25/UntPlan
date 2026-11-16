@@ -143,6 +143,7 @@ public static class SondereinsatzDialog
         using var f = new Dialog("Sondereinsätze", 860, 380);
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.MinimumSize = new Size(700, 300);
+        f.Ok.Text = "Ok";
         f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 10, AutoSize = true });
         var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 12, Top = 30, Width = 120, Value = datum.ToDateTime(TimeOnly.MinValue) };
         f.Controls.Add(new Label { Text = "Stunde von", Left = 150, Top = 10, AutoSize = true });
@@ -151,9 +152,13 @@ public static class SondereinsatzDialog
         f.Controls.Add(new Label { Text = "Stunde bis", Left = 220, Top = 10, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
         bis.SetBounds(220, 30, 60, 23);
-        var bKl = new Button { Text = "Klassen", Left = 300, Top = 28, Width = 120, Height = 26 };
-        var bLe = new Button { Text = "Lehrer", Left = 426, Top = 28, Width = 120, Height = 26 };
-        var bKk = new Button { Text = "Klassenkonferenz", Left = 552, Top = 28, Width = 130, Height = 26 };
+        // drei gleich breite Schaltflächen rechts neben „Stunde bis“, Ok / Abbrechen unten mittig (wie im Vorbild)
+        var bKl = new Button { Text = "Klassen", Left = 300, Top = 28, Width = 130, Height = 26 };
+        var bLe = new Button { Text = "Lehrer", Left = 438, Top = 28, Width = 130, Height = 26 };
+        var bKk = new Button { Text = "Klassenkonferenz", Left = 576, Top = 28, Width = 130, Height = 26 };
+        f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
+        f.Ok.Left = f.ClientSize.Width / 2 - f.Ok.Width - 3;
+        f.Abbrechen.Left = f.ClientSize.Width / 2 + 3;
         f.Controls.AddRange(new Control[] { dat, von, bis, bKl, bLe, bKk });
         var g = new DataGridView { Left = 12, Top = 66, Width = 836, Height = 260, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, true);
@@ -586,8 +591,10 @@ public static class SondereinsatzAuswahl
         {
             // Filter: Lehrer / Klassenlehrer (Klassen) / Lehrer im Unterricht (Klassen)
             var kText = AppZustand.Doc.Index.KKlassen(klassenAlle);
-            f.Controls.Add(new Label { Text = "Filter", Left = 8, Top = y + 4, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
-            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 64, Top = y, Width = f.ClientSize.Width - 72, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            // wie im Vorbild: „Filter“ links, Auswahlliste ab gut einem Drittel der Breite bis zum rechten Rand
+            f.Controls.Add(new Label { Text = "Filter", Left = 14, Top = y + 4, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+            var fx = f.ClientSize.Width * 37 / 100;
+            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = fx, Top = y, Width = f.ClientSize.Width - fx - 8, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             filter.Items.AddRange(new object[] { "Lehrer", $"Klassenlehrer ({kText})", $"Lehrer im Unterricht ({kText})" });
             filter.SelectedIndex = 0;
             var kls = d.Klassen.Where(k => klassenAlle.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
@@ -606,15 +613,21 @@ public static class SondereinsatzAuswahl
             y += 30;
         }
         var nurMarkierte = false;
+        // Alle | Inverse | Markierte gleichmäßig über die ganze Breite verteilt, darunter Ok / Abbrechen mittig (wie im Vorbild)
+        var kb = (f.ClientSize.Width - 32) / 3;
         void Knopf(string text, int x, Action a)
         {
-            var b = new Button { Text = text, Left = x, Top = y, Width = 80, Height = 24, Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+            var anker = x == 0 ? AnchorStyles.Left : x == 2 ? AnchorStyles.Right : AnchorStyles.None;
+            var b = new Button { Text = text, Left = 8 + x * (kb + 8), Top = y, Width = kb, Height = 24, Anchor = AnchorStyles.Bottom | anker };
             b.Click += (_, _) => a();
             f.Controls.Add(b);
         }
-        Knopf("Alle", 8, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
-        Knopf("Inverse", 94, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
-        Knopf("Markierte", 180, () =>
+        f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
+        f.Ok.Left = f.ClientSize.Width / 2 - f.Ok.Width - 3;
+        f.Abbrechen.Left = f.ClientSize.Width / 2 + 3;
+        Knopf("Alle", 0, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
+        Knopf("Inverse", 1, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
+        Knopf("Markierte", 2, () =>
         {
             nurMarkierte = !nurMarkierte;
             g.CurrentCell = null;

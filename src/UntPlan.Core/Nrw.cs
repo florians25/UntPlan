@@ -142,16 +142,24 @@ public static class Kalender
         return idx < d.Zeitraster.TageProWoche ? idx : -1;
     }
 
+    /// <summary>Unterrichtstag: Schultag laut Zeitraster, innerhalb des Schuljahres, keine Ferien, kein freier Kalendertag.</summary>
     public static bool IstUnterrichtstag(Schuldatei d, DateOnly datum) =>
-        TagIndex(d, datum) >= 0 && FerienAm(d, datum) is null && datum >= d.Einstellungen.SchuljahrVon.AddDays(-7) && datum <= d.Einstellungen.SchuljahrBis.AddDays(7)
+        TagIndex(d, datum) >= 0 && FerienAm(d, datum) is null && !AusserhalbSchuljahr(d, datum)
         && !d.Kalender.Any(k => k.Datum == datum && (k.Unterrichtsfrei || k.Feiertag));
+
+    /// <summary>Liegt der Tag vor dem ersten oder nach dem letzten Tag des Schuljahres?</summary>
+    public static bool AusserhalbSchuljahr(Schuldatei d, DateOnly datum) =>
+        datum < d.Einstellungen.SchuljahrVon || datum > d.Einstellungen.SchuljahrBis;
+
+    /// <summary>Bezeichnung für Tage außerhalb des Schuljahres wie im Vorbild.</summary>
+    public const string VorSchulbeginn = "Vor Schulbeginn", NachSchulende = "Nach Schulende";
 
     /// <summary>Kalendereintrag eines Tages (unterrichtsfrei, Stunden frei, Notiz) oder null.</summary>
     public static Kalendertag? KalendertagAm(Schuldatei d, DateOnly datum) => d.Kalender.FirstOrDefault(k => k.Datum == datum);
 
-    /// <summary>Ist der ganze Tag unterrichtsfrei (Ferien, Feiertag oder Kalendertag „unterrichtsfrei“/„Feiertag“)?</summary>
+    /// <summary>Ist der ganze Tag unterrichtsfrei (außerhalb des Schuljahres, Ferien, Feiertag oder Kalendertag „unterrichtsfrei“/„Feiertag“)?</summary>
     public static bool GanzerTagFrei(Schuldatei d, DateOnly datum) =>
-        FerienAm(d, datum) is not null || KalendertagAm(d, datum) is { } k && (k.Unterrichtsfrei || k.Feiertag);
+        AusserhalbSchuljahr(d, datum) || FerienAm(d, datum) is not null || KalendertagAm(d, datum) is { } k && (k.Unterrichtsfrei || k.Feiertag);
 
     /// <summary>
     /// Bezeichnung der unterrichtsfreien Zeit eines Tages für die Anzeige im Stundenplan: Name der Ferien bzw. des Feiertags
@@ -159,6 +167,9 @@ public static class Kalender
     /// </summary>
     public static string FreiBezeichnung(Schuldatei d, DateOnly datum)
     {
+        // wie im Vorbild: Tage außerhalb des Schuljahres heißen „Vor Schulbeginn“ bzw. „Nach Schulende“ (auch wenn dort Ferien eingetragen sind)
+        if (datum < d.Einstellungen.SchuljahrVon) return VorSchulbeginn;
+        if (datum > d.Einstellungen.SchuljahrBis) return NachSchulende;
         if (FerienAm(d, datum) is { } f) return (f.Langname.Length > 0 ? f.Langname : f.Kurzname).Trim();
         if (KalendertagAm(d, datum) is { GrundId: int g } && d.Abwesenheitsgruende.FirstOrDefault(x => x.Id == g) is { } grund)
             return (grund.Langname.Length > 0 ? grund.Langname : grund.Kurzname).Trim();

@@ -19,7 +19,7 @@ internal static class Berichtskopf
         var zeile2 = b.Ueberschrift2.Length > 0 ? b.Ueberschrift2 : d.Einstellungen.Adresse;
         var hk = fett.GetHeight(g);
         g.DrawString(zeile1, fett, Brushes.Black, r.Left, y);
-        var sj = $"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
+        var sj = Schuljahr(d);
         var sjBreite = g.MeasureString(sj, normal).Width;
         var sjX = Math.Max(r.Left + r.Width / 2f - sjBreite / 2, r.Left + g.MeasureString(zeile1, fett).Width + 24);
         g.DrawString(sj, normal, Brushes.Black, sjX, y + 1);
@@ -39,9 +39,12 @@ internal static class Berichtskopf
         return y - r.Top;
     }
 
+    /// <summary>Schuljahr wie im Vorbild: „Schuljahr 2019 / 2020“.</summary>
+    public static string Schuljahr(Schuldatei d) => $"Schuljahr {d.Einstellungen.SchuljahrVon.Year} / {d.Einstellungen.SchuljahrBis.Year}";
+
     /// <summary>
-    /// Kopf der HTML-Berichte (Berichtsansicht): links Schulname (bzw. Überschrift laut Berichts-Einstellungen) und zweite Zeile,
-    /// in der Mitte das Schuljahr, rechts das Erstelldatum (mit Uhrzeit laut Einstellung).
+    /// Kopf der HTML-Berichte (Berichtsansicht) wie im Vorbild: links Schulname fett (bzw. Überschrift laut Berichts-Einstellungen) und
+    /// zweite Zeile, in der Mitte das Schuljahr, rechts fett Programm und Jahr, darunter Erstelldatum (mit Uhrzeit laut Einstellung).
     /// </summary>
     public static string Html()
     {
@@ -50,13 +53,13 @@ internal static class Berichtskopf
         static string H(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
         var zeile1 = b.Ueberschrift1.Length > 0 ? b.Ueberschrift1 : d.Einstellungen.Schulname;
         var zeile2 = b.Ueberschrift2.Length > 0 ? b.Ueberschrift2 : d.Einstellungen.Adresse;
-        var sj = $"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
-        var erstellt = "Erstellt am " + DateTime.Now.ToString("d.M.yyyy", CultureInfo.GetCultureInfo("de-DE")) + (b.UhrzeitDrucken ? DateTime.Now.ToString(" HH:mm") : "");
+        var sj = Schuljahr(d);
+        var erstellt = DateTime.Now.ToString("d.M.yyyy", CultureInfo.GetCultureInfo("de-DE")) + (b.UhrzeitDrucken ? DateTime.Now.ToString(" H:mm") : "");
         var linie = b.LinieKopf ? "border-bottom:1px solid #000;" : "";
         return $"<table class=\"bkopf\" style=\"width:100%;border-collapse:collapse;margin-bottom:12px;{linie}\"><tr>" +
                $"<td style=\"text-align:left;vertical-align:top\"><b>{H(zeile1)}</b>{(zeile2.Length > 0 ? "<br>" + H(zeile2) : "")}</td>" +
-               $"<td style=\"text-align:center;vertical-align:top\">{H(sj)}</td>" +
-               $"<td style=\"text-align:right;vertical-align:top\">{H(erstellt)}</td></tr></table>";
+               $"<td style=\"text-align:left;vertical-align:top;padding-left:24px\">{H(sj)}</td>" +
+               $"<td style=\"text-align:right;vertical-align:top\" title=\"Erstellt am {H(erstellt)}\"><b>UntPlan {DateTime.Now.Year}</b><br>{H(erstellt)}</td></tr></table>";
     }
 
     /// <summary>Text der Fußzeile (Text, Dateiname, Datum, Schulwoche, Kalenderwoche, Wochennummer, Periode).</summary>

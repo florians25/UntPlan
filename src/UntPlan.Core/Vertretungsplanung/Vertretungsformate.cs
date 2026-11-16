@@ -38,7 +38,16 @@ public sealed class Vertretungsformat
 public static class Vertretungsformate
 {
     /// <summary>Langnamen der mitgelieferten Formate (ältere Einstellungen kennen nur diese).</summary>
-    public static readonly string[] Mitgeliefert = { "Klasse - Standard", "Lehrer - Standard", "Druck - Klasse", "Druck - Lehrer", "Pausenaufsichten" };
+    public static readonly string[] Mitgeliefert = { "Klasse - Standard", "Lehrer - Standard", "Druck - Klasse", "Druck - Lehrer", "Pausenaufsichten", Regelungsansicht };
+
+    /// <summary>
+    /// Langname der Ansicht zum Regeln der Vertretungen wie in der Fensteranordnung „Vertretungsplanung“ der Vorlage
+    /// (Spalten Vtr-Nr., Stunde, (Lehrer), Vertreter, (Klasse(n)), Klasse(n), (Fach), Fach, (Raum), Raum, Art, Text).
+    /// </summary>
+    public const string Regelungsansicht = "Vertretungs-Regelungsansicht";
+
+    /// <summary>Standardfelder der <see cref="Regelungsansicht"/> in Anzeigereihenfolge (Spaltennamen des Vertretungsfensters).</summary>
+    public static readonly string[] RegelungsFelder = { "Nr", "Std", "Lehrer", "Vertreter", "AKlassen", "Klassen", "Fach", "NFach", "Raum", "NRaum", "Art", "Text" };
 
     /// <summary>Die mitgelieferten Formate.</summary>
     public static List<Vertretungsformat> Standardliste() => new()
@@ -48,6 +57,7 @@ public static class Vertretungsformate
         new() { Name = "Druck-Kla", Langname = Mitgeliefert[2], Art = VertretungsformatArt.Klasse, Druck = true },
         new() { Name = "Druck-Leh", Langname = Mitgeliefert[3], Art = VertretungsformatArt.Lehrer, Druck = true },
         new() { Name = "Pausen", Langname = Mitgeliefert[4], Art = VertretungsformatArt.Lehrer, NurPausenaufsichten = true },
+        new() { Name = "Ver-Reg", Langname = Mitgeliefert[5], Art = VertretungsformatArt.Klasse },
     };
 
     /// <summary>

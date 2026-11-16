@@ -20,8 +20,8 @@ public sealed partial class HauptFenster
     private void VertretungsSeiteAufbauen()
     {
         // Aufbau wie im Vorbild (Handbuch Vertretungsplanung, Kap. 3.1/4.1): Kalender mit Datum darunter | Absenzen, Vertretungen,
-        // Ausgabe, Vertretungsstatistik | Veranstaltungen, Sondereinsätze, Bereitschaften | Planungsdialog, Vormerkungen,
-        // Pausenaufsichten | Stundenpläne | Vertretungsformate, Info-Stundenplan, Einstellungen | Vertretungsplanung
+        // Ausgabe, Vertretungsstatistik | Veranstaltungen, Sondereinsätze, Bereitschaften | Planungsdialog, Vormerkungen
+        // | Stundenpläne | Vertretungsformate, Info-Stundenplan, Einstellungen | Vertretungsplanung
         var vp = _ribbon.Seite("Vertretungsplanung", () => AppZustand.Vertretungsmodus);
         var g = Gruppe(vp, "Kalender");
         g.Eintraege.Add(new RibbonEintrag
@@ -85,6 +85,9 @@ public sealed partial class HauptFenster
         {
             E("Bereitschaften", "bereitschaft", () => VertretungsFensterOeffnen("bereit")),
             E("Bereitschaftsplanung", "bereitschaft", () => VertretungsFensterOeffnen("bereitplan")),
+            null,
+            // wie in der Vorlage nicht als eigener Knopf auf dieser Registerkarte (dort unter Start | Module) – hier im Menü erreichbar
+            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause")),
         }));
 
         g = Gruppe(vp, "Planung");
@@ -97,12 +100,6 @@ public sealed partial class HauptFenster
         g.Eintraege.Add(E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true, new()
         {
             E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm")),
-            null,
-            Fenstergruppe(),
-        }));
-        g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause"), true, new()
-        {
-            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause")),
             null,
             Fenstergruppe(),
         }));

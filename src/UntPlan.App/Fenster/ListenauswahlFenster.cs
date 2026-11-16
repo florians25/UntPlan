@@ -8,8 +8,9 @@ using UntPlan.Core.Planung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Listenauswahl: alle Berichte und Listen des Programms in einem Baum nach Gruppen (Übersichten, Stundenplan, Unterricht,
-/// Pausenaufsichten, Vertretungsplanung, Klausuren). Doppelklick bzw. „Ausgabe“ öffnet den Dialog bzw. Bericht der gewählten Liste.
+/// Listenauswahl wie im Vorbild: alle Berichte und Listen des Programms in einem Baum nach Gruppen (Übersichten, Belegungs - Statistik,
+/// Freie Stunden, Fach - Stunden - Liste, Stunden-Listen, Unterricht, Pausenaufsichten, Vertretungsplanung, Klausurpläne) – die Gruppen
+/// sind zugeklappt (Ordner mit +). Doppelklick bzw. „Ausgabe“ öffnet den Dialog bzw. Bericht der gewählten Liste.
 /// </summary>
 public sealed class ListenauswahlFenster : MdiFenster
 {
@@ -17,12 +18,16 @@ public sealed class ListenauswahlFenster : MdiFenster
     internal sealed record Liste(string Gruppe, string Name, string Beschreibung, Action<ListenauswahlFenster> Ausgabe);
 
     public const string Uebersichten = "Übersichten";
-    public const string Stundenplan = "Stundenplan";
+    public const string Belegung = "Belegungs - Statistik";
+    public const string FreieStunden = "Freie Stunden";
+    public const string FachStunden = "Fach - Stunden - Liste";
+    public const string StundenListen = "Stunden-Listen";
     public const string Unterricht = "Unterricht";
     public const string Pausenaufsichten = "Pausenaufsichten";
     public const string Vertretungsplanung = "Vertretungsplanung";
-    public const string Klausuren = "Klausuren";
-    public static readonly string[] Gruppen = { Uebersichten, Stundenplan, Unterricht, Pausenaufsichten, Vertretungsplanung, Klausuren };
+    public const string Klausuren = "Klausurpläne";
+    /// <summary>Gruppen in der Reihenfolge des Vorbilds.</summary>
+    public static readonly string[] Gruppen = { Uebersichten, Belegung, FreieStunden, FachStunden, StundenListen, Unterricht, Pausenaufsichten, Vertretungsplanung, Klausuren };
 
     private readonly TreeView _baum = new() { Dock = DockStyle.Fill, HideSelection = false, FullRowSelect = true, ShowLines = true, ItemHeight = 20 };
     private readonly Label _beschreibung = new() { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(250, 250, 245) };
@@ -32,12 +37,24 @@ public sealed class ListenauswahlFenster : MdiFenster
     /// <summary>Datum für Listen mit Zeitbezug (Woche der freien Stunden, Vertretungsplan).</summary>
     private DateOnly Datum => DateOnly.FromDateTime(_datum.Value);
 
+    /// <summary>Vorbelegter Zeitraum der Vertretungsberichte wie im Vorbild: Monatsbeginn des Datums bis Monatsende, höchstens Schuljahresende.</summary>
+    private DateOnly BerichtVon => new(Datum.Year, Datum.Month, 1);
+    private DateOnly BerichtBis
+    {
+        get
+        {
+            var ende = BerichtVon.AddMonths(1).AddDays(-1);
+            var sj = AppZustand.D.Einstellungen.SchuljahrBis;
+            return sj >= BerichtVon && sj < ende ? sj : ende;
+        }
+    }
+
     public ListenauswahlFenster()
     {
         Text = "Listenauswahl";
         HilfeThema = "Berichte";
         Icon = SymbolIcon("drucken");
-        Size = new Size(460, 560);
+        Size = new Size(380, 460);
         Positionieren();
         var ts = Werkzeugleiste();
         _ausgabe = Knopf("Ausgabe", "drucken", Ausgeben, false);
@@ -50,7 +67,7 @@ public sealed class ListenauswahlFenster : MdiFenster
         ts.Items.Add(Knopf("Seite einrichten", "vorschau", BerichtsansichtFenster.SeiteEinrichtenOhneBericht));
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _baum.ImageList = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
-        _baum.ImageList.Images.Add("gruppe", Symbole.Get("oeffnen", 16));
+        _baum.ImageList.Images.Add("gruppe", OrdnerSymbol());
         _baum.ImageList.Images.Add("liste", Symbole.Get("drucken", 16));
         foreach (var gruppe in Gruppen)
         {
@@ -60,16 +77,36 @@ public sealed class ListenauswahlFenster : MdiFenster
                 g.Nodes.Add(new TreeNode(l.Name) { Tag = l, ImageKey = "liste", SelectedImageKey = "liste", ToolTipText = l.Beschreibung });
         }
         _baum.ShowNodeToolTips = true;
-        _baum.ExpandAll();
+        // wie im Vorbild: alle Gruppen zugeklappt, Ein-/Ausklappen mit + / − bzw. Doppelklick auf den Ordner
+        _baum.CollapseAll();
         _baum.AfterSelect += (_, _) => Gewaehlt();
         _baum.NodeMouseDoubleClick += (_, e) => { if (e.Node.Tag is Liste) Ausgeben(); };
         _baum.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Ausgeben(); e.Handled = true; } };
         Controls.Add(_baum);
         Controls.Add(_beschreibung);
         Controls.Add(ts);
-        if (_baum.Nodes.Count > 0 && _baum.Nodes[0].Nodes.Count > 0) _baum.SelectedNode = _baum.Nodes[0].Nodes[0];
+        if (_baum.Nodes.Count > 0) _baum.SelectedNode = _baum.Nodes[0];
         Gewaehlt();
     }
+
+    /// <summary>Gelber Ordner wie im Vorbild für die Gruppen des Baums.</summary>
+    private static Bitmap OrdnerSymbol()
+    {
+        var b = new Bitmap(16, 16);
+        using var g = Graphics.FromImage(b);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var rand = new Pen(Color.FromArgb(150, 120, 40));
+        using var fuellung = new System.Drawing.Drawing2D.LinearGradientBrush(new Rectangle(0, 3, 16, 12), Color.FromArgb(255, 245, 170), Color.FromArgb(235, 200, 90), 90f);
+        var lasche = new[] { new Point(1, 4), new Point(6, 4), new Point(7, 2), new Point(1, 2) };
+        g.FillPolygon(fuellung, lasche);
+        g.DrawPolygon(rand, lasche);
+        g.FillRectangle(fuellung, 1, 4, 13, 10);
+        g.DrawRectangle(rand, 1, 4, 13, 10);
+        return b;
+    }
+
+    /// <summary>Selbsttest: Gruppen sind wie im Vorbild zunächst zugeklappt.</summary>
+    internal bool SelbsttestZugeklappt => _baum.Nodes.Cast<TreeNode>().All(n => !n.IsExpanded);
 
     private void Gewaehlt()
     {
@@ -107,18 +144,23 @@ public sealed class ListenauswahlFenster : MdiFenster
         var h = AppZustand.Haupt;
         var res = new List<Liste>
         {
-            // Übersichten
+            // Übersichten (Übersichtspläne und Stundenpläne)
             new(Uebersichten, "Klassen-Übersicht", "Stundenpläne aller Klassen auf einen Blick (Querformat, Seitenansicht).", _ => { var f = new UebersichtFenster(ElementTyp.Klasse); f.Show(); f.Drucken(true); }),
             new(Uebersichten, "Lehrer-Übersicht", "Stundenpläne aller Lehrkräfte auf einen Blick (Querformat, Seitenansicht).", _ => { var f = new UebersichtFenster(ElementTyp.Lehrer); f.Show(); f.Drucken(true); }),
             new(Uebersichten, "Raum-Übersicht", "Belegung aller Räume auf einen Blick (Querformat, Seitenansicht).", _ => { var f = new UebersichtFenster(ElementTyp.Raum); f.Show(); f.Drucken(true); }),
-            new(Uebersichten, Listenberichte.FreieStundenTitel, "Je Tag und Stunde der Woche des gewählten Datums: freie Lehrkräfte und freie Räume laut Stundenplan.", f => Listenberichte.FreieStunden(f.Datum)),
-            // Stundenplan
-            new(Stundenplan, "Klassenpläne", "Stundenpläne der Klassen drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Klasse)),
-            new(Stundenplan, "Lehrerpläne", "Stundenpläne der Lehrkräfte drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Lehrer)),
-            new(Stundenplan, "Raumpläne", "Raumpläne drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Raum)),
-            new(Stundenplan, "Fächerpläne", "Stundenpläne je Fach drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Fach)),
+            new(Uebersichten, "Klassenpläne", "Stundenpläne der Klassen drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Klasse)),
+            new(Uebersichten, "Lehrerpläne", "Stundenpläne der Lehrkräfte drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Lehrer)),
+            new(Uebersichten, "Raumpläne", "Raumpläne drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Raum)),
+            new(Uebersichten, "Fächerpläne", "Stundenpläne je Fach drucken (Druckauswahl mit Seitenansicht, PDF und HTML).", f => DruckauswahlDialog.Stundenplaene(f, ElementTyp.Fach)),
+            // Belegungs - Statistik
+            new(Belegung, Listenberichte.BelegungTitel, "Je Tag und Stunde der Woche des gewählten Datums: belegte Lehrkräfte und Räume (Anzahl und Prozent) laut Stundenplan.", f => Listenberichte.Belegung(f.Datum)),
+            // Freie Stunden
+            new(FreieStunden, Listenberichte.FreieStundenTitel, "Je Tag und Stunde der Woche des gewählten Datums: freie Lehrkräfte und freie Räume laut Stundenplan.", f => Listenberichte.FreieStunden(f.Datum)),
+            // Fach - Stunden - Liste
+            new(FachStunden, Listenberichte.FachStundenTitel, "Je Fach: Wochenstunden je Klasse und Lehrkraft mit Summen (Unterricht der aktiven Periode).", _ => Listenberichte.FachStunden()),
+            // Stunden-Listen
+            new(StundenListen, Listenberichte.StundenListeTitel, "Je Lehrkraft alle Stunden der Woche des gewählten Datums (Tag, Stunde, Klasse(n), Fach, Raum) laut Stundenplan.", f => Listenberichte.StundenListe(f.Datum)),
             // Unterricht
-            new(Unterricht, Listenberichte.FachStundenTitel, "Je Fach: Wochenstunden je Klasse und Lehrkraft mit Summen (Unterricht der aktiven Periode).", _ => Listenberichte.FachStunden()),
             new(Unterricht, "Unterricht der Klassen", "Unterrichtsliste der Klassen (Seitenansicht).", _ => Druckbar(HauptFenster.Oeffnen<UnterrichtFenster>("u:Klasse", () => new UnterrichtFenster(ElementTyp.Klasse)))),
             new(Unterricht, "Unterricht der Lehrkräfte", "Unterrichtsliste der Lehrkräfte (Seitenansicht).", _ => Druckbar(HauptFenster.Oeffnen<UnterrichtFenster>("u:Lehrer", () => new UnterrichtFenster(ElementTyp.Lehrer)))),
             new(Unterricht, "Unterrichtsplanung (Wertrechnung)", "Soll/Ist der Lehrkräfte laut Wertrechnung (Seitenansicht).", _ => Druckbar(h.FensterOeffnen("wert"))),
@@ -126,9 +168,10 @@ public sealed class ListenauswahlFenster : MdiFenster
             new(Pausenaufsichten, "Pausenaufsichtsplan", "Pausenaufsichten je Gang bzw. Lehrkraft (Seitenansicht).", _ => Druckbar(h.FensterOeffnen("pause"))),
             new(Pausenaufsichten, Listenberichte.PausenaufsichtenTitel, "Alle Pausenaufsichten der aktiven Periode als Liste je Lehrkraft mit Summen.", _ => Listenberichte.PausenaufsichtenListe()),
         };
-        // Vertretungsplanung: Berichte der Vertretungsstatistik und Ausgabe des Vertretungsplans
+        // Vertretungsplanung: zuerst wie im Vorbild Vertretungs-Abrechnung, Entfalltage, Vertretungs-Übersicht, danach die weiteren Berichte
+        // (Zeitraum vorbelegt: Monatsbeginn bis Datum, höchstens bis Schuljahresende)
         foreach (var n in StatistikBerichte.Namen)
-            res.Add(new(Vertretungsplanung, n, $"Bericht „{n}“ (Auswahl von Lehrkräften und Zeitraum).", f => StatistikBerichte.Starten(f, n, AppZustand.D.Einstellungen.SchuljahrVon, f.Datum)));
+            res.Add(new(Vertretungsplanung, n, $"Bericht „{n}“ (Auswahl von Lehrkräften und Zeitraum).", f => StatistikBerichte.Starten(f, n, f.BerichtVon, f.BerichtBis)));
         res.AddRange(new Liste[]
         {
             new(Vertretungsplanung, "Vertretungsplan Klassen (Druck)", "Vertretungsplan des Kalendertages für Schülerinnen und Schüler (Seitenlayout mit Vorschau).", _ => h.VertretungsplanDrucken(false)),
@@ -137,7 +180,7 @@ public sealed class ListenauswahlFenster : MdiFenster
             new(Vertretungsplanung, "Vertretungsplan Schüler (HTML, 2 Tage)", "Schülerversion des Vertretungsplans ab dem gewählten Datum in der Berichtsansicht.", f => VertretungenFenster.HtmlAusgabe(f.Datum, 2, false, true)),
             new(Vertretungsplanung, "Vertretungsplan Lehrer (HTML, 2 Tage)", "Lehrerversion des Vertretungsplans ab dem gewählten Datum in der Berichtsansicht.", f => VertretungenFenster.HtmlAusgabe(f.Datum, 2, true, true)),
             new(Vertretungsplanung, "Vertretungsstatistik", "Statistik der Vertretungen und Entfälle mit Druck und Berichten.", _ => h.VertretungsFensterOeffnen("stat")),
-            // Klausuren
+            // Klausurpläne
             new(Klausuren, Listenberichte.KlausurenTitel, "Alle Klausuren des Schuljahres mit Datum, Stunden, Klassen, Aufsichten und Räumen.", _ => Listenberichte.KlausurenListe()),
             new(Klausuren, "Klausuren (Fenster)", "Klausurenfenster zum Bearbeiten und Ausgeben.", _ => h.FensterOeffnen("klaus")),
         });
@@ -152,6 +195,8 @@ public static class Listenberichte
     public const string FachStundenTitel = "Fach-Stunden-Liste";
     public const string PausenaufsichtenTitel = "Pausenaufsichtsliste";
     public const string KlausurenTitel = "Klausurenliste";
+    public const string BelegungTitel = "Belegungs-Statistik";
+    public const string StundenListeTitel = "Stunden-Liste (Lehrer)";
 
     private static string H(string? s) => StatistikBerichte.H(s);
 
@@ -173,6 +218,59 @@ public static class Listenberichte
             sb.Append("</table></div>");
         }
         return sb.ToString();
+    }
+
+    /// <summary>HTML der „Belegungs-Statistik“ für die Woche von <paramref name="datum"/>.</summary>
+    public static string BelegungHtml(Schuldatei d, DateOnly datum)
+    {
+        var liste = Berichtslisten.Belegung(d, datum);
+        var montag = Kalender.Montag(datum);
+        var sb = new StringBuilder($"<h1>{BelegungTitel} – Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
+        if (liste.Count == 0) return sb.Append("<p>In dieser Woche liegen keine Unterrichtstage.</p>").ToString();
+        string P(double p) => p.ToString("0", Format.De) + " %";
+        foreach (var tag in liste.GroupBy(z => z.Datum))
+        {
+            sb.Append($"<div class=\"el\"><h2>{H(Planungsdienst.TageLang[((int)tag.Key.DayOfWeek + 6) % 7])}, {Format.Datum(tag.Key)}</h2>");
+            sb.Append("<table class=\"g\"><tr><th>Stunde</th><th class=\"z\">Lehrer belegt</th><th class=\"z\">von</th><th class=\"z\">%</th><th class=\"z\">Räume belegt</th><th class=\"z\">von</th><th class=\"z\">%</th></tr>");
+            foreach (var z in tag)
+                sb.Append($"<tr><td>{H(d.Zeitraster.StundenLabel(z.Stunde))}.</td><td class=\"z\">{z.LehrerBelegt}</td><td class=\"z\">{z.LehrerGesamt}</td><td class=\"z\">{P(z.LehrerProzent)}</td>" +
+                          $"<td class=\"z\">{z.RaeumeBelegt}</td><td class=\"z\">{z.RaeumeGesamt}</td><td class=\"z\">{P(z.RaeumeProzent)}</td></tr>");
+            sb.Append($"<tr class=\"s\"><td>Summe</td><td class=\"z\">{tag.Sum(z => z.LehrerBelegt)}</td><td></td><td></td><td class=\"z\">{tag.Sum(z => z.RaeumeBelegt)}</td><td></td><td></td></tr></table></div>");
+        }
+        return sb.ToString();
+    }
+
+    public static void Belegung(DateOnly datum)
+    {
+        string body;
+        using (new WarteCursor()) body = BelegungHtml(AppZustand.D, datum);
+        StatistikBerichte.Oeffnen(BelegungTitel, body);
+    }
+
+    /// <summary>HTML der „Stunden-Liste“: je Lehrkraft die Stunden der Woche von <paramref name="datum"/>.</summary>
+    public static string StundenListeHtml(Schuldatei d, DateOnly datum)
+    {
+        var liste = Berichtslisten.StundenListe(d, datum);
+        var montag = Kalender.Montag(datum);
+        var sb = new StringBuilder($"<h1>{StundenListeTitel} – Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
+        if (liste.Count == 0) return sb.Append("<p>In dieser Woche liegen keine Stunden.</p>").ToString();
+        foreach (var (l, stunden) in liste)
+        {
+            sb.Append($"<div class=\"el\"><div><span class=\"kn\" style=\"font-size:14pt\">{H(l.Kurzname)}</span><span class=\"ln\">{H(l.VollerName)}</span></div>");
+            sb.Append("<table class=\"r\"><tr><th>Datum</th><th>Tag</th><th>Stunde</th><th>Klasse(n)</th><th>Fach</th><th>Raum</th></tr>");
+            foreach (var z in stunden)
+                sb.Append($"<tr><td>{z.Datum.Day}.{z.Datum.Month}.</td><td>{Planungsdienst.TageKurz[((int)z.Datum.DayOfWeek + 6) % 7]}</td><td>{H(d.Zeitraster.StundenLabel(z.Stunde))}</td>" +
+                          $"<td>{H(z.Klassen)}</td><td>{H(z.Fach)}</td><td>{H(z.Raum)}</td></tr>");
+            sb.Append($"<tr class=\"s\"><td colspan=\"6\">Summe: {stunden.Count} Stunden</td></tr></table></div>");
+        }
+        return sb.ToString();
+    }
+
+    public static void StundenListe(DateOnly datum)
+    {
+        string body;
+        using (new WarteCursor()) body = StundenListeHtml(AppZustand.D, datum);
+        StatistikBerichte.Oeffnen(StundenListeTitel, body);
     }
 
     public static void FreieStunden(DateOnly datum)

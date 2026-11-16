@@ -4,7 +4,8 @@ namespace UntPlan.App.Fenster;
 
 /// <summary>
 /// Berichtsansicht im Programm: zeigt einen HTML-Bericht (Vertretungsberichte, Listen) in einem eigenen Fenster statt im externen
-/// Browser. Werkzeugleiste: Drucken, Seitenansicht, Seite einrichten, Im Browser öffnen (wie bisher) und Speichern unter (HTML).
+/// Browser. Wie die Seitenansicht des Vorbilds: weißes Blatt auf grauem Grund; Werkzeugleiste mit Verkleinern/Vergrößern, Drucken,
+/// Excel- und PDF-Ausgabe sowie Seitenansicht, Seite einrichten, Im Browser öffnen und Speichern unter (HTML).
 /// </summary>
 public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar
 {
@@ -28,14 +29,59 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar
         Size = new Size(900, 680);
         Positionieren();
         var ts = Werkzeugleiste();
+        ts.Items.Add(Knopf("Verkleinern", "minus", () => Zoomen(-10), false));
+        ts.Items.Add(Knopf("Vergrößern", "plus", () => Zoomen(10), false));
+        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false), false));
+        ts.Items.Add(Knopf("Als Excel-Datei speichern", "export", ExcelSpeichern, false));
+        ts.Items.Add(Knopf("PDF (Drucker „Microsoft Print to PDF“)", "dk", PdfAusgeben, false));
+        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true), false));
         ts.Items.Add(Knopf("Seite einrichten", "einstellungen", SeiteEinrichten, false));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Im Browser öffnen", "web", ImBrowserOeffnen, false));
         ts.Items.Add(Knopf("Speichern unter…", "speichern", SpeichernUnter, false));
+        _browser.DocumentCompleted += (_, _) => ZoomAnwenden();
         Controls.Add(_browser);
         Controls.Add(ts);
+    }
+
+    private int _zoom = 100;
+
+    /// <summary>Ansicht verkleinern bzw. vergrößern (50–200 %), wirkt nur auf die Anzeige, nicht auf den Druck.</summary>
+    private void Zoomen(int schritt)
+    {
+        _zoom = Math.Clamp(_zoom + schritt, 50, 200);
+        ZoomAnwenden();
+        Ui.Statushinweis($"Ansicht {_zoom} %");
+    }
+
+    private void ZoomAnwenden()
+    {
+        try { if (Geladen && _browser.Document!.Body is { } b) b.Style = $"zoom:{_zoom}%"; }
+        catch (Exception) { /* Anzeige ohne Zoom */ }
+    }
+
+    /// <summary>Bericht als Excel-Datei speichern (HTML-Tabelle, die Excel direkt öffnet).</summary>
+    private void ExcelSpeichern()
+    {
+        var name = string.Concat(Titel.Split(Path.GetInvalidFileNameChars())).Trim();
+        using var sfd = new SaveFileDialog { Filter = "Excel-Datei|*.xls", FileName = (name.Length > 0 ? name : "Bericht") + ".xls", Title = "Bericht als Excel-Datei speichern" };
+        if (sfd.ShowDialog(this) != DialogResult.OK) return;
+        try
+        {
+            File.WriteAllText(sfd.FileName, Html, new UTF8Encoding(true));
+            Ui.Statushinweis($"Excel-Datei gespeichert: {sfd.FileName}");
+        }
+        catch (Exception ex) { Ui.Fehler(ex); }
+    }
+
+    /// <summary>PDF-Ausgabe über den Druckdialog (Drucker „Microsoft Print to PDF“).</summary>
+    private void PdfAusgeben()
+    {
+        if (Ui.FehlerProtokoll != null) return;
+        Ui.Info("Wählen Sie im folgenden Druckdialog den Drucker \"Microsoft Print to PDF\".");
+        Drucken(false);
     }
 
     /// <summary>Bericht anzeigen: vorhandenes Fenster desselben Berichts übernimmt den neuen Inhalt, sonst ein neues Fenster.</summary>

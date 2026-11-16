@@ -24,6 +24,11 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private bool _laedt;
     private bool _neuaufbauAusstehend;
     private readonly Label _tage = new() { AutoSize = true };
+    private readonly ToolStripButton _filterKnopf;
+    /// <summary>Filtertext (Kurzname, Grund oder Text enthält ihn); leer = alle Absenzen.</summary>
+    private string _filter = "";
+    /// <summary>Sortierung der Liste: 0 = Element und Datum (Standard), 1 = Datum, 2 = Absenznummer, 3 = Absenzgrund.</summary>
+    private int _sortierung;
 
     // Entwurf der gerade bearbeiteten Zeile: Änderungen werden erst beim Verlassen der Zeile übernommen,
     // damit z. B. eine stundenweise Absenz nicht schon nach der ersten Eingabe Vertretungen auslöst.
@@ -43,7 +48,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
 
     public AbwesenheitenFenster()
     {
-        Text = "Absenzen / Standard";
+        // Titel wie in der Vorlage: „Absenzen / Lehrer“ (bzw. Klasse, Raum je nach Reiter)
+        Text = "Absenzen / Lehrer";
         HilfeThema = "Abwesenheiten";
         Icon = SymbolIcon("abwesenheit");
         Size = new Size(780, 320);
@@ -57,14 +63,38 @@ public sealed class AbwesenheitenFenster : MdiFenster
             _letzterReiter = _tabs.SelectedIndex;
             Neuaufbau();
         };
-        // Symbolleiste wie im Vorbild (Handbuch Kap. 5.1, Bereich 1): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht,
-        // Einstellungen, Absenz splitten – dazu die eigenen Funktionen (Bearbeiten, Kopieren auf andere Elemente, Veranstaltungen)
+        // Symbolleiste in der Reihenfolge der Vorlage: Fensterverknüpfung, Felder der Ansicht, Neu, Löschen | Filter, Sortieren,
+        // Absenz kopieren (andere Elemente) | Seitenlayout ▾, Einstellungen ▾, Absenz splitten, Absenzen zusammenfassen, Aktualisieren –
+        // dahinter die eigenen Funktionen (Bearbeiten, Veranstaltungen)
         var ts = Werkzeugleiste();
         ts.Items.Add(VerknuepfenKnopf());
+        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position)));
         ts.Items.Add(Knopf("Neue Absenz (Dialog)", "neu", Neu));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position)));
+        _filterKnopf = Knopf("Filter", "filter", FilterSetzen);
+        ts.Items.Add(_filterKnopf);
+        var sortieren = new ToolStripDropDownButton("Sortieren", Symbole.Get("sortieren", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Sortieren" };
+        foreach (var (text, art) in new[] { ("nach Element und Datum", 0), ("nach Datum", 1), ("nach Absenznummer", 2), ("nach Absenzgrund", 3) })
+        {
+            var mi = new ToolStripMenuItem(text) { Checked = art == 0, Tag = art };
+            mi.Click += (_, _) =>
+            {
+                _sortierung = art;
+                foreach (ToolStripMenuItem x in sortieren.DropDownItems) x.Checked = x == mi;
+                EntwurfSofortUebernehmen();
+                Neuaufbau();
+            };
+            sortieren.DropDownItems.Add(mi);
+        }
+        ts.Items.Add(sortieren);
+        ts.Items.Add(Knopf("Absenz kopieren (andere Elemente)", "kopieren", Kopieren));
+        ts.Items.Add(new ToolStripSeparator());
+        var layout = new ToolStripSplitButton("Seitenlayout", Symbole.Get("vorschau", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Seitenlayout" };
+        layout.ButtonClick += (_, _) => Drucken(true);
+        layout.DropDownItems.Add("Seitenansicht", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
+        layout.DropDownItems.Add("Drucken", Symbole.Get("drucken", 16), (_, _) => Drucken(false));
+        ts.Items.Add(layout);
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         _vaZeigen.Checked = AppZustand.Einstellungen.AbsenzenVeranstaltungenZeigen;
         _vaZeigen.CheckedChanged += (_, _) =>
@@ -77,9 +107,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
         einst.DropDownItems.Add(_vaZeigen);
         ts.Items.Add(einst);
         ts.Items.Add(Knopf("Absenz splitten", "tausch", Teilen));
-        ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
-        ts.Items.Add(Knopf("Absenz kopieren (andere Elemente)", "kopieren", Kopieren));
+        ts.Items.Add(Knopf("Absenzen zusammenfassen", "uebersicht", Zusammenfassen));
+        ts.Items.Add(Knopf("Aktualisieren", "aktualisieren", () => { EntwurfSofortUebernehmen(); Neuaufbau(); }));
         ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
 
         Ui.RasterGestalten(_g, true);
@@ -89,11 +120,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Ui.ZeilenmarkeErsteSpalte(_g);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 55, ReadOnly = true });
+        // Überschriften und Breiten wie in der Vorlage: AbsNr | Lehrer | Von TT.MM. | ab St. | Bis TT.MM. | bis St. | Grund | Text
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr", Width = 44, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 80, Array.Empty<string>()));
-        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 108), ("SV", "ab St.", 45), ("B", "Bis TT.MM.", 108), ("SB", "bis St.", 45) })
-            _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b });
-        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 70, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 86), ("SV", "ab St.", 68), ("B", "Bis TT.MM.", 81), ("SB", "bis St.", 78) })
+            _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 66, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true });
@@ -107,7 +139,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Columns["Ent"]!.DisplayIndex = nachText + 2;
         _g.Columns["Abs"]!.DisplayIndex = nachText + 3;
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
-        Ui.Spaltenhilfe(_g, c => SpaltenhilfeText(c.Name, Typ));
+        // Statuszeile wie in der Vorlage mit kurzem Text („Absent bis: TT.MM.“, „Absenzgrund“); die ausführliche Hilfe als Tooltip der Überschrift
+        Ui.Spaltenhilfe(_g, c => StatuszeilenText(c.Name, Typ));
+        foreach (DataGridViewColumn c in _g.Columns) c.ToolTipText = SpaltenhilfeText(c.Name, ElementTyp.Lehrer) ?? "";
         Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
         {
             Element? el = zelle.OwningColumn.Name == "G" ? D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) : D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname == text);
@@ -311,6 +345,27 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ["Abs"] = "Absenztage: Unterrichtstage im Zeitraum der Absenz",
     };
 
+    /// <summary>Kurze Statuszeilentexte je Spalte wie in der Vorlage.</summary>
+    internal static readonly Dictionary<string, string> Statuszeilentexte = new()
+    {
+        ["Nr"] = "Absenznummer",
+        ["V"] = "Absent von: TT.MM.",
+        ["SV"] = "Absent ab Stunde",
+        ["B"] = "Absent bis: TT.MM.",
+        ["SB"] = "Absent bis Stunde",
+        ["G"] = "Absenzgrund",
+        ["T"] = "Text zur Absenz",
+        ["Beg"] = "Begleitlehrer",
+        ["O"] = "Offene Vertretungen",
+        ["Anr"] = "Anrechnung",
+        ["Ent"] = "Entfalltage",
+        ["Abs"] = "Absenztage",
+    };
+
+    private static string? StatuszeilenText(string spalte, ElementTyp typ) => spalte == "E"
+        ? typ switch { ElementTyp.Klasse => "Abwesende Klasse", ElementTyp.Raum => "Gesperrter Raum", _ => "Abwesender Lehrer" }
+        : Statuszeilentexte.GetValueOrDefault(spalte);
+
     private static string? SpaltenhilfeText(string spalte, ElementTyp typ) => spalte == "E"
         ? typ switch { ElementTyp.Klasse => "Abwesende Klasse – Kurzname eintippen oder aus der Liste wählen", ElementTyp.Raum => "Gesperrter Raum – Kurzname eintippen oder aus der Liste wählen", _ => "Abwesende Lehrkraft – Kurzname eintippen oder aus der Liste wählen" }
         : Spaltenhilfen.GetValueOrDefault(spalte);
@@ -368,6 +423,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         var neuAufbauen = _aufgebautFuer != Art;
         var namen = (DataGridViewComboBoxColumn)_g.Columns["E"]!;
         namen.HeaderText = Art switch { AbwesenheitsArt.Lehrer => "Lehrer", AbwesenheitsArt.Klasse => "Klasse", _ => "Raum" };
+        namen.ToolTipText = SpaltenhilfeText("E", typ) ?? "";
+        Text = "Absenzen / " + namen.HeaderText;
         var gruende = (DataGridViewComboBoxColumn)_g.Columns["G"]!;
         // geänderte Auswahllisten: Zellen mit Werten außerhalb der Liste vermeiden – dann neu aufbauen
         if (neuAufbauen || ListeSetzen(namen, Stammdaten.Sortiert(D, typ).Select(el => el.Kurzname)) | ListeSetzen(gruende, D.Abwesenheitsgruende.Select(gr => gr.Kurzname)))
@@ -382,7 +439,15 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _tage.Text = anzahl == 1 ? "1 Tag" : $"{anzahl} Tage";
         _g.Columns["Beg"]!.Visible = Art == AbwesenheitsArt.Klasse;
         var eintraege = new List<object>();
-        eintraege.AddRange(D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis).OrderBy(a => Ix.K(typ, a.ElementId), StringComparer.Create(Format.De, true)).ThenBy(a => a.Von));
+        var vergleich = StringComparer.Create(Format.De, true);
+        var absenzen = D.Abwesenheiten.Where(a => a.Art == Art && a.Bis >= von && a.Von <= bis && PasstZumFilter(a, typ));
+        eintraege.AddRange(_sortierung switch
+        {
+            1 => absenzen.OrderBy(a => a.Von).ThenBy(a => a.StundeVon).ThenBy(a => Ix.K(typ, a.ElementId), vergleich),
+            2 => absenzen.OrderBy(a => a.Id),
+            3 => absenzen.OrderBy(a => D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "\uffff", vergleich).ThenBy(a => Ix.K(typ, a.ElementId), vergleich).ThenBy(a => a.Von),
+            _ => absenzen.OrderBy(a => Ix.K(typ, a.ElementId), vergleich).ThenBy(a => a.Von),
+        });
         // Veranstaltungen zur Information (Einstellungen „Veranstaltungen anzeigen“)
         if (_vaZeigen.Checked)
             eintraege.AddRange(D.Veranstaltungen.Where(v => v.Bis >= von && v.Von <= bis && VeranstaltungsElemente(v).Length > 0).OrderBy(v => v.Von));
@@ -449,6 +514,32 @@ public sealed class AbwesenheitenFenster : MdiFenster
         var o = zeile.Cells["O"];
         var rot = eintrag is Abwesenheit && (o.Value?.ToString() ?? "").Length > 0 ? Color.Firebrick : Color.Empty;
         if (o.Style.ForeColor != rot) o.Style.ForeColor = rot;
+    }
+
+    private bool PasstZumFilter(Abwesenheit a, ElementTyp typ)
+    {
+        if (_filter.Length == 0) return true;
+        var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
+        return new[] { Ix.K(typ, a.ElementId), grund, a.Text }.Any(t => t.Contains(_filter, StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    /// <summary>Filter: nur Absenzen, deren Element, Grund oder Text den eingegebenen Text enthält (leer = Filter aus).</summary>
+    private void FilterSetzen()
+    {
+        EntwurfSofortUebernehmen();
+        var text = Ui.Eingabe("Nur Absenzen anzeigen, deren Element, Grund oder Text Folgendes enthält (leer = alle):", "Filter", _filter);
+        if (text is null) return;
+        _filter = text.Trim();
+        _filterKnopf.Checked = _filter.Length > 0;
+        _filterKnopf.ToolTipText = _filter.Length > 0 ? $"Filter: {_filter}" : "Filter";
+        Neuaufbau();
+    }
+
+    /// <summary>Seitenlayout: Seitenansicht bzw. Druck der angezeigten Liste.</summary>
+    private void Drucken(bool vorschau)
+    {
+        EntwurfSofortUebernehmen();
+        ListenDruck.DruckenTabelle(this, $"{Text} – {Format.Datum(Von)}{(Bis != Von ? " – " + Format.Datum(Bis) : "")}", _g, vorschau, zeilenFilter: r => r.Tag != null);
     }
 
     private List<Abwesenheit> Markierte() => _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Abwesenheit>().Distinct().ToList();
