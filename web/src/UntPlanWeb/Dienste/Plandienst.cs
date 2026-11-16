@@ -527,7 +527,10 @@ public sealed class Plandienst
             {
                 if (ReferenceEquals(x, r)) { liste.AddRange(k.Lehrer); continue; }
                 WebVertretung? xv = x.Vertretung is int xid && s.Vertretungen.TryGetValue(xid, out var xvx) ? xvx : null;
-                foreach (var l in x.Lehrer.Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++") && !Ci.Equals(l, kurz)))
+                // das eigene Kürzel aus den übrigen Zeilen nur, wenn es auf der eigenen Karte als Vertretung (Label) steht: nimmt die Lehrkraft
+                // regulär teil UND betreut zusätzlich eine abwesende Kollegin, steht sie zweimal da – als Label und schlicht
+                var selbstAlsVertretung = k.Lehrer.Any(w => Ci.Equals(w.K, kurz) && !string.IsNullOrEmpty(w.Alt)) && !k.Lehrer.Any(w => Ci.Equals(w.K, kurz) && string.IsNullOrEmpty(w.Alt));
+                foreach (var l in x.Lehrer.Where(l => l.Length > 0 && l is not ("???" or "---" or "+" or "+++") && (!Ci.Equals(l, kurz) || (selbstAlsVertretung && x.Status is not ("vertreten")))))
                     liste.Add(xv != null && x.Status is "vertreten" or "zusaetzlich" && xv.Lehrer.Length > 0 && Ci.Equals(xv.Vertreter, l) && !Ci.Equals(xv.Lehrer, l) ? new Wert(l, xv.Lehrer, true) : new Wert(l));
             }
             var lehrer = LehrerEinmal(liste);
@@ -640,7 +643,15 @@ public sealed class Plandienst
         // Zusatzstunden: Vertretungen erst jetzt (nach dem Zusammenfassen) auflösen – siehe ZusatzLehrer
         var gekoppelt = Kopplungen(einzel).Select(k => k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null
             && k.Lehrer.Any(w => w.K.Length > 0 && !string.IsNullOrEmpty(w.Alt)) ? k with { Lehrer = ZusatzLehrer(k.Lehrer) } : k).ToList();
-        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten));
+        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten)).Select(LabelVorne).ToList();
+    }
+
+    /// <summary>Räume mit Label (geändert, hinzugekommen, entfernt) stehen vorne – wie in der Vorlage („[A103], C103“); sonst bleibt die Reihenfolge.</summary>
+    internal static Karte LabelVorne(Karte k)
+    {
+        static bool Label(Wert w) => !string.IsNullOrEmpty(w.Alt) || (w.Neu && w.K.Length > 0);
+        static List<Wert> Vorne(List<Wert> l) => l.Count < 2 || !l.Any(Label) ? l : l.Where(Label).Concat(l.Where(w => !Label(w))).ToList();
+        return k with { Raeume = Vorne(k.Raeume) };
     }
 
     /// <summary>

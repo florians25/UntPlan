@@ -716,6 +716,9 @@ public sealed class Buchungsdienst
         return liste.Select(b => res.TryGetValue(b.Id, out var l) ? b with { Ressourcen = l } : b).ToList();
     }
 
+    /// <summary>Alle Termine einer Serie (auch stornierte), nach Datum.</summary>
+    public List<Buchung> Serie(string serie) => MitRessourcen(_db.Liste($"SELECT {Spalten} FROM buchungen WHERE serie = @s ORDER BY datum, stunde_von", Lesen, Db.P("@s", serie)));
+
     public Buchung? Holen(int id) => MitRessourcen(_db.Liste($"SELECT {Spalten} FROM buchungen WHERE id = @id", Lesen, Db.P("@id", id))).FirstOrDefault();
 
     /// <summary>Aktive Buchungen eines Tages.</summary>

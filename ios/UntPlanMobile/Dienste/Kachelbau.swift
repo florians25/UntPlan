@@ -894,11 +894,13 @@ enum Kachelbau {
                     // gekennzeichnet (Raumänderung nur an der Art erkennbar), stehen alle Räume im Label.
                     let neue = k.raeume.filter { !$0.k.isEmpty && $0.geaendert }.map { $0.k.uppercased() }
                     let markiert = k.raeume.contains(where: \.geaendert)
-                    zeile.teile = jetzt.enumerated().map { j, r in
-                        let neu = geaendertWert && (markiert ? neue.contains(r.uppercased()) : true)
-                        // wie in der Vorlage durch Komma und Leerzeichen getrennt („C009, [C025]“)
-                        return Kachelteil(text: r, stil: neu ? .plakette : .text, trenner: j < jetzt.count - 1 ? ", " : "")
+                    var raumTeile = jetzt.map { r in
+                        Kachelteil(text: r, stil: geaendertWert && (markiert ? neue.contains(r.uppercased()) : true) ? .plakette : .text)
                     }
+                    // wie in der Vorlage: der Raum mit Label steht vorne („[A103], C103“), durch Komma und Leerzeichen getrennt
+                    raumTeile = raumTeile.filter { $0.stil == .plakette } + raumTeile.filter { $0.stil != .plakette }
+                    for j in raumTeile.indices { raumTeile[j].trenner = j < raumTeile.count - 1 ? ", " : "" }
+                    zeile.teile = raumTeile
                     hatListe = true
                 } else {
                     // Raumänderung immer mit Plakette (neuer Raum grün) – auch wenn sich sonst nichts geändert hat. Wurde nur

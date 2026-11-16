@@ -136,6 +136,28 @@ public static class BuchungApi
             return Results.Json(Json(x));
         });
 
+        // Buchungsbeleg (PDF): alle Termine der Serie mit Raum, Zeit und Status – eigene Buchungen bzw. Administration
+        api.MapGet("/{id:int}/beleg.pdf", (int id, HttpContext c, Buchungsdienst bu, Paketdienst p, Einstellungen e) =>
+        {
+            var b = Ich(c);
+            var x = bu.Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
+            if (x.BenutzerId != b.Id && !Rechtedienst.Darf(b, Recht.BuchungVerwalten)) throw new UnauthorizedAccessException("Nur eigene Buchungen.");
+            var liste = bu.Serie(x.Serie);
+            var zeilen = liste.Select(t => (IReadOnlyList<string>)new List<string>
+            {
+                DateOnly.TryParse(t.Datum, out var d) ? $"{Plandienst.Wochentage[Plandienst.TagIndex(d)][..2]} {d:dd.MM.yyyy}" : t.Datum,
+                t.Beginn.Length > 0 ? $"{t.Beginn}–{t.Ende}" : $"{t.StundeVon}.{(t.StundeBis != t.StundeVon ? $"–{t.StundeBis}." : "")} Std.",
+                t.Raum, string.Join(", ", t.Ressourcen.Select(r => r.Menge > 1 ? $"{r.Menge}× {r.Name}" : r.Name)),
+                t.Storniert is null && t.Status != "storniert" ? "Bestätigt" : "Storniert",
+            }).ToList();
+            var schule = e.Schulname.Length > 0 ? e.Schulname : p.Aktuell?.Paket.Schule.Name ?? "";
+            var unter = string.Join(" · ", new[] { x.ArtName, x.Titel, x.Lehrer.Length > 0 ? $"Lehrkraft {x.Lehrer}" : "", x.Fach.Length > 0 ? $"Fach {x.Fach}" : "",
+                x.Klassen.Count > 0 ? $"Klasse {string.Join(", ", x.Klassen)}" : "" }.Where(t => t.Length > 0));
+            var pdf = PdfBericht.Erzeugen(schule, $"Buchung {x.Id}", unter, new[] { "Datum", "Zeit", "Raum", "Ressourcen", "Status" }, zeilen,
+                x.Text.Length > 0 ? $"Anmerkung: {x.Text}" : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, true);
+            return Results.File(pdf, "application/pdf", $"buchung-{x.Id}.pdf");
+        });
+
         api.MapDelete("/{id:int}", (int id, bool? serie, HttpContext c, Buchungsdienst bu, Protokoll prot) =>
         {
             var b = Ich(c);
