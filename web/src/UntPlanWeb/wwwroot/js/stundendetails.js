@@ -533,10 +533,7 @@ export function karteDialog(karte, kontext = {}) {
     const teile = [];
     const unterricht = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
     if (unterricht && !istEntfall()) teile.push(onlineHtml(ein));
-    // Räume der Stunde immer (wie in der Vorlage); Ersetzen/Löschen/„+“ nur, wo eine Raumänderung erlaubt ist
-    if (!darfRaum() && kollegium && unterricht && !istEntfall() && kuerzel(k.raeume.filter(w => w.k)).length)
-      teile.push(`<div class="sd-detail sd-raeume">${maskeIcon('shared_roomEntity.svg')}<div class="d-flex flex-wrap align-items-center gap-2">
-        ${kuerzel(k.raeume.filter(w => w.k)).map(x => `<span class="sd-chipknopf nur-lesen">${e(x)}</span>`).join('')}</div></div>`);
+    // Raumbuchung (Räume mit Ersetzen/Löschen/„+“) nur in eigenen Stunden bzw. für die Administration in allen Stunden
     if (darfRaum()) {
       const raeume = kuerzel(k.raeume.filter(w => w.k));
       teile.push(`<div class="sd-detail sd-raeume">${maskeIcon('shared_roomEntity.svg')}<div class="d-flex flex-wrap align-items-center gap-2">

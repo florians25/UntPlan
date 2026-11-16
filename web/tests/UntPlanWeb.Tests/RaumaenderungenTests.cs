@@ -95,7 +95,8 @@ public class RaumaenderungenTests
             var e = a.Stunde(); var t = a.TagVon(e); var tp = Tagesplan.Berechnen(d, t);
             var alt = e.RaumIds[0]; var neu = a.FreierRaum(tp, e.Stunde)!.Id;
             Raumvertretungen.Zuordnen(d, e.Unterricht!.Id, e.Regel!.ZeilenIndex, t, new[] { e.Stunde }, neu, true, RaumKollisionsLoesung.OhneKollision);
-            faelle.Add(Neuer("Raum hinzugefügt", e, new() { Gleich(a.R(alt)), Plus(a.R(neu)) }, a.R(neu)));
+            // der hinzugekommene Raum (Label) steht vorne
+            faelle.Add(Neuer("Raum hinzugefügt", e, new() { Plus(a.R(neu)), Gleich(a.R(alt)) }, a.R(neu)));
         }
         // 3) Raum gelöscht (Stunde ohne Raum)
         {

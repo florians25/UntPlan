@@ -69,9 +69,10 @@ public class OberflaecheTests
         var zweiter = frei.AsArray().Select(x => x!["kurz"]!.GetValue<string>()).First(x => x != alterRaum && x != neuerRaum);
         await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/raumaenderung",
             new { datum = "2026-10-16", stundeVon = k.Von, unterricht = k.Unterricht, raeume = new[] { alterRaum, zweiter } }));
+        // der hinzugekommene Raum (Label) steht vorne
         var zwei = Karten(await Testserver.HolenAsync(c, $"/api/app/plan?typ=lehrer&element={lehrer}&datum=2026-10-16"), "2026-10-16", k.Von)
             .Single(x => x["unterricht"]?.GetValue<int>() == k.Unterricht);
-        Assert.Equal(new[] { alterRaum, zweiter }, zwei["raeume"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()));
+        Assert.Equal(new[] { zweiter, alterRaum }, zwei["raeume"]!.AsArray().Select(x => x!["k"]!.GetValue<string>()));
         Assert.Single(s.Dienst<Rueckmeldungsdienst>().Offene(), m => m.Typ == "raumbuchung");
         await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/raumaenderung",
             new { datum = "2026-10-16", stundeVon = k.Von, unterricht = k.Unterricht, raeume = new[] { alterRaum } }));

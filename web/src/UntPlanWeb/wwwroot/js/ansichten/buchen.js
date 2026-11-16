@@ -10,6 +10,7 @@
 import { e, holen, senden, api, toast, dialog, bestaetigen, leer, alarm, heuteIso, plusTage, montag, herunterladen, WOCHENTAGE_KURZ, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, segment, segmentSetzen, minuten, jetztMinuten } from '../ui.js';
 import { kbDialog } from '../kbdialog.js';
 import { raumListe } from '../raumwahl.js';
+import { cssLaden } from './kbeinstellungen.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 const tagKurz = iso => new Date(iso + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -50,7 +51,7 @@ export async function zeigen(seite, kontext, [bereich, ...rest]) {
     case 'ressourcen': return ressourcenuebersicht(seite, kontext, rest);
     case 'unterricht': return eigeneUnterrichte(seite, kontext);
     case 'verwaltung': case 'raumdaten': return (await import('./buchungsverwaltung.js')).zeigen(seite, kontext, bereich);
-    default: return assistent(seite, kontext, 'raum', rest);
+    default: return raumBuchen(seite, kontext, rest);
   }
 }
 
@@ -1304,4 +1305,222 @@ async function eigeneUnterrichte(seite, kontext) {
       kontext.navigieren(`#/buchen/stunden/${u.id}`);
     } }],
   });
+}
+
+// ------------------------------------------------------------------ Raum buchen (Ablauf wie in der Vorlage, im Grunddesign)
+// 1. „Buchung: Suche nach freien Räumen“ – Zeitbereich (Wiederholung, Datum bzw. Zeitraum, Beginn-/Endzeit, ganztägig) und Auswahlkriterien
+//    (Ressourcenart, Raumart, Kapazität, Abteilung, Gebäude, Raumgruppe, maximale Belegung) → „Suchen“
+// 2. „Buchung: Freie Räume“ – Tabelle mit Auswahl, Raum, Langname, Kapazität und je Termin „frei“ (abwählbar) → „Weiter“
+// 3. „Buchung“ – Lehrkraft, Hinweise auf Überschneidungen, Fach, Klasse(n), Titel, Anmerkung, Benachrichtigung → „Speichern“
+// 4. „Erfolgreiche Buchung {Nr.}“ – Termine mit Status, „PDF“ (Beleg) und „Schließen“
+
+async function raumBuchen(seite, kontext, rest) {
+  cssLaden();
+  const [opt, el] = await Promise.all([holen('/api/app/buchen/optionen'), kontext.elemente()]);
+  const raster = opt.zeitraster.filter(z => z.nr > 0 && z.beginn && z.ende);
+  const heute = heuteIso();
+  kontext.titel('Raum buchen', `<a class="nl-knopf" href="#/buchen/raeume"><i class="bi bi-grid-3x3-gap"></i>Raumübersicht</a><a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>`);
+  const [pDatum, pVon, pBis, pRaum] = rest;
+  const vorbelegt = /^\d{4}-\d{2}-\d{2}$/.test(pDatum ?? '');
+  const start = vorbelegt ? pDatum : (opt.naechsterTag && opt.naechsterTag > heute ? opt.naechsterTag : heute);
+  const z = { wiederholung: 'einmalig', datum: start, von: start, bis: plusTage(start, 56), wochentage: [Math.min(tagIndex(start), 4)],
+    modus: 'stunden', stundeVon: Number(pVon) || raster[0]?.nr || 1, stundeBis: Number(pBis) || Number(pVon) || raster[0]?.nr || 1 };
+  const k = { ressourcenarten: [], raumart: '', kapazitaetMin: '', kapazitaetMax: '', abteilung: '', gebaeude: '', raumgruppe: '', maxBelegung: 0 };
+  const d = { lehrer: opt.ich || '', fach: '', klassen: [], titel: '', text: '', benachrichtigen: true };
+  let schritt = 'suche', suche = null, raum = vorbelegt ? pRaum || null : null, wahl = new Set(), gespeichert = null;
+
+  const haken = (attr, text, an, typ = 'checkbox', name = '') => `<label class="pe-haken"><input type="${typ}" ${name ? `name="${name}"` : ''} ${attr} ${an ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span><span>${text}</span></label>`;
+  const pfeld = (label, html, klasse = '') => `<label class="pe-feld rb-feld ${klasse}"><span class="pe-feld-label">${e(label)}</span>${html}</label>`;
+  const opts = (liste, wert, leerText = '<Auswahl>') => `<option value="">${e(leerText)}</option>${liste.map(x => `<option ${x === wert ? 'selected' : ''}>${e(x)}</option>`).join('')}`;
+  const zeitText = () => {
+    const a = raster.find(r => r.nr === z.stundeVon), b = raster.find(r => r.nr === z.stundeBis);
+    const zeit = a && b ? `${a.beginn} – ${b.ende}` : '';
+    if (z.wiederholung === 'einmalig') return `${datumDe(z.datum)}, ${zeit}`;
+    const w = WIEDERHOLUNG.find(x => x[0] === z.wiederholung)?.[1] ?? '';
+    return `${w}${z.wiederholung === 'taeglich' ? '' : ` (${z.wochentage.map(i => WOCHENTAGE_KURZ[i]).join(', ')})`}, ${datumDe(z.von)} – ${datumDe(z.bis)}, ${zeit}`;
+  };
+  const rahmen = (titel, inhalt, fuss) => `<div class="rb"><h2 class="rb-titel">${e(titel)}</h2><section class="rb-karte">${inhalt}</section>${fuss ? `<div class="rb-fuss">${fuss}</div>` : ''}</div>`;
+
+  async function zeichnen() {
+    if (schritt === 'suche') return sucheZeichnen();
+    if (schritt === 'raeume') return raeumeZeichnen();
+    if (schritt === 'buchung') return buchungZeichnen();
+    return erfolgZeichnen();
+  }
+
+  // ---------------------------------------------------------------- 1. Suche nach freien Räumen
+  function sucheZeichnen() {
+    const einmalig = z.wiederholung === 'einmalig';
+    const ganztaegig = z.stundeVon === raster[0]?.nr && z.stundeBis === raster[raster.length - 1]?.nr;
+    const arten = opt.ressourcenarten.filter(a => opt.raeume.some(r => (r.ressourcenartIds ?? []).includes(a.id)));
+    seite.innerHTML = rahmen('Buchung: Suche nach freien Räumen', `
+      <h3 class="rb-abschnitt">Zeitbereich</h3>
+      <div class="rb-zeitbereich">
+        <div class="rb-wdh" role="radiogroup" aria-label="Wiederholung">${WIEDERHOLUNG.map(([w, t]) => haken(`value="${w}" data-wdh`, t, w === z.wiederholung, 'radio', 'rb-wdh')).join('')}</div>
+        <div class="rb-zeit">
+          <div class="rb-zeile">
+            ${einmalig ? pfeld('Datum', `<input type="date" class="form-control" data-z="datum" value="${z.datum}" min="${heute}">`)
+              : `${pfeld('Von', `<input type="date" class="form-control" data-z="von" value="${z.von}" min="${heute}">`)}${pfeld('Bis', `<input type="date" class="form-control" data-z="bis" value="${z.bis}" min="${heute}">`)}`}
+          </div>
+          <div class="rb-zeile">
+            ${pfeld('Beginnzeit', `<select class="form-select" data-z="stundeVon">${raster.map(r => `<option value="${r.nr}" ${r.nr === z.stundeVon ? 'selected' : ''}>${e(r.beginn)}</option>`).join('')}</select>`)}
+            ${pfeld('Endzeit', `<select class="form-select" data-z="stundeBis">${raster.map(r => `<option value="${r.nr}" ${r.nr === z.stundeBis ? 'selected' : ''}>${e(r.ende)}</option>`).join('')}</select>`)}
+            <button type="button" class="pe-knopf rb-ganztaegig ${ganztaegig ? 'an' : ''}" data-ganztaegig aria-pressed="${ganztaegig}">ganztägig</button>
+          </div>
+          ${einmalig || z.wiederholung === 'taeglich' ? '' : `<div class="rb-tage" role="group" aria-label="Wochentage">${WOCHENTAGE_KURZ.slice(0, opt.tageProWoche).map((t, i) => haken(`data-tag="${i}"`, t, z.wochentage.includes(i))).join('')}</div>`}
+        </div>
+      </div>
+      <h3 class="rb-abschnitt">Auswahlkriterien</h3>
+      <div class="rb-kriterien">
+        ${arten.length ? pfeld('Ressourcenart', `<select multiple class="form-select" data-k="ressourcenarten" data-platzhalter="<Auswahl>">${arten.map(a => `<option value="${a.id}" ${k.ressourcenarten.includes(a.id) ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select>`) : ''}
+        ${pfeld('Raumart', `<select class="form-select" data-k="raumart">${opts(opt.raumarten, k.raumart)}</select>`)}
+        ${pfeld('Abteilung', `<select class="form-select" data-k="abteilung">${opts(opt.abteilungen, k.abteilung)}</select>`)}
+        ${pfeld('Gebäude', `<select class="form-select" data-k="gebaeude">${opts(opt.gebaeude, k.gebaeude)}</select>`)}
+        ${pfeld('Raumgruppe', `<select class="form-select" data-k="raumgruppe">${opts(opt.raumgruppen, k.raumgruppe)}</select>`)}
+        <div class="rb-zeile">${pfeld('Kapazität min.', `<input type="number" min="0" class="form-control" data-k="kapazitaetMin" value="${e(k.kapazitaetMin)}" placeholder="0">`)}
+          ${pfeld('Kapazität max.', `<input type="number" min="0" class="form-control" data-k="kapazitaetMax" value="${e(k.kapazitaetMax)}" placeholder="0">`)}</div>
+        ${pfeld('Maximale Belegung (%)', `<input type="number" min="0" max="100" class="form-control" data-k="maxBelegung" value="${e(k.maxBelegung)}">`)}
+      </div>`, '<button type="button" class="pe-knopf primaer" data-suchen>Suchen</button>');
+    seite.querySelectorAll('[data-wdh]').forEach(r => r.onchange = () => {
+      if (z.wiederholung === 'einmalig' && r.value !== 'einmalig') { z.von = z.datum; z.wochentage = [Math.min(tagIndex(z.datum), opt.tageProWoche - 1)]; if (z.bis <= z.von) z.bis = plusTage(z.von, 56); }
+      if (r.value === 'einmalig' && z.wiederholung !== 'einmalig') z.datum = z.von;
+      z.wiederholung = r.value; sucheZeichnen();
+    });
+    seite.querySelectorAll('[data-tag]').forEach(c => c.onchange = () => {
+      const t = Number(c.dataset.tag);
+      z.wochentage = c.checked ? [...new Set([...z.wochentage, t])].sort() : z.wochentage.filter(x => x !== t);
+    });
+    seite.querySelectorAll('[data-z]').forEach(f => f.onchange = () => {
+      const n = f.dataset.z;
+      z[n] = n.startsWith('stunde') ? Number(f.value) : f.value;
+      if (n === 'stundeVon' && z.stundeBis < z.stundeVon) z.stundeBis = z.stundeVon;
+      if (n === 'stundeBis' && z.stundeBis < z.stundeVon) z.stundeVon = z.stundeBis;
+      if (n === 'von' && z.bis < z.von) z.bis = plusTage(z.von, 56);
+      if (n.startsWith('stunde') || n === 'von') sucheZeichnen();
+    });
+    seite.querySelector('[data-ganztaegig]').onclick = () => { z.stundeVon = raster[0].nr; z.stundeBis = raster[raster.length - 1].nr; sucheZeichnen(); };
+    seite.querySelectorAll('[data-k]').forEach(f => f.onchange = () => {
+      const n = f.dataset.k;
+      k[n] = n === 'ressourcenarten' ? [...f.selectedOptions].map(o => Number(o.value)) : f.value;
+    });
+    seite.querySelector('[data-suchen]').onclick = async ev => {
+      ev.currentTarget.disabled = true;
+      try { await suchen(); schritt = 'raeume'; await zeichnen(); window.scrollTo(0, 0); }
+      catch (err) { kontext.fehler(err); ev.currentTarget.disabled = false; }
+    };
+  }
+
+  async function suchen() {
+    const zahl = x => x === '' || x == null ? null : Number(x);
+    suche = await senden('/api/app/buchen/suche/raeume', { zeit: zeitDaten(z), kriterien: {
+      ressourcenarten: k.ressourcenarten.length ? k.ressourcenarten : null, raumart: k.raumart || null, abteilung: k.abteilung || null, gebaeude: k.gebaeude || null,
+      raumgruppe: k.raumgruppe || null, kapazitaetMin: zahl(k.kapazitaetMin) || null, kapazitaetMax: zahl(k.kapazitaetMax) || null, maxBelegung: zahl(k.maxBelegung) ?? 0 } });
+    if (!suche.termine.length) throw new Error('Im gewählten Zeitbereich gibt es keinen Unterrichtstag.');
+    const r = raum && suche.raeume.find(x => x.kurz.toLowerCase() === raum.toLowerCase());
+    raum = r ? r.kurz : null;
+    wahl = new Set(r ? suche.termine.map((_, i) => i).filter(i => !r.belegt.includes(i)) : []);
+  }
+
+  // ---------------------------------------------------------------- 2. Freie Räume
+  function raeumeZeichnen() {
+    const s = suche;
+    const tage = s.termine.map(t => t.termin ?? t);
+    const kopf = tage.map(t => `<th class="rb-tag">${e(datumDe(t.datum).slice(0, 6))}</th>`).join('');
+    seite.innerHTML = rahmen('Buchung: Freie Räume', `
+      <div class="rb-kriterienzeile"><span>Auswahlkriterien</span><b>${e(zeitText())}</b>${s.uebersprungen.length ? `<small>${s.uebersprungen.length} unterrichtsfreie ${s.uebersprungen.length === 1 ? 'Tag' : 'Tage'} ausgelassen</small>` : ''}</div>
+      ${s.raeume.length ? `<div class="rb-tabelle-huelle"><table class="pe-tabelle rb-tabelle"><thead><tr><th>Auswahl</th><th>Raum</th><th>Langname</th><th class="text-end">Kapazität</th>${kopf}</tr></thead><tbody>
+        ${s.raeume.map(r => { const an = r.kurz === raum; return `<tr class="${an ? 'gewaehlt' : ''}" data-zeile="${e(r.kurz)}">
+          <td>${haken(`value="${e(r.kurz)}" data-raum`, '', an, 'radio', 'rb-raum')}</td>
+          <td><span class="rb-kurz">${e(r.kurz)}</span></td><td>${e(r.name || '')}</td><td class="text-end">${r.kapazitaet || 0}</td>
+          ${tage.map((_, i) => r.belegt.includes(i) ? '<td class="rb-tag"><span class="rb-belegt">belegt</span></td>'
+            : `<td class="rb-tag">${haken(`data-termin="${i}" data-fuer="${e(r.kurz)}" ${an ? '' : 'disabled'}`, '<span class="rb-frei">frei</span>', an && wahl.has(i))}</td>`).join('')}</tr>`; }).join('')}
+      </tbody></table></div>` : '<p class="rb-leer">Kein Raum erfüllt die Auswahlkriterien. Ändern Sie den Zeitbereich oder die Kriterien.</p>'}`,
+      '<button type="button" class="pe-knopf" data-zurueck>Zurück</button><button type="button" class="pe-knopf primaer" data-weiter>Weiter</button>');
+    seite.querySelectorAll('[data-raum]').forEach(r => r.onchange = () => {
+      const x = s.raeume.find(y => y.kurz === r.value);
+      raum = x.kurz; wahl = new Set(s.termine.map((_, i) => i).filter(i => !x.belegt.includes(i)));
+      raeumeZeichnen();
+    });
+    seite.querySelectorAll('tr[data-zeile]').forEach(tr => tr.addEventListener('click', ev => {
+      if (ev.target.closest('label, input') || tr.dataset.zeile === raum) return;
+      tr.querySelector('[data-raum]').click();
+    }));
+    seite.querySelectorAll('[data-termin]').forEach(c => c.onchange = () => { const i = Number(c.dataset.termin); if (c.checked) wahl.add(i); else wahl.delete(i); });
+    seite.querySelector('[data-zurueck]').onclick = () => { schritt = 'suche'; zeichnen(); };
+    seite.querySelector('[data-weiter]').onclick = () => {
+      if (!raum) return kontext.fehler(new Error('Bitte einen Raum auswählen.'));
+      if (!wahl.size) return kontext.fehler(new Error('Bitte mindestens einen freien Termin auswählen.'));
+      schritt = 'buchung'; zeichnen(); window.scrollTo(0, 0);
+    };
+  }
+
+  const termineGewaehlt = () => suche.termine.map((t, i) => [t.termin ?? t, i]).filter(([, i]) => wahl.has(i))
+    .map(([t]) => ({ datum: t.datum, stundeVon: t.stundeVon, stundeBis: t.stundeBis, raum }));
+
+  // ---------------------------------------------------------------- 3. Buchung
+  function buchungZeichnen() {
+    const termine = termineGewaehlt();
+    seite.innerHTML = rahmen('Buchung', `
+      <div class="rb-kriterienzeile"><span>Raum ${e(raum)}</span><b>${e(zeitText())}</b><small>${termine.length} ${termine.length === 1 ? 'Termin' : 'Termine'}</small></div>
+      <div class="rb-formular">
+        ${pfeld('Lehrkraft', `<select class="form-select" data-d="lehrer">${`<option value="">keine</option>${el.lehrer.map(l => `<option value="${e(l.kurz)}" ${l.kurz === d.lehrer ? 'selected' : ''} data-zweit="${e(l.name)}">${e(l.kurz)}</option>`).join('')}`}</select>`)}
+        <div class="rb-hinweise" data-hinweise></div>
+        ${pfeld('Fach', `<select class="form-select" data-d="fach"><option value="">&lt;Auswahl&gt;</option>${el.faecher.map(f => `<option value="${e(f.kurz)}" ${f.kurz === d.fach ? 'selected' : ''} data-zweit="${e(f.name)}">${e(f.kurz)}</option>`).join('')}</select>`)}
+        ${pfeld('Klasse(n)', `<select multiple class="form-select" data-d="klassen" data-platzhalter="keine">${el.klassen.map(x => `<option value="${e(x.kurz)}" ${d.klassen.includes(x.kurz) ? 'selected' : ''}>${e(x.kurz)}</option>`).join('')}</select>`)}
+        ${pfeld('Titel / Anlass', `<input class="form-control" maxlength="200" data-d="titel" value="${e(d.titel)}" placeholder="z. B. Projektarbeit">`)}
+        ${pfeld('Anmerkung', `<textarea class="form-control" rows="3" maxlength="1000" data-d="text">${e(d.text)}</textarea>`, 'breit')}
+        <div class="rb-haken">${haken('data-d="benachrichtigen"', 'Lehrkraft der Aktivität benachrichtigen', d.benachrichtigen)}</div>
+      </div>`, '<button type="button" class="pe-knopf" data-zurueck>Zurück</button><button type="button" class="pe-knopf primaer" data-speichern>Speichern</button>');
+    const hinweise = async () => {
+      const ziel = seite.querySelector('[data-hinweise]');
+      try {
+        const h = await senden('/api/app/buchen/hinweise', { termine, lehrer: d.lehrer || null, klassen: d.klassen });
+        ziel.innerHTML = h.length ? `<div class="rb-warnung"><span class="rb-punkt rot"></span><div><b>Farbig gekennzeichnete Elemente haben zur gleichen Zeit schon eine andere Aktivität:</b><ul>${h.slice(0, 6).map(x => `<li>${e(x)}</li>`).join('')}${h.length > 6 ? `<li>… und ${h.length - 6} weitere</li>` : ''}</ul></div></div>` : '';
+      } catch { ziel.innerHTML = ''; }
+    };
+    seite.querySelectorAll('[data-d]').forEach(f => f.addEventListener(f.tagName === 'SELECT' || f.type === 'checkbox' ? 'change' : 'input', () => {
+      const n = f.dataset.d;
+      d[n] = n === 'klassen' ? [...f.selectedOptions].map(o => o.value) : f.type === 'checkbox' ? f.checked : f.value;
+      if (n === 'lehrer' || n === 'klassen') hinweise();
+    }));
+    hinweise();
+    seite.querySelector('[data-zurueck]').onclick = () => { schritt = 'raeume'; zeichnen(); };
+    seite.querySelector('[data-speichern]').onclick = async ev => {
+      ev.currentTarget.disabled = true;
+      try {
+        gespeichert = await senden('/api/app/buchen', { art: 'raum', termine, ressourcen: [], klassen: d.klassen, lehrer: d.lehrer || '', fach: d.fach, titel: d.titel, text: d.text,
+          benachrichtigen: d.benachrichtigen && !!d.lehrer, unterrichtId: null, beginn: null, ende: null });
+        schritt = 'fertig'; zeichnen(); window.scrollTo(0, 0);
+      } catch (err) { kontext.fehler(err); ev.currentTarget.disabled = false; }
+    };
+  }
+
+  // ---------------------------------------------------------------- 4. Erfolgreiche Buchung
+  function erfolgZeichnen() {
+    const b = gespeichert.buchungen;
+    const x = b[0];
+    const zeit = t => t.beginn ? `${t.beginn} – ${t.ende}` : (() => { const a = raster.find(r => r.nr === t.stundeVon), c = raster.find(r => r.nr === t.stundeBis); return a && c ? `${a.beginn} – ${c.ende}` : stdText(t.stundeVon, t.stundeBis); })();
+    seite.innerHTML = rahmen(`Erfolgreiche Buchung ${x.id}`, `
+      <dl class="rb-angaben"><dt>Klasse</dt><dd>${e(x.klassen.join(', ') || '–')}</dd><dt>Lehrkraft</dt><dd>${e(x.lehrer || '–')}</dd><dt>Fach</dt><dd>${e(x.fach || '–')}</dd>
+        ${x.titel ? `<dt>Titel</dt><dd>${e(x.titel)}</dd>` : ''}</dl>
+      <table class="pe-tabelle rb-ergebnis"><thead><tr><th>Datum</th><th>Zeit</th><th>${e(raum)}</th></tr></thead>
+        <tbody>${b.map(t => `<tr><td>${e(datumDe(t.datum))}</td><td>${e(zeit(t))}</td><td><span class="rb-status">Bestätigt</span></td></tr>`).join('')}</tbody></table>
+      ${gespeichert.hinweise?.length ? `<p class="rb-leer">${e(gespeichert.hinweise.join(' '))}</p>` : ''}`,
+      '<button type="button" class="pe-knopf" data-pdf>PDF</button><button type="button" class="pe-knopf primaer" data-schliessen>Schließen</button>');
+    seite.querySelector('[data-pdf]').onclick = async () => {
+      try {
+        const r = await fetch(`/api/app/buchen/${x.id}/beleg.pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+        if (!r.ok) throw new Error('PDF konnte nicht erstellt werden.');
+        herunterladen(`buchung-${x.id}.pdf`, await r.blob(), 'application/pdf');
+      } catch (err) { kontext.fehler(err); }
+    };
+    seite.querySelector('[data-schliessen]').onclick = () => { gespeichert = null; suche = null; raum = null; wahl = new Set(); schritt = 'suche'; zeichnen(); };
+  }
+
+  // Vorbelegung aus der Raumübersicht: gleich die freien Räume mit dem gewählten Raum zeigen
+  if (vorbelegt) {
+    try { await suchen(); if (pRaum && !raum) toast(`${pRaum} ist zu dieser Zeit nicht frei.`, true); schritt = 'raeume'; }
+    catch (err) { kontext.fehler(err); }
+  }
+  await zeichnen();
 }

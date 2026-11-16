@@ -532,3 +532,53 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
 .bu-verwaltung > * { min-width: 0; }
 .bu-verwaltung .nl-tabelle { overflow-x: auto; }
 .bu-verwaltung td[data-label="Standort"] { white-space: nowrap; }
+
+/* ------------------------------------------------------------------ Raum buchen (Ablauf wie in der Vorlage, Grunddesign)
+   Suche nach freien Räumen → Freie Räume (Tabelle mit „frei“ je Termin) → Buchung → Erfolgreiche Buchung (PDF, Schließen) */
+.rb { width: 100%; }
+.rb-titel { margin: 4px 0 16px; font-size: 1.05rem; font-weight: 500; color: var(--u-akzent); }
+.rb-karte { padding: 22px 26px 26px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.rb-abschnitt { margin: 0 0 14px; font-size: .95rem; font-weight: 500; color: var(--u-akzent); }
+.rb-abschnitt:not(:first-child) { margin-top: 28px; }
+.rb-zeitbereich { display: flex; flex-wrap: wrap; gap: 18px 36px; padding: 18px 20px; border: 1px solid var(--u-linie); border-radius: 8px; }
+.rb-wdh { display: flex; flex-direction: column; gap: 10px; min-width: 150px; }
+.rb-zeit { display: flex; flex-direction: column; gap: 16px; flex: 1; min-width: 280px; }
+.rb-zeile { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.rb-feld { width: 210px; max-width: 100%; }
+.rb-feld.breit { width: 100%; }
+.rb-feld textarea.form-control { height: auto; min-height: 84px; }
+.rb-ganztaegig { height: 40px; }
+.rb-ganztaegig.an { border-color: var(--u-akzent); color: var(--u-akzent); }
+.rb-tage { display: flex; flex-wrap: wrap; gap: 18px; }
+.rb-kriterien { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 14px; padding: 18px 20px; border: 1px solid var(--u-linie); border-radius: 8px; }
+.rb-kriterien select[multiple] { min-height: 40px; }
+.rb-fuss { display: flex; gap: 12px; margin-top: 18px; }
+.rb-kriterienzeile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 16px; font-size: .9rem; color: var(--u-grau); }
+.rb-kriterienzeile b { font-weight: 500; color: var(--u-titel); }
+.rb-tabelle-huelle { max-height: 62vh; overflow: auto; border: 1px solid var(--u-linie); border-radius: 8px; }
+.rb-tabelle th { position: sticky; top: 0; z-index: 1; background: #fff; font-size: .78rem; font-weight: 500; color: var(--u-titel); white-space: nowrap; }
+.rb-tabelle td { padding: 8px 14px; }
+.rb-tabelle tbody tr { cursor: pointer; }
+.rb-tabelle tbody tr:hover td { background: var(--u-hover); }
+.rb-tabelle tbody tr.gewaehlt td { background: #fff4ee; }
+.rb-tabelle .rb-tag { text-align: center; white-space: nowrap; }
+.rb-tabelle .pe-haken { justify-content: center; }
+.rb-tabelle .pe-haken input:disabled + .pe-kreis { opacity: .45; }
+.rb-kurz { font-weight: 500; color: var(--u-akzent); }
+.rb-frei { font-size: .8rem; color: #1f9d55; }
+.rb-belegt { font-size: .8rem; color: var(--u-grau); }
+.rb-leer { margin: 8px 0 0; color: var(--u-grau); }
+.rb-formular { display: flex; flex-wrap: wrap; gap: 18px 14px; max-width: 900px; }
+.rb-hinweise { width: 100%; }
+.rb-hinweise:empty { display: none; }
+.rb-warnung { display: flex; gap: 10px; padding: 12px 14px; border-radius: 6px; background: #fff4f4; font-size: .875rem; color: var(--u-titel); }
+.rb-warnung b { font-weight: 500; }
+.rb-warnung ul { margin: 4px 0 0; padding-left: 18px; }
+.rb-punkt { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 2px; }
+.rb-punkt.rot { background: var(--u-rot); }
+.rb-haken { width: 100%; }
+.rb-angaben { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 18px; font-size: .9rem; }
+.rb-angaben dt { font-weight: 400; color: var(--u-grau); }
+.rb-angaben dd { margin: 0; color: var(--u-titel); }
+.rb-ergebnis { width: auto; min-width: 420px; border: 1px solid var(--u-linie); border-radius: 8px; overflow: hidden; }
+.rb-status { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #e2f6ec; color: #16794a; font-size: .8rem; font-weight: 500; }
