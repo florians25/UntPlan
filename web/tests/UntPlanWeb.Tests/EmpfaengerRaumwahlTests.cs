@@ -305,14 +305,18 @@ public class EmpfaengerRaumwahlTests
     }
 
     [Fact]
-    public void Navigation_blendet_Menuepunkte_gestaffelt_ein()
+    public void Navigation_gleitet_beim_Menuewechsel_wie_in_der_Vorlage()
     {
         var js = Datei("js", "app.js");
-        Assert.Contains("function navEinblenden()", js);
+        // Untermenü öffnen: altes Menü nach links hinaus, neues von rechts; zurück: Hauptmenü von links, Punkte gestaffelt
+        Assert.Contains("function leistenWechsel(leiste, bild, richtung)", js);
+        Assert.Contains("transform: `translateX(${vor ? -48 : 48}px)`", js);
+        Assert.Contains("delay: rein.delay + (vor ? 0 : Math.min(i, 14) * 28)", js);
+        // Aktiv-Balken gleitet senkrecht zum neuen Punkt; bei „Bewegung reduzieren“ keine Animation
+        Assert.Contains("pseudoElement: '::before'", js);
         Assert.Contains("prefers-reduced-motion: reduce", js);
-        Assert.Contains("duration: 220, delay: Math.min(i, 14) * 24", js);
-        Assert.Contains("transform: 'translateY(-6px)'", js);
-        Assert.Contains("navEinblendenAngefordert = true;", js);
+        Assert.DoesNotContain("navEinblendenAngefordert", js);
+        Assert.Contains(".u-leiste-bild { position: absolute; inset: 0; z-index: 2; pointer-events: none; }", Datei("css", "app.css"));
     }
 
     [Fact]

@@ -296,6 +296,8 @@ tr[role=button] { cursor: pointer; }
 .u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { color: var(--u-akzent); background: none; }
 .u-nav-punkt.aktiv .u-nav-sym { color: var(--u-akzent); }
 .u-nav-punkt.aktiv::before { content: ""; position: absolute; left: 0; top: 5px; bottom: 5px; width: 4px; border-radius: 0 3px 3px 0; background: var(--u-akzent); }
+/* Wechselanimation der Seitenleiste: Momentaufnahme des bisherigen Menüs gleitet hinaus (siehe leistenWechsel in app.js) */
+.u-leiste-bild { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 .u-nav-unter .u-nav-punkt { font-size: .95rem; gap: 16px; padding-left: 21px; }
 .u-nav-unter .u-nav-sym .u-sym { width: 28px; height: 28px; }
 .u-zahl { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--u-akzent); color: #fff; font-size: .72rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }

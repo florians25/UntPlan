@@ -49,7 +49,10 @@ let aktiverPunkt = null;
 /** Name der zuletzt gezeigten Ansicht (z. B. „plan“) – kontext.vorherigeAnsicht für die nächste Ansicht. */
 let letzteAnsicht = null;
 /** Nächstes Zeichnen bzw. Markieren der Navigation blendet die Menüpunkte gestaffelt ein (nach einem Klick in der Seitenleiste). */
-let navEinblendenAngefordert = false;
+/** Zuletzt gezeigtes Menü der Seitenleiste (null = Hauptmenü, undefined = noch nichts gezeichnet) – für die Wechselanimation. */
+let letzteGruppe;
+/** Aktiver Menüpunkt beim letzten Markieren (für das Gleiten des Aktiv-Balkens). */
+let letzterAktiv = null;
 
 /** Gemeinsamer Kontext für alle Ansichten. */
 const kontext = {
@@ -536,10 +539,19 @@ function leisteZeichnen() {
   const gruppen = menue();
   const gruppe = gruppen.find(g => g.id === untermenue && g.unter);
   const jahr = schuljahrText();
+  // Wechsel Hauptmenü ↔ Untermenü: altes Menü gleitet nach links bzw. rechts hinaus, das neue kommt von der anderen Seite (wie in der Vorlage)
+  const neuId = gruppe?.id ?? null;
+  const richtung = letzteGruppe !== undefined && letzteGruppe !== neuId ? (neuId ? 'vor' : 'zurueck') : null;
+  letzteGruppe = neuId;
+  const altesBild = richtung ? leistenBild(leiste) : null;
+  if (richtung) letzterAktiv = null;
   leiste.classList.toggle('mit-unter', !!gruppe);
-  leiste.querySelector('[data-leistenkopf]').innerHTML = gruppe
+  // gleicher Inhalt wie zuletzt: nicht neu aufbauen (eine laufende Wechselanimation bleibt erhalten)
+  const kopfHtml = gruppe
     ? `<div class="u-unterkopf"><button type="button" class="u-zurueck" data-zurueck title="Zurück" aria-label="Zurück">${icon('zurueck')}</button><b title="${e(gruppe.text)}">${e(gruppe.text)}</b></div>`
     : `<a class="u-marke" href="#/heute" title="UntPlanWeb">${LOGO}<span><b>UntPlanWeb</b><small>${e(sitzung.schule.name || '')}</small></span></a>`;
+  const kopfEl = leiste.querySelector('[data-leistenkopf]');
+  if (kopfEl.dataset.html !== kopfHtml) { kopfEl.innerHTML = kopfHtml; kopfEl.dataset.html = kopfHtml; }
   const gw = gewaehltesSchuljahr();
   leiste.querySelector('[data-jahr]').innerHTML = jahr ? `<span class="u-jahrwahl">
       <button type="button" class="u-jahr mit-pfeil ${gw.aktuell ? '' : 'anders'}" data-jahrwahl aria-haspopup="listbox" aria-expanded="false" aria-describedby="u-jahr-tipp">${e(gw.text)} <i class="bi bi-chevron-down"></i></button>
@@ -561,34 +573,70 @@ function leisteZeichnen() {
   const nav = leiste.querySelector('nav');
   nav.className = `u-nav ${gruppe ? 'u-nav-unter' : ''} ${gruppe && ['admin', 'stammdaten'].includes(gruppe.id) ? 'u-nav-kompakt' : ''}`;
   // verborgene Punkte (z. B. Sitzplan – nur über das Zahnrad in den Stundendetails) bleiben als Route erlaubt, stehen aber nicht im Menü
-  nav.innerHTML = (gruppe ? gruppe.unter.filter(p => !p.verborgen) : gruppen).map(punktHtml).join('');
+  const navHtml = (gruppe ? gruppe.unter.filter(p => !p.verborgen) : gruppen).map(punktHtml).join('');
+  if (nav.dataset.html !== navHtml) { nav.innerHTML = navHtml; nav.dataset.html = navHtml; }
+  if (richtung) leistenWechsel(leiste, altesBild, richtung);
   aktivMarkieren();
   zaehlerAktualisieren();
 }
 
+const bewegungReduziert = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+
+/** Momentaufnahme von Kopf, Schuljahr und Menü der Seitenleiste (Kopien an derselben Stelle), die beim Wechsel hinausgleitet. */
+function leistenBild(leiste) {
+  if (bewegungReduziert() || typeof Element.prototype.animate !== 'function') return null;
+  const bild = document.createElement('div');
+  bild.className = 'u-leiste-bild';
+  bild.setAttribute('aria-hidden', 'true');
+  for (const el of leiste.querySelectorAll(':scope > [data-leistenkopf], :scope > [data-jahr], :scope > nav')) {
+    const k = el.cloneNode(true);
+    k.removeAttribute('id');
+    k.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    Object.assign(k.style, { position: 'absolute', top: `${el.offsetTop}px`, left: `${el.offsetLeft}px`, width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px`, margin: '0', overflow: 'hidden' });
+    k.scrollTop = el.scrollTop;
+    bild.append(k);
+  }
+  return bild;
+}
+
 /**
- * Menüpunkte nach einem Klick in der Seitenleiste von oben nach unten gestaffelt einblenden (Deckkraft und 6px Versatz, 220ms, 24ms
- * Abstand, höchstens 14 Stufen). Nur transform/opacity – kein Einfluss auf das Layout; bei „Bewegung reduzieren“ keine Animation.
+ * Wechselanimation der Seitenleiste wie in der Vorlage: Untermenü öffnen – das bisherige Menü gleitet nach links hinaus und blendet aus,
+ * das Untermenü kommt von rechts; zurück – das Hauptmenü kommt von links und die Punkte blenden von oben nach unten gestaffelt ein.
  */
-function navEinblenden() {
-  if (!navEinblendenAngefordert) return;
-  navEinblendenAngefordert = false;
-  const nav = document.querySelector('#seitenleiste nav');
-  if (!nav || typeof nav.animate !== 'function') return;
-  try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch { /* ohne matchMedia */ }
-  [...nav.querySelectorAll('.u-nav-punkt')].forEach((p, i) => {
-    p.getAnimations?.().forEach(a => a.cancel());
-    p.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
-      { duration: 220, delay: Math.min(i, 14) * 24, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'backwards' });
-  });
+function leistenWechsel(leiste, bild, richtung) {
+  if (!bild) return;
+  const vor = richtung === 'vor';
+  leiste.append(bild);
+  const weg = bild.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${vor ? -48 : 48}px)` }],
+    { duration: 180, easing: 'cubic-bezier(.4, 0, 1, 1)', fill: 'forwards' });
+  weg.onfinish = () => bild.remove();
+  setTimeout(() => bild.remove(), 400);
+  const neu = [...leiste.querySelectorAll(':scope > [data-leistenkopf], :scope > [data-jahr]')];
+  const punkte = [...leiste.querySelectorAll(':scope > nav .u-nav-punkt')];
+  const rein = { duration: 260, delay: 140, easing: 'cubic-bezier(.2, .7, .3, 1)', fill: 'backwards' };
+  neu.forEach(el => el.animate([{ opacity: 0, transform: `translateX(${vor ? 40 : -40}px)` }, { opacity: 1, transform: 'none' }], rein));
+  punkte.forEach((el, i) => el.animate([{ opacity: 0, transform: `translateX(${vor ? 40 : -40}px)` }, { opacity: 1, transform: 'none' }],
+    { ...rein, delay: rein.delay + (vor ? 0 : Math.min(i, 14) * 28) }));
+}
+
+/** Aktiv-Balken gleitet beim Wechsel innerhalb desselben Menüs senkrecht vom bisherigen zum neuen Punkt (wie in der Vorlage). */
+function balkenGleiten(neu) {
+  const alt = letzterAktiv;
+  if (!neu || !alt || alt === neu || !alt.isConnected || alt.parentElement !== neu.parentElement || bewegungReduziert()) return;
+  const dy = alt.getBoundingClientRect().top - neu.getBoundingClientRect().top;
+  if (!dy) return;
+  try { neu.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.3, .7, .3, 1)', pseudoElement: '::before' }); }
+  catch { /* ohne pseudoElement-Unterstützung: ohne Gleiten */ }
 }
 
 function aktivMarkieren() {
-  navEinblenden();
   const gruppen = menue();
   const gruppe = gruppen.find(g => g.unter?.some(p => p.nav === aktiverPunkt));
   document.querySelectorAll('#seitenleiste [data-nav]').forEach(a => a.classList.toggle('aktiv', a.dataset.nav === aktiverPunkt));
   document.querySelectorAll('#seitenleiste [data-gruppe]').forEach(a => a.classList.toggle('aktiv', a.dataset.gruppe === gruppe?.id));
+  const aktiv = document.querySelector('#seitenleiste nav .u-nav-punkt.aktiv');
+  balkenGleiten(aktiv);
+  letzterAktiv = aktiv;
   document.querySelector('.u-benutzer')?.classList.toggle('aktiv', aktiverPunkt === 'profil');
 }
 
@@ -641,18 +689,14 @@ function huelle() {
   };
   app.querySelector('[data-kontomenue]').onclick = ev => { ev.stopPropagation(); kontomenue(); };
   leiste.addEventListener('click', ev => {
-    if (ev.target.closest('[data-zurueck]')) { untermenue = null; navEinblendenAngefordert = true; leisteZeichnen(); return; }
+    if (ev.target.closest('[data-zurueck]')) { untermenue = null; leisteZeichnen(); return; }
     const g = ev.target.closest('[data-gruppe]');
     if (g) {
       // Gruppe öffnet ihr Untermenü und zeigt (wie im Original) gleich die erste Seite; auf dem Telefon bleibt das Menü offen
       untermenue = g.dataset.gruppe;
-      navEinblendenAngefordert = true;
       leisteZeichnen();
       return;
     }
-    // Seitenwechsel über einen Menüpunkt: beim nächsten Markieren (route) die Punkte gestaffelt einblenden – nicht beim Klick auf die offene Seite
-    const punkt = ev.target.closest('[data-nav]');
-    if (punkt && punkt.getAttribute('href') !== location.hash) navEinblendenAngefordert = true;
     if (ev.target.closest('[data-nav], .u-marke, [data-profil]')) mobilZu();
   });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { mobilZu(); kontomenueZu(); } });
