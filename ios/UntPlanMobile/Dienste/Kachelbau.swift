@@ -67,6 +67,8 @@ enum Kachelart: Equatable {
     case ganztagTermin
     /// Pausenaufsicht als Pille in der Pause
     case aufsicht
+    /// Raumsperre (Administration → Raumsperren): graue Fläche über die gesperrten Stunden, mittig „Gesperrt“ – nicht antippbar
+    case gesperrt
 }
 
 enum Aufsichtsstand {
@@ -169,7 +171,7 @@ struct Kachel: Identifiable {
     var stamm: UUID? = nil
 
     /// Zeigt Text beim Antippen (alles außer der Ganztags-Pille).
-    var antippbar: Bool { art != .ganztagTermin && !ohneDetails }
+    var antippbar: Bool { art != .ganztagTermin && art != .gesperrt && !ohneDetails }
     /// Stundenplanformat ohne „Zugriff auf Stundendetails“: die Stunde lässt sich nicht öffnen
     var ohneDetails = false
 
@@ -541,6 +543,19 @@ enum Kachelbau {
         // zeigen das Info-Zeichen
         if k.istZusatzstunde {
             kachel.info = !k.zusatzText.isEmpty || !k.notizSchueler.isEmpty || !k.notizLehrer.isEmpty
+        }
+
+        // Raumsperre: graue Fläche über die gesperrten Stunden, mittig „Gesperrt“ (bzw. der Text der Sperre)
+        if k.status == "gesperrt" {
+            kachel.art = .gesperrt
+            kachel.feld = true
+            kachel.info = false
+            kachel.online = false
+            kachel.hausaufgabe = false
+            kachel.titel = k.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Gesperrt" : k.text
+            kachel.zeilen = [Kachelzeile(schluessel: "fach", teile: [Kachelteil(text: kachel.titel)])]
+            kachel.rang = 3
+            return kachel
         }
 
         // Veranstaltung: Feld über den ganzen Zeitraum

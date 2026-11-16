@@ -51,6 +51,8 @@ struct KachelView: View {
         Group {
             if kachel.art == .aufsicht || kachel.art == .ganztagTermin {
                 pille(a)
+            } else if kachel.art == .gesperrt {
+                gesperrtFeld
             } else {
                 karte(a)
             }
@@ -349,6 +351,22 @@ struct KachelView: View {
         }
     }
 
+    /// Raumsperre: graue Fläche (hell #c8d0d7, dunkel #848f9b), Text mittig – ohne Balken, Zeiten und Zeichen (wie in der Vorlage)
+    private var gesperrtFeld: some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(Color(hell: 0xC8D0D7, dunkel: 0x848F9B))
+            .overlay(
+                Text(kachel.titel.isEmpty ? "Gesperrt" : kachel.titel)
+                    .font(.system(size: schrift + 0.7, weight: .medium))
+                    .foregroundStyle(Color(hell: 0x24323D, dunkel: 0x1B2229))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 3)
+            )
+            .frame(width: breite, height: hoehe)
+    }
+
     private var barrierefreiText: String {
         var teile: [String] = []
         switch kachel.art {
@@ -359,6 +377,7 @@ struct KachelView: View {
         case .veranstaltung: teile.append("Veranstaltung")
         case .aufsicht: teile.append("Pausenaufsicht")
         case .klausur: teile.append("Klausur")
+        case .gesperrt: teile.append("Gesperrt")
         default: break
         }
         teile.append(contentsOf: kachel.zeilen.map(\.text))
@@ -621,6 +640,10 @@ struct Kachelaussehen {
                 text = v ? Farben.karteTextVergangen : Farben.entfallText
                 durchgestrichen = true
             }
+        case .gesperrt:
+            // eigene Darstellung (gesperrtFeld) – hier nur ohne Schatten und Balken
+            schatten = .keiner
+            balken = nil
         }
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
         // Plakette – nie gelb/braun (das ist ausschließlich Prüfungen bzw. Klausuren vorbehalten)
