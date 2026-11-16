@@ -30,21 +30,22 @@ public sealed class KlassenzeitrasterVerplanung
         var tage = Math.Max(1, d.Zeitraster.TageProWoche);
         var stunden = Math.Max(1, d.Zeitraster.StundenProTag);
 
-        var letzte = new GroupBox { Text = "Letzte Stunde", Left = 10, Top = 6, Width = 110, Height = 84 };
-        var verpl = new GroupBox { Text = "Verplanung", Left = 128, Top = 6, Width = 120, Height = 112 };
+        // Anordnung wie in der Vorlage: „Letzte Stunde“ links, „Verplanung“ daneben, rechts <Kopieren>
+        var letzte = new GroupBox { Text = "Letzte Stunde", Left = 12, Top = 10, Width = 136, Height = 92 };
+        var verpl = new GroupBox { Text = "Verplanung", Left = 166, Top = 10, Width = 150, Height = 124 };
         Button Knopf(GroupBox g, string text, int y, Action klick)
         {
-            var b = new Button { Text = text, Left = 10, Top = y, Width = g.Width - 20, Height = 24 };
+            var b = new Button { Text = text, Left = 10, Top = y, Width = g.Width - 20, Height = 26 };
             b.Click += (_, _) => klick();
             g.Controls.Add(b);
             return b;
         }
         Knopf(letzte, "Nein", 22, () => Setzen(a => a | KlassenzeitrasterArt.NichtLetzte));
-        Knopf(letzte, "Ja", 50, () => Setzen(a => a & ~KlassenzeitrasterArt.NichtLetzte));
+        Knopf(letzte, "Ja", 54, () => Setzen(a => a & ~KlassenzeitrasterArt.NichtLetzte));
         Knopf(verpl, "Doppelstunden", 22, () => Setzen(a => (a & KlassenzeitrasterArt.NichtLetzte) | KlassenzeitrasterArt.Doppelstunden));
-        Knopf(verpl, "Einzelstunden", 50, () => Setzen(a => (a & KlassenzeitrasterArt.NichtLetzte) | KlassenzeitrasterArt.Einzelstunden));
-        Knopf(verpl, "Egal", 78, () => Setzen(a => a & KlassenzeitrasterArt.NichtLetzte));
-        var kopieren = new Button { Text = "Kopieren", Left = 262, Top = 28, Width = 100, Height = 24 };
+        Knopf(verpl, "Einzelstunden", 54, () => Setzen(a => (a & KlassenzeitrasterArt.NichtLetzte) | KlassenzeitrasterArt.Einzelstunden));
+        Knopf(verpl, "Egal", 88, () => Setzen(a => a & KlassenzeitrasterArt.NichtLetzte));
+        var kopieren = new Button { Text = "Kopieren", Left = 334, Top = 32, Width = 120, Height = 26 };
         kopieren.Click += (_, _) =>
         {
             if (_aktuell is null) return;
@@ -56,10 +57,10 @@ public sealed class KlassenzeitrasterVerplanung
         Seite.Controls.Add(letzte);
         Seite.Controls.Add(verpl);
         Seite.Controls.Add(kopieren);
-        Seite.Controls.Add(new Label { Text = "* = keine Doppelstunde über nachfolgende Pause", Left = 10, Top = 124, AutoSize = true });
+        Seite.Controls.Add(new Label { Text = "* = keine Doppelstunde über nachfolgende Pause", Left = 12, Top = 140, AutoSize = true });
 
         Ui.RasterGestalten(_raster, false);
-        _raster.SetBounds(6, 144, 380, 160);
+        _raster.SetBounds(6, 162, 380, 160);
         _raster.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
         _raster.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _raster.MultiSelect = true;
@@ -89,7 +90,7 @@ public sealed class KlassenzeitrasterVerplanung
         }
         _raster.SelectionChanged += (_, _) => { foreach (DataGridViewCell c in _raster.SelectedCells) if (c.RowIndex < 2) c.Selected = false; };
         Seite.Controls.Add(_raster);
-        Seite.Resize += (_, _) => _raster.SetBounds(6, 144, Math.Max(100, Seite.ClientSize.Width - 12), Math.Max(60, Seite.ClientSize.Height - 150));
+        Seite.Resize += (_, _) => _raster.SetBounds(6, 162, Math.Max(100, Seite.ClientSize.Width - 12), Math.Max(60, Seite.ClientSize.Height - 168));
     }
 
     /// <summary>Angezeigte Klasse wechseln.</summary>

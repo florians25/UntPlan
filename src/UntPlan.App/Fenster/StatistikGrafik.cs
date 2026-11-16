@@ -10,12 +10,13 @@ public sealed class Abschnitt : Panel
     private readonly Panel _kopf = new() { Dock = DockStyle.Top, Height = 20, BackColor = Leiste, Cursor = Cursors.Hand };
     private readonly Label _pfeil = new() { Dock = DockStyle.Right, Width = 20, Text = "▼", TextAlign = ContentAlignment.MiddleCenter };
     private readonly Control _inhalt;
-    private readonly int _hoehe;
+    private readonly int _standard;
+    private int _hoehe;
 
     public Abschnitt(string titel, Control inhalt, int hoehe)
     {
         _inhalt = inhalt;
-        _hoehe = hoehe;
+        _hoehe = _standard = hoehe;
         BackColor = Grund;
         Margin = new Padding(2, 2, 2, 4);
         BorderStyle = BorderStyle.FixedSingle;
@@ -30,6 +31,13 @@ public sealed class Abschnitt : Panel
     }
 
     public string Titel => _kopf.Controls[0].Text;
+
+    /// <summary>Ausgeklappte Höhe setzen (z. B. ganze Spaltenhöhe wie im Vorbild); null = ursprüngliche Höhe.</summary>
+    public void HoeheSetzen(int? hoehe)
+    {
+        _hoehe = Math.Max(_kopf.Height + 40, hoehe ?? _standard);
+        if (!Eingeklappt) Height = _hoehe;
+    }
 
     public bool Eingeklappt
     {
@@ -82,7 +90,7 @@ public sealed class LinienGrafik : Control
         Invalidate();
     }
 
-    private Rectangle Flaeche => new(40, 8, Math.Max(10, Width - 56), Math.Max(10, Height - 30));
+    private Rectangle Flaeche => new(40, 8, Math.Max(10, Width - 76), Math.Max(10, Height - 30));
 
     private int Max => Math.Max(5, _punkte.Count == 0 ? 0 : _punkte.Max(p => Math.Max(_an[3] ? p.Gesamt : 0, Math.Max(_an[0] ? p.Planmaessig : 0, Math.Max(_an[1] ? p.Vertretungen : 0, _an[2] ? p.Entfall : 0)))));
 
@@ -93,7 +101,8 @@ public sealed class LinienGrafik : Control
         var r = Flaeche;
         using (var hinter = new LinearGradientBrush(r, Color.White, Color.FromArgb(225, 225, 225), LinearGradientMode.Vertical)) g.FillRectangle(hinter, r);
         var max = Max;
-        var schritt = max <= 10 ? 2 : max <= 30 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : 50;
+        // wie im Vorbild: 0, 50, 100, 150, 200 bei Werten über 100
+        var schritt = max <= 10 ? 2 : max <= 30 ? 5 : max <= 60 ? 10 : max <= 100 ? 25 : max <= 300 ? 50 : 100;
         max = (max + schritt - 1) / schritt * schritt;
         using var raster = new Pen(Color.FromArgb(200, 200, 200));
         for (var w = 0; w <= max; w += schritt)
@@ -106,11 +115,14 @@ public sealed class LinienGrafik : Control
         if (_punkte.Count == 0) return;
         float X(int i) => _punkte.Count == 1 ? r.Left + r.Width / 2f : r.Left + r.Width * i / (float)(_punkte.Count - 1);
         float Y(int w) => r.Bottom - r.Height * w / (float)max;
-        var beschriftung = Math.Max(1, _punkte.Count / 5);
+        // Achsenbeschriftung wie im Vorbild mit vollem Datum („01.07.2020“), etwa fünf Marken
+        var beschriftung = Math.Max(1, (_punkte.Count + 4) / 5);
         for (var i = 0; i < _punkte.Count; i += beschriftung)
         {
             g.DrawLine(raster, X(i), r.Top, X(i), r.Bottom);
-            TextRenderer.DrawText(g, _punkte[i].Datum.ToString("dd.MM.yy"), Font, new Point((int)X(i) - 22, r.Bottom + 3), Color.Black);
+            var text = _punkte[i].Datum.ToString("dd.MM.yyyy");
+            var breite = TextRenderer.MeasureText(text, Font).Width;
+            TextRenderer.DrawText(g, text, Font, new Point((int)X(i) - breite / 2, r.Bottom + 3), Color.Black);
         }
         void Kurve(Func<Punkt, int> wert, Color farbe, bool flaeche)
         {
@@ -173,6 +185,7 @@ public sealed class TortenGrafik : Control
     };
 
     private List<Stueck> _stuecke = new();
+    private const float Startwinkel = 0;
     public event Action<object>? Gewaehlt;
 
     public TortenGrafik()
@@ -204,12 +217,15 @@ public sealed class TortenGrafik : Control
         var summe = _stuecke.Sum(s => s.Wert);
         if (summe == 0) { TextRenderer.DrawText(g, "Keine Daten im Zeitraum.", Font, ClientRectangle, Color.DimGray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter); return; }
         var k = Kreis;
-        float winkel = 90;
+        // wie im Vorbild: erstes (größtes) Stück beginnt rechts (3 Uhr) und läuft im Uhrzeigersinn
+        float winkel = Startwinkel;
         foreach (var s in _stuecke)
         {
             var w = 360f * s.Wert / summe;
             using (var b = new LinearGradientBrush(k, ControlPaint.Light(s.Farbe, 0.3f), s.Farbe, 45f)) g.FillPie(b, k.X, k.Y, k.Width, k.Height, winkel, w);
             g.DrawPie(Pens.White, k.X, k.Y, k.Width, k.Height, winkel, w);
+            // dunkler Rand wie im Vorbild (leicht plastische Torte)
+            using (var rand = new Pen(Color.FromArgb(70, ControlPaint.Dark(s.Farbe, 0.2f)), Math.Max(2f, k.Width / 40f))) g.DrawArc(rand, k.X + 1, k.Y + 1, k.Width - 2, k.Height - 2, winkel, w);
             var mitte = (winkel + w / 2) * Math.PI / 180;
             var r = k.Width / 2;
             var cx = k.X + r;
@@ -235,7 +251,7 @@ public sealed class TortenGrafik : Control
         if (dx * dx + dy * dy > r * r) return;
         var summe = _stuecke.Sum(s => s.Wert);
         if (summe == 0) return;
-        var a = (Math.Atan2(dy, dx) * 180 / Math.PI - 90 + 720) % 360;
+        var a = (Math.Atan2(dy, dx) * 180 / Math.PI - Startwinkel + 720) % 360;
         double w = 0;
         foreach (var s in _stuecke)
         {

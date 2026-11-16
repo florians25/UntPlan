@@ -172,6 +172,26 @@ public class DesktopSprintTests
         Assert.Equal("Herbstferien", Kalender.FreiBezeichnung(d, morgen));
     }
 
+    [Fact]
+    public void TageAusserhalbDesSchuljahresSindFreiMitBezeichnung()
+    {
+        var d = Testdaten.Verplant();
+        var ende = d.Einstellungen.SchuljahrBis;
+        var beginn = d.Einstellungen.SchuljahrVon;
+        // wie im Vorbild: nach dem letzten Schultag „Nach Schulende“, vor dem ersten „Vor Schulbeginn“ – auch bei Ferien an diesen Tagen
+        d.Ferien.Add(new Ferien { Id = d.NeueId(), Kurzname = "So", Langname = "Sommerferien", Von = ende.AddDays(1), Bis = ende.AddDays(40) });
+        foreach (var t in new[] { ende.AddDays(1), ende.AddDays(3) })
+        {
+            Assert.False(Kalender.IstUnterrichtstag(d, t));
+            Assert.True(Kalender.GanzerTagFrei(d, t));
+            Assert.Equal(Kalender.NachSchulende, Kalender.FreiBezeichnung(d, t));
+        }
+        Assert.False(Kalender.IstUnterrichtstag(d, beginn.AddDays(-1)));
+        Assert.Equal(Kalender.VorSchulbeginn, Kalender.FreiBezeichnung(d, beginn.AddDays(-2)));
+        Assert.False(Kalender.AusserhalbSchuljahr(d, ende));
+        Assert.False(Kalender.AusserhalbSchuljahr(d, beginn));
+    }
+
     // ---------------------------------------------------------------- UP-04 Ferien
 
     [Fact]

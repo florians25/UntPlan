@@ -10,7 +10,8 @@ namespace UntPlan.App.Dialoge;
 /// <list type="bullet">
 /// <item>Karteikarte „Allgemein“: Rot, wenn größer / Nicht anzeigen, wenn größer (Merker zur Stunde, Zähler), Gesperrte Lehrer nicht
 /// anzeigen, Langname, Klasse-Häkchen auch f.Klassenteil, Raumgewicht 4 berücksichtigen, Fenster im Hintergrund, Rahmen
-/// „Vorziehungen“ (Nur späteren Unterricht, Nur späteren Unterr. der selben Woche, Höhe automatisch anpassen, Fensterhöhe) und Schrift.</item>
+/// „Vorziehungen“ (Nur späteren Unterricht, Nur späteren Unterr. der selben Woche, Höhe automatisch anpassen, Max. Prozentsatz der
+/// Fensterhöhe) und Schrift.</item>
 /// <item>Karteikarte „Gewichtung“: Schieberegler von „unwichtig“ bis „extrem wichtig“ (0–99) für Freisetzung, Bereitschaft, hat Klasse,
 /// hat Fach, Unterrichtsstunden am Tag, Merker-, Sperre- und Zähler-Faktor sowie das Feld „Statistik-Kennzeichen“ (z. B. X=20;a=-45).</item>
 /// </list>
@@ -72,8 +73,10 @@ public static class VorschlagEinstellungenDialog
         var spaeter = new CheckBox { Text = "Nur späteren Unterricht", Checked = alt.NurSpaeterenUnterricht, Left = 12, Top = 20, AutoSize = true };
         var woche = new CheckBox { Text = "Nur späteren Unterr. der selben Woche", Checked = alt.NurDieselbeWoche, Left = 12, Top = 44, AutoSize = true };
         var hoehe = new CheckBox { Text = "Höhe automatisch anpassen", Checked = alt.VorziehungenHoeheAutomatisch, Left = 12, Top = 68, AutoSize = true };
-        var fensterhoehe = new NumericUpDown { Left = 28, Top = 92, Width = 48, Minimum = 60, Maximum = 2000, Value = Math.Clamp(alt.VorziehungenFensterhoehe, 60, 2000) };
-        vz.Controls.AddRange(new Control[] { spaeter, woche, hoehe, fensterhoehe, new Label { Text = "Fensterhöhe für Vorziehungen", Left = 84, Top = 95, AutoSize = true } });
+        // wie in der Vorlage: „Max. Prozentsatz der Fensterhöhe“ (ältere Einstellungen in Pixeln erscheinen als Vorgabe 50 %)
+        var prozent = alt.VorziehungenFensterhoehe is > 0 and <= 100 ? alt.VorziehungenFensterhoehe : 50;
+        var fensterhoehe = new NumericUpDown { Left = 28, Top = 92, Width = 48, Minimum = 10, Maximum = 100, Value = Math.Clamp(prozent, 10, 100) };
+        vz.Controls.AddRange(new Control[] { spaeter, woche, hoehe, fensterhoehe, new Label { Text = "Max. Prozentsatz der Fensterhöhe", Left = 84, Top = 95, AutoSize = true } });
         var schrift = alt.Schrift;
         var schriftKnopf = new Button { Text = "Schrift", Left = 12, Top = vz.Bottom + 8, Width = 88, Height = 26 };
         schriftKnopf.Click += (_, _) =>
@@ -97,7 +100,7 @@ public static class VorschlagEinstellungenDialog
                      ("Zähler-Faktor", alt.ZaehlerFaktor),
                  })
         {
-            var t = new TrackBar { Left = 10, Top = gy, Width = 220, Minimum = 0, Maximum = 99, TickFrequency = 33, SmallChange = 1, LargeChange = 10, Value = Math.Clamp(wert, 0, 99), AutoSize = false, Height = 30 };
+            var t = new TrackBar { Left = 10, Top = gy, Width = 220, Minimum = 0, Maximum = 99, TickFrequency = 50, SmallChange = 1, LargeChange = 10, Value = Math.Clamp(wert, 0, 99), AutoSize = false, Height = 30 };
             var tip = new ToolTip();
             tip.SetToolTip(t, t.Value.ToString(CultureInfo.InvariantCulture));
             t.ValueChanged += (_, _) => tip.SetToolTip(t, t.Value.ToString(CultureInfo.InvariantCulture));

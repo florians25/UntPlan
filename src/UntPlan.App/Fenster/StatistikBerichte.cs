@@ -32,7 +32,10 @@ public static class StatistikBerichte
         "table.r{border-collapse:collapse}table.r td,table.r th{padding:1px 10px 1px 0;text-align:left;vertical-align:top;font-weight:normal}table.r th{border-bottom:1px solid #000}" +
         "td.z{text-align:right}tr.s td{border-top:1px solid #000;font-weight:bold}.b{font-weight:bold}.bil{font-weight:bold;margin-top:12px;line-height:1.4}" +
         "table.g{border-collapse:collapse}table.g td,table.g th{border:1px solid #000;padding:1px 6px}table.m td{padding:0 4px;text-align:center}table.m td.l{text-align:left}" +
-        "table.m tr.k td{border-bottom:1px solid #000;font-weight:bold}.fuss{border-top:1px solid #000;margin-top:16px;text-align:center;font-size:8pt}</style>";
+        "table.m tr.k td{border-bottom:1px solid #000;font-weight:bold}.fuss{border-top:1px solid #000;margin-top:16px;text-align:center;font-size:9pt}" +
+        "table.r.o th{border-bottom:0}" +
+        // Bildschirm wie die Seitenansicht des Vorbilds: weißes Blatt auf grauem Grund (Druck unverändert)
+        "@media screen{html{background:#9a9a9a}body{background:#fff;max-width:18cm;margin:12px auto !important;padding:1.4cm 1.6cm;box-shadow:2px 2px 6px #555}}</style>";
 
     public static string H(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
 
@@ -49,7 +52,7 @@ public static class StatistikBerichte
         var kopf = string.IsNullOrWhiteSpace(ueberschrift) ? "" : $"<div style=\"text-align:center;margin-bottom:10px\">{H(ueberschrift)}</div>";
         return $"<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><title>{H(titel)}</title>{Stil}</head>" +
                $"<body style=\"font-size:{(10 * schriftProzent / 100.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}pt\">{Druck.Berichtskopf.Html()}{kopf}{body}" +
-               $"<div class=\"fuss\">{H(AppZustand.D.Einstellungen.Schulname)} · Vertretungsplanung mit UntPlan · {DateTime.Now:dd.MM.yyyy HH:mm}</div></body></html>";
+               $"<div class=\"fuss\">{H(AppZustand.D.Einstellungen.Schulname)}</div></body></html>";
     }
 
     /// <summary>Bericht im Programm anzeigen (Berichtsansicht mit Drucken, Seitenansicht, Seite einrichten, Browser und Speichern).</summary>
@@ -186,7 +189,7 @@ public static class StatistikBerichte
             sb.Append($"<div class=\"el{(opt.EineSeiteJeElement && !erste ? " neu" : "")}\">{Kopf(l)}");
             erste = false;
             sb.Append($"<div class=\"b\" style=\"margin-top:10px\">Vertretungen / Entfälle / WertKorrektur : {Kurz(von)} - {Kurz(bis)}</div>");
-            sb.Append("<table class=\"r\"><tr><th>Datum</th><th>Stunde</th><th>E/V/F</th><th class=\"z\">Wert</th><th class=\"z\">Zähler</th><th>Fach</th><th>Klasse(n)</th><th>Grund</th><th>Text</th></tr>");
+            sb.Append("<table class=\"r o\"><tr><th>Datum</th><th>Stunde</th><th>E/V/F</th><th class=\"z\">Wert</th><th class=\"z\">Zähler</th><th>Fach</th><th>Klasse(n)</th><th>Grund</th><th>Text</th></tr>");
             var zaehler = 0m;
             if (opt.SummeMitUebertrag && von > d.Einstellungen.SchuljahrVon)
             {
@@ -409,7 +412,7 @@ public sealed class BerichtAuswahlDialog : Dialog
         Ok.Left = 12;
         _alle = Stammdaten.Sortiert(AppZustand.D.Lehrer).ToList();
         Lehrer = _alle.ToList();
-        var auswahl = new Button { Text = "Auswahl...", Left = 40, Top = 22, Width = 90, Height = 25 };
+        var auswahl = new Button { Text = "Auswahl...", Left = 40, Top = 22, Width = 120, Height = 25 };
         auswahl.Click += (_, _) => Auswaehlen();
         _lehrerGruppe.Controls.Add(auswahl);
         _lehrerGruppe.Visible = mitLehrer;
@@ -441,7 +444,7 @@ public sealed class BerichtAuswahlDialog : Dialog
             if (Ui.Eingabe("Schriftgröße in %:", "Schrift", Schrift.ToString()) is { } t && int.TryParse(t, out var p)) Schrift = Math.Clamp(p, 50, 200);
         };
         // „Seite einrichten“: Ränder sowie Kopf- und Fußzeile des Drucks aus der Berichtsansicht
-        var seite = new Button { Text = "Seite einrichten", Left = 220, Top = 104, Width = 100, Height = 25 };
+        var seite = new Button { Text = "Seite Einrichten", Left = 220, Top = 104, Width = 100, Height = 25 };
         seite.Click += (_, _) =>
         {
             try { BerichtsansichtFenster.SeiteEinrichtenOhneBericht(); }
@@ -452,18 +455,13 @@ public sealed class BerichtAuswahlDialog : Dialog
 
     private void LehrerText() => _lehrerGruppe.Text = $"Lehrer: {Lehrer.Count}/{_alle.Count}";
 
+    /// <summary>Auswahl der Lehrkräfte wie im Vorbild: Fenster „Lehrer“ mit Name/Langname, Elementfilter, Alle / Markierte / Inverse.</summary>
     private void Auswaehlen()
     {
-        using var f = new Dialog("Lehrer", 260, 380);
-        var liste = new CheckedListBox { Left = 8, Top = 8, Width = 244, Height = 300, CheckOnClick = true };
-        foreach (var l in _alle) liste.Items.Add(l.Kurzname, Lehrer.Contains(l));
-        var alle = new Button { Text = "Alle", Left = 8, Top = 314, Width = 70, Height = 25 };
-        var keine = new Button { Text = "Keine", Left = 84, Top = 314, Width = 70, Height = 25 };
-        alle.Click += (_, _) => { for (var i = 0; i < liste.Items.Count; i++) liste.SetItemChecked(i, true); };
-        keine.Click += (_, _) => { for (var i = 0; i < liste.Items.Count; i++) liste.SetItemChecked(i, false); };
-        f.Controls.AddRange(new Control[] { liste, alle, keine });
-        if (f.ShowDialog(this) != DialogResult.OK) return;
-        Lehrer = _alle.Where((_, i) => liste.GetItemChecked(i)).ToList();
+        var ids = Druck.ElementAuswahlDialog.Zeigen(this, ElementTyp.Lehrer, Lehrer.Select(l => l.Id));
+        if (ids is null) return;
+        var gewaehlt = ids.ToHashSet();
+        Lehrer = _alle.Where(l => gewaehlt.Contains(l.Id)).ToList();
         LehrerText();
     }
 

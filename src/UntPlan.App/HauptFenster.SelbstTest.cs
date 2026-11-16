@@ -601,6 +601,15 @@ public sealed partial class HauptFenster
             Warten(200);
             Pruefen("nach „Standardansicht“");
             log.Add("INFO  Vertretungsliste Standardansicht: " + string.Join(" | ", soll));
+            // Vertretungs-Regelungsansicht wie in der Vorlage (eigene Felder und Reihenfolge), danach zurück zur Standardansicht
+            f.AnsichtSetzen(Core.Vertretungsplanung.Vertretungsformate.Regelungsansicht);
+            Warten(300);
+            var regelung = new[] { "Vtr-Nr.", "Stunde", "(Lehrer)", "Vertreter", "(Klasse(n))", "Klasse(n)", "(Fach)", "Fach", "(Raum)", "Raum", "Art", "Text" };
+            var istRegelung = f.SichtbareSpalten();
+            f.AnsichtSetzen("Klasse - Standard");
+            Warten(300);
+            if (!istRegelung.SequenceEqual(regelung)) throw new InvalidOperationException($"Spalten der Vertretungs-Regelungsansicht nicht wie in der Vorlage: {string.Join(" | ", istRegelung)}");
+            Pruefen("zurück in „Klasse - Standard“");
         }, -1);
         Schritt("17_0a_Vertretungsliste_Zeilen_stabil", () =>
         {
@@ -871,7 +880,7 @@ public sealed partial class HauptFenster
                 lf.SelbsttestAusgeben(titel);
                 Warten(300);
                 var bf = MdiChildren.OfType<BerichtsansichtFenster>().FirstOrDefault(f => f.Titel == titel) ?? throw new InvalidOperationException($"Berichtsansicht „{titel}“ nicht geöffnet");
-                if (!bf.Html.Contains("Schuljahr ") || !bf.Html.Contains("Erstellt am")) throw new InvalidOperationException($"Berichtsansicht „{titel}“ ohne Berichtskopf");
+                if (!bf.Html.Contains("Schuljahr ") || !bf.Html.Contains("class=\"bkopf\"")) throw new InvalidOperationException($"Berichtsansicht „{titel}“ ohne Berichtskopf");
                 if (bf is not IDruckbar) throw new InvalidOperationException("Berichtsansicht ohne Drucken/Seitenansicht");
             }
             var zahl = MdiChildren.OfType<BerichtsansichtFenster>().Count();
@@ -2195,7 +2204,7 @@ public sealed partial class HauptFenster
             var f = Max(FensterOeffnen("abw")!) as AbwesenheitenFenster ?? throw new InvalidOperationException("Absenzfenster fehlt");
             Warten(300);
             f.SelbsttestReiter(0);
-            var soll = new[] { "AbsNr.", "Lehrer", "Von TT.MM.", "ab St.", "Bis TT.MM.", "bis St.", "Grund", "Text" };
+            var soll = new[] { "AbsNr", "Lehrer", "Von TT.MM.", "ab St.", "Bis TT.MM.", "bis St.", "Grund", "Text" };
             var ist = f.SelbsttestSpalten();
             R3cPruefen(ist.Take(soll.Length).SequenceEqual(soll), "Spalten des Absenzfensters: " + string.Join(" | ", ist));
             R3cPruefen(f.SelbsttestKnoepfe().Contains("Löschen"), "Schaltfläche <Löschen> fehlt");
@@ -2206,10 +2215,10 @@ public sealed partial class HauptFenster
             R3cPruefen(a.Von == r3cTag && a.Bis == r3cTag && a.StundeVon == 1 && a.StundeBis >= stunden.DefaultIfEmpty(1).Max(), $"Absenz nicht ganztägig: {a.Von}–{a.Bis}, {a.StundeVon}.–{a.StundeBis}. Std.");
             var vtr = dd.Vertretungen.Where(v => v.Datum == r3cTag && v.LehrerId == r3cHugo.Id && v.Art != VertretungsArt.Pausenaufsicht).ToList();
             R3cPruefen(vtr.Count == stunden.Count, $"{vtr.Count} Vertretungszeilen statt {stunden.Count} betroffener Stunden");
-            // Raum absent setzen: Reiter „Räume“ – Namensspalte „Raum“, Titel bleibt wie im Vorbild „Absenzen / Standard“
+            // Raum absent setzen: Reiter „Räume“ – Namensspalte „Raum“, Titel wie in der Vorlage „Absenzen / Raum“
             f.SelbsttestReiter(2);
             Warten(200);
-            R3cPruefen(f.SelbsttestNamensspalte == "Raum" && f.Text == "Absenzen / Standard", $"Art „Raum“: Spalte {f.SelbsttestNamensspalte}, Titel {f.Text}");
+            R3cPruefen(f.SelbsttestNamensspalte == "Raum" && f.Text == "Absenzen / Raum", $"Art „Raum“: Spalte {f.SelbsttestNamensspalte}, Titel {f.Text}");
             var raum = dd.Raeume.First(r => !r.Ignorieren);
             f.SelbsttestEingeben("E", raum.Kurzname);
             Warten(300);
@@ -2382,7 +2391,7 @@ public sealed partial class HauptFenster
                 Warten(300);
                 var erwartet = $"Lehrer {l.Kurzname} hat am {r3cTag.Day}.{r3cTag.Month}. in der {v.Stunde}. Stunde bereits Unterricht";
                 R3cPruefen(frage?.StartsWith(erwartet) == true, $"Rückfrage „{frage}“ statt „{erwartet}…“");
-                R3cPruefen(optionen is { Count: 3 } && optionen[0] == "Lehrer nicht verplanen" && optionen[1] == "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)"
+                R3cPruefen(optionen is { Count: 3 } && optionen[0] == "Lehrer nicht verplanen" && optionen[1] == "Lehrer hält sowohl Unterricht als auch Vertretung (Mitbetreuung)"
                            && optionen[2] == "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)", "Optionen der Rückfrage: " + string.Join(" | ", optionen ?? Array.Empty<string>()));
                 var nach = AppZustand.D.Vertretungen.First(x => x.Id == v.Id);
                 R3cPruefen(nach.Art == VertretungsArt.Betreuung && nach.VertreterId == l.Id, $"Zeile nicht als Betreuung ausgewiesen ({nach.Art})");

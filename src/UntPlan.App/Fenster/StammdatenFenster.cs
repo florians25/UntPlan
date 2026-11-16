@@ -52,7 +52,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         _typ = typ;
         _felder = Felder.Fuer(typ);
-        Text = $"{Ui.TypName(typ, true)} / {Ui.TypName(typ)}";
+        // Titel wie in der Vorlage („Klassen / Klasse“, „Absenzgründe / Absenzgründe“)
+        Text = typ == ElementTyp.Abwesenheitsgrund ? "Absenzgründe / Absenzgründe" : $"{Ui.TypName(typ, true)} / {Ui.TypName(typ)}";
         HilfeThema = "Stammdaten";
         Icon = SymbolIcon(typ switch { ElementTyp.Klasse => "klassen", ElementTyp.Lehrer => "lehrer", ElementTyp.Raum => "raeume", ElementTyp.Fach => "faecher", ElementTyp.Schueler => "schueler", _ => "rollup" });
         Size = new Size(760, 420);
@@ -91,6 +92,9 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         }
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Schuljahreskalender", "kalender", () => HauptFenster.Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
+        // Klassenzeitraster (Verplanung / Vertretung) wie in der Vorlage direkt neben dem Schuljahreskalender
+        if (typ == ElementTyp.Klasse)
+            ts.Items.Add(Knopf("Klassenzeitraster", "zeitraster", () => { if ((_aktuell as Klasse ?? D.Klassen.FirstOrDefault()) is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Farbe", "farbe", FarbeZuweisen));
         var layout = new ToolStripSplitButton("Seitenlayout", Symbole.Get("vorschau", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Seitenlayout" };
@@ -111,9 +115,6 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             // Absenzeingabe im Schuljahreskalender (Handbuch Vertretungsplanung Kap. 5.3)
             if (typ != ElementTyp.Fach)
                 ts.Items.Add(Knopf("Schuljahreskalender – Absenzen", "kalender", () => { if (_aktuell is { } el) AbsenzKalenderDialog.Zeigen(this, _typ, el.Id); }));
-            // Klassenzeitraster der Vertretungsplanung (Vertretung / Entfall / Eigenverantwortliches Arbeiten je Stunde)
-            if (typ == ElementTyp.Klasse)
-                ts.Items.Add(Knopf("Klassenzeitraster", "zeitraster", () => { if ((_aktuell as Klasse ?? D.Klassen.FirstOrDefault()) is { } k) VertretungsZeitrasterDialog.Zeigen(this, k); }));
         }
         if (typ == ElementTyp.Fach)
         {

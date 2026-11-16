@@ -50,4 +50,35 @@ public class BerichtslistenTests
         Assert.Equal((d.Klassen[0].Kurzname, 3), Assert.Single(block.JeKlasse));
         Assert.Equal(3, block.Summe);
     }
+
+    [Fact]
+    public void BelegungIstGegenstueckDerFreienStunden()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var frei = Berichtslisten.FreieStunden(d, tag);
+        var belegung = Berichtslisten.Belegung(d, tag);
+        Assert.Equal(frei.Count, belegung.Count);
+        var regel = Tagesplan.Regulaer(d, tag);
+        var stunde = regel.First(r => r.LehrerId.HasValue).Stunde;
+        var z = belegung.Single(x => x.Datum == tag && x.Stunde == stunde);
+        var f = frei.Single(x => x.Datum == tag && x.Stunde == stunde);
+        Assert.Equal(z.LehrerGesamt - f.Lehrer.Count, z.LehrerBelegt);
+        Assert.Equal(z.RaeumeGesamt - f.Raeume.Count, z.RaeumeBelegt);
+        Assert.True(z.LehrerBelegt > 0 && z.LehrerProzent > 0 && z.LehrerProzent <= 100);
+    }
+
+    [Fact]
+    public void StundenListeJeLehrkraftNachTagUndStunde()
+    {
+        var d = Testdaten.Verplant();
+        var tag = Testdaten.Unterrichtstag(d);
+        var liste = Berichtslisten.StundenListe(d, tag);
+        Assert.NotEmpty(liste);
+        var montag = Kalender.Montag(tag);
+        var erwartet = Enumerable.Range(0, 7).Select(i => montag.AddDays(i)).Sum(t => Tagesplan.Regulaer(d, t).Count(r => r.LehrerId.HasValue));
+        Assert.Equal(erwartet, liste.Sum(x => x.Stunden.Count));
+        foreach (var (_, stunden) in liste)
+            Assert.Equal(stunden.OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList(), stunden);
+    }
 }

@@ -25,7 +25,7 @@ public class VertretungsausgabeTests
             new() { Name = "y", Langname = "vertretungen lehrende" },
         };
         Vertretungsformate.Ergaenzen(gespeichert);
-        Assert.Equal(6, gespeichert.Count);
+        Assert.Equal(Vertretungsformate.Mitgeliefert.Length + 1, gespeichert.Count);
         Assert.Single(gespeichert, f => f.Standard && f.Art == VertretungsformatArt.Lehrer);
         var std = gespeichert.First(f => f.Langname == "Lehrer - Standard");
         Assert.False(std.Druck); // Eigenschaften der mitgelieferten Formate sind fest

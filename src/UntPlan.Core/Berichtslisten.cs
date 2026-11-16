@@ -4,7 +4,7 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.Core;
 
 /// <summary>
-/// Daten der Listen „Freie Stunden“ und „Fach-Stunden-Liste“ (Listenauswahl): reine Lese-Auswertungen von Stundenplan und Unterricht.
+/// Daten der Listen „Freie Stunden“, „Fach-Stunden-Liste“, „Belegungs-Statistik“ und „Stunden-Liste“ (Listenauswahl): reine Lese-Auswertungen von Stundenplan und Unterricht.
 /// </summary>
 public static class Berichtslisten
 {
@@ -74,6 +74,51 @@ public static class Berichtslisten
             var jeLehrer = liste.Where(z => z.Lehrer.Length > 0).GroupBy(z => z.Lehrer).OrderBy(g => g.Key, StringComparer.Create(Format.De, true))
                 .Select(g => (g.Key, g.Sum(z => z.Stunden))).ToList();
             res.Add(new FachStundenBlock(f, liste, jeKlasse, jeLehrer, liste.Sum(z => z.Stunden)));
+        }
+        return res;
+    }
+
+    /// <summary>Eine Stunde der Belegungs-Statistik: belegte und vorhandene Lehrkräfte bzw. Räume laut regulärem Stundenplan.</summary>
+    public sealed record Belegungszeile(DateOnly Datum, int Tag, int Stunde, int LehrerBelegt, int LehrerGesamt, int RaeumeBelegt, int RaeumeGesamt)
+    {
+        public double LehrerProzent => LehrerGesamt == 0 ? 0 : 100.0 * LehrerBelegt / LehrerGesamt;
+        public double RaeumeProzent => RaeumeGesamt == 0 ? 0 : 100.0 * RaeumeBelegt / RaeumeGesamt;
+    }
+
+    /// <summary>
+    /// Belegungs-Statistik der Woche von <paramref name="datum"/>: je Unterrichtstag × Stunde die Anzahl belegter Lehrkräfte und Räume
+    /// (Gegenstück zu <see cref="FreieStunden"/>, gleiche Grundmenge an Lehrkräften und Räumen).
+    /// </summary>
+    public static List<Belegungszeile> Belegung(Schuldatei d, DateOnly datum)
+    {
+        var raeume = d.Raeume.Count(r => !r.Ignorieren);
+        var lehrerJeTag = new Dictionary<DateOnly, int>();
+        return FreieStunden(d, datum).Select(f =>
+        {
+            if (!lehrerJeTag.TryGetValue(f.Datum, out var gesamt)) lehrerJeTag[f.Datum] = gesamt = VeranstaltungsAuswahl.Alle(d, ElementTyp.Lehrer, f.Datum, f.Datum).Count;
+            return new Belegungszeile(f.Datum, f.Tag, f.Stunde, gesamt - f.Lehrer.Count, gesamt, raeume - f.Raeume.Count, raeume);
+        }).ToList();
+    }
+
+    /// <summary>Eine Zeile der Stunden-Liste: eine reguläre Stunde einer Lehrkraft.</summary>
+    public sealed record Stundenzeile(DateOnly Datum, int Stunde, string Klassen, string Fach, string Raum);
+
+    /// <summary>
+    /// Stunden-Liste der Woche von <paramref name="datum"/>: je Lehrkraft (Stammdatenreihenfolge) ihre regulären Stunden laut Stundenplan
+    /// (ohne Vertretungen), sortiert nach Tag und Stunde. Lehrkräfte ohne Stunden fehlen.
+    /// </summary>
+    public static List<(Lehrer Lehrer, List<Stundenzeile> Stunden)> StundenListe(Schuldatei d, DateOnly datum)
+    {
+        var montag = Kalender.Montag(datum);
+        var ix = new DatenIndex(d);
+        var zeilen = Enumerable.Range(0, 7).Select(i => montag.AddDays(i)).Where(t => Kalender.IstUnterrichtstag(d, t))
+            .SelectMany(t => Tagesplan.Regulaer(d, t).Select(r => (Datum: t, r))).Where(x => x.r.LehrerId.HasValue).ToList();
+        var res = new List<(Lehrer, List<Stundenzeile>)>();
+        foreach (var l in Stammdaten.Sortiert(d.Lehrer))
+        {
+            var eigene = zeilen.Where(x => x.r.LehrerId == l.Id).OrderBy(x => x.Datum).ThenBy(x => x.r.Stunde)
+                .Select(x => new Stundenzeile(x.Datum, x.r.Stunde, ix.KKlassen(x.r.KlassenIds), ix.KFach(x.r.FachId), ix.K(ElementTyp.Raum, x.r.RaumId))).ToList();
+            if (eigene.Count > 0) res.Add((l, eigene));
         }
         return res;
     }
