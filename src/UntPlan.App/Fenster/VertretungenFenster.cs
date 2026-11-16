@@ -687,7 +687,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         t.AllowUserToAddRows = t.AllowUserToDeleteRows = false;
         t.RowHeadersVisible = false;
         t.ColumnHeadersHeight = 17;
-        t.RowTemplate.Height = 15;
+        t.RowTemplate.Height = Ui.ZeilenHoehe();
         t.Columns.Add(new DataGridViewTextBoxColumn { Name = "F", HeaderText = "Feld", Width = 190, ReadOnly = true });
         t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 41 });
         t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "D", HeaderText = "drucken", Width = 44 });

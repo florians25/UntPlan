@@ -42,7 +42,7 @@ public sealed class VertretungsformateFenster : MdiFenster
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = false;
         // Zeilen- und Kopfhöhe wie im Vorbild (17 Pixel bei 96 dpi; bei größerer Schrift nichts abgeschnitten)
-        _g.RowTemplate.Height = Math.Max(17, _g.Font.Height + 1);
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         _g.ColumnHeadersHeight = Math.Max(17, _g.Font.Height + 1);
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "N", HeaderText = "Name", Width = 59 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "L", HeaderText = "Langname", Width = 97 });

@@ -115,7 +115,7 @@ public sealed class VertretungsZeitrasterSeite
     private static readonly Color Gruen = Color.FromArgb(121, 255, 120);
     private static readonly Color GruenHell = Color.FromArgb(187, 255, 188);
     private static readonly Color Violett = Color.FromArgb(172, 190, 236);
-    private static readonly Font RasterSchrift = new("Segoe UI", 8.25f);
+    private static readonly Font RasterSchrift = new("Segoe UI", 9f);
     private static readonly Color ViolettHell = Color.FromArgb(214, 214, 255);
 
     private readonly Dictionary<int, VertretungsRegel> _schule;
@@ -163,7 +163,7 @@ public sealed class VertretungsZeitrasterSeite
         raster.Font = raster.DefaultCellStyle.Font = raster.ColumnHeadersDefaultCellStyle.Font = raster.RowHeadersDefaultCellStyle.Font = RasterSchrift;
         raster.RowHeadersWidth = 63;
         raster.ColumnHeadersHeight = 16;
-        raster.RowTemplate.Height = 15;
+        raster.RowTemplate.Height = Ui.ZeilenHoehe();
         raster.ScrollBars = ScrollBars.Both;
         for (var s = 1; s <= _stunden; s++)
         {

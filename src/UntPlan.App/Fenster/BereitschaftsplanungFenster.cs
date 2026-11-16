@@ -72,7 +72,7 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
         _raster.RowHeadersVisible = false;
         _raster.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         _raster.ColumnHeadersHeight = 15;
-        _raster.RowTemplate.Height = 15;
+        _raster.RowTemplate.Height = Ui.ZeilenHoehe();
         _raster.CurrentCellChanged += (_, _) =>
         {
             if (_laedt || _raster.CurrentCell is not { } c || c.ColumnIndex < 1) return;
@@ -301,7 +301,7 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
             _g.AllowUserToAddRows = false;
             _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
             _g.ColumnHeadersHeight = 15;
-            _g.RowTemplate.Height = 15;
+            _g.RowTemplate.Height = Ui.ZeilenHoehe();
             foreach (var (n, k, w) in new[] { ("L", "Name", 38), ("M", "Merker", 41), ("W", "Anz.Bereit.", 60), ("Max", "Max.Bereit.", 61), ("P", "Punkte", 41), ("Z", "Zeitwünsche", 68), ("F", "freies Dep.", 60), ("H", "Lage", 120) })
             {
                 var c = _g.Columns[_g.Columns.Add(n, k)];

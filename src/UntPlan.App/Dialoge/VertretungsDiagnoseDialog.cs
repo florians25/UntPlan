@@ -40,7 +40,7 @@ public sealed class VertretungsDiagnoseDialog : Form
         _g.BackgroundColor = SystemColors.Control;
         _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         _g.ColumnHeadersHeight = 15;
-        _g.RowTemplate.Height = 15;
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         foreach (var (n, k, b) in new[] { ("N", "Vtr-Nr.", 38), ("V", "Vertreter", 50), ("A", "", 77) }) _g.Columns[_g.Columns.Add(n, k)].Width = b;
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Rows[e.RowIndex].Tag is Vertretung v) AppZustand.VertretungWaehlen(v); };
         Controls.Add(pruefen);

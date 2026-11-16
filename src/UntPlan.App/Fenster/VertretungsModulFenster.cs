@@ -16,7 +16,7 @@ public sealed class KalenderFenster : MdiFenster
     // Kopf wie im Handbuch-Bild (Kap. 4.4, 96 dpi): „Kalenderwoche“, Wochennummer ohne Rahmen mit Auf-/Ab-Pfeilen, Datumsfeld 90 breit
     private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(108, 9, 49, 20) };
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Bounds = new Rectangle(159, 6, 90, 23) };
-    private static readonly Font TabellenSchrift = new("Segoe UI", 8.25f);
+    private static readonly Font TabellenSchrift = new("Segoe UI", 9f);
     /// <summary>Wochenbuchstabe der Schulwoche (A/B …) neben dem Datum, nur bei eingestellter Wochenperiodizität.</summary>
     private readonly Label _wochenTyp = new() { AutoSize = true, Location = new Point(253, 10), Font = Ui.SchriftFett };
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
@@ -67,7 +67,7 @@ public sealed class KalenderFenster : MdiFenster
         // wie im Handbuch-Bild: Schrift Segoe UI 8,25, Zeilen und Überschrift 15 Pixel hoch, alle Spalten 44 breit (lange Überschriften
         // wie „Offen (Paus.)“ werden abgeschnitten)
         _woche.Font = _woche.DefaultCellStyle.Font = _woche.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
-        _woche.RowTemplate.Height = 15;
+        _woche.RowTemplate.Height = Ui.ZeilenHoehe();
         _woche.ColumnHeadersHeight = 15;
         _woche.RowHeadersVisible = false;
         // Spalten wie im Vorbild (Handbuch Kap. 4.4.1): Lehrer | Pausenaufsichten | Klassen | Räume | Tagestexte | Kollisionen

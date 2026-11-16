@@ -11,7 +11,7 @@ namespace UntPlan.App.Fenster;
 public sealed class WochenwerteFenster : MdiFenster, IDruckbar
 {
     // Maße nach dem Handbuch-Bild (96 dpi, Tahoma 8,25): Fenster 568 × 370, Auswahlfelder 134 bzw. 177 breit
-    private static readonly Font Schrift = new("Tahoma", 8.25f);
+    private static readonly Font Schrift = Ui.Schrift;
     private readonly ComboBox _art = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 25, Top = 6, Width = 134 };
     private readonly ComboBox _modus = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 170, Top = 6, Width = 177 };
     private readonly ComboBox _lehrer = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 25, Top = 33, Width = 134 };
@@ -43,7 +43,7 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.RowHeadersVisible = false;
         _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Schrift;
-        _g.RowTemplate.Height = 19;
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         _g.ColumnHeadersHeight = 19;
         // Spaltenbreiten wie im Bild; nur die Wochennummer rechtsbündig, die Werte linksbündig

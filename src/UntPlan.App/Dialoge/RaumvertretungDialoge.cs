@@ -113,7 +113,7 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         _links.RowHeadersVisible = false;
         // Spaltenbreiten und Zeilenhöhe wie im Bild
         _links.ColumnHeadersHeight = 15;
-        _links.RowTemplate.Height = 15;
+        _links.RowTemplate.Height = Ui.ZeilenHoehe();
         foreach (var (n, k, w) in new[] { ("U", "Unt.", 32), ("L", "Lehrer", 43), ("R", "Raum", 40), ("K", "Klasse(n)", 58), ("G", "Gang", 38), ("S", "Statistik", 49), ("E", "Eff. U-Gruppe", 79) })
             _links.Columns[_links.Columns.Add(n, k)].Width = w;
         foreach (var (n, w) in new[] { ("Rm", 36), ("Kap", 29), ("AR", 57), ("SR", 51), ("B", 44), ("RG", 70), ("Ga", 33), ("St", 45), ("KD", 49) })

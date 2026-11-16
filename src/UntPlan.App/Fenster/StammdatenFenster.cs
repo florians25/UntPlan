@@ -835,7 +835,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         _grid.DefaultCellStyle.Font = schrift;
         var f = schrift ?? _grid.Font;
-        _grid.RowTemplate.Height = Math.Max(18, f.Height + 6);
+        _grid.RowTemplate.Height = Ui.ZeilenHoehe(f);
         foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
     }
 

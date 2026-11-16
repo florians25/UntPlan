@@ -11,6 +11,10 @@ public static partial class Ui
     public static readonly Font Schrift = new("Segoe UI", 9f);
     public static readonly Font SchriftFett = new("Segoe UI", 9f, FontStyle.Bold);
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
+    public static readonly Font SchriftKursiv = new("Segoe UI", 9f, FontStyle.Italic);
+
+    /// <summary>Einheitliche Zeilenhöhe aller Tabellen: 17 Pixel wie im Handbuch, bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.</summary>
+    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(17, (schrift ?? Schrift).Height + 1);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
     /// <summary>
@@ -166,7 +170,7 @@ public static partial class Ui
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
         g.RowHeadersWidth = 22;
         g.RowHeadersWidthSizeMode = DataGridViewRowHeadersWidthSizeMode.DisableResizing;
-        g.RowTemplate.Height = Math.Max(20, zeilenSchrift.Height + 5);
+        g.RowTemplate.Height = ZeilenHoehe(zeilenSchrift);
         // Spaltenüberschriften nie abgeschnitten (größere Windows-Schrift): beim ersten Anzeigen auf Textbreite verbreitern
         g.HandleCreated += (_, _) =>
         {

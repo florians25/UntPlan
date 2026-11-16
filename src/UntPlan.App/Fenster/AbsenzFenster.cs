@@ -15,7 +15,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
 {
     private static readonly string[] Reiter = { "Lehrer", "Klassen", "Räume" };
     /// <summary>Schrift der Absenzliste wie in den Handbuch-Bildern (Segoe UI 8,25 statt 9).</summary>
-    private static readonly Font TabellenSchrift = new("Segoe UI", 8.25f);
+    private static readonly Font TabellenSchrift = new("Segoe UI", 9f);
     private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -124,7 +124,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Font = TabellenSchrift;
         _g.DefaultCellStyle.Font = TabellenSchrift;
         _g.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
-        _g.RowTemplate.Height = 16;
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         _g.ColumnHeadersHeight = 17;
         Ui.ZeilenmarkeErsteSpalte(_g);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
@@ -136,7 +136,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 69), ("SV", "ab St.", 40), ("B", "Bis TT.MM.", 64), ("SB", "bis St.", 42) })
             _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 54, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 33 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
         // weitere Felder sind wie im Vorbild (Kap. 15.8) zunächst ausgeblendet und werden über „Felder der Ansicht“ eingeblendet
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true, Visible = false });
