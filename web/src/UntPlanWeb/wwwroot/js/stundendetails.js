@@ -221,7 +221,8 @@ export function karteDialog(karte, kontext = {}) {
     // keine Fachänderung in den Details: eine Fachänderung sind zwei Blöcke (Entfall mit dem bisherigen, neue Stunde mit dem neuen Fach) –
     // jeder nennt nur sein eigenes Fach
     const fachTeil = k.status === 'veranstaltung' ? e(k.fach || '') : e(k.fach || k.text || k.art || 'Stunde');
-    const titel = [klassenTeil, gruppe, fachTeil].filter(Boolean);
+    // nicht bestätigte Buchung (Vorlage): oben keine Bezeichnung – sie steht unter „Buchung (…)“ und „Information zur Stunde“
+    const titel = [klassenTeil, gruppe, k.unbestaetigt ? e(k.fach || '') : fachTeil].filter(Boolean);
     const b = bereich();
     const zeile = [wochentag(k.datum), datumDe(k.datum), b.beginn ? `${b.beginn}-${b.ende}` : `${b.von === b.bis ? b.von + '.' : b.von + '.–' + b.bis + '.'} Std.`,
       wertKopf(k.raeume, 6, 'raum'), lehrerKopf()].filter(Boolean);
@@ -237,7 +238,7 @@ export function karteDialog(karte, kontext = {}) {
       : [['details', 'Details'], ...(mitSchuelerliste() ? [['schueler', 'Schüler*innen']] : [])];
     // Original: roter Balken „ENTFÄLLT“ ganz oben über dem Titel, darunter Kopf und Reiter grau
     return `${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}<div class="sd-kopf ${leiste ? 'grau' : ''}">
-        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
+        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${k.unbestaetigt && !istEntfall() ? '<span class="sd-statuspille">Zusätzlicher Unterricht</span>' : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe">${istBlock() && !reiter?.match(/^(pruefung|raum)$/) ? blockWahl()
           : '<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>'}
@@ -537,7 +538,13 @@ export function karteDialog(karte, kontext = {}) {
           <button type="button" role="menuitem" data-raum-loeschen="${e(x)}">Löschen</button></div></div>`).join('')}
         <button type="button" class="sd-raum-plus" data-raum-plus title="Raum hinzufügen" aria-label="Raum hinzufügen">${PLUS_SYM}</button></div></div>`);
     }
-    const vertretung = k.text && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
+    // nicht bestätigte Buchung (Vorlage): „Buchung (Art)“ mit der Bezeichnung und „Information zur Stunde“
+    if (k.unbestaetigt) {
+      const art = (k.art || '').replace(/^Raumbuchung\s*/i, '').replace(/^\((.*)\)$/, '$1') || 'Raumbuchung';
+      teile.push(reihe(maskeIcon('tasks.svg'), `Buchung (${e(art)})`, `<p class="sd-text">${e(k.text || '')}</p>`));
+      if (k.text) teile.push(reihe('<i class="bi bi-info-circle sd-detail-symbol" aria-hidden="true"></i>', 'Information zur Stunde', `<p class="sd-text sd-grau">${e(k.text)}</p>`));
+    }
+    const vertretung = k.text && !k.unbestaetigt && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
     if (vertretung && k.status !== 'klausur') teile.push(reihe(datei, k.fach ? 'Vertretungstext' : 'Bezeichnung', `<p class="sd-text">${e(vertretung)}</p>`));
     // Veranstaltung: der Name steht nur hier (oben im Kopf keine Bezeichnung)
     if (k.status === 'veranstaltung' && !k.fach && (k.text || k.art)) teile.push(reihe(datei, 'Information zur Stunde', `<p class="sd-text">${e(k.text || k.art)}</p>`));

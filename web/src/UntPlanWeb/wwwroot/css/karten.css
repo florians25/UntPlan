@@ -127,6 +127,7 @@
    Pausenaufsichten wie bei den Stundenkarten: 4px breit, 6px Abstand (links/oben/unten), Radius 2px; gestrichelte (vertretene)
    Aufsicht mit derselben Farbe wie die reguläre. Stundendetails-Kopf: „… +N“ mit Hover der vollständigen Liste. */
 .std.vorgemerkt, .std.lehrer-abwesend, .std.bereitschaft { background: #f1f5f8 !important; }
+.std.unbestaetigt { background: #f1f5f8 !important; }
 .tt .aufsicht::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; }
 /* vertretene (gestrichelte) Aufsicht behält ihre Farbe – wie gestrichelte Stundenkarten ihre Fachfarbe behalten */
 .tt .aufsicht.vertreten::before { background: #b26cd8; }
@@ -242,6 +243,9 @@ input.sd-eingabe { min-height: 56px; }
 .rv-kopf h2 { max-width: 920px; margin: 0; font-size: 1.6rem; font-weight: 400; color: #5d6b75; letter-spacing: .01em; }
 .rv-x { position: absolute; top: 24px; right: 28px; display: inline-grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: #8a96a1; font-size: 1.25rem; cursor: pointer; }
 .rv-x:hover { background: var(--u-hover); color: var(--u-titel); }
+
+/* nicht bestätigte Buchung: „Information zur Stunde“ grau wie in der Vorlage */
+.sd-text.sd-grau { color: var(--u-grau); }
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
