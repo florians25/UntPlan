@@ -104,7 +104,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ### Web
 - Vertretung ohne Lehrkraft (+++): Vertretungstext „Vtr. ohne Lehrer“ mit Info-Symbol auf der Karte (in UntPlan selbst kein Text).
 - Fachänderung: die neue Stunde erscheint als zusätzliche Unterrichtsstunde, daneben die ursprüngliche als Entfall.
-- Entfall: die erste Zeile der Karte (z. B. die Lehrkraft) ist jetzt deutlich durchgestrichen wie die übrigen Zeilen.
+- Entfall: alle Zeilen der Karte (auch die erste, z. B. die Lehrkraft) genau auf halber Höhe der Großbuchstaben durchgestrichen – unabhängig von der Schrift.
 - Raumsperren (Administration → Raumsperren): einzelne Räume, Raumgruppen, alle Räume, einzelne bzw. alle Ressourcen für Buchungen sperren – kontinuierlich (ohne Unterbrechung von Beginn bis Ende) oder regelmäßig im Zeitbereich an jedem bzw. einem Wochentag; mit Text, „Speichern & Neu“. Gesperrte Räume gelten bei der Suche als belegt und können nicht gebucht werden; im Raumplan steht im gesperrten Zeitraum nur eine graue Karte „Gesperrt“ (bzw. der Text der Sperre) über die ganze Breite, ohne Uhrzeiten.
 - Buchen → Buchungen ent-/sperren: Buchungen für alle Benutzer sperren (die Administration bucht weiterhin).
 - Durchstreichung nur noch bei Entfall: Fach, Raum und Klassen einer Stunde, die stattfindet (z. B. Lehrkraft abwesend), sind nicht mehr durchgestrichen – das Label der Lehrkraft bleibt durchgestrichen, solange keine Vertretung gefunden ist; auf dem Mac keine doppelte Linie.
