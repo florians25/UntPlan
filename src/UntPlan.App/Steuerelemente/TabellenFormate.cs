@@ -264,6 +264,12 @@ public static class TabellenFormate
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, Action> NachStandard = new();
 
     /// <summary>Aktion festlegen, die nach „Standard wiederherstellen“ dieser Tabelle ausgeführt wird.</summary>
+    /// <summary>Gemerkte Anordnung der Tabelle erneut anwenden (z. B. nach einer Ansicht mit fester Spaltenfolge).</summary>
+    public static void ErneutAnwenden(DataGridView g)
+    {
+        if (Zustaende.TryGetValue(g, out var z)) Neuaufgebaut(g, z);
+    }
+
     public static void BeimStandard(DataGridView g, Action aktion) => NachStandard.AddOrUpdate(g, aktion);
 
     /// <summary>Gemerkte Anordnung verwerfen und die Standardanordnung der Tabelle wiederherstellen (Reihenfolge, Breiten, Überschriften).</summary>

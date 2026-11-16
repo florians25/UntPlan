@@ -571,7 +571,28 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     private void ReihenfolgeAnwenden()
     {
-        if (AppZustand.Einstellungen.Tabellenlayouts.Any(kv => kv.Key.StartsWith(nameof(VertretungenFenster) + "/", StringComparison.Ordinal) && kv.Value.Count > 0)) return;
+        // die „Vertretungs-Regelungsansicht“ hat immer ihre feste Spaltenfolge (auch nach dem Neuaufbau der Spalten)
+        var regelung = AnsichtName == Vertretungsformate.Regelungsansicht;
+        var warRegelung = _warRegelung;
+        _warRegelung = regelung;
+        if (regelung)
+        {
+            SpaltenfolgeSetzen();
+            BeginInvoke(() => { if (!IsDisposed && AnsichtName == Vertretungsformate.Regelungsansicht) SpaltenfolgeSetzen(); });
+            return;
+        }
+        if (AppZustand.Einstellungen.Tabellenlayouts.Any(kv => kv.Key.StartsWith(nameof(VertretungenFenster) + "/", StringComparison.Ordinal) && kv.Value.Count > 0))
+        {
+            if (warRegelung) Steuerelemente.TabellenFormate.ErneutAnwenden(_g);
+            return;
+        }
+        SpaltenfolgeSetzen();
+    }
+
+    private bool _warRegelung;
+
+    private void SpaltenfolgeSetzen()
+    {
         var reihe = Reihenfolge(AnsichtName);
         for (var i = 0; i < reihe.Count; i++) _g.Columns[reihe[i]]!.DisplayIndex = i;
     }
