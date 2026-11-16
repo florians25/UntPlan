@@ -60,6 +60,8 @@ public sealed class PlanungsRaster : Control
     public event Func<int, int, string?>? ZiehenBeginnt;
     public event Action<int, int, string, bool>? Abgelegt;
     public event Action<int, int>? ZielGeaendert;
+    /// <summary>Ende eines Ziehvorgangs (abgelegt oder abgebrochen) – z. B. um die Pfeilvorschau in den Stundenplänen zu löschen.</summary>
+    public event Action? ZiehenBeendet;
     public event Action<int, int, Point>? Kontext;
 
     private int Kopfhoehe => ZweiKopfzeilen ? 2 * Zeilenhoehe : Zeilenhoehe;
@@ -267,6 +269,7 @@ public sealed class PlanungsRaster : Control
         Ziehdaten = null;
         _ziel = null;
         Invalidate();
+        ZiehenBeendet?.Invoke();
     }
 
     protected override void OnDragEnter(DragEventArgs e)

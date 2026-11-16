@@ -112,7 +112,7 @@ public static class StundenplanEinstellungenDialog
         var spaltenWerte = SpaltenBeschriftungWerte.Aus(f);
         var zeilenArt = f.ZeilenArt;
         var zeilenWerte = ZeilenBeschriftungWerte.Aus(f);
-        void SchriftAnzeigen() => schriftText.Text = $"{(schriftart.Length > 0 ? schriftart : Ui.Schrift.FontFamily.Name)} {schrift.Value:0.0}";
+        void SchriftAnzeigen() => schriftText.Text = $"{(schriftart.Length > 0 ? schriftart : StundenplanFormat.StandardSchriftart)} {schrift.Value:0.0}";
         SchriftAnzeigen();
 
         // ---------------- Auswahl (Bereich) ----------------
@@ -459,7 +459,7 @@ public static class StundenplanEinstellungenDialog
         schriftKnopf.Click += (_, _) =>
         {
             using var fd = new FontDialog { ShowEffects = false, AllowVerticalFonts = false, MinSize = 6, MaxSize = 20, FontMustExist = true };
-            try { fd.Font = new Font(schriftart.Length > 0 ? schriftart : Ui.Schrift.FontFamily.Name, (float)schrift.Value); } catch (ArgumentException) { }
+            try { fd.Font = new Font(schriftart.Length > 0 ? schriftart : StundenplanFormat.StandardSchriftart, (float)schrift.Value); } catch (ArgumentException) { }
             if (fd.ShowDialog(d) != DialogResult.OK) return;
             schriftart = fd.Font.FontFamily.Name;
             schrift.Value = Math.Clamp((decimal)Math.Round(fd.Font.SizeInPoints), schrift.Minimum, schrift.Maximum);

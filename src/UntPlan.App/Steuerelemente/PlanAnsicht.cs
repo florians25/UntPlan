@@ -12,7 +12,7 @@ namespace UntPlan.App.Steuerelemente;
 /// Farben: grün = kollisionsfrei, rot = Vorgabe verletzt, violett = kein Raum frei, grün hinterlegte Stunde = Tausch möglich.
 /// Tagesaktueller Plan (Vertretungsmodus): Änderungen rot, Entfälle durchgestrichen, Verlegen und Tauschen per Drag &amp; Drop.
 /// </summary>
-public sealed class PlanAnsicht : Control
+public sealed partial class PlanAnsicht : Control
 {
     public ElementTyp Typ { get; set; } = ElementTyp.Klasse;
     public int ElementId { get; set; }
@@ -229,9 +229,13 @@ public sealed class PlanAnsicht : Control
     private readonly ToolTip _tip = new() { InitialDelay = 500 };
     private string _letzterTip = "";
 
-    private int KopfHoehe => KlassikStil ? (Format.Klein ? 20 : 30) : Format.Klein ? 17 : 22;
+    // Stundenplanmodus, kleiner Plan (Vorbild „Kla1“): gemessen in den Handbuch-Bildern 37 px Kopf (Linie, 35 px Fläche, Doppellinie)
+    // und 41 px Stundenspalte; Tage und Stunden-Nummern Arial fett 12, Zellen 41 × 25 px
+    private int KopfHoehe => KlassikStil ? (Format.Klein ? (PlanKleinVorbild ? 37 : 20) : 30) : Format.Klein ? 17 : 22;
     // im Druck etwas breiter, damit „10:40-11:25“ vollständig in die Stundenspalte passt
-    private int KopfBreite => (KlassikStil ? (Format.Klein ? 26 : Format.ZeitenAnzeigen ? 72 : 34) : Format.Klein ? 20 : Format.ZeitenAnzeigen ? 74 : 32) + (_druck && Format.ZeitenAnzeigen && !Format.Klein ? 12 : 0);
+    private int KopfBreite => (KlassikStil ? (Format.Klein ? (PlanKleinVorbild ? 41 : 26) : Format.ZeitenAnzeigen ? 72 : 34) : Format.Klein ? 20 : Format.ZeitenAnzeigen ? 74 : 32) + (_druck && Format.ZeitenAnzeigen && !Format.Klein ? 12 : 0);
+    /// <summary>Kleiner Plan im Stundenplanmodus (Vorbild-Format „Kla1“: großer fetter Kopf, „Nvpl“-Ecke).</summary>
+    private bool PlanKleinVorbild => Format.Klein && !AppZustand.Vertretungsmodus;
     private int PausenHoehe => KlassikStil ? (Format.Klein ? 15 : 16) : Format.Klein ? 12 : 15;
 
     /// <summary>
@@ -247,13 +251,16 @@ public sealed class PlanAnsicht : Control
     /// <summary>Mintgrün der Vorbild-Stundenpläne im Vertretungsmodus (Kopf, Stundenspalte, belegte Stunden).</summary>
     public static readonly Color Mint = Color.FromArgb(175, 223, 204);
     /// <summary>Hellblau der Vorbild-Stundenpläne im Stundenplanmodus (Kopf, Stundenspalte, belegte Stunden).</summary>
-    public static readonly Color Hellblau = Color.FromArgb(220, 240, 255);
+    /// <remarks>Gemessen in den Handbuch-Bildern (Kopf, Stundenspalte und belegte Stunden ohne Unterrichts-Farben): 222,231,246.</remarks>
+    public static readonly Color Hellblau = Color.FromArgb(222, 231, 246);
     /// <summary>Grundfarbe der Pläne: hellblau im Stundenplanmodus, mintgrün im Vertretungsmodus.</summary>
     public static Color Grund => AppZustand.Vertretungsmodus ? Mint : Hellblau;
     /// <summary>Rosa für Tag und Stunde der gewählten Zelle.</summary>
     public static readonly Color Rosa = Color.FromArgb(255, 210, 210);
     private static readonly Color AuswahlRot = Color.FromArgb(255, 128, 128);
-    private static readonly Color AuswahlBlau = Color.FromArgb(90, 90, 255);
+    private static readonly Color AuswahlBlau = Color.FromArgb(128, 128, 255);
+    /// <summary>Ohne Unterrichts-Farben: übrige Stunden des aktiven Unterrichts hellblau (Vorbild 205,254,242), die aktive Stunde rosa.</summary>
+    public static readonly Color UnterrichtHell = Color.FromArgb(205, 254, 242);
     private static readonly Color EntfallRot = Color.FromArgb(235, 0, 0);
 
     /// <summary>Zuletzt angeklickte Zelle (auch leer) – wird wie im Vorbild gestrichelt umrandet, Tag und Stunde rosa.</summary>
@@ -511,7 +518,7 @@ public sealed class PlanAnsicht : Control
 
     /// <summary>Zusammenfassung zu Doppelstunden/Blöcken (nicht in der Darstellung „Einzelstunden“).
     /// Eine Stunde ohne Raum bzw. mit anderem Raum trennt den Block (wie im tagesaktuellen Plan).</summary>
-    private string? RegelSchluessel(Planstunde p) => Format.Einzelstunden ? null : p.UnterrichtId + "/" + RaumKennung(p);
+    private string? RegelSchluessel(Planstunde p) => EinzelAnzeige ? null : p.UnterrichtId + "/" + RaumKennung(p);
 
     private static string RaumKennung(Planstunde p) => p.RaumKennung(D.Unterrichte.FirstOrDefault(u => u.Id == p.UnterrichtId)?.Zeilen.Count ?? 1);
 
@@ -608,7 +615,8 @@ public sealed class PlanAnsicht : Control
         _pausenCache = PausenZeilen();
         _druck = druck;
         // Schriftart laut Stundenplan-Einstellungen | Allgemein | Schrift
-        using var _f = Schriftcache.Familie(Format.Schriftart);
+        // leer = Vorbild-Voreinstellung Arial (nicht die Dialogschrift)
+        using var _f = Schriftcache.Familie(Format.SchriftartWirksam);
         try { ZeichnenIntern(g, bounds, druck); }
         finally { _pausenCache = null; _druck = false; }
     }
@@ -679,19 +687,15 @@ public sealed class PlanAnsicht : Control
                         Feldstatus.Frei => ziel ? Color.FromArgb(0, 225, 0) : Color.FromArgb(160, 245, 190),
                         Feldstatus.TauschMoeglich => ziel ? Color.FromArgb(0, 225, 0) : Color.FromArgb(120, 230, 120),
                         Feldstatus.VorgabeVerletzt => Ui.Rot,
+                        // Vertretungs-Handbuch 3.8.2: violett = Verlegung kollisionsfrei, aber Raum (und Ausweichräume) belegt
+                        Feldstatus.KeinRaum => ziel ? Color.FromArgb(0, 225, 0) : ZiehViolett,
                         _ => hint,
                     };
                 }
                 else if (!druck && _status != null)
                 {
-                    hint = _status[t, s - 1] switch
-                    {
-                        Feldstatus.Frei => Ui.Gruen,
-                        Feldstatus.VorgabeVerletzt => Ui.Rot,
-                        Feldstatus.KeinRaum => Ui.Violett,
-                        Feldstatus.TauschMoeglich => Color.FromArgb(160, 230, 160),
-                        _ => Color.White,
-                    };
+                    // Farben wie in den Handbuch-Abbildungen, freie Felder je nach Eignung schattiert (PlanAnsicht.Ziehen.cs)
+                    hint = ZiehFarbe(t, s, _status[t, s - 1]);
                 }
                 using (var b = new SolidBrush(hint)) g.FillRectangle(b, r);
                 g.DrawRectangle(duenn, r.X, r.Y, r.Width, r.Height);
@@ -730,7 +734,7 @@ public sealed class PlanAnsicht : Control
                         Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
                 // untereinander gestapelte Unterrichte bilden ein gemeinsames Feld: keine Linie zwischen den Zeilen
-                if (klassik)
+                if (klassik && Format.Farbe == FarbeNach.Keine)
                     using (var grund = new SolidBrush(Grund))
                         foreach (var f in felder.Where(f => f.StapelIndex > 0))
                             foreach (var fr in FeldRechtecke(bounds, t, f))
@@ -765,16 +769,17 @@ public sealed class PlanAnsicht : Control
             if (frei is DateOnly fd) FreiSpalteZeichnen(g, bounds, t, fd, linie);
         }
         if (!druck) TauschAnzeigen(g, bounds);
+        if (!druck) ZiehZusatzZeichnen(g, bounds);
         if (!druck) VorschauPfeileZeichnen(g, bounds);
         if (klassik)
         {
-            // doppelte Linien unter dem Kopf und rechts der Stundenspalte, Rahmen um den ganzen Plan
+            // doppelte Linien unter dem Kopf und rechts der Stundenspalte, Rahmen um den ganzen Plan 1 px (gemessen in den Handbuch-Bildern)
             g.FillRectangle(Brushes.Black, bounds.X, bounds.Y + KopfHoehe - 1, bounds.Width, 2);
             g.FillRectangle(Brushes.Black, bounds.X + KopfBreite - 1, bounds.Y, 2, bounds.Height);
-            g.FillRectangle(Brushes.Black, bounds.X, bounds.Y, bounds.Width, 2);
-            g.FillRectangle(Brushes.Black, bounds.X, bounds.Y, 2, bounds.Height);
-            g.FillRectangle(Brushes.Black, bounds.Right - 2, bounds.Y, 2, bounds.Height);
-            g.FillRectangle(Brushes.Black, bounds.X, bounds.Bottom - 2, bounds.Width, 2);
+            g.FillRectangle(Brushes.Black, bounds.X, bounds.Y, bounds.Width, 1);
+            g.FillRectangle(Brushes.Black, bounds.X, bounds.Y, 1, bounds.Height);
+            g.FillRectangle(Brushes.Black, bounds.Right - 1, bounds.Y, 1, bounds.Height);
+            g.FillRectangle(Brushes.Black, bounds.X, bounds.Bottom - 1, bounds.Width, 1);
         }
         else g.DrawRectangle(linie, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
     }
@@ -892,7 +897,7 @@ public sealed class PlanAnsicht : Control
                 if (st != Feldstatus.TauschMoeglich && !(ziel && st == Feldstatus.Frei && Tagesmodus)) continue;
                 if (Tagesmodus ? !EintraegeAm(t, s).Any(e => e.Findetstatt) : !plan.Any(p => p.Tag == t && p.Stunde == s)) continue;
                 var r = Zelle(bounds, t, s);
-                using var b = new SolidBrush(ziel ? Color.FromArgb(150, 0, 225, 0) : Color.FromArgb(130, 90, 220, 90));
+                using var b = new SolidBrush(ziel ? Color.FromArgb(150, 0, 225, 0) : Tagesmodus ? Color.FromArgb(130, 90, 220, 90) : Color.FromArgb(150, ZiehTausch));
                 g.FillRectangle(b, r);
             }
         if (_hover is { } hv && hv.Tag == t)
@@ -1073,16 +1078,18 @@ public sealed class PlanAnsicht : Control
         g.FillRectangle(mint, ecke);
         g.DrawRectangle(linie, ecke.X, ecke.Y, ecke.Width, ecke.Height);
         // Vorbild: „Nvpl Std.“ mit nicht verplanten / allen Stunden oben links (große Pläne)
-        if (Ecke.Length > 0 && !klein && !druck)
+        // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: „Nvpl“ über „2/28“ (Arial 8) in der 41 × 37 px großen Ecke
+        if (Ecke.Length > 0 && (!klein || PlanKleinVorbild) && !druck)
         {
             var f = Schriftcache.Holen(Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
-            TextRenderer.DrawText(g, Ecke, f, Rectangle.Round(ecke), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
+            var eckText = klein ? string.Join("\n", Ecke.Split('\n').Select((z, i) => i == 0 ? z.Split(' ')[0] : z)) : Ecke;
+            TextRenderer.DrawText(g, eckText, f, Rectangle.Round(ecke), Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix);
         }
         var flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         // Spaltenbeschriftung (Stundenplan-Einstellungen): Fett/Kursiv/Unterstrichen, Schriftgröße in %, Tag + Datum, Stellen
-        var spaltenStil = klein ? FontStyle.Regular : (Format.SpaltenFett ? FontStyle.Bold : 0) | (Format.SpaltenKursiv ? FontStyle.Italic : 0) | (Format.SpaltenUnterstrichen ? FontStyle.Underline : 0);
+        var spaltenStil = klein && !PlanKleinVorbild ? FontStyle.Regular : (Format.SpaltenFett ? FontStyle.Bold : 0) | (Format.SpaltenKursiv ? FontStyle.Italic : 0) | (Format.SpaltenUnterstrichen ? FontStyle.Underline : 0);
         var spaltenProzent = Math.Clamp(Format.SpaltenSchriftProzent, 50, 300) / 100f;
-        var kopfSchrift = Schriftcache.Holen((klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f))) * spaltenProzent, spaltenStil);
+        var kopfSchrift = Schriftcache.Holen((PlanKleinVorbild ? Math.Max(7f, Math.Min(12f, KopfHoehe / 3.1f)) : klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, KopfHoehe / 2.1f)) : Math.Max(8f, Math.Min(Format.Schriftgroesse + 1.5f, KopfHoehe / 2.6f))) * spaltenProzent, spaltenStil);
         for (var t = 0; t < Tage; t++)
         {
             var r = Zelle(bounds, t, 1);
@@ -1097,9 +1104,9 @@ public sealed class PlanAnsicht : Control
         }
         var zh = Zelle(bounds, 0, 1).Height;
         // Zeilenbeschriftung (Stundenplan-Einstellungen): Art der Überschrift, Stunden-Zeit, Fett/Kursiv/Unterstrichen, Schriftgröße in %
-        var zeilenStil = klein ? FontStyle.Regular : (Format.ZeilenFett ? FontStyle.Bold : 0) | (Format.ZeilenKursiv ? FontStyle.Italic : 0) | (Format.ZeilenUnterstrichen ? FontStyle.Underline : 0);
+        var zeilenStil = klein && !PlanKleinVorbild ? FontStyle.Regular : (Format.ZeilenFett ? FontStyle.Bold : 0) | (Format.ZeilenKursiv ? FontStyle.Italic : 0) | (Format.ZeilenUnterstrichen ? FontStyle.Underline : 0);
         var zeilenProzent = Math.Clamp(Format.ZeilenSchriftProzent, 50, 300) / 100f;
-        var nummer = Schriftcache.Holen((klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f))) * zeilenProzent, zeilenStil);
+        var nummer = Schriftcache.Holen((PlanKleinVorbild ? Math.Max(7f, Math.Min(12f, zh / 2f)) : klein ? Math.Max(7f, Math.Min(Format.Schriftgroesse, zh / 1.7f)) : Math.Max(8f, Math.Min(15f, zh / 2.1f))) * zeilenProzent, zeilenStil);
         var zeit = Schriftcache.Holen(7f);
         var art = Format.ZeilenArtWirksam;
         for (var s = 1; s <= Stunden; s++)
@@ -1332,6 +1339,36 @@ public sealed class PlanAnsicht : Control
         return Ui.Farbe(e?.Hintergrund ?? 0, Color.FromArgb(225, 232, 245));
     }
 
+    /// <summary>
+    /// Hinter- und Schriftfarbe einer belegten Stunde wie im Vorbild: mit „Unterrichts-Farben anzeigen“ die Farbe des Elements laut Format
+    /// (Fach, Lehrer bzw. Klasse; Schrift in dessen Vordergrundfarbe bzw. schwarz/weiß nach Helligkeit), ohne eigene Farbe die Grundfarbe.
+    /// Ohne Unterrichts-Farben (Stundenplanmodus): aktive Stunde rosa, übrige Stunden desselben Unterrichts hellblau.
+    /// </summary>
+    internal (Color Hintergrund, Color Schrift) StundenFarben(Unterricht? u, int zeile, int? fachId, bool aktiv, bool verknuepft)
+    {
+        // Layout 2 „Schwarz-Weiß-Druck“: ohne Farbschattierungen
+        if (_druck && Format.SchwarzWeissDruck) return (Color.White, Color.Black);
+        if (Format.Farbe == FarbeNach.Keine)
+        {
+            var hg = !AppZustand.Vertretungsmodus && aktiv ? Rosa : !AppZustand.Vertretungsmodus && verknuepft ? UnterrichtHell : Grund;
+            return (hg, Color.Black);
+        }
+        var z = u?.Zeilen.ElementAtOrDefault(zeile) ?? u?.Zeilen.FirstOrDefault();
+        Element? e = Format.Farbe switch
+        {
+            FarbeNach.Fach => (z?.FachId ?? fachId) is int f ? Ix.Faecher.GetValueOrDefault(f) : null,
+            FarbeNach.Lehrer => z?.LehrerId is int l ? Ix.Lehrer.GetValueOrDefault(l) : null,
+            FarbeNach.Klasse => z?.KlassenIds.Count > 0 ? Ix.Klassen.GetValueOrDefault(z.KlassenIds[0]) : null,
+            _ => null,
+        };
+        if (e is null || e.Hintergrund == 0) return (Grund, Color.Black);
+        var farbe = Ui.Farbe(e.Hintergrund, Grund);
+        return (farbe, e.Vordergrund != 0 ? Ui.Farbe(e.Vordergrund, Color.Black) : Ui.Textfarbe(farbe));
+    }
+
+    /// <summary>Mit Unterrichts-Farben (Stundenplanmodus) bzw. immer im Vertretungsmodus: Markierung als gestrichelter Rahmen statt Füllfarbe.</summary>
+    private bool AuswahlAlsRahmen => Format.Farbe != FarbeNach.Keine || AppZustand.Vertretungsmodus;
+
     private string Kurz(ElementTyp t, int? id)
     {
         if (id is null) return "";
@@ -1362,7 +1399,7 @@ public sealed class PlanAnsicht : Control
     /// <summary>Rahmen der gewählten Stunde: dünn dunkelblau (gut sichtbar auf jeder Fachfarbe).</summary>
     private void AuswahlRahmen(Graphics g, RectangleF r)
     {
-        if (KlassikStil) { Strichrahmen(g, r, AuswahlRot); return; }
+        if (KlassikStil) { Strichrahmen(g, r, AuswahlRot, 3, 9, 6); return; }
         using var blau = new Pen(Color.FromArgb(20, 40, 160), Rahmen);
         g.DrawRectangle(blau, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
         if (!Format.Klein)
@@ -1375,30 +1412,28 @@ public sealed class PlanAnsicht : Control
     /// <summary>Verknüpfte Markierung (derselbe Unterricht, in einem anderen Fenster gewählt): gestrichelter orangefarbener Rahmen.</summary>
     private void VerknuepfungsRahmen(Graphics g, RectangleF r)
     {
-        if (KlassikStil) { Strichrahmen(g, r, AuswahlBlau); return; }
+        if (KlassikStil) { Strichrahmen(g, r, AuswahlBlau, 2, 6, 4); return; }
         using var pen = new Pen(Color.FromArgb(255, 120, 0), Rahmen) { DashStyle = DashStyle.Dash };
         g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
     }
 
     /// <summary>
-    /// Vorbild-Rahmen der gewählten Stunde: dünn (2 Pixel), abwechselnd farbig (rot bzw. blau für den verknüpften Unterricht)
-    /// und gelb gestrichelt, innerhalb des Feldes.
+    /// Vorbild-Rahmen der gewählten Stunde, unmittelbar innerhalb der schwarzen Rasterlinien (die Linien bleiben sichtbar), gemessen
+    /// in den Handbuch-Bildern: aktive Stunde 3 px rot (255,128,128) 9 px / gelb 6 px, übrige Stunden des Unterrichts 2 px blau
+    /// (128,128,255) 6 px / gelb 4 px.
     /// </summary>
-    private static void Strichrahmen(Graphics g, RectangleF rf, Color farbe)
+    private static void Strichrahmen(Graphics g, RectangleF rf, Color farbe, int dicke, int strichLaenge, int lueckeLaenge)
     {
-        const int dicke = 2;
         var r = Rectangle.Round(rf);
-        // 2 Pixel nach innen: die Trennlinie zur Stunde davor bzw. danach bleibt sichtbar (Block klar abgegrenzt)
-        r.Inflate(-2, -2);
         if (r.Width < 2 * dicke + 2 || r.Height < 2 * dicke + 2) return;
         using var gelb = new SolidBrush(Color.FromArgb(255, 255, 0));
         using var strich = new SolidBrush(farbe);
         void Kante(int x, int y, int laenge, bool waagrecht)
         {
             g.FillRectangle(gelb, waagrecht ? new Rectangle(x, y, laenge, dicke) : new Rectangle(x, y, dicke, laenge));
-            for (var i = 0; i < laenge; i += 10)
+            for (var i = 0; i < laenge; i += strichLaenge + lueckeLaenge)
             {
-                var l = Math.Min(6, laenge - i);
+                var l = Math.Min(strichLaenge, laenge - i);
                 g.FillRectangle(strich, waagrecht ? new Rectangle(x + i, y, l, dicke) : new Rectangle(x, y + i, dicke, l));
             }
         }
@@ -1552,12 +1587,13 @@ public sealed class PlanAnsicht : Control
                 ElementTyp.Raum => p.RaumFuerZeile(i) == ElementId,
                 _ => true,
             }).DefaultIfEmpty(0).ToList();
-            using (var b = new SolidBrush(Grund)) g.FillRectangle(b, r);
+            var (hgFarbe, schriftFarbe) = StundenFarben(u, zs[0], null, IstAktiv(p, feld, druck), IstVerknuepft(p, feld, druck));
+            using (var b = new SolidBrush(hgFarbe)) g.FillRectangle(b, r);
             if (!Format.Klein && !AppZustand.Vertretungsmodus)
             {
                 // Vorbild-Stundenplanmodus, großer Plan: „Nw Les C12“ (erster Wert fett, Raum unterstrichen); Kopplungszeilen mit
                 // unterschiedlichen Fächern untereinander als eigene Zeilen („Rel Beu A11 / Eth Sei A11“)
-                KlassikZeilen(g, r, GrossZeilen(u, p, zs), Color.Black);
+                KlassikZeilen(g, r, GrossZeilen(u, p, zs), schriftFarbe);
                 if (kollision) using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
                 AuswahlZeichnen(g, r, p, feld, druck);
                 return;
@@ -1567,8 +1603,8 @@ public sealed class PlanAnsicht : Control
                 Kurz(ElementTyp.Fach, u.Zeilen[zs[0]].FachId),
                 string.Join(",", zs.Select(i => Kurz(ElementTyp.Lehrer, u.Zeilen[i].LehrerId)).Where(x => x.Length > 0).Distinct()),
                 Typ == ElementTyp.Raum ? "" : string.Join(",", zs.Select(i => Kurz(ElementTyp.Raum, p.RaumFuerZeile(i))).Where(x => x.Length > 0).Distinct()));
-            if (Format.Klein) KleinZeichnen(g, r, werte[0], Color.Black);
-            else KlassikText(g, r, werte, Color.Black, false);
+            if (Format.Klein) KleinZeichnen(g, r, werte[0], schriftFarbe);
+            else KlassikText(g, r, werte, schriftFarbe, false);
             if (kollision) using (var pen = new Pen(Color.Red, Rahmen)) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
             AuswahlZeichnen(g, r, p, feld, druck);
             return;
@@ -1599,7 +1635,7 @@ public sealed class PlanAnsicht : Control
             _ => true,
         }).ToList();
         if (zeilen.Count == 0) zeilen.Add(0);
-        var farbe = KlassikStil ? Grund : Farbe(u, zeilen[0]);
+        var farbe = KlassikStil ? StundenFarben(u, zeilen[0], null, IstAktiv(p, feld, druck), IstVerknuepft(p, feld, druck)).Hintergrund : Farbe(u, zeilen[0]);
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
         var text = Ui.Textfarbe(farbe);
         var schrift = Schriftcache.Holen(Math.Max(6.5f, Math.Min(Format.Schriftgroesse, r.Height / 2.6f)), FontStyle.Bold);
@@ -1693,11 +1729,19 @@ public sealed class PlanAnsicht : Control
     private void AuswahlZeichnen(Graphics g, RectangleF r, Planstunde p, List<Planstunde> feld, bool druck)
     {
         if (druck) return;
-        if (Ausgewaehlt != null && feld.Contains(Ausgewaehlt)) AuswahlRahmen(g, r);
+        // ohne Unterrichts-Farben zeigt der Stundenplanmodus die Markierung als Füllfarbe (rosa / hellblau, siehe StundenFarben)
+        var rahmen = !KlassikStil || AuswahlAlsRahmen;
+        if (IstAktiv(p, feld, druck)) { if (rahmen) AuswahlRahmen(g, r); }
         else if (feld.Any(Mehrfach.Contains))
             using (var pen = new Pen(Color.FromArgb(255, 140, 0), Rahmen) { DashStyle = DashStyle.Dash }) g.DrawRectangle(pen, r.X + 0.5f, r.Y + 0.5f, r.Width - 2, r.Height - 2);
-        else if (MarkierterUnterricht == p.UnterrichtId) VerknuepfungsRahmen(g, r);
+        else if (IstVerknuepft(p, feld, druck) && rahmen) VerknuepfungsRahmen(g, r);
     }
+
+    private bool IstAktiv(Planstunde p, List<Planstunde> feld, bool druck) => !druck && Ausgewaehlt != null && feld.Contains(Ausgewaehlt);
+
+    /// <summary>Übrige Stunden des aktiven Unterrichts (Vorbild: blau-gelb umrandet) bzw. der in einem anderen Fenster gewählte Unterricht.</summary>
+    private bool IstVerknuepft(Planstunde p, List<Planstunde> feld, bool druck) =>
+        !druck && !IstAktiv(p, feld, druck) && (MarkierterUnterricht == p.UnterrichtId || (KlassikStil && Ausgewaehlt?.UnterrichtId == p.UnterrichtId));
 
     /// <summary>Texte einer Stunde untereinander; reicht die Höhe nicht, werden die unteren Zeilen zusammengefasst.</summary>
     /// <param name="durchgestrichen">Anzahl der (nicht leeren) Zeilen von oben, die einzeln durchgestrichen werden (Entfall).</param>
@@ -1731,7 +1775,8 @@ public sealed class PlanAnsicht : Control
     /// <summary>Mindesthöhe, damit alle Werte einer Stunde untereinander lesbar sind (das Fenster scrollt dann).</summary>
     /// <remarks>Im Vertretungsmodus kompakt (zwei bis drei Zeilen je Stunde), damit der Tagesplan auf die Seite passt.</remarks>
     public int BenoetigteHoehe => KopfHoehe + PausenZeilen().Count * PausenHoehe + 2 + Stunden * (Format.ZellenHoehe > 0 ? Format.ZellenHoehe :
-        Format.Klein ? (int)Math.Ceiling(Format.Schriftgroesse * (KlassikStil ? 1.85f : 1.6f)) :
+        // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: 25 px je Stunde bei Schrift 9
+        Format.Klein ? (int)Math.Ceiling(Format.Schriftgroesse * (PlanKleinVorbild ? 2.75f : KlassikStil ? 1.85f : 1.6f)) :
         (int)Math.Ceiling(Format.Schriftgroesse * (AppZustand.Vertretungsmodus ? (Format.Gross ? 3.6f : 2.8f) : Format.Gross ? 6.4f : 5.0f)));
 
     /// <summary>Mindestbreite laut Format (Zellenbreite je Tag), 0 = an die Fensterbreite anpassen.</summary>
@@ -1751,7 +1796,9 @@ public sealed class PlanAnsicht : Control
         var offen = e.Status == TagesStatus.Offen;
         // Layout 2: „Entfälle und Platzhalter nicht anzeigen“ (nur ohne „Entfälle durchstreichen“) – Entfall wie eine freie Stunde
         if (entfall && !Format.EntfaelleDurchstreichen && Format.EntfaelleNichtAnzeigen) { g.FillRectangle(Brushes.White, r); return; }
-        using (var b = new SolidBrush(Grund)) g.FillRectangle(b, r);
+        // Vorbild: mit „Unterrichts-Farben anzeigen“ auch im tagesaktuellen Plan die Farbe des Elements (Fach, Lehrer, Klasse)
+        var (hgFarbe, schriftFarbe) = StundenFarben(e.Unterricht, e.Regel?.ZeilenIndex ?? 0, e.FachId ?? e.Regel?.FachId, false, false);
+        using (var b = new SolidBrush(hgFarbe)) g.FillRectangle(b, r);
         if (entfall && r.Width > 6 && r.Height > 6)
         {
             var innen = Format.Klein ? 2 : 3;
@@ -1772,7 +1819,7 @@ public sealed class PlanAnsicht : Control
         // offene Vertretung im Plan der abwesenden Lehrkraft: „???“
         if (Format.Klein && offen && Typ == ElementTyp.Lehrer) werte = new List<string> { praefix + "???" };
         // Layout 2, Geänderte Stunden: Rot (große Pläne), Fett, Kursiv, Unterstreichen
-        var farbe = entfall || offen || (hervor && Format.GeaendertRot && !Format.Klein) ? EntfallRot : Color.Black;
+        var farbe = entfall || offen || (hervor && Format.GeaendertRot && !Format.Klein) ? EntfallRot : schriftFarbe;
         var zusatz = !hervor ? FontStyle.Regular : (Format.GeaendertFett ? FontStyle.Bold : 0) | (Format.GeaendertKursiv ? FontStyle.Italic : 0) | (Format.GeaendertUnterstreichen ? FontStyle.Underline : 0);
         var streichen = entfall && Format.EntfaelleDurchstreichen;
         if (Format.Klein) KleinZeichnen(g, r, werte[0], farbe, streichen);
@@ -1877,14 +1924,18 @@ public sealed class PlanAnsicht : Control
             return;
         }
         var p = StundeBei(e.Location);
+        HohlstundenEnde();
         if (e.Button == MouseButtons.Left)
         {
             _down = e.Location;
             _downStunde = p;
+            // leere Zelle: Maustaste 2 Sekunden halten = Vorschläge für Hohlstunden; Klick hebt „Stunden einzeln ziehen“ auf
+            if (p is null && (ModifierKeys & Keys.Control) == 0) { EinzelZiehen = false; HohlstundenBeginnen(_zelle); }
             if ((ModifierKeys & Keys.Control) != 0 && p != null)
             {
                 if (Ausgewaehlt != null && !Mehrfach.Contains(Ausgewaehlt)) Mehrfach.Add(Ausgewaehlt);
                 if (!Mehrfach.Remove(p)) Mehrfach.Add(p);
+                StrgKlick(p);
                 Ausgewaehlt = p;
                 Invalidate();
                 AuswahlGeaendert?.Invoke(p);
@@ -1938,7 +1989,7 @@ public sealed class PlanAnsicht : Control
             {
                 var p = _downStunde;
                 _downStunde = null;
-                var mitgezogen = Mehrfach.Count > 1 && Mehrfach.Contains(p) ? Mehrfach.ToList() : Format.Einzelstunden ? new List<Planstunde> { p } : Block(p);
+                var mitgezogen = Mitziehen(p);
                 var idx = D.Stundenplan.IndexOf(p);
                 if (idx < 0) return;
                 var alle = mitgezogen.Select(x => D.Stundenplan.IndexOf(x)).Where(i => i >= 0);
@@ -1995,6 +2046,8 @@ public sealed class PlanAnsicht : Control
         var e = new ZiehErgebnis();
         ZiehenBerechnen(s, e);
         if (e.Effect == DragDropEffects.None) { _status = null; _ziehQuelle = null; return false; }
+        ZiehZusatzBerechnen(s);
+        ZiehenAktivMelden(true);
         Invalidate();
         return true;
     }
@@ -2110,6 +2163,7 @@ public sealed class PlanAnsicht : Control
         if (h != _hover)
         {
             _hover = h;
+            KetteUnterMausAktualisieren();
             Invalidate();
         }
     }
@@ -2135,6 +2189,11 @@ public sealed class PlanAnsicht : Control
         _ziehQuelle = null;
         _status = null;
         _hover = null;
+        _guete.Clear();
+        _kette = null;
+        _ketteUnterMaus = null;
+        _ketteFeld = null;
+        ZiehenAktivMelden(false);
         Invalidate();
     }
 
@@ -2146,6 +2205,7 @@ public sealed class PlanAnsicht : Control
     {
         if (!ZiehenBeginnen(daten)) return;
         _hover = (tag, stunde);
+        KetteUnterMausAktualisieren();
         Invalidate();
     }
 

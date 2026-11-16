@@ -183,8 +183,14 @@ public sealed class StundenplanFormat
     public bool Standard { get; set; }
     /// <summary>Vorbild „Formate / Stundenpläne“, Spalte „im Menü“: das Format erscheint zusätzlich im Menü.</summary>
     public bool ImMenue { get; set; }
-    /// <summary>Schriftart der Stunden (leer = Programmschrift).</summary>
+    /// <summary>Schriftart der Stunden (leer = <see cref="StandardSchriftart"/>).</summary>
     public string Schriftart { get; set; } = "";
+
+    /// <summary>Voreingestellte Schrift der Stundenpläne wie im Vorbild (Arial 9; Tage und Stunden-Nummern Arial fett 12).</summary>
+    public const string StandardSchriftart = "Arial";
+
+    /// <summary>Wirksame Schriftart der Stunden: eigene Einstellung, sonst <see cref="StandardSchriftart"/>.</summary>
+    public string SchriftartWirksam => string.IsNullOrWhiteSpace(Schriftart) ? StandardSchriftart : Schriftart;
     public int LupeSchriftProzent { get; set; } = 100;
     public int LegendeSchriftProzent { get; set; } = 100;
     public int UeberschriftSchriftProzent { get; set; } = 100;
