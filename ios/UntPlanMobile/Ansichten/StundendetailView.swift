@@ -818,6 +818,11 @@ private struct StundendetailSeite: View {
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
                                         titel: textTitel, untertitel: detailText))
             }
+            if !istVeranstaltung && !detailText.isEmpty && karte.zusaetzlich && !(karte.fachAlt ?? "").isEmpty
+                && textTitel != "Information zur Stunde" {
+                // Fachänderung (zusätzliche Unterrichtsstunde mit neuem Fach) wie in der Vorlage: der Text zusätzlich als Information
+                link(.text, Detailzeile(symbol: "SymbolInfo", titel: "Information zur Stunde", untertitel: detailText))
+            }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
                 // Einzelstunde ohne eigenen Lehrstoff: der Lehrstoff des ganzen Blocks gilt (grau, nur lesend)
