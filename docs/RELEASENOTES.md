@@ -102,6 +102,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Fachänderung: Stundendetails wie in der Vorlage – Badge „Zusätzliche Unterrichtsstunde“, Vertretungstext und derselbe Text als „Information zur Stunde“.
 - Vertretung ohne Lehrkraft (+++): Vertretungstext „Vtr. ohne Lehrer“ mit Info-Symbol auf der Karte (in UntPlan selbst kein Text).
 - Fachänderung: die neue Stunde erscheint als zusätzliche Unterrichtsstunde, daneben die ursprüngliche als Entfall.
 - Entfall: alle Zeilen der Karte (auch die erste, z. B. die Lehrkraft) genau auf halber Höhe der Großbuchstaben durchgestrichen – unabhängig von der Schrift.
@@ -162,6 +163,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Fachänderung: Stundendetails mit Vertretungstext und „Information zur Stunde“ wie im Web.
 - Raumplan: offene Raumvertretungen (noch ohne neuen Raum) werden wieder angezeigt.
 - Vertretung ohne Lehrkraft und Fachänderung (zusätzliche Unterrichtsstunde) wie im Web.
 - Raumsperren im Raumplan wie in der Vorlage: graue Fläche über die gesperrten Stunden mit „Gesperrt“ (bzw. dem Text der Sperre) in der Mitte – ohne Balken, Zeiten und Zeichen, nicht antippbar.
