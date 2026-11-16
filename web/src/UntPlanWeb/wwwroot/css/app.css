@@ -1085,8 +1085,6 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 .std.lehrer-abwesend .z2 { color: #57626b; }
 .std.lehrer-abwesend .zt { color: var(--u-grau-2); }
 .std.lehrer-abwesend .lbl.weg { background: var(--u-gruen-label); color: #fff; font-weight: 600; padding: 0 3px; border-radius: 2px; text-decoration: line-through; text-decoration-thickness: 1px; }
-/* Stunde findet statt (kein Entfall): keine Durchstreichung – auch nicht am Label der abwesenden Lehrkraft */
-.std.lehrer-abwesend:not(.entfall) .lbl.weg { text-decoration: none !important; }
 .tt.ohne-abwesenheiten .std.lehrer-abwesend { display: none; }
 .tt.ohne-abwesenheiten .tt-ereignis.hinweis { display: none; }
 .hilfe-gestrichelt { display: inline-block; width: 22px; height: 14px; background: #f1f5f8; outline: 1px dashed #9aa7af; outline-offset: -1px; border-radius: 3px; flex: none; }
