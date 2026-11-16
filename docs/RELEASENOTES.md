@@ -102,6 +102,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Vertretung ohne Lehrkraft: die Stundendetails zeigen „Vertr. o. Lehrkr.“ als Information zur Stunde (auf der Karte weiterhin kein Info-Symbol).
 - Entfall: die erste Zeile der Karte (z. B. die Lehrkraft) ist jetzt deutlich durchgestrichen wie die übrigen Zeilen.
 - Raumsperren (Administration → Raumsperren): einzelne Räume, Raumgruppen, alle Räume, einzelne bzw. alle Ressourcen für Buchungen sperren – kontinuierlich (ohne Unterbrechung von Beginn bis Ende) oder regelmäßig im Zeitbereich an jedem bzw. einem Wochentag; mit Text, „Speichern & Neu“. Gesperrte Räume gelten bei der Suche als belegt und können nicht gebucht werden; im Raumplan steht im gesperrten Zeitraum nur eine graue Karte „Gesperrt“ (bzw. der Text der Sperre) über die ganze Breite, ohne Uhrzeiten.
 - Buchen → Buchungen ent-/sperren: Buchungen für alle Benutzer sperren (die Administration bucht weiterhin).
@@ -160,6 +161,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Vertretung ohne Lehrkraft: „Vertr. o. Lehrkr.“ als Information zur Stunde in den Stundendetails.
 - Raumsperren im Raumplan wie in der Vorlage: graue Fläche über die gesperrten Stunden mit „Gesperrt“ (bzw. dem Text der Sperre) in der Mitte – ohne Balken, Zeiten und Zeichen, nicht antippbar.
 - Sprechtag neu (wie im Web): Erziehungsberechtigte sehen den Hinweis zur Phase, Terminanfragen (Termin buchen bzw. Annehmen/Ablehnen) und „Meine Termine“ nach Datum mit Raum, Absagen und Zeit ändern; ab der 2. Anmeldephase freie Buchung je Kind. Lehrkräfte: „Meine Termine“ je Abschnitt mit Raumwahl, „+“ für Einladung, Termin und Abwesenheit sowie Bearbeiten. Administration: Lehrkräfte mit Suche und Filtern.
 - Startseite in den Größen der Vorlage: Schulname 26 pt fett, Tageskarte mit 21 pt Rand und mindestens 152 pt Höhe (Wochentag und Monat 13 pt halbfett, Tageszahl 34 pt, Stunden und Uhrzeiten 13 pt, 13 pt Abstand zwischen den Stunden), Liste mit 17-pt-Titeln und größeren Symbolen. Der Punkt „Klassenleitung“ entfällt – die Klassenleitung arbeitet über „Abwesenheiten“.

@@ -818,6 +818,10 @@ private struct StundendetailSeite: View {
                 link(.text, Detailzeile(symbol: textTitel == "Information zur Stunde" ? "SymbolInfo" : "SymbolNotiz",
                                         titel: textTitel, untertitel: detailText))
             }
+            if karte.ohneLehrkraft && !istVeranstaltung {
+                // Vertretung ohne Lehrkraft: nur hier als Information (auf der Kachel kein Info-Symbol)
+                Detailzeile(symbol: "SymbolInfo", titel: "Information zur Stunde", untertitel: "Vertr. o. Lehrkr.", pfeil: false)
+            }
             if mitUnterricht && (kollegium || !(daten.eintrag?.thema ?? "").isEmpty) {
                 let thema = daten.eintrag?.thema ?? ""
                 // Einzelstunde ohne eigenen Lehrstoff: der Lehrstoff des ganzen Blocks gilt (grau, nur lesend)

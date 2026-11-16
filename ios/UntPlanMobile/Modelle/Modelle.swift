@@ -204,6 +204,8 @@ struct Karte: Decodable, Identifiable, Sendable {
     var text: String
     /// Offene Vertretung: die Stunde ist noch keiner Lehrkraft zugeteilt (auch bei Status „abwesend“).
     var vertretungOffen: Bool
+    /// Vertretung ohne Lehrkraft („+++“): nur in den Stundendetails als Information „Vertr. o. Lehrkr.“ (kein Info-Symbol auf der Kachel).
+    var ohneLehrkraft: Bool = false
     var vertretung: Int?
     var unterricht: Int?
     var gruppe: String
@@ -236,7 +238,7 @@ struct Karte: Decodable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case datum, von, bis, beginn, ende, status, fach, fachAlt, fachName, farbe, klassen, lehrer, raeume, art, text
         case vertretung, unterricht, gruppe, notizSchueler, notizLehrer, hausaufgabeFaellig, zusaetzlich, abwesendeKlassen, abwesendText, online
-        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen, klasseAbwesend
+        case lehrerAbwesend, bereitschaft, bereitschaftAbwesend, standbyAbsent, mitklassen, vertretungOffen, klasseAbwesend, ohneLehrkraft
         case onlineLink, onlineUrl, onlinelink
         case verlegung, moved, verlegungVon, verlegungNach, marker
     }
@@ -306,6 +308,7 @@ struct Karte: Decodable, Identifiable, Sendable {
         klassen = c.liste(.klassen)
         mitklassen = c.liste(.mitklassen)
         vertretungOffen = c.wahr(.vertretungOffen)
+        ohneLehrkraft = c.wahr(.ohneLehrkraft)
         lehrer = c.liste(.lehrer)
         raeume = c.liste(.raeume)
         art = c.text(.art)
