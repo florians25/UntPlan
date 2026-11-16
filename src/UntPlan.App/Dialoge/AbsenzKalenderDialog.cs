@@ -20,8 +20,8 @@ public sealed class AbsenzKalenderDialog : Dialog
     private static readonly Color LeerGrau = Color.FromArgb(220, 220, 220);
     private static readonly Color Rasterlinie = Color.FromArgb(192, 210, 219);
     /// <summary>Schrift des Jahreskalenders und der Legende wie im Handbuch-Bild.</summary>
-    private static readonly Font KalenderSchrift = new("Segoe UI", 8.25f);
-    private static readonly Font KalenderSchriftFett = new("Segoe UI", 8.25f, FontStyle.Bold);
+    private static readonly Font KalenderSchrift = new("Segoe UI", 9f);
+    private static readonly Font KalenderSchriftFett = new("Segoe UI", 9f, FontStyle.Bold);
     private static readonly Color AbsenzWeiss = Color.White;
     private static readonly Color NeuBlau = Color.FromArgb(150, 200, 255);
 

@@ -9,8 +9,8 @@ public sealed class Abschnitt : Panel
     public static readonly Color Leiste = Color.FromArgb(174, 207, 147);
     public static readonly Color Grund = Color.FromArgb(220, 237, 206);
     /// <summary>Schrift der Vertretungsstatistik wie im Handbuch-Bild: Tahoma 8,25 (Kopfzeilen fett).</summary>
-    public static readonly Font Schrift = new("Tahoma", 8.25f);
-    public static readonly Font SchriftFett = new("Tahoma", 8.25f, FontStyle.Bold);
+    public static readonly Font Schrift = Ui.Schrift;
+    public static readonly Font SchriftFett = Ui.SchriftFett;
     private readonly Panel _kopf = new() { Dock = DockStyle.Top, Height = 19, BackColor = Leiste, Cursor = Cursors.Hand };
     private readonly Label _pfeil = new() { Dock = DockStyle.Right, Width = 20, Text = "▼", TextAlign = ContentAlignment.MiddleCenter };
     private readonly Control _inhalt;

@@ -1258,7 +1258,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (neueSchrift != null)
         {
             _grid.DefaultCellStyle.Font = neueSchrift;
-            _grid.RowTemplate.Height = Math.Max(18, neueSchrift.Height + 6);
+            _grid.RowTemplate.Height = Ui.ZeilenHoehe(neueSchrift);
             foreach (DataGridViewRow r in _grid.Rows) r.Height = _grid.RowTemplate.Height;
         }
     }

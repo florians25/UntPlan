@@ -683,7 +683,7 @@ public sealed class SeitenlayoutFenster : Form
         g.AllowUserToDeleteRows = false;
         g.RowHeadersVisible = true;
         g.RowHeadersWidth = 15;
-        g.RowTemplate.Height = Math.Max(17, g.Font.Height + 1);
+        g.RowTemplate.Height = Ui.ZeilenHoehe();
         g.ColumnHeadersHeight = Math.Max(17, g.Font.Height + 1);
         var feldart = new DataGridViewComboBoxColumn { Name = "Feldart", HeaderText = "Feldart", Width = 113, FlatStyle = FlatStyle.Flat, DisplayStyleForCurrentCellOnly = true };
         feldart.Items.AddRange(arten);

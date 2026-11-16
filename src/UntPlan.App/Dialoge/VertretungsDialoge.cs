@@ -1205,7 +1205,7 @@ public static class VertretungsEinstellungenDialog
         // --- Vtr-Zähler (wie im Handbuch: Was zählen, Zeitraum, Wie zählen, Nicht zählen, Statt-Vertretungen und Klausuren) ------
         var tzae = Seite("Vtr-Zähler");
         // Maße und Schrift nach der Abbildung im Handbuch (96 dpi): die Seite verwendet wie im Vorbild „Microsoft Sans Serif“ 8,25 pt
-        tzae.Font = new Font("Microsoft Sans Serif", 8.25f);
+        tzae.Font = Ui.Schrift;
         var z = e.Zaehler;
         GroupBox Gruppe(string text, int x, int y0, int w, int h)
         {
@@ -1420,7 +1420,7 @@ public static class VertretungsEinstellungenDialog
         bg.RowHeadersVisible = false;
         bg.AllowUserToAddRows = false;
         bg.AllowUserToDeleteRows = false;
-        bg.RowTemplate.Height = Math.Max(17, bg.Font.Height + 1);
+        bg.RowTemplate.Height = Ui.ZeilenHoehe();
         bg.ColumnHeadersHeight = Math.Max(17, bg.Font.Height + 1);
         bg.Columns[bg.Columns.Add("A", "Art")].ReadOnly = true;
         bg.Columns[0].Width = 159;

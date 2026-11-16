@@ -40,9 +40,9 @@ public sealed class ZellKommentare
 
     private readonly ToolTip _tip = new() { OwnerDraw = true, UseAnimation = false, UseFading = false };
     private List<Kommentar>? _tipInhalt;
-    private static readonly Font TipSchrift = new("Tahoma", 8.25f);
-    private static readonly Font TipFett = new("Tahoma", 8.25f, FontStyle.Bold);
-    private static readonly Font TipKursiv = new("Tahoma", 8.25f, FontStyle.Italic);
+    private static readonly Font TipSchrift = new("Segoe UI", 9f);
+    private static readonly Font TipFett = new("Segoe UI", 9f, FontStyle.Bold);
+    private static readonly Font TipKursiv = new("Segoe UI", 9f, FontStyle.Italic);
     private static readonly Color TipRand = Color.FromArgb(227, 238, 254);
 
     private void TipVerbergen()

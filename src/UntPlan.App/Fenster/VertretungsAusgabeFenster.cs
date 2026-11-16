@@ -87,7 +87,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
 
         Ui.RasterGestalten(_g, true);
         _g.ColumnHeadersHeight = 20;
-        _g.RowTemplate.Height = 20;
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         _g.RowHeadersVisible = false;
         _g.AllowUserToResizeColumns = false;
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;

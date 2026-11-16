@@ -306,7 +306,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung, _vorziehung2, _pause, _raeume.Raster })
         {
             g.DefaultCellStyle.Font = schrift;
-            g.RowTemplate.Height = Math.Max(17, schrift.Height + 1);
+            g.RowTemplate.Height = Ui.ZeilenHoehe();
         }
     }
 
@@ -370,7 +370,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.MultiSelect = false;
         g.ColumnHeadersHeight = 17;
-        g.RowTemplate.Height = 17;
+        g.RowTemplate.Height = Ui.ZeilenHoehe();
         g.AllowUserToResizeColumns = true;
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         g.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;

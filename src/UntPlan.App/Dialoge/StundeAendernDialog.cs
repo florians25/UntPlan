@@ -275,7 +275,7 @@ public static class KlassenAuswahlDialog
         g.BorderStyle = BorderStyle.Fixed3D;
         g.Font = g.ColumnHeadersDefaultCellStyle.Font = VorbildMasse.Schrift;
         g.ColumnHeadersHeight = 19;
-        g.RowTemplate.Height = 19;
+        g.RowTemplate.Height = Ui.ZeilenHoehe();
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
         g.RowHeadersVisible = false;

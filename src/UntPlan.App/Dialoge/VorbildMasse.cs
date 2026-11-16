@@ -7,7 +7,7 @@ namespace UntPlan.App.Dialoge;
 internal static class VorbildMasse
 {
     /// <summary>Dialogschrift der Vorbild-Dialoge (Rückfragen, Sondereinsatz / Stunde ändern, Klausur, Auswahllisten).</summary>
-    public static readonly Font Schrift = new("Microsoft Sans Serif", 8.25f);
+    public static readonly Font Schrift = Ui.Schrift;
 
     /// <summary>Standardgröße einer Schaltfläche (OK, Abbrechen …).</summary>
     public static readonly Size Knopf = new(75, 23);

@@ -24,11 +24,11 @@ public sealed class WertkorrekturSeite : TabPage
         _lehrer = lehrer;
         _aendern = aendern;
         BackColor = Color.White;
-        Font = new Font("Microsoft Sans Serif", 8.25f);
+        Font = Ui.Schrift;
         Ui.RasterGestalten(_g, true);
         _g.Font = _g.ColumnHeadersDefaultCellStyle.Font = Font;
         _g.RowHeadersWidth = 20;
-        _g.RowTemplate.Height = Math.Max(18, Font.Height + 5);
+        _g.RowTemplate.Height = Ui.ZeilenHoehe();
         _g.ColumnHeadersHeight = Math.Max(18, Font.Height + 5);
         _g.AllowUserToAddRows = true;
         _g.AllowUserToDeleteRows = true;

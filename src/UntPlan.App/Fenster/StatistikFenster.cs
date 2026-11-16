@@ -205,7 +205,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         g.ShowCellToolTips = true;
         // wie im Handbuch-Bild: Tahoma 8,25, Zeilen- und Kopfhöhe 19 px
         g.Font = g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = Abschnitt.Schrift;
-        g.RowTemplate.Height = 19;
+        g.RowTemplate.Height = Ui.ZeilenHoehe();
         g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         g.ColumnHeadersHeight = 19;
         return g;
