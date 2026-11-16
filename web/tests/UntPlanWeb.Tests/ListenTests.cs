@@ -53,9 +53,8 @@ public class FachpunktTests
         Assert.True(lehrer["neu"]!.GetValue<bool>());
         Assert.DoesNotContain("+++", plan.ToJsonString());
         Assert.DoesNotContain("???", k.ToJsonString());
-        // ohne eigenen Vertretungstext: kein automatischer Text (kein Info-Symbol)
-        Assert.Equal("", k["text"]!.GetValue<string>());
-        // die Stundendetails nennen „Vertr. o. Lehrkr.“ als Information zur Stunde (Kennzeichen ohneLehrkraft)
+        // ohne eigenen Vertretungstext: „Vtr. ohne Lehrer“ (Info-Symbol auf der Karte) – erkannt am „+++“, UntPlan speichert keinen Text
+        Assert.Equal("Vtr. ohne Lehrer", k["text"]!.GetValue<string>());
         Assert.True(k["ohneLehrkraft"]!.GetValue<bool>());
 
         if (mitVertretung)

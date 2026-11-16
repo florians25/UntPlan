@@ -546,8 +546,6 @@ export function karteDialog(karte, kontext = {}) {
     }
     const vertretung = k.text && !k.unbestaetigt && (k.fach || k.status !== 'veranstaltung') ? k.text : '';
     if (vertretung && k.status !== 'klausur') teile.push(reihe(datei, k.fach ? 'Vertretungstext' : 'Bezeichnung', `<p class="sd-text">${e(vertretung)}</p>`));
-    // Vertretung ohne Lehrkraft: nur hier als Information zur Stunde (auf der Karte kein Info-Symbol)
-    if (k.ohneLehrkraft) teile.push(reihe('<i class="bi bi-info-circle sd-detail-symbol" aria-hidden="true"></i>', 'Information zur Stunde', '<p class="sd-text">Vertr. o. Lehrkr.</p>'));
     // Veranstaltung: der Name steht nur hier (oben im Kopf keine Bezeichnung)
     if (k.status === 'veranstaltung' && !k.fach && (k.text || k.art)) teile.push(reihe(datei, 'Information zur Stunde', `<p class="sd-text">${e(k.text || k.art)}</p>`));
     if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));

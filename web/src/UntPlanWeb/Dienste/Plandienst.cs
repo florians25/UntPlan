@@ -259,6 +259,8 @@ public sealed class Plandienst
 {
     /// <summary>Automatischer Text einer Vertretung ohne Lehrkraft („+++“) älterer Desktop-Versionen – wird nie als Vertretungstext gezeigt.</summary>
     public const string OhneLehrkraftText = "Vertr. o. Lehrkr.";
+    /// <summary>Vertretungstext einer Vertretung ohne Lehrkraft („+++“) in Karten und Stundendetails.</summary>
+    public const string OhneLehrerText = "Vtr. ohne Lehrer";
 
     /// <summary>
     /// Älterer Hinweistext aus früheren UntPlan-Versionen → aktuelle Bezeichnung. Der automatische Hinweis „(Benutzer) Raumänderung“
@@ -580,8 +582,12 @@ public sealed class Plandienst
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
             else
             {
+                // Fachänderung wie in der Vorlage: die neue Stunde ist eine zusätzliche Unterrichtsstunde (Badge, Lehrkräfte als „+“,
+                // nur von Hand eingegebener Vertretungstext), daneben die ursprüngliche Stunde als Entfall
+                var alt = Fachwechsel(s, k, typ, kurz);
+                if (alt is not null) k = k with { Zusaetzlich = true, Lehrer = ZusatzLehrer(k.Lehrer.Where(w => w.K.Length > 0).Select(w => new Wert(w.K))), Text = ZusatzText(k.Text, k.Art) };
                 einzel.Add(k);
-                if (Fachwechsel(s, k, typ, kurz) is { } alt) einzel.Add(alt);
+                if (alt is not null) einzel.Add(alt);
             }
         }
         // zum Löschen vorgemerkte Prüfungen (auch der alte Termin einer verlegten Prüfung) ausblenden – vor dem Auflegen vorgemerkter
@@ -1507,6 +1513,9 @@ public sealed class Plandienst
         var text = buchung ? "" : string.Join(" · ", new[] { r.Text, v != null && v.Text != r.Text ? v.Text : "" }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
         if (buchung) art = "";
         text = TextNormal(text);
+        // Vertretung ohne Lehrkraft („+++“): Vertretungstext „Vtr. ohne Lehrer“ (Info-Symbol auf der Karte) – UntPlan Desktop speichert
+        // keinen Text, erkannt wird sie am „+++“
+        if (ohneLehrer && text.Length == 0) text = OhneLehrerText;
         // zusätzliche Unterrichtsstunde: kein automatisch erzeugter Vertretungstext (Badge „Zusätzl. Unterrichtsstunde“ statt Text);
         // von Hand eingegebene Texte bleiben (Info-Symbol auf der Karte)
         if (zusatz && fach.Length > 0) text = ZusatzText(text, art);

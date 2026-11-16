@@ -560,7 +560,9 @@ public class PlanKorrekturenEndeZuEndeTests
         Assert.Equal("SL", eva["fach"]!.GetValue<string>());
         Assert.Equal("MIK", eva["fachAlt"]!.GetValue<string>());
         var klasse6 = await KartenAsync(c, "klasse", "ING12", di, 6);
-        Assert.Equal(new[] { "entfall L=CK K=ING12 R=B063", "geaendert L=CK→EVA K=ING12 R=B063" }, klasse6.Select(Kurz).OrderBy(x => x));
+        // Fachänderung: neue Stunde als zusätzliche Unterrichtsstunde (Lehrkraft als „+“), daneben der Entfall
+        Assert.Equal(new[] { "entfall L=CK K=ING12 R=B063", "geaendert L=+EVA K=ING12 R=B063" }, klasse6.Select(Kurz).OrderBy(x => x));
+        Assert.True(klasse6.Single(k => k["status"]!.GetValue<string>() == "geaendert")["zusaetzlich"]!.GetValue<bool>());
         Assert.Equal("MIK", klasse6.Single(k => k["status"]!.GetValue<string>() == "geaendert")["fachAlt"]!.GetValue<string>());
         var klasse5 = Assert.Single(await KartenAsync(c, "klasse", "ING12", di, 5));
         Assert.Equal("geaendert L=CK→WR K=ING12 R=B063", Kurz(klasse5));
