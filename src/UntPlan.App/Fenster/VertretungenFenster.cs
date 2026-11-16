@@ -604,7 +604,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         }
         if (AppZustand.Einstellungen.Tabellenlayouts.Any(kv => kv.Key.StartsWith(nameof(VertretungenFenster) + "/", StringComparison.Ordinal) && kv.Value.Count > 0))
         {
-            if (warRegelung) Steuerelemente.TabellenFormate.ErneutAnwenden(_g);
+            if (warRegelung)
+            {
+                // zurück aus der Regelungsansicht: Standardfolge, darüber die gemerkte Anordnung
+                SpaltenfolgeSetzen();
+                Steuerelemente.TabellenFormate.ErneutAnwenden(_g);
+            }
             return;
         }
         SpaltenfolgeSetzen();
