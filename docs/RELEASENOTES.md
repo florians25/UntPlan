@@ -27,6 +27,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Stundenplan: Die Durchstreichung bei Entfall bzw. Abwesenheit sitzt jetzt genau auf halber Höhe der Großbuchstaben (eigene Linie statt Browser-Durchstreichung, die je nach Schrift gut ½ Pixel zu tief lag).
 - Sprechtag: alle Größen (Schriften, Knöpfe, Felder, Karten, Abstände) auf das Maß der übrigen Seiten verkleinert; Platzhalter-Lehrkräfte ohne Vornamen und ohne Konto (z. B. „EVA“) stehen nicht mehr in der Verwaltung, im Gesamtplan und bei den Raum-Erinnerungen.
 - Seitenleiste animiert wie in der Vorlage: Untermenü öffnen – das Menü gleitet nach links hinaus, das Untermenü kommt von rechts; zurück – das Hauptmenü kommt von links, die Punkte blenden nacheinander ein; der orange Aktiv-Balken gleitet zum neuen Punkt. Kein erneutes Einblenden mehr bei jedem Seitenwechsel.
 - Anwesenheit: Die Schülerkacheln kennen nur noch anwesend/abwesend – Verspätung bzw. früher gegangen erscheint als anwesend (ohne Minuten, ohne eigene Farbe, Kachel bleibt gleich hoch) und steht nur unten in der Liste; „×“ macht daraus eine Abwesenheit.
