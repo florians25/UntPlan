@@ -55,6 +55,8 @@ public class FachpunktTests
         Assert.DoesNotContain("???", k.ToJsonString());
         // ohne eigenen Vertretungstext: kein automatischer Text (kein Info-Symbol)
         Assert.Equal("", k["text"]!.GetValue<string>());
+        // die Stundendetails nennen „Vertr. o. Lehrkr.“ als Information zur Stunde (Kennzeichen ohneLehrkraft)
+        Assert.True(k["ohneLehrkraft"]!.GetValue<bool>());
 
         if (mitVertretung)
         {

@@ -43,6 +43,11 @@ public sealed record Karte(
     public bool Online { get; init; }
     /// <summary>Link zum Online-Unterricht (Videokonferenz, http/https), nur bei <see cref="Online"/>; sonst leer.</summary>
     public string OnlineLink { get; init; } = "";
+    /// <summary>
+    /// Vertretung ohne Lehrkraft („+++“): in den Stundendetails steht „Vertr. o. Lehrkr.“ als Information zur Stunde – nie als
+    /// Vertretungstext und ohne Info-Symbol auf der Karte.
+    /// </summary>
+    public bool OhneLehrkraft { get; init; }
     /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „Zusätzl. Unterrichtsstunde“, nie ein Vertretungstext.</summary>
     public bool Zusaetzlich { get; init; }
     /// <summary>In UntPlanWeb gebucht, aber in UntPlan noch nicht übernommen (nicht bestätigt): gestrichelte graue Karte mit „?“.</summary>
@@ -1521,6 +1526,7 @@ public sealed class Plandienst
             // Tagesansichten); im Raumplan nie – dort ist die Stunde wie im Klassenplan „geaendert“ bzw. „offen“
             LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),
             VertretungOffen = lehrerOffen,
+            OhneLehrkraft = ohneLehrer,
             VerlegungsZeile = verlegungsZeile,
             // Ursprung trägt „(Le.) nach“, Ziel „Vertr. von“ (beides gesetzt: aus dem Status)
             VerlegungsSeite = !verlegungsZeile ? null : v!.Nach.Trim().Length > 0 == v.VertrVon.Trim().Length > 0 ? null : v.Nach.Trim().Length > 0 ? "von" : "nach",
