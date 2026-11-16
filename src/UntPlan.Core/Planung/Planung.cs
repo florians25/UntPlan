@@ -377,7 +377,7 @@ public static class Planungsdienst
         var gruppe = z?.Wunschraumgruppe is int gid ? d.Raumgruppen.FirstOrDefault(g => g.Id == gid) : null;
         var klassen = (z?.KlassenIds ?? u.KlassenIds).Select(k => ix.Klassen.GetValueOrDefault(k)).Where(k => k != null).ToList();
         var stammraeume = klassen.Select(k => k!.StammraumId).Where(x => x.HasValue).Select(x => x!.Value).ToHashSet();
-        var schueler = klassen.Sum(k => k!.Schuelerzahl);
+        var schueler = u.Schuelerzahl > 0 ? u.Schuelerzahl : klassen.Sum(k => k!.Schuelerzahl);
         var gruppen = d.Raumgruppen.SelectMany(g => g.RaumIds.Select(r => (r, g.Kurzname))).ToLookup(x => x.r, x => x.Kurzname);
         var belegung = d.Stundenplan.SelectMany(q => q.Raeume.Where(r => r.HasValue).Select(r => r!.Value)).GroupBy(r => r).ToDictionary(g => g.Key, g => g.Count());
         var eigene = stunden.ToHashSet();

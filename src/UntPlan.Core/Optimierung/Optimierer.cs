@@ -390,6 +390,8 @@ public static class Optimierer
         if (!o.RaumkapazitaetBeruecksichtigen) return kand;
         var schueler = z.KlassenIds.Sum(k => ix.Klassen.TryGetValue(k, out var kl) ? kl.Schuelerzahl : 0);
         if (u.MaxSchueler > 0) schueler = u.MaxSchueler;
+        // Studenten/Studentinnen des Unterrichts (Karteikarte „Unterricht“) gehen vor der Schülerzahl der Klassen
+        if (u.Schuelerzahl > 0) schueler = u.Schuelerzahl;
         if (schueler <= 0 || kand.All(r => ix.Raeume[r].Kapazitaet <= 0)) return kand;
         int Kap(int r) => ix.Raeume[r].Kapazitaet;
         return kand.Select((r, i) => (r, i))

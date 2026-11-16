@@ -157,3 +157,22 @@ public static class Listenabgleich
         return -1;
     }
 }
+
+/// <summary>Vtr-Nr. im Vertretungsfenster (Zahlenfeld mit Auf-/Ab-Pfeilen wie im Vorbild).</summary>
+public static class Vertretungsnummern
+{
+    /// <summary>
+    /// Nächste (<paramref name="richtung"/> &gt; 0) bzw. vorige vorhandene Vertretungsnummer ausgehend von <paramref name="aktuell"/>;
+    /// null, wenn es in dieser Richtung keine weitere gibt.
+    /// </summary>
+    public static int? Nachbar(IEnumerable<int> vorhandene, int aktuell, int richtung)
+    {
+        int? ziel = null;
+        foreach (var n in vorhandene)
+        {
+            if (n <= 0) continue;
+            if (richtung > 0 ? n > aktuell && (ziel is null || n < ziel) : n < aktuell && (ziel is null || n > ziel)) ziel = n;
+        }
+        return ziel;
+    }
+}

@@ -81,4 +81,39 @@ public class BerichtslistenTests
         foreach (var (_, stunden) in liste)
             Assert.Equal(stunden.OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList(), stunden);
     }
+
+    [Fact]
+    public void AbrechnungZeigtFachLangnameWieImHandbuch()
+    {
+        var d = Testdaten.Verplant();
+        var fach = d.Faecher.First();
+        fach.Langname = "Mathematik";
+        var tag = Testdaten.Unterrichtstag(d);
+        ZaehlZeile Zeile(Vertretung? v, string code, string fachText) => new(v, tag, 1, code, fachText, "", "", "", 1, true, false, false, "");
+        // Vertretung: Langname des Fachs statt Kurzname
+        Assert.Equal("Mathematik", Berichtslisten.AbrechnungFach(d, Zeile(new Vertretung { FachId = fach.Id, Art = VertretungsArt.Vertretung }, "+V", fach.Kurzname)));
+        // Vertretungsfach geht vor
+        var anderes = d.Faecher.Skip(1).First();
+        anderes.Langname = "";
+        Assert.Equal(anderes.Kurzname, Berichtslisten.AbrechnungFach(d, Zeile(new Vertretung { FachId = fach.Id, VertretungsfachId = anderes.Id }, "+V", "x")));
+        // Pausenaufsicht ohne Fach, Wertkorrektur mit ihrer Art
+        Assert.Equal("", Berichtslisten.AbrechnungFach(d, Zeile(new Vertretung { Art = VertretungsArt.Pausenaufsicht }, "P", "Gang")));
+        Assert.Equal("V", Berichtslisten.AbrechnungFach(d, Zeile(null, "WK", "V")));
+    }
+
+    [Fact]
+    public void WertkorrekturListeImZeitraumMitWirkung()
+    {
+        var d = Testdaten.Verplant();
+        var l = d.Lehrer.First();
+        var von = d.Einstellungen.SchuljahrVon;
+        l.Wertkorrekturen.Add(new Wertkorrektur { Datum = von.AddDays(10), Art = "E", Wert = 2, Text = "b" });
+        l.Wertkorrekturen.Add(new Wertkorrektur { Datum = von.AddDays(5), Art = "V", Wert = 3, Text = "a" });
+        l.Wertkorrekturen.Add(new Wertkorrektur { Datum = von.AddDays(6), Art = "+", Wert = 1 });
+        l.Wertkorrekturen.Add(new Wertkorrektur { Datum = von.AddDays(60), Art = "Y", Wert = 1 });
+        var liste = Berichtslisten.Wertkorrekturen(new[] { l }, von, von.AddDays(30));
+        Assert.Equal(new[] { "V", "+", "E" }, liste.Select(z => z.Art));
+        Assert.Equal(3 + 0 - 2, liste.Sum(z => z.Zaehlerwirkung));
+        Assert.Equal("Unterrichtswert erhöhen", liste[1].Wirkung);
+    }
 }

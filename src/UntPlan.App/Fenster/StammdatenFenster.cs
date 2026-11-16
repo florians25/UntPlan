@@ -1093,6 +1093,8 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
 
     public void Drucken(bool vorschau)
     {
+        // Lehrer: Druckauswahl mit „Listart“ (Mehrarbeit, Monatsabrechnung, Wertkorrektur …) wie im Handbuch
+        if (_typ == ElementTyp.Lehrer && StatistikBerichte.LehrerDruckauswahl(this)) return;
         var spalten = _grid.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).ToList();
         var zeilen = _grid.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Element && r.Visible)
             .Select(r => spalten.Select(c => r.Cells[c.Index].Value switch { bool b => b ? "X" : "", var v => v?.ToString() ?? "" }).ToArray()).ToList();

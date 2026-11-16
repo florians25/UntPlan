@@ -1653,7 +1653,7 @@ public sealed class PlanAnsicht : Control
             {
                 var zi = Math.Clamp(f.Zeile - 1, 0, u.Zeilen.Count - 1);
                 var z = u.Zeilen[zi];
-                var zeit = D.Zeitraster.Zeit(p.Stunde);
+                var zeit = D.Zeitraster.Zeit(p.Tag, p.Stunde);
                 var wert = f.Art switch
                 {
                     StundenFeldArt.Fach => Stern(p.Fixiert && zi == 0) + Kurz(ElementTyp.Fach, z.FachId),
@@ -1661,13 +1661,15 @@ public sealed class PlanAnsicht : Control
                     StundenFeldArt.Klasse => Ix.KKlassen(z.KlassenIds),
                     StundenFeldArt.Raum => Kurz(ElementTyp.Raum, p.RaumFuerZeile(zi)),
                     StundenFeldArt.UNr => u.Id.ToString(),
-                    StundenFeldArt.Text or StundenFeldArt.Stundentext or StundenFeldArt.Sondertext => u.Text,
+                    StundenFeldArt.Text or StundenFeldArt.Sondertext => u.Text,
+                    // Handbuch 6.5.2.7: „Text zu Stundenplanstunde“ gilt nur für diese eine Stunde
+                    StundenFeldArt.Stundentext => p.Text,
                     StundenFeldArt.Gruppe or StundenFeldArt.Schuelergruppe => z.Schuelergruppe.Length > 0 ? z.Schuelergruppe : u.Schuelergruppe,
                     StundenFeldArt.Kurs => u.Kursname,
                     StundenFeldArt.StudZl => u.MaxSchueler > 0 ? u.MaxSchueler.ToString() : "",
                     StundenFeldArt.UnterrichtsGruppe => (z.UGruppeId ?? u.UGruppeId) is int ugId ? D.UGruppen.FirstOrDefault(x => x.Id == ugId)?.Kurzname ?? "" : "",
                     StundenFeldArt.ZeilenText => z.Zeilentext,
-                    StundenFeldArt.ZeilenText2 => u.Statistik,
+                    StundenFeldArt.ZeilenText2 => z.Zeilentext2,
                     StundenFeldArt.Beschreibung => u.Kommentar,
                     StundenFeldArt.Band => u.Band,
                     StundenFeldArt.Zeitwunsch => u.Zeitwuensche.Get(p.Tag, p.Stunde) is var w && w != 0 ? w.ToString("+0;-0") : "",

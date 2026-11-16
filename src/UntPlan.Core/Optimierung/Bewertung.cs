@@ -64,6 +64,8 @@ public static class Bewertung
         var ix = new DatenIndex(d);
         var fRaum = Gewichtung.Faktor(d.Gewichtung.GetValueOrDefault("R.Raumoptimierung", 3));
         var fZR = Gewichtung.Faktor(d.Gewichtung.GetValueOrDefault("Z.Raeume", 2));
+        var fDisloz = Gewichtung.Faktor(Gewichtung.Wert(d.Gewichtung, "R.Dislozierung"));
+        var fKap = Gewichtung.Faktor(Gewichtung.Wert(d.Gewichtung, "R.Kapazitaet"));
         var belegung = new Dictionary<(int, int, int), List<int>>();
         foreach (var p in plan)
         {
@@ -87,6 +89,14 @@ public static class Bewertung
                 if (!l.Contains(u.Id)) l.Add(u.Id);
                 if (ix.Raeume.TryGetValue(r.Value, out var raum))
                 {
+                    // Berücksichtigung der Raumkapazität: ein zu kleiner Raum kostet je fehlendem Platz
+                    if (fKap > 0 && raum.Kapazitaet > 0)
+                    {
+                        var schueler = u.MaxSchueler > 0 ? u.MaxSchueler : z.KlassenIds.Sum(k => ix.Klassen.TryGetValue(k, out var kl) ? kl.Schuelerzahl : 0);
+                        if (schueler > raum.Kapazitaet)
+                            sink(new Verstoss(VerstossArt.Raumkapazitaet, ElementTyp.Raum, raum.Id, u.Id, p.Tag, p.Stunde, Math.Min(20, schueler - raum.Kapazitaet) * 0.5 * fKap,
+                                $"Raum {raum.Kurzname} zu klein ({schueler} Studenten, Kapazität {raum.Kapazitaet})"));
+                    }
                     var w = raum.Zeitwuensche.Get(p.Tag, p.Stunde);
                     if (w <= -3) sink(new Verstoss(VerstossArt.SperrungRaum, ElementTyp.Raum, raum.Id, u.Id, p.Tag, p.Stunde, PlanModell.Hart, "Raum gesperrt (-3)"));
                     else if (w < 0) sink(new Verstoss(VerstossArt.ZeitwunschRaum, ElementTyp.Raum, raum.Id, u.Id, p.Tag, p.Stunde, -w * 3 * fZR, $"Zeitwunsch Raum {w}"));
@@ -94,7 +104,7 @@ public static class Bewertung
             }
         }
         SelberRaumVerstoesse(ix, plan, fRaum, sink);
-        DislozierungsVerstoesse(d, ix, plan, fRaum, sink);
+        DislozierungsVerstoesse(d, ix, plan, fDisloz, sink);
         var wochen = Math.Clamp(d.Einstellungen.Wochenperiodizitaet, 1, 16);
         foreach (var ((raumId, tag, stunde), ids) in belegung)
         {
@@ -181,6 +191,20 @@ public static class Bewertung
         VerstossArt.Unterrichtsfolge => "Unterrichtsfolge",
         VerstossArt.Dislozierung => "Dislozierung",
         VerstossArt.SelberRaum => "Stunden im selben Raum (r)",
+        VerstossArt.EinzelstundeHalbtag => "Einzelstunde an einem Halbtag",
+        VerstossArt.DoppelhohlstundeLehrer => "Doppelhohlstunden",
+        VerstossArt.LetzteVormittagsstunde => "Stunden in letzter Vormittagsstunde",
+        VerstossArt.KlassenlehrerTag => "Klassenlehrer nicht jeden Tag",
+        VerstossArt.GleichzeitigeMittagspause => "Zu viele Klassen gleichzeitig in der Mittagspause",
+        VerstossArt.Freifach => "Freifach nicht am Rand",
+        VerstossArt.NichtInRandstunde => "Unterricht in Randstunde (G)",
+        VerstossArt.HauptfachBisGrenzstunde => "Hauptfach nie bis Grenzstunde",
+        VerstossArt.Raumkapazitaet => "Raumkapazität zu klein",
+        VerstossArt.ZweiStundenFolgetage => "2-Stunden-Fach an Folgetagen",
+        VerstossArt.DreiStundenFolgetage => "3-Stunden-Fach an Folgetagen",
+        VerstossArt.FachGleicheTagesstunde => "Fach mehrmals in derselben Tagesstunde",
+        VerstossArt.SelbeZeitVerschiedeneTage => "Unterricht nicht zur selben Zeit",
+        VerstossArt.GrossblockRand => "Großblock nicht am Rand des Halbtages",
         VerstossArt.Lehrerkollision => "Lehrerkollision",
         VerstossArt.Klassenkollision => "Klassenkollision",
         VerstossArt.Raumkollision => "Raumkollision",
@@ -212,7 +236,7 @@ public static class Bewertung
         VerstossArt.Randstunde => "Randstunde",
         VerstossArt.KeinNachmittag => "Nachmittag nicht erlaubt",
         VerstossArt.Verteilung => "Ungleichmäßige Verteilung",
-        VerstossArt.HauptfachSpaet => "Hauptfach in später Stunde",
+        VerstossArt.HauptfachSpaet => "Hauptfach mehrmals nach Grenzstunde",
         VerstossArt.SpaeteStunde => "Späte Stunde",
         VerstossArt.ZeitwunschFach => "Zeitwunsch Fach",
         VerstossArt.ZeitwunschUnterricht => "Zeitwunsch Fach/Unterricht",

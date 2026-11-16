@@ -64,6 +64,21 @@ public enum VerstossArt
     Unterrichtsfolge,
     Dislozierung,
     SelberRaum,
+    // Gewichtungsparameter (Abschnitte Lehrer, Klassen, Fächer, Hauptfächer, Räume, Stundenverteilung)
+    EinzelstundeHalbtag,
+    DoppelhohlstundeLehrer,
+    LetzteVormittagsstunde,
+    KlassenlehrerTag,
+    GleichzeitigeMittagspause,
+    Freifach,
+    NichtInRandstunde,
+    HauptfachBisGrenzstunde,
+    Raumkapazitaet,
+    ZweiStundenFolgetage,
+    DreiStundenFolgetage,
+    FachGleicheTagesstunde,
+    SelbeZeitVerschiedeneTage,
+    GrossblockRand,
 }
 
 public sealed record Verstoss(VerstossArt Art, ElementTyp ElementTyp, int ElementId, int? UnterrichtId, int Tag, int Stunde, double Kosten, string Text);
@@ -116,6 +131,11 @@ public sealed class PlanModell
 
     private readonly double fLHohl, fLStd, fLMitt, fLNach, fLUnb, fLTag, fKHohl, fKKern, fKStd, fKMitt, fKNach, fF2x, fFRand, fFNach,
         fHTag, fHFolge, fHSpaet, fRaum, fVert, fSpaet, fZL, fZK, fZR, fZF, fZU;
+    // weitere Gewichtungsparameter laut Handbuch
+    private readonly double fLEinzel, fLDoppelHohl, fLFachfolge, fLTagesrand, fLStdFolge, fLVerweil, fLLetzte, fKFachfolge, fKVersch, fKKlassenlehrer,
+        fKGleichMittag, fFFrei, fFNichtRand, fHBisGrenz, fSZwei, fSDrei, fSTagesstunden, fSSelbeZeit, fSGross;
+    private readonly int _letzteVormMax, _grenzstunde;
+    private readonly bool[] _randErlaubt = new bool[6]; // Freifach: erste, letzte, mittag; Randstundenfach: erste, letzte, mittag
 
     private double fFDopp;
     private bool _nurGewuenschteFreieTage;
@@ -164,6 +184,16 @@ public sealed class PlanModell
         fFDopp = F("F.Doppelstunden"); fFRand = F("F.Randstunde"); fFNach = F("F.KeinNachmittag"); fHTag = F("H.ProTag");
         fHFolge = F("H.Folge"); fHSpaet = F("H.Spaet"); fRaum = F("R.Raumoptimierung"); fVert = F("S.Verteilung");
         fSpaet = F("S.Spaet"); fZL = F("Z.Lehrer"); fZK = F("Z.Klassen"); fZR = F("Z.Raeume"); fZF = F("Z.Faecher"); fZU = F("Z.Unterricht");
+        fLEinzel = F("L.Einzelstunden"); fLDoppelHohl = F("L.Doppelhohl"); fLFachfolge = F("L.Fachfolge"); fLTagesrand = F("L.Tagesrand");
+        fLStdFolge = F("L.StdFolge"); fLVerweil = F("L.Verweildauer"); fLLetzte = F("L.LetzteVorm"); fKFachfolge = F("K.Fachfolge");
+        fKVersch = F("K.Verschiedene"); fKKlassenlehrer = F("K.Klassenlehrer"); fKGleichMittag = F("K.GleichMittag"); fFFrei = F("F.Freifach");
+        fFNichtRand = F("F.NichtRandG"); fHBisGrenz = F("H.BisGrenz"); fSZwei = F("S.Zwei"); fSDrei = F("S.Drei"); fSTagesstunden = F("S.Tagesstunden");
+        fSSelbeZeit = F("S.SelbeZeit"); fSGross = F("S.Grossbloecke");
+        _letzteVormMax = Gewichtung.Wert(g, "L.LetzteVormMax");
+        var grenz = Gewichtung.Wert(g, "H.Grenzstunde");
+        _grenzstunde = grenz > 0 ? grenz : d.Zeitraster.LetzteVormittagsstunde;
+        string[] haken = { "F.Freifach.Erste", "F.Freifach.Letzte", "F.Freifach.Mittag", "F.Randstunde.Erste", "F.Randstunde.Letzte", "F.Randstunde.Mittag" };
+        for (var i = 0; i < haken.Length; i++) _randErlaubt[i] = Gewichtung.Wert(g, haken[i]) > 0;
         UnterrichtBloecke = Array.Empty<List<int>>();
         foreach (var u in d.Unterrichte.Where(IstPlanbar))
         {
@@ -474,6 +504,10 @@ public sealed class PlanModell
         var ersterJeTag = new int[T];
         var letzterJeTag = new int[T];
         Dictionary<int, int>? nachmJeFach = !istLehrer && HatNachmittagsBereich ? new() : null;
+        // Hauptfächer je Fach: Stunden nach bzw. bis zur Grenzstunde (Abschnitt Hauptfächer)
+        Dictionary<int, (int Nach, int Bis)>? grenzJeFach = !istLehrer && (fHSpaet > 0 || fHBisGrenz > 0) ? new() : null;
+        var letzteVorm = 0;
+        var klassenlehrer = klasse?.KlassenlehrerIds is { Count: > 0 } kl ? kl : null;
 
         void V(VerstossArt art, int tag, int stunde, double k, string text, int? uid = null)
         {
@@ -483,8 +517,8 @@ public sealed class PlanModell
 
         for (var t = 0; t < T; t++)
         {
-            int first = -1, last = -1, n = 0;
-            bool vorm = false, nachm = false, tagHatNachmittag = false;
+            int first = -1, last = -1, n = 0, nVorm = 0, nNachm = 0;
+            bool vorm = false, nachm = false, tagHatNachmittag = false, klassenlehrerDa = false;
             int hauptTag = 0, hauptFolge = 0, hauptFolgeMax = 0;
             for (var s = 0; s < S; s++)
             {
@@ -502,7 +536,11 @@ public sealed class PlanModell
                 n++;
                 if (first < 0) first = s;
                 last = s;
-                if (art == Tageszeit.Nachmittag) nachm = true; else vorm = true;
+                if (art == Tageszeit.Nachmittag) { nachm = true; nNachm++; } else { vorm = true; nVorm++; }
+                if (istLehrer && s + 1 == zr.LetzteVormittagsstunde) letzteVorm++;
+                if (klassenlehrer != null && !klassenlehrerDa)
+                    foreach (var bi in zelle)
+                        if (Unterrichte[Bloecke[bi].Mitglieder[0]].LehrerIds.Any(klassenlehrer.Contains)) { klassenlehrerDa = true; break; }
                 if (zelle.Count > 1)
                 {
                     var gruppen = Gleichzeitig(zelle, !istLehrer);
@@ -522,14 +560,21 @@ public sealed class PlanModell
                     foreach (var bi in zelle)
                     {
                         var u = Unterrichte[Bloecke[bi].Mitglieder[0]];
-                        if (u.HauptfachId is int fid && _ix.Faecher.TryGetValue(fid, out var f) && f.Hauptfach) istHaupt = true;
+                        if (u.HauptfachId is int fid && _ix.Faecher.TryGetValue(fid, out var f) && f.Hauptfach)
+                        {
+                            istHaupt = true;
+                            if (grenzJeFach != null)
+                            {
+                                var x = grenzJeFach.GetValueOrDefault(fid);
+                                grenzJeFach[fid] = s + 1 > _grenzstunde ? (x.Nach + 1, x.Bis) : (x.Nach, x.Bis + 1);
+                            }
+                        }
                     }
                     if (istHaupt)
                     {
                         hauptTag++;
                         hauptFolge++;
                         hauptFolgeMax = Math.Max(hauptFolgeMax, hauptFolge);
-                        if (s + 1 > zr.LetzteVormittagsstunde || s + 1 >= S) V(VerstossArt.HauptfachSpaet, t, s + 1, 2 * fHSpaet, "Hauptfach in später Stunde");
                     }
                     else hauptFolge = 0;
                 }
@@ -580,6 +625,22 @@ public sealed class PlanModell
                 else if (fKHohl > 0 && !klasse!.HohlstundenZulaessig) // (P) Hohlstunden zulässig
                     foreach (var s in luecken.Take(hohl)) V(VerstossArt.HohlstundeKlasse, t, s + 1, 30 * fKHohl, "Hohlstunde");
             }
+            if (istLehrer && fLEinzel > 0)
+            {
+                // Einzelstunden an einem Halbtag vermeiden: hat die Lehrkraft an einem Halbtag Unterricht, dann mehr als eine Stunde
+                if (nVorm == 1) V(VerstossArt.EinzelstundeHalbtag, t, first + 1, 6 * fLEinzel, "Einzelstunde am Vormittag");
+                if (nNachm == 1) V(VerstossArt.EinzelstundeHalbtag, t, last + 1, 6 * fLEinzel, "Einzelstunde am Nachmittag");
+            }
+            if (istLehrer && hohl > 1 && fLDoppelHohl > 0)
+            {
+                // Doppelhohlstunden: zusätzliche Schlechtpunkte für zwei (oder mehr) Hohlstunden hintereinander
+                var hohlSet = luecken.Where(s => !(s >= mitVon && s <= mitBis) || mittagLuecken > erlaubteMittag).ToHashSet();
+                foreach (var s in hohlSet)
+                    if (hohlSet.Contains(s + 1) && !hohlSet.Contains(s - 1))
+                        V(VerstossArt.DoppelhohlstundeLehrer, t, s + 1, 8 * fLDoppelHohl, "Doppelhohlstunde");
+            }
+            if (klassenlehrer != null && !klassenlehrerDa && fKKlassenlehrer > 0)
+                V(VerstossArt.KlassenlehrerTag, t, 0, 6 * fKKlassenlehrer, "Klassenlehrer an diesem Tag nicht in der Klasse");
             var dev = stdTag.Abweichung(n);
             if (dev > 0)
                 V(istLehrer ? VerstossArt.StdTagLehrer : VerstossArt.StdTagKlasse, t, 0, dev * 8 * wStd * (istLehrer ? fLStd : fKStd),
@@ -600,11 +661,11 @@ public sealed class PlanModell
                         else run = 0;
                     }
                     if (maxRun > lehrer.MaxStundenFolge)
-                        V(VerstossArt.StundenFolgeLehrer, t, 0, (maxRun - lehrer.MaxStundenFolge) * 8 * wFolge * fLStd, $"{maxRun} Stunden in Folge (max. {lehrer.MaxStundenFolge})");
+                        V(VerstossArt.StundenFolgeLehrer, t, 0, (maxRun - lehrer.MaxStundenFolge) * 8 * wFolge * fLStdFolge, $"{maxRun} Stunden in Folge (max. {lehrer.MaxStundenFolge})");
                 }
                 // Max. Verweildauer (inkl. Hohlstunden und Mittagspause)
                 if (lehrer.MaxVerweildauer > 0 && last - first + 1 > lehrer.MaxVerweildauer)
-                    V(VerstossArt.Verweildauer, t, 0, (last - first + 1 - lehrer.MaxVerweildauer) * 8 * fLStd, $"Verweildauer {last - first + 1} Stunden (max. {lehrer.MaxVerweildauer})");
+                    V(VerstossArt.Verweildauer, t, 0, (last - first + 1 - lehrer.MaxVerweildauer) * 8 * fLVerweil, $"Verweildauer {last - first + 1} Stunden (max. {lehrer.MaxVerweildauer})");
                 // (R) Nicht in 1. UND letzter Stunde
                 if (lehrer.NichtErsteUndLetzte)
                 {
@@ -622,7 +683,7 @@ public sealed class PlanModell
                     var verschieden = new HashSet<int>();
                     for (var s = first; s <= last; s++) foreach (var bi in Raster[bAnteil + t * S + s]) verschieden.Add(Unterrichte[Bloecke[bi].Mitglieder[0]].Id);
                     if (verschieden.Count > klasse.MaxVerschiedeneProTag)
-                        V(VerstossArt.VerschiedeneUnterrichte, t, 0, (verschieden.Count - klasse.MaxVerschiedeneProTag) * 8 * fKStd, $"{verschieden.Count} verschiedene Unterrichte (max. {klasse.MaxVerschiedeneProTag})");
+                        V(VerstossArt.VerschiedeneUnterrichte, t, 0, (verschieden.Count - klasse.MaxVerschiedeneProTag) * 8 * fKVersch, $"{verschieden.Count} verschiedene Unterrichte (max. {klasse.MaxVerschiedeneProTag})");
                 }
                 if (klasse.Klassenzeitraster.Count > 0) KlassenzeitrasterKosten(e, klasse, t, first, last, V);
                 if (nachmJeFach != null)
@@ -651,12 +712,21 @@ public sealed class PlanModell
                         var nichtRand = f?.NichtInRandstunden == true || u.NichtInRandstunde;
                         if (!rand && !nichtRand) continue;
                         var name = f?.Kurzname ?? $"U{u.Id}";
-                        // (R) Randstunde, (F) Freifach – bei Fach oder Unterricht: am Rand des Tages bzw. Halbtages
-                        if (rand && !(s == first || s + b.Laenge - 1 == last || HalbtagRand(t, s, b.Laenge, bAnteil)))
-                            V(VerstossArt.Randstunde, t, s + 1, 6 * fFRand, $"{name} nicht am Rand", u.Id);
+                        if (rand)
+                        {
+                            // (F) Freifach bzw. (R) Randstundenfach – erlaubt sind je nach Häkchen die erste bzw. letzte Unterrichtsstunde
+                            // des Tages und die Grenze zwischen Vormittag und Nachmittag
+                            var frei = f?.Freifach == true || u.Freifach;
+                            var o = frei ? 0 : 3;
+                            var ende = s + b.Laenge - 1;
+                            var ok = (_randErlaubt[o] && s == first) || (_randErlaubt[o + 1] && ende == last) || (_randErlaubt[o + 2] && MittagRand(t, s, b.Laenge, bAnteil));
+                            if (!ok)
+                                V(frei ? VerstossArt.Freifach : VerstossArt.Randstunde, t, s + 1, 6 * (frei ? fFFrei : fFRand),
+                                    $"{name} nicht am Rand ({(frei ? "Freifach" : "Randstundenfach")})", u.Id);
+                        }
                         // (G) nicht in Randstunden
-                        else if (!rand && nichtRand && (s == first || s + b.Laenge - 1 == last))
-                            V(VerstossArt.Randstunde, t, s + 1, 6 * fFRand, $"{name} in Randstunde (G)", u.Id);
+                        else if (nichtRand && (s == first || s + b.Laenge - 1 == last))
+                            V(VerstossArt.NichtInRandstunde, t, s + 1, 6 * fFNichtRand, $"{name} in Randstunde (G)", u.Id);
                     }
             }
         }
@@ -677,8 +747,12 @@ public sealed class PlanModell
                     if (stdJeTag[t] == 0 || stdJeTag[t + 1] == 0) continue;
                     var frei = (S - 1 - letzterJeTag[t]) + ersterJeTag[t + 1];
                     if (frei < lehrer.TagesrandPause)
-                        V(VerstossArt.Tagesrandpause, t + 1, ersterJeTag[t + 1] + 1, (lehrer.TagesrandPause - frei) * 6 * fLStd, $"Tagesrand-Pause {frei} Stunden (mind. {lehrer.TagesrandPause})");
+                        V(VerstossArt.Tagesrandpause, t + 1, ersterJeTag[t + 1] + 1, (lehrer.TagesrandPause - frei) * 6 * fLTagesrand, $"Tagesrand-Pause {frei} Stunden (mind. {lehrer.TagesrandPause})");
                 }
+            // Stunden in letzter Vormittagsstunde: höchstens „Maximal“ je Lehrkraft und Woche
+            if (_letzteVormMax > 0 && letzteVorm > _letzteVormMax && fLLetzte > 0)
+                V(VerstossArt.LetzteVormittagsstunde, -1, zr.LetzteVormittagsstunde, (letzteVorm - _letzteVormMax) * 8 * fLLetzte,
+                    $"{letzteVorm} Stunden in letzter Vormittagsstunde (max. {_letzteVormMax})");
             if (lehrer.MaxNachmittage > 0 && nachmittage > lehrer.MaxNachmittage)
                 V(VerstossArt.NachmittageLehrer, -1, 0, (nachmittage - lehrer.MaxNachmittage) * 15 * fLNach, $"{nachmittage} Nachmittage (max. {lehrer.MaxNachmittage})");
             if (fLTag > 0)
@@ -693,6 +767,14 @@ public sealed class PlanModell
         }
         else
         {
+            // Gewichtung zur Grenzstunde: Hauptfächer max. 1 mal nach der Grenzstunde, mindestens 1 mal bis zur Grenzstunde (incl.)
+            if (grenzJeFach != null)
+                foreach (var (fid, (nach, bis)) in grenzJeFach)
+                {
+                    var kz = _ix.Faecher.TryGetValue(fid, out var hf) ? hf.Kurzname : fid.ToString();
+                    if (nach > 1 && fHSpaet > 0) V(VerstossArt.HauptfachSpaet, -1, 0, (nach - 1) * 8 * fHSpaet, $"{kz}: {nach}-mal nach der {_grenzstunde}. Stunde");
+                    if (bis == 0 && fHBisGrenz > 0) V(VerstossArt.HauptfachBisGrenzstunde, -1, 0, 10 * fHBisGrenz, $"{kz}: nie bis zur {_grenzstunde}. Stunde");
+                }
             if (klasse!.MaxNachmittage > 0 && nachmittage > klasse.MaxNachmittage)
                 V(VerstossArt.NachmittageKlasse, -1, 0, (nachmittage - klasse.MaxNachmittage) * 15 * fKNach, $"{nachmittage} Nachmittage (max. {klasse.MaxNachmittage})");
             // (F) Unterrichtstage nicht in Folge
@@ -737,13 +819,19 @@ public sealed class PlanModell
     private bool HatNachmittagsBereich => _nachmBereich ??= _ix.Faecher.Values.Any(f => !f.Nachmittagsstunden.IstLeer);
     private bool? _nachmBereich;
 
-    /// <summary>Liegt der Block am Rand eines Halbtages (vor bzw. nach ihm im selben Halbtag keine Stunde belegt)?</summary>
-    private bool HalbtagRand(int t, int s, int laenge, int bAnteil)
+    /// <summary>Liegt der Block an der Grenze zwischen Vormittag und Nachmittag (letzter Unterricht des Vormittags bzw. erster des Nachmittags)?</summary>
+    private bool MittagRand(int t, int s, int laenge, int bAnteil)
     {
         var zr = _d.Zeitraster;
-        var art = zr.Art(t, s + 1);
-        bool Belegt(int x) => x >= 0 && x < S && zr.Art(t, x + 1) == art && Raster[bAnteil + t * S + x].Count > 0;
-        return !Belegt(s - 1) || !Belegt(s + laenge);
+        bool Belegt(int x) => x >= 0 && x < S && Raster[bAnteil + t * S + x].Count > 0;
+        bool Art(int x, Tageszeit a) => x >= 0 && x < S && zr.Art(t, x + 1) == a;
+        var ende = s + laenge - 1;
+        // letzter Unterricht des Vormittags, danach am Nachmittag noch Unterricht
+        if (Art(ende, Tageszeit.Vormittag) && !(Art(ende + 1, Tageszeit.Vormittag) && Belegt(ende + 1)) &&
+            Enumerable.Range(ende + 1, Math.Max(0, S - ende - 1)).Any(x => Art(x, Tageszeit.Nachmittag) && Belegt(x))) return true;
+        // erster Unterricht des Nachmittags, davor am Vormittag Unterricht
+        return Art(s, Tageszeit.Nachmittag) && !(Art(s - 1, Tageszeit.Nachmittag) && Belegt(s - 1)) &&
+               Enumerable.Range(0, s).Any(x => Art(x, Tageszeit.Vormittag) && Belegt(x));
     }
 
     private static string FachfolgeKz(string? s)
@@ -777,7 +865,7 @@ public sealed class PlanModell
         for (var s = first; s < last; s++)
             foreach (var (kz, uid) in proZelle[s - first])
                 if (!char.IsDigit(kz[0]) && proZelle[s + 1 - first].Any(x => x.Kz == kz && x.Uid != uid))
-                    v(VerstossArt.Fachfolge, t, s + 2, 10 * fF2x, $"Fachfolge {kz}: Folgestunde nicht erlaubt", uid);
+                    v(VerstossArt.Fachfolge, t, s + 2, 10 * (lehrer ? fLFachfolge : fKFachfolge), $"Fachfolge {kz}: Folgestunde nicht erlaubt", uid);
         var ziffern = Enumerable.Range(first, last - first + 1)
             .SelectMany(s => proZelle[s - first].Where(x => char.IsDigit(x.Kz[0])).Select(x => (S: s, x.Kz, x.Uid)))
             .GroupBy(x => x.Kz);
@@ -786,7 +874,7 @@ public sealed class PlanModell
             if (g.Select(x => x.Uid).Distinct().Count() < 2) continue;
             var zellen = g.Select(x => x.S).Distinct().OrderBy(x => x).ToList();
             if (zellen[^1] - zellen[0] + 1 != zellen.Count)
-                v(VerstossArt.Fachfolge, t, zellen[0] + 1, 10 * fF2x, $"Fachfolge {g.Key}: nicht in Folgestunden", g.First().Uid);
+                v(VerstossArt.Fachfolge, t, zellen[0] + 1, 10 * (lehrer ? fLFachfolge : fKFachfolge), $"Fachfolge {g.Key}: nicht in Folgestunden", g.First().Uid);
         }
     }
 
@@ -916,6 +1004,7 @@ public sealed class PlanModell
         var ueberPause = u.DoppelstundeUeberPause || faecher.Any(f => f.DoppelstundeUeberPause);
         var zr = _d.Zeitraster;
         var startStunden = new HashSet<int>();
+        var laeufe = new List<(int Tag, int Start, int Len)>();
         for (var t = 0; t < T; t++)
         {
             var l = proTag[t];
@@ -934,6 +1023,7 @@ public sealed class PlanModell
             foreach (var r in runs)
             {
                 startStunden.Add(r.Start);
+                laeufe.Add((t, r.Start, r.Len));
                 if (r.Len == 2) doppel++;
                 else if (r.Len >= 3 && !(r.AusBlock || bloeckeGewuenscht.Contains(r.Len)))
                     V(VerstossArt.BlockFehler, t, r.Start + 1, (r.Len - 2) * 15 * wD * fFDopp, $"{r.Len} Stunden hintereinander");
@@ -960,10 +1050,91 @@ public sealed class PlanModell
         }
         else if (doppel > 0)
             V(VerstossArt.DoppelstundenFehler, -1, 0, doppel * 10 * wD * fFDopp, "Doppelstunde, obwohl Einzelstunden gewünscht");
+        StundenverteilungKosten(u, laeufe, platziert, V);
         // (s) Immer selbe Zeit
         if (u.ImmerSelbeZeit && startStunden.Count > 1)
             V(VerstossArt.ImmerSelbeZeit, -1, 0, (startStunden.Count - 1) * 10 * Math.Max(1, fVert), $"{startStunden.Count} verschiedene Anfangsstunden (s)");
         return kosten;
+    }
+
+    /// <summary>
+    /// Abschnitt Stundenverteilung: 2- bzw. 3-Stunden-Fächer (2 bzw. 3 Stundenblöcke) nicht an aufeinanderfolgenden Tagen (auch nicht
+    /// letzter und erster Tag der Woche), gute Verteilung auf verschiedene Tagesstunden bzw. selbe Zeit an verschiedenen Tagen,
+    /// Großblöcke (ab 3 Stunden) am Rand des Halbtages.
+    /// </summary>
+    private void StundenverteilungKosten(Unterricht u, List<(int Tag, int Start, int Len)> laeufe, int platziert, Action<VerstossArt, int, int, double, string> v)
+    {
+        if (laeufe.Count == 0) return;
+        var bloecke = u.Bloecke().Count;
+        var tage = laeufe.Select(x => x.Tag).Distinct().OrderBy(x => x).ToList();
+        bool Folgetage(int a, int b) => b - a == 1 || (T > 2 && a == 0 && b == T - 1);
+        if (platziert == u.Wochenstunden && tage.Count == laeufe.Count)
+        {
+            if (bloecke == 2 && tage.Count == 2 && fSZwei > 0 && Folgetage(tage[0], tage[1]))
+                v(VerstossArt.ZweiStundenFolgetage, tage[1], 0, 12 * fSZwei, "2-Stunden-Fach an aufeinanderfolgenden Tagen");
+            if (bloecke == 3 && tage.Count == 3 && fSDrei > 0)
+            {
+                var n = 0;
+                for (var i = 0; i < 3; i++)
+                    for (var j = i + 1; j < 3; j++)
+                        if (Folgetage(tage[i], tage[j])) n++;
+                if (n > 0) v(VerstossArt.DreiStundenFolgetage, -1, 0, n * 6 * fSDrei, "3-Stunden-Fach an aufeinanderfolgenden Tagen");
+            }
+        }
+        if (laeufe.Count > 1)
+        {
+            var starts = laeufe.GroupBy(x => x.Start).ToList();
+            var doppelt = starts.Sum(g => g.Select(x => x.Tag).Distinct().Count() - 1);
+            if (doppelt > 0 && fSTagesstunden > 0)
+                v(VerstossArt.FachGleicheTagesstunde, -1, 0, doppelt * 3 * fSTagesstunden, $"{doppelt + 1} Stunden in derselben Tagesstunde");
+            if (starts.Count > 1 && fSSelbeZeit > 0)
+                v(VerstossArt.SelbeZeitVerschiedeneTage, -1, 0, (starts.Count - 1) * 3 * fSSelbeZeit, $"{starts.Count} verschiedene Tagesstunden");
+        }
+        if (fSGross > 0)
+        {
+            var zr = _d.Zeitraster;
+            foreach (var (t, st, len) in laeufe)
+            {
+                if (len < 3) continue;
+                var ende = st + len - 1;
+                var amAnfang = st == 0 || zr.Art(t, st) != zr.Art(t, st + 1);
+                var amEnde = ende == S - 1 || zr.Art(t, ende + 2) != zr.Art(t, ende + 1);
+                if (!amAnfang && !amEnde) v(VerstossArt.GrossblockRand, t, st + 1, 8 * fSGross, $"{len}-Stunden-Block nicht am Rand des Halbtages");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Einhaltung der Maximalzahl von Klassen mit gleichzeitiger Mittagspause (Zeitraster): je Tag und Stunde des Mittagsfensters
+    /// die Klassen, die vorher und nachher Unterricht haben, in dieser Stunde aber nicht.
+    /// </summary>
+    internal double GleichzeitigeMittagspauseKosten(Action<Verstoss>? sink = null)
+    {
+        var zr = _d.Zeitraster;
+        var max = zr.MaxKlassenGleicheMittagspause;
+        if (max <= 0 || fKGleichMittag <= 0 || zr.MittagspauseVon <= 0 || zr.MittagspauseBis < zr.MittagspauseVon) return 0;
+        double k = 0;
+        for (var t = 0; t < T; t++)
+            for (var s = zr.MittagspauseVon - 1; s <= zr.MittagspauseBis - 1 && s < S; s++)
+            {
+                if (s < 0) continue;
+                var n = 0;
+                for (var e = NL; e < NE; e++)
+                {
+                    var b = e * C + t * S;
+                    if (Raster[b + s].Count > 0) continue;
+                    var vor = false;
+                    var nach = false;
+                    for (var x = 0; x < s && !vor; x++) vor = Raster[b + x].Count > 0;
+                    for (var x = s + 1; x < S && !nach; x++) nach = Raster[b + x].Count > 0;
+                    if (vor && nach) n++;
+                }
+                if (n <= max) continue;
+                var kosten = (n - max) * 10 * fKGleichMittag;
+                k += kosten;
+                sink?.Invoke(new Verstoss(VerstossArt.GleichzeitigeMittagspause, ElementTyp.Klasse, 0, null, t, s + 1, kosten, $"{n} Klassen gleichzeitig in der Mittagspause (max. {max})"));
+            }
+        return k;
     }
 
     public double Gesamtkosten(Action<Verstoss>? sink = null)
@@ -987,6 +1158,7 @@ public sealed class PlanModell
         for (var p = 0; p < PoolRaeume.Count; p++)
             for (var c = 0; c < C; c++) k += PoolKosten(p, c);
         k += FolgenKosten(null, sink);
+        k += GleichzeitigeMittagspauseKosten(sink);
         return k;
     }
 }

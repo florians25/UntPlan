@@ -44,7 +44,7 @@ public sealed partial class HauptFenster : Form
             SKnopf("Neu", "neu", Neu), SKnopf("Öffnen", "oeffnen", Oeffnen), SKnopf("Speichern (Strg+S)", "speichern", () => Speichern()),
             new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => Ui.Rueckgaengig()),
             SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => Ui.Rueckgaengig(wiederherstellen: true)), new ToolStripSeparator(),
-            SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)),
+            SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)), _excelKnopf,
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
             WebKnopf(), new ToolStripSeparator(),
             SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
@@ -77,7 +77,7 @@ public sealed partial class HauptFenster : Form
         {
             if (Program.Argumente.Any(a => a.Contains('~')) && MultiUser.MultiUserMenue.Befehlszeile(this, Program.Argumente)) return;
             if (datei != null) DateiLaden(datei);
-            else if (AppZustand.Einstellungen.LetzteDateiLaden && AppZustand.Einstellungen.ZuletztGeoeffnet.FirstOrDefault(File.Exists) is { } letzte) DateiLaden(letzte);
+            else if (AppZustand.Einstellungen.LetzteDateiLaden && (ModifierKeys & Keys.Shift) == 0 && AppZustand.Einstellungen.ZuletztGeoeffnet.FirstOrDefault(File.Exists) is { } letzte) DateiLaden(letzte);
             else if (AppZustand.Einstellungen.BegruessungZeigen) BegruessungDialog.Zeigen(this);
             ModusWiederherstellen();
         };
@@ -410,6 +410,11 @@ public sealed partial class HauptFenster : Form
             E("Lehrer Übersicht quer", "lehrer", () => new UebersichtFenster(ElementTyp.Lehrer).Show()),
             E("Räume Übersicht quer", "raeume", () => new UebersichtFenster(ElementTyp.Raum).Show()),
         }, "Übersichtsplan: Elemente als Zeilen, Tage und Stunden als Spalten"));
+        g.Eintraege.Add(E("Stundenlisten", "klausur", () => new StundenlisteFenster().Show(), true, new()
+        {
+            E("Stundenliste Klassen", "klassen", () => new StundenlisteFenster().Show()),
+            E("Stundenliste Lehrer", "lehrer", () => new StundenlisteFenster(true).Show()),
+        }, "Stundenplan in Listenform, nach Klassen oder Lehrkräften sortiert"));
         g = Gruppe(plaene, "Formate");
         g.Eintraege.Add(E("Stundenplanformate", "einstellungen", () => Oeffnen<StundenplanformateFenster>("formate", () => new StundenplanformateFenster()), true, hinweis: "Formate / Stundenpläne: Name, Langname, Standard, im Menü"));
         g = Gruppe(plaene, "Ausgabe");
@@ -471,6 +476,8 @@ public sealed partial class HauptFenster : Form
         E("Unterrichtsverteilung (CSV)…", "export", UnterrichtCsv),
         null,
         E("Import Vertretungsplanung…", "import", VertretungsimportStarten, hinweis: "Daten der Vertretungsplanung aus einer zweiten Datei übernehmen (auch additiv)"),
+        null,
+        E("Formate/Fenstergruppen…", "export", () => Dialoge.FormatAustauschDialog.Zeigen(this), hinweis: "Stundenplan- und Stammdatenformate sowie Fenstergruppen exportieren bzw. aus einer anderen Datei importieren"),
     };
 
     private void ZuletztAktualisieren()
@@ -762,6 +769,22 @@ public sealed partial class HauptFenster : Form
         }
         if (_ribbon.TasteVerarbeiten(keyData)) return true;
         return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    /// <summary>„Export nach Excel“ der Schnellzugriffsleiste: nur aktiv, wenn das aktive Fenster nach Excel exportieren kann (Handbuch).</summary>
+    private readonly ToolStripButton _excelKnopf = ExcelKnopf();
+
+    private static ToolStripButton ExcelKnopf()
+    {
+        var b = SKnopf("Export nach Excel", "export", () => { if (AppZustand.Haupt?.ActiveMdiChild is IExcelExport x) ExcelAusgabe.Oeffnen(x); });
+        b.Enabled = false;
+        return b;
+    }
+
+    protected override void OnMdiChildActivate(EventArgs e)
+    {
+        base.OnMdiChildActivate(e);
+        _excelKnopf.Enabled = ActiveMdiChild is IExcelExport;
     }
 
     private void Drucken(bool vorschau)

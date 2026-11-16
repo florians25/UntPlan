@@ -31,6 +31,7 @@ public sealed partial class EinstellungenDialog
         _seiten["Drucknamen"] = SeiteDrucknamen;
         _seiten["Sichern"] = () => { SeiteDiverses(); ZusatzSichern(); };
         _seiten["Diverses"] = _seiten["Sichern"];
+        LoggingSeiteAnmelden();
         Controls.Add(new Label { Text = "Kursiv = lokal gespeicherte Einstellungen (.ini Dateien)", Left = 8, Top = ClientSize.Height - 30, AutoSize = true, Font = new Font(Ui.Schrift, FontStyle.Italic) });
     }
 

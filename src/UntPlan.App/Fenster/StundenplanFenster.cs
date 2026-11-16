@@ -12,7 +12,7 @@ namespace UntPlan.App.Fenster;
 /// Stundenplanfenster: Detailbereich (oben), Stundenplan (Mitte), Stundenlupe (unten), nicht verplante Stunden (rechts).
 /// Manuelles Planen per Drag &amp; Drop, Tauschen, Fixieren, Raum zuordnen, Tauschvorschläge, Stundenplan-Synchronisation.
 /// </summary>
-public sealed class StundenplanFenster : MdiFenster, IDruckbar
+public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
 {
     private ElementTyp _typ;
     private int _id;
@@ -192,7 +192,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         _zeitLeiste.Items.Add(kalender);
         _zeitZeile.Controls.Add(_zeitLeiste);
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
-        _datum.ValueChanged += (_, _) => { if (!_laden) { AppZustand.DatumSetzen(DateOnly.FromDateTime(_datum.Value)); WocheSetzen(); } };
+        // Einstellungen | Diverses | Stundenplan, „Datumssynchronisation“: aus = Datumswechsel gilt nur für diesen Stundenplan
+        _datum.ValueChanged += (_, _) => { if (!_laden) { if (AppZustand.Einstellungen.Datumssynchronisation || AppZustand.Vertretungsmodus) AppZustand.DatumSetzen(DateOnly.FromDateTime(_datum.Value)); WocheSetzen(); } };
 
         // Fußzeile: Formatauswahl unten rechts mit Abstand zum Fensterrand, Größengriff frei (wie im Vorbild „Kla1 - Klasse 1“)
         _fuss.Rechts = _format;
@@ -978,6 +979,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
 
     protected override void Aktualisieren(AenderungsArt art)
     {
+        PeriodenwechselPruefen();
         if (_plan.Tagesmodus) _plan.TageNeu();
         Neuaufbau(false);
     }
@@ -1120,16 +1122,21 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 _plan.Ecke = $"Nvpl Std.\n{neben}/{_plan.StundenDerWoche()}";
             }
             var p = D.PeriodeAm(w);
-            _detail.Text = $"Woche {Format.Datum(w)} – {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
+            _detail.Text = $"Woche {Format.Datum(w)} – {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.Wochenbezeichnung(D, w, AppZustand.Einstellungen.WochenanzeigeKalenderwochen)}, {Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
             _datumsBereich.Visible = false;
             return;
         }
         // Vorbild: links Wochenstunden, nicht verplante Stunden und Text des Elements (Klassen: Klassenlehrer), rechts „DatumsBereich“
         var el = Ix.Element(_typ, _id);
-        var zusatz = el is Klasse kl && kl.KlassenlehrerIds.Count > 0 ? string.Join(", ", kl.KlassenlehrerIds.Select(Ix.KLehrer)) : el?.Text ?? "";
+        // Handbuch 6.2.1: Text und Beschreibung aus den Stammdaten, bei Klassen zusätzlich der Klassenlehrer
+        var zusatz = string.Join("  ", new[]
+        {
+            el is Klasse kl && kl.KlassenlehrerIds.Count > 0 ? "KL: " + string.Join(", ", kl.KlassenlehrerIds.Select(Ix.KLehrer)) : "",
+            el?.Text ?? "", el?.Beschreibung ?? "",
+        }.Where(x => x.Length > 0));
         _detail.Text = $"{wst} Wochenstunden\n{nv} Nicht verplante Std.\n{zusatz}";
         var bis = periode.Bis ?? D.Einstellungen.SchuljahrBis;
-        _datumsText.Text = $"{periode.Von:d.M.yyyy} - {bis:d.M.yyyy}\n{Kalender.Schulwoche(D, periode.Von)}. - {Kalender.Schulwoche(D, bis)}.Schulwoche";
+        _datumsText.Text = $"{periode.Von:d.M.yyyy} - {bis:d.M.yyyy}\n{Kalender.Wochenbereich(D, periode.Von, bis, AppZustand.Einstellungen.WochenanzeigeKalenderwochen)}";
         _datumsBereich.Visible = true;
     }
 
@@ -1392,8 +1399,8 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var u = unv ?? (p != null ? Ix.Unterrichte.GetValueOrDefault(p.UnterrichtId) : null);
         if (u != null)
         {
-            var zeit = p != null && D.Zeitraster.Zeit(p.Stunde) is { } zt ? $"{zt.Beginn:H\\:mm}-{zt.Ende:H\\:mm}" : "";
-            var wochen = $"{Kalender.Schulwoche(D, u.VonDatum ?? D.Einstellungen.SchuljahrVon)}-{Kalender.Schulwoche(D, u.BisDatum ?? D.Einstellungen.SchuljahrBis)}";
+            var zeit = p != null && D.Zeitraster.Zeit(p.Tag, p.Stunde) is { } zt ? $"{zt.Beginn:H\\:mm}-{zt.Ende:H\\:mm}" : "";
+            var wochen = Wochen(u.VonDatum ?? D.Einstellungen.SchuljahrVon, u.BisDatum ?? D.Einstellungen.SchuljahrBis);
             for (var i = 0; i < u.Zeilen.Count; i++)
             {
                 var z = u.Zeilen[i];
@@ -1402,8 +1409,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 if (p is not null && z.Wunschraum is int wr && p.RaumFuerZeile(i) is int vr && vr != wr) raum += $" ({Ix.KRaum(wr)})";
                 var lfr = string.Join(", ", new[] { Ix.KLehrer(z.LehrerId), Ix.KFach(z.FachId), raum }.Where(x => x.Length > 0));
                 var studt = D.Klassen.Where(k => z.KlassenIds.Contains(k.Id)).Sum(k => k.Schuelerzahl);
+                // Vorbild: Sondertext = Text bzw. Beschreibung des Unterrichts, Zeilentext der Kopplungszeile und Text zu dieser Stundenplanstunde
+                var sonder = string.Join(" ", new[] { i == 0 ? u.Text : "", i == 0 ? u.Kommentar : "", z.Zeilentext, i == 0 ? p?.Text ?? "" : "" }.Where(x => !string.IsNullOrWhiteSpace(x)));
                 var r = _lupe.Rows.Add(i == 0 ? u.Id + (p?.Fixiert == true ? "*" : "") : "", lfr, Ix.KKlassen(z.KlassenIds), zeit, wochen, studt > 0 ? studt.ToString() : "",
-                    i == 0 ? u.Text : "", u.Band, z.Zeilentext, u.Schuelergruppe);
+                    sonder, u.Band, z.Zeilentext2, u.Schuelergruppe);
                 _lupe.Rows[r].Tag = u;
             }
         }
@@ -1538,6 +1547,15 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                 if (antwort == BehinderungsAntwort.Abbrechen) return;
                 if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => D.Stundenplan.IndexOf(h.Planstunde)).Where(i => i >= 0).ToList();
             }
+            // Violettes Feld (Handbuch 5.2.1): Raum und Ausweichräume belegt – verdrängen, Kollision erzeugen oder Raum nicht verplanen
+            var raumWahl = RaumBelegtWahl.RaumNichtVerplanen;
+            if (behindernd.Count == 0 && unts.Count == 1 && Planungsdienst.Status(D, Ix, unts[0], tag, stunde, laenge) == Feldstatus.KeinRaum)
+            {
+                var probe = new Planstunde { UnterrichtId = unts[0].Id, Tag = tag, Stunde = stunde, Raeume = Planungsdienst.RaeumeSuchen(D, Ix, unts[0], tag, stunde) };
+                var w = OptionenDialog.Fragen(this, "Raum belegt", RaumBelegtVerplanen.Fragetext(D, Ix, probe), RaumBelegtVerplanen.Optionen, 2);
+                if (w is null) return;
+                raumWahl = (RaumBelegtWahl)w.Value;
+            }
             Planstunde? neu = null;
             Aendern(laenge > 1 ? $"{laenge}er-Block verplanen" : unts.Count > 1 ? "Stunden gleichzeitig verplanen" : "Stunde verplanen", AenderungsArt.Stundenplan, d =>
             {
@@ -1548,6 +1566,7 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
                     {
                         // nicht „neu ??= Verplanen(…)“: das würde nach der ersten Stunde nichts mehr verplanen
                         var p = Planungsdienst.Verplanen(d, u, tag, stunde + k, false);
+                        RaumBelegtVerplanen.Anwenden(d, p, raumWahl);
                         neu ??= p;
                     }
             });
@@ -1725,14 +1744,14 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
         var u = e.Unterricht;
         var lehrer = string.Join(",", e.LehrerIds.Select(Ix.KLehrer)) + (v?.LehrerId is int l && !e.LehrerIds.Contains(l) ? $" ({Ix.KLehrer(l)})" : "");
         var lfr = string.Join(", ", new[] { lehrer, Ix.KFach(e.FachId), string.Join(",", e.RaumIds.Select(Ix.KRaum)) }.Where(x => x.Length > 0));
-        var zeit = D.Zeitraster.Zeit(e.Stunde) is { } z ? $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}" : "";
+        var zeit = D.Zeitraster.Zeit(e.Regel?.Planstunde.Tag ?? -1, e.Stunde) is { } z ? $"{z.Beginn:H\\:mm}-{z.Ende:H\\:mm}" : "";
         var von = u?.VonDatum ?? D.Einstellungen.SchuljahrVon;
         var bis = u?.BisDatum ?? D.Einstellungen.SchuljahrBis;
-        var wochen = $"{Kalender.Schulwoche(D, von)}-{Kalender.Schulwoche(D, bis)}";
+        var wochen = Wochen(von, bis);
         var studt = D.Klassen.Where(k => e.KlassenIds.Contains(k.Id)).Sum(k => k.Schuelerzahl);
         var sondertext = v is null ? u?.Text ?? "" : $"{Core.Vertretungsplanung.Vertretungsplan.ArtText(v.Art)} {v.Text}".Trim();
         var zeile = e.Regel?.ZeilenIndex ?? v?.ZeilenIndex ?? 0;
-        var zeilenText = u?.Zeilen.ElementAtOrDefault(zeile)?.Zeilentext ?? "";
+        var zeilenText = u?.Zeilen.ElementAtOrDefault(zeile)?.Zeilentext2 ?? "";
         // Vertretung/Änderung wie im Vorbild mit „*“ hinter der Nummer
         var nr = u is null ? (v != null ? "V" + v.Id : "") : u.Id + (v != null ? "*" : "");
         var r = _lupe.Rows.Add(nr, lfr, Ix.KKlassen(e.KlassenIds), zeit, wochen, studt > 0 ? studt.ToString() : "", sondertext, u?.Band ?? "", zeilenText, u?.Schuelergruppe ?? "");
@@ -2005,6 +2024,12 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             RaumZuordnen();
             e.Handled = true;
         }
+        // Handbuch 6.8: Strg+C kopiert den Stundenplan in die Zwischenablage (als Grafik, zusätzlich im HTML-Format)
+        if (ActiveControl is not (TextBoxBase or ComboBox or DataGridView) && e.Modifiers == Keys.Control && e.KeyCode == Keys.C)
+        {
+            AlsGrafikKopieren();
+            e.Handled = true;
+        }
         base.OnKeyDown(e);
     }
 
@@ -2094,19 +2119,10 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
     public void TauschvorschlaegeZeigen()
     {
         if (_plan.Ausgewaehlt is not { } p) { Ui.Info("Bitte zuerst eine Stunde im Stundenplan einer Klasse anklicken."); return; }
-        var v = TauschvorschlaegeDialog.Zeigen(this, p);
-        if (v is null) return;
-        var a = D.Stundenplan.IndexOf(v.A);
-        var b = D.Stundenplan.IndexOf(v.B);
-        Aendern("Tauschvorschlag", AenderungsArt.Stundenplan, d =>
+        TauschvorschlaegeDialog.Zeigen(this, D.Stundenplan.IndexOf(p), zuege =>
         {
-            var pa = d.Stundenplan[a];
-            var pb = d.Stundenplan[b];
-            (pa.Tag, pb.Tag) = (pb.Tag, pa.Tag);
-            (pa.Stunde, pb.Stunde) = (pb.Stunde, pa.Stunde);
-            var ix = new DatenIndex(d);
-            pa.Raeume = Planungsdienst.RaeumeSuchen(d, ix, ix.Unterrichte[pa.UnterrichtId], pa.Tag, pa.Stunde, new[] { pa });
-            pb.Raeume = Planungsdienst.RaeumeSuchen(d, ix, ix.Unterrichte[pb.UnterrichtId], pb.Tag, pb.Stunde, new[] { pb });
+            Aendern("Tauschvorschlag", AenderungsArt.Stundenplan, d => Tauschvorschlaege.Ausfuehren(d, zuege));
+            Neuaufbau(false);
         });
         Neuaufbau(false);
     }
@@ -2142,14 +2158,19 @@ public sealed class StundenplanFenster : MdiFenster, IDruckbar
             cm.Items.Add(p.Fixiert ? "Fixierung lösen" : "Unterr.-Std. fixieren", Symbole.Get("fixieren"), (_, _) => Fixieren());
             cm.Items.Add("Raum zuordnen / löschen…", Symbole.Get("raumzuordnen"), (_, _) => RaumZuordnen());
             cm.Items.Add("Lehrer zuordnen…", Symbole.Get("lehrer"), (_, _) => { if (LehrerZuordnenDialog.Zeigen(this, p.UnterrichtId)) Neuaufbau(false); });
+            // Handbuch 5.2.11: Lehrer ändern / Lehrer hinzufügen (für eine Stunde entsteht ein neuer einstündiger Unterricht)
+            cm.Items.Add("Lehrer ändern…", Symbole.Get("lehrer"), (_, _) => { if (StundenLehrerDialog.Zeigen(this, D.Stundenplan.IndexOf(p), false)) Neuaufbau(false); });
+            cm.Items.Add("Lehrer hinzufügen…", Symbole.Get("lehrer"), (_, _) => { if (StundenLehrerDialog.Zeigen(this, D.Stundenplan.IndexOf(p), true)) Neuaufbau(false); });
             cm.Items.Add("Tauschvorschläge…", Symbole.Get("tausch"), (_, _) => TauschvorschlaegeZeigen());
             cm.Items.Add("Stunde vom Unterricht entplanen", Symbole.Get("loeschen"), (_, _) => Entplanen());
             if (Ix.Unterrichte.TryGetValue(p.UnterrichtId, out var gekoppelt) && gekoppelt.Zeilen.Count > 1)
                 cm.Items.Add("Entkoppeln…", Symbole.Get("minus"), (_, _) => Entkoppeln(p));
             cm.Items.Add("Zeitwünsche des Unterrichts", Symbole.Get("zeitwunsch"), (_, _) => ZeitwuenscheFenster.Zeigen(ElementTyp.Unterricht, p.UnterrichtId));
+            cm.Items.Add(p.Text.Length > 0 ? $"Text zu Stundenplanstunde („{p.Text}“)…" : "Text zu Stundenplanstunde…", null, (_, _) => StundentextBearbeiten(p));
             cm.Items.Add(new ToolStripSeparator());
         }
         cm.Items.Add("Im HTML-Format ausgeben", Symbole.Get("html"), (_, _) => HtmlAusgabe());
+        cm.Items.Add("Kopieren (Strg+C)", Symbole.Get("kopieren", 16), (_, _) => AlsGrafikKopieren());
         cm.Show(_plan, pt);
     }
 

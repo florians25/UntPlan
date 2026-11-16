@@ -35,6 +35,9 @@ public sealed class StundenplanformateFenster : MdiFenster
         ts.Items.Add(Knopf("Neu", "neu", Neu));
         ts.Items.Add(Knopf("Ansicht zeigen\nZeigt die Ansicht der aktuellen Zeile.", "vorschau", AnsichtZeigen));
         ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
+        ts.Items.Add(new ToolStripSeparator());
+        ts.Items.Add(Knopf("Formate exportieren\nStundenplanformate in eine Formatdatei schreiben (Datei | Import/Export | Formate/Fenstergruppen).", "export", () => FormatAustauschDialog.Zeigen(this)));
+        ts.Items.Add(Knopf("Formate importieren\nFormate aus einer Formatdatei oder einer anderen UntPlan-Datei übernehmen.", "import", () => FormatAustauschDialog.Zeigen(this, true)));
         Ui.RasterGestalten(_g, false);
         _g.RowHeadersVisible = false;
         _g.AllowUserToAddRows = false;

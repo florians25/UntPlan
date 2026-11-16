@@ -7,8 +7,8 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Absenzen / Lehrer | Klassen | Räume (Reiter mit Anzahl wie im Vorbild). Direkte Eingabe in der Liste – Änderungen einer Zeile
-/// werden beim Verlassen der Zeile (auch beim Reiter- oder Datumswechsel, beim Verlassen und Schließen des Fensters) übernommen.
+/// Absenzen / Lehrer | Klassen | Räume (Reiter mit Anzahl wie im Vorbild). Direkte Eingabe in der Liste – wie im Vorbild wird jede
+/// mit Tab/Enter bestätigte Eingabe sofort gespeichert (Element eintippen = ganzer Tag absent, AbsNr wird vergeben).
 /// Überlappt eine Lehrer-Absenz mit einer Veranstaltung, wird gefragt, ob die Lehrkraft aus der Veranstaltung entfernt werden soll.
 /// </summary>
 public sealed class AbwesenheitenFenster : MdiFenster
@@ -36,6 +36,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private Abwesenheit? _entwurfAlt;
     private int _entwurfZeile = -1;
     private bool _entwurfBisGesetzt;
+    private int _entwurfZeileVorher = -1;
+    /// <summary>Zuletzt gespeicherte einzelne Absenz (für die sofortige Übernahme aus der Eingabezeile).</summary>
+    private Abwesenheit? _letzteGespeicherte;
     /// <summary>Nach dem Speichern auf diese Absenz springen.</summary>
     private int? _springeZu;
     /// <summary>Fensterverknüpfung: in einem anderen Fenster gewähltes Element – seine Absenzen werden markiert.</summary>
@@ -145,7 +148,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
         Steuerelemente.SuchKombi.Aktivieren(_g, (zelle, text) =>
         {
             Element? el = zelle.OwningColumn.Name == "G" ? D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) : D.AlleElemente(Typ).FirstOrDefault(x => x.Kurzname == text);
-            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el.Langname);
+            // wie im Vorbild (Kap. 3.2): Lehrer mit Lehrersymbol, Kurzname und Langname
+            if (el is Lehrer l) return new Steuerelemente.ListenStil(Color.White, Color.Black, l.Langname.Length > 0 ? l.Langname : l.VollerName, Symbole.Get("unterricht", 16));
+            return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el.Langname);
         });
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellBeginEdit += (_, e) => { if (e.RowIndex >= 0 && _g.Rows[e.RowIndex].Tag is Veranstaltung) e.Cancel = true; };
@@ -611,6 +616,9 @@ public sealed class AbwesenheitenFenster : MdiFenster
         EntwurfAnzeigen(zeile, a);
         // Meldungen erst nach dem Übernehmen in den Entwurf zeigen
         if (meldung != null) Ui.Info(meldung);
+        // wie im Vorbild (Kap. 3.2/5.2): Element wählen und mit Tab bzw. Enter bestätigen setzt es sofort absent (ganzer Tag,
+        // AbsNr wird vergeben) – jede weitere bestätigte Eingabe (Stunden, Bis, Grund, Text) wird ebenfalls gleich gespeichert
+        if (a.ElementId != 0 && _entwurf == a) EntwurfUebernehmen();
     }
 
     /// <summary>Entwurf in der Zeile anzeigen (normalisierte Werte, Kennzeichnung „nicht gespeichert“).</summary>
@@ -647,6 +655,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         }
         var a = _entwurf;
         var alt = _entwurfAlt;
+        _entwurfZeileVorher = _entwurfZeile;
         _entwurf = null;
         _entwurfAlt = null;
         _entwurfZeile = -1;
@@ -664,8 +673,22 @@ public sealed class AbwesenheitenFenster : MdiFenster
             return;
         }
         var text = alt is null ? "Absenz eingeben" : "Absenz geändert";
-        if (sofort || !IsHandleCreated || IsDisposed) Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text);
-        else NachZellwechsel(() => Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text));
+        var zeile = _entwurfZeileVorher;
+        void Ausfuehren()
+        {
+            Speichern(new[] { a }, alt is null ? Array.Empty<Abwesenheit>() : new[] { alt }, text);
+            // Tabelle ist schon in der nächsten Zelle im Bearbeitungsmodus (Neuaufbau wird nachgeholt): die Eingabezeile gehört
+            // jetzt zur gespeicherten Absenz – weitere Eingaben in dieser Zeile ändern sie, statt eine zweite anzulegen
+            if (_neuaufbauAusstehend && _letzteGespeicherte is { } g && zeile >= 0 && zeile < _g.Rows.Count && (_g.Rows[zeile].Tag is null || _g.Rows[zeile].Tag is Abwesenheit x && x.Id == g.Id) && !_g.Rows[zeile].IsNewRow)
+            {
+                _g.Rows[zeile].Tag = g;
+                _laedt = true;
+                _g.Rows[zeile].Cells["Nr"].Value = g.Id;
+                _laedt = false;
+            }
+        }
+        if (sofort || !IsHandleCreated || IsDisposed) Ausfuehren();
+        else NachZellwechsel(Ausfuehren);
     }
 
     private void EntwurfVerwerfen()
@@ -838,8 +861,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // Hinweis: eingeplante Vertreter, die durch die neue Absenz abwesend werden
         var betroffen = neu.SelectMany(a => Vertretungen.BetroffeneVertreter(D, a)).Distinct().ToList();
         List<Abwesenheit> gespeichert = new();
+        _letzteGespeicherte = null;
         if (!Aendern(text, AenderungsArt.Vertretung, d => gespeichert = AbsenzVerwaltung.Speichern(d, neu, alt))) return;
         if (gespeichert.Count == 1) _springeZu = gespeichert[0].Id;
+        _letzteGespeicherte = gespeichert.Count == 1 ? gespeichert[0] : null;
         if (neu.Count > 0 && gespeichert.Count == 0 && alt.Count == 0) Ui.Info("Diese Absenz ist bereits vorhanden.");
         if (betroffen.Count > 0)
             Ui.Info("Achtung: Folgende Vertretungen waren bereits mit einer Lehrkraft geplant, die nun abwesend ist. " +

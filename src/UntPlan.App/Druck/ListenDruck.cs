@@ -197,7 +197,7 @@ public static class ListenDruck
         return d;
     }
 
-    private static bool LayoutDialog(IWin32Window owner, Layout l, string[] kopf, int[] breiten, List<string[]> zeilen, ISet<string>? leerfelder)
+    internal static bool LayoutDialog(IWin32Window owner, Layout l, string[] kopf, int[] breiten, List<string[]> zeilen, ISet<string>? leerfelder)
     {
         using var d = LayoutFormular(l, kopf, breiten, zeilen, leerfelder, out var uebernehmen);
         if (d.ShowDialog(owner) != DialogResult.OK) return false;

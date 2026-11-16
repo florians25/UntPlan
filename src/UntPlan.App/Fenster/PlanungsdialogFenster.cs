@@ -997,16 +997,10 @@ public sealed class PlanungsdialogFenster : MdiFenster
     private void Tauschvorschlaege()
     {
         if (Ausgewaehlt() is not { } p) { Ui.Info("Bitte den Cursor auf eine verplante Stunde stellen."); return; }
-        var v = TauschvorschlaegeDialog.Zeigen(this, p);
-        if (v is null) return;
-        Aendern("Tauschvorschlag", AenderungsArt.Stundenplan, d =>
+        TauschvorschlaegeDialog.Zeigen(this, D.Stundenplan.IndexOf(p), zuege =>
         {
-            var (pa, pb) = (v.A, v.B);
-            (pa.Tag, pb.Tag) = (pb.Tag, pa.Tag);
-            (pa.Stunde, pb.Stunde) = (pb.Stunde, pa.Stunde);
-            var ix = new DatenIndex(d);
-            pa.Raeume = Planungsdienst.RaeumeSuchen(d, ix, ix.Unterrichte[pa.UnterrichtId], pa.Tag, pa.Stunde, new[] { pa });
-            pb.Raeume = Planungsdienst.RaeumeSuchen(d, ix, ix.Unterrichte[pb.UnterrichtId], pb.Tag, pb.Stunde, new[] { pb });
+            Aendern("Tauschvorschlag", AenderungsArt.Stundenplan, d => Core.Planung.Tauschvorschlaege.Ausfuehren(d, zuege));
+            Neuaufbau();
         });
         Neuaufbau();
     }

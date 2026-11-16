@@ -12,7 +12,7 @@ namespace UntPlan.App.Fenster;
 /// Wochenverteilung, Lehrerübersicht und Absenzgründe sowie der Detailansicht für einzelne Lehrer/Klassen; Karteikarte „Berichte“ mit
 /// den Berichten der Vertretungsplanung (links) und der frei gegliederten Vertretungsstatistik (rechts).
 /// </summary>
-public sealed class StatistikFenster : MdiFenster, IDruckbar
+public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
 {
     private readonly TabControl _reiter = new() { Dock = DockStyle.Fill };
     private readonly TabPage _seiteStatistik = new("Statistik") { BackColor = Abschnitt.Grund };
@@ -521,21 +521,26 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
     public void Drucken(bool vorschau)
     {
         if (_reiter.SelectedTab == _seiteBerichte) { BerichtAusgeben(vorschau ? Ausgabe.Seitenansicht : Ausgabe.Druck); return; }
-        // Handbuch „Druck“: Elemente der aktiven Seite wählen (Details), Zeitraum
-        using var f = new Dialog("Details", 300, 230);
-        f.Ok.Text = "Ok";
-        var haken = new List<(CheckBox, Abschnitt)>();
-        var y = 10;
-        foreach (var (text, a) in new[] { ("Lehrerübersicht", _aLehrer), ("Stundenverteilung", _aStunden), ("Wochenverteilung", _aWoche), ("Zeitbereich", _aZeitraum), ("Absenzgründe", _aGruende) })
+        // Handbuch „Druck“: Dialog mit „Druck - Details“ (Elemente der aktiven Seite), Von, Bis, Monat, Schrift und Seite Einrichten
+        var abschnitte = new[] { ("Lehrerübersicht", _aLehrer), ("Stundenverteilung", _aStunden), ("Wochenverteilung", _aWoche), ("Zeitbereich", _aZeitraum), ("Absenzgründe", _aGruende) }
+            .Where(x => _detailTyp == null || x.Item2 != _aLehrer).ToList();
+        string? ueberschrift = null;
+        var schrift = 100;
+        if (Ui.FehlerProtokoll == null)
         {
-            if (_detailTyp != null && a == _aLehrer) continue;
-            var c = new CheckBox { Text = text, Checked = true, Left = 12, Top = y, AutoSize = true };
-            f.Controls.Add(c);
-            haken.Add((c, a));
-            y += 26;
+            using var dlg = new BerichtAuswahlDialog("Vertretungsstatistik", Von, Bis, false, true);
+            dlg.EigeneDetails = owner => DruckDetailsZeigen(owner, abschnitte.Select(x => x.Item1).ToList());
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            if (dlg.Von != Von || dlg.Bis != Bis)
+            {
+                _von.Value = dlg.Von.ToDateTime(TimeOnly.MinValue);
+                _bis.Value = (dlg.Bis < dlg.Von ? dlg.Von : dlg.Bis).ToDateTime(TimeOnly.MinValue);
+                Neuaufbau();
+            }
+            ueberschrift = dlg.Ueberschrift;
+            schrift = dlg.Schrift;
         }
-        if (f.ShowDialog(this) != DialogResult.OK) return;
-        var teile = haken.Where(h => h.Item1.Checked).Select(h => h.Item2).ToList();
+        var teile = abschnitte.Where(x => !_druckOhne.Contains(x.Item1)).Select(x => x.Item2).ToList();
         var titel = $"Vertretungsstatistik {Format.Datum(Von)} - {Format.Datum(Bis)}" + (_detailTyp is { } t ? $" – {Ix.K(t, _detailId)}" : "");
         var sb = new System.Text.StringBuilder($"<div class=\"pg\"><h1>{H(titel)}</h1><div class=\"sub\">{H(D.Einstellungen.Schulname)}</div>");
         foreach (var a in teile)
@@ -551,7 +556,27 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         }
         if (_detailTyp != null) sb.Append("<h2>Entfälle</h2>").Append(StatistikBerichte.Tabelle(_entfaelle)).Append("<h2>Vertretungen</h2>").Append(StatistikBerichte.Tabelle(_vertretungen));
         sb.Append("</div>");
-        StatistikBerichte.Oeffnen(titel, sb.ToString());
+        StatistikBerichte.Oeffnen(titel, sb.ToString(), ueberschrift, schrift);
+    }
+
+    /// <summary>Bereiche, die beim Druck weggelassen werden („Druck - Details“; bleibt für die Sitzung gemerkt).</summary>
+    private readonly HashSet<string> _druckOhne = new();
+
+    /// <summary>„Details“ des Drucks wie im Handbuch: Lehrerübersicht, Stundenverteilung, Wochenverteilung, Zeitbereich, Absenzgründe.</summary>
+    private void DruckDetailsZeigen(IWin32Window owner, List<string> bereiche)
+    {
+        using var f = new Dialog("Details", 300, 60 + bereiche.Count * 26);
+        f.Ok.Text = "Ok";
+        var haken = new List<CheckBox>();
+        for (var i = 0; i < bereiche.Count; i++)
+        {
+            var c = new CheckBox { Text = bereiche[i], Checked = !_druckOhne.Contains(bereiche[i]), Left = 12, Top = 10 + i * 26, AutoSize = true };
+            f.Controls.Add(c);
+            haken.Add(c);
+        }
+        if (f.ShowDialog(owner) != DialogResult.OK) return;
+        foreach (var c in haken)
+            if (c.Checked) _druckOhne.Remove(c.Text); else _druckOhne.Add(c.Text);
     }
 
     private static string H(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
@@ -788,32 +813,53 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar
         if (bloecke.Count == 0) _bErgebnis.Rows.Add("Keine Daten im gewählten Zeitraum.");
     }
 
+    /// <summary>Zeilen für Export bzw. Excel: je Block die Lehrkraft bzw. Klasse (optional mit Personalnummer) vor den Werten; erste Zeile = Kopf.</summary>
+    private List<string[]> ExportZeilen(List<Block> bloecke)
+    {
+        var lehrerSicht = _bLehrer.Checked;
+        var mitPnr = _bPersonalnummer.Checked && lehrerSicht;
+        var zeilen = new List<string[]>();
+        foreach (var b in bloecke)
+        {
+            var kopf = new[] { lehrerSicht ? "Lehrer" : "Klasse" }.Concat(mitPnr ? new[] { "Personalnummer" } : Array.Empty<string>()).Concat(b.Kopf).ToArray();
+            if (zeilen.Count == 0) zeilen.Add(kopf);
+            var kurz = b.Titel.Split(' ')[0];
+            var pnr = D.Lehrer.FirstOrDefault(l => l.Kurzname == kurz)?.Personalnummer ?? "";
+            foreach (var z in b.Zeilen) zeilen.Add(new[] { kurz }.Concat(mitPnr ? new[] { pnr } : Array.Empty<string>()).Concat(z).ToArray());
+        }
+        return zeilen;
+    }
+
+    public string ExcelName => _reiter.SelectedTab == _seiteBerichte ? BerichtTitel : $"Vertretungsstatistik {Format.Datum(Von)} - {Format.Datum(Bis)}";
+
+    /// <summary>
+    /// Excel-Export der aktiven Seite: Karteikarte „Berichte“ – der Bericht wie beim Export; Übersicht – Lehrerübersicht,
+    /// Stundenverteilung, Wochenverteilung und Absenzgründe je als eigenes Blatt; Detailansicht – Entfälle und Vertretungen.
+    /// </summary>
+    public IReadOnlyList<UntPlan.Core.Austausch.Excel.Blatt> ExcelBlaetter()
+    {
+        if (_reiter.SelectedTab == _seiteBerichte)
+            return new[] { new UntPlan.Core.Austausch.Excel.Blatt("Vertretungsstatistik", ExportZeilen(BerichtDaten()).Select((z, i) => new UntPlan.Core.Austausch.Excel.Zeile(z, i == 0)).ToList()) };
+        if (_detailTyp != null)
+            return new[] { ExcelAusgabe.Blatt("Entfälle", _entfaelle), ExcelAusgabe.Blatt("Vertretungen", _vertretungen), ExcelAusgabe.Blatt("Stundenverteilung", _stunden) };
+        return new[] { ExcelAusgabe.Blatt("Lehrerübersicht", _lehrer), ExcelAusgabe.Blatt("Stundenverteilung", _stunden), ExcelAusgabe.Blatt("Wochenverteilung", _woche), ExcelAusgabe.Blatt("Absenzgründe", _gruende) };
+    }
+
     private void BerichtAusgeben(Ausgabe ausgabe)
     {
         var bloecke = BerichtDaten();
         if (bloecke.Count == 0) { Ui.Info("Keine Daten im gewählten Zeitraum.", "Vertretungsstatistik"); return; }
-        var lehrerSicht = _bLehrer.Checked;
-        if (ausgabe is Ausgabe.Export or Ausgabe.Excel)
+        if (ausgabe == Ausgabe.Excel)
         {
-            var zeilen = new List<string[]>();
-            foreach (var b in bloecke)
-            {
-                var kopf = new[] { lehrerSicht ? "Lehrer" : "Klasse" }.Concat(_bPersonalnummer.Checked && lehrerSicht ? new[] { "Personalnummer" } : Array.Empty<string>()).Concat(b.Kopf).ToArray();
-                if (zeilen.Count == 0) zeilen.Add(kopf);
-                var kurz = b.Titel.Split(' ')[0];
-                var pnr = D.Lehrer.FirstOrDefault(l => l.Kurzname == kurz)?.Personalnummer ?? "";
-                foreach (var z in b.Zeilen) zeilen.Add(new[] { kurz }.Concat(_bPersonalnummer.Checked && lehrerSicht ? new[] { pnr } : Array.Empty<string>()).Concat(z).ToArray());
-            }
-            string pfad;
-            if (ausgabe == Ausgabe.Excel) pfad = Path.Combine(Path.GetTempPath(), $"Vertretungsstatistik_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
-            else
-            {
-                using var sfd = new SaveFileDialog { Filter = "CSV-Datei|*.csv", FileName = "Vertretungsstatistik.csv" };
-                if (sfd.ShowDialog(this) != DialogResult.OK) return;
-                pfad = sfd.FileName;
-            }
-            File.WriteAllText(pfad, Csv.Schreiben(zeilen, bom: false), new System.Text.UTF8Encoding(true));
-            if (ausgabe == Ausgabe.Excel) HauptFenster.Starten(pfad);
+            // wie im Handbuch: direkt in Excel (echte Arbeitsmappe statt CSV)
+            ExcelAusgabe.Oeffnen(this);
+            return;
+        }
+        if (ausgabe == Ausgabe.Export)
+        {
+            using var sfd = new SaveFileDialog { Filter = "CSV-Datei|*.csv", FileName = "Vertretungsstatistik.csv" };
+            if (sfd.ShowDialog(this) != DialogResult.OK) return;
+            File.WriteAllText(sfd.FileName, Csv.Schreiben(ExportZeilen(bloecke), bom: false), new System.Text.UTF8Encoding(true));
             return;
         }
         if (_bMatrix.Checked && !_bUnterricht.Checked)
