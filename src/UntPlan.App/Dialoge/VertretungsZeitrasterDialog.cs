@@ -20,24 +20,29 @@ public static class VertretungsZeitrasterDialog
         var stunden = Math.Max(1, d.Zeitraster.StundenProTag);
         var istKlasse = klasse != null;
 
-        // Größe wie in der Vorlage: großzügiger Rahmen um Eintragung und Raster
-        var breite = Math.Max(istKlasse ? 500 : 620, 110 + stunden * 46);
-        using var f = new Dialog(istKlasse ? "Klassenzeitraster / Klasse" : "Zeitraster", breite, istKlasse ? 540 : 480);
+        // Größe wie in den Handbuch-Bildern (Kap. 4.2/4.2.1, 96 dpi): Zeitraster 392 × 316, Klassenzeitraster 414 × 386 (bei acht
+        // Stunden); bei mehr Stunden entsprechend breiter
+        var breite = Math.Max(istKlasse ? 414 : 392, 60 + 63 + stunden * 34);
+        using var f = new Dialog(istKlasse ? "Klassenzeitraster / Klasse" : "Zeitraster", breite, istKlasse ? 386 : 316);
         f.Ok.Text = "Ok";
-        var oben = 8;
+        var oben = 7;
         // Klassenwahl wie in der Vorlage: Kurzname mit Auf-/Ab-Pfeilen (Eintippen des Kurznamens springt zur Klasse)
         DomainUpDown? wahl = null;
+        Label? klassenText = null;
         var klassenListe = Stammdaten.Sortiert(d.Klassen).ToList();
         var tipp = new ToolTip();
         f.FormClosed += (_, _) => tipp.Dispose();
         if (istKlasse)
         {
-            wahl = new DomainUpDown { Left = 24, Top = 12, Width = 84, Wrap = false, ReadOnly = false };
+            wahl = new DomainUpDown { Left = 31, Top = 14, Width = 70, Wrap = false, ReadOnly = false };
             foreach (var k in klassenListe) wahl.Items.Add(k.Kurzname);
             f.Controls.Add(wahl);
-            oben = 44;
+            // rechts daneben wie im Vorbild: Langname und Klassenlehrer („Klasse 4 (Nobel)“)
+            klassenText = new Label { Left = 106, Top = 17, AutoSize = true };
+            f.Controls.Add(klassenText);
+            oben = 41;
         }
-        var tabs = new TabControl { Left = 8, Top = oben, Width = breite - 16, Height = f.ClientSize.Height - oben - 48, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var tabs = new TabControl { Left = 8, Top = oben, Width = breite - 16, Height = f.ClientSize.Height - oben - 38, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         f.Controls.Add(tabs);
         var vertretung = new VertretungsZeitrasterSeite(d, f, istKlasse, klasse);
         tabs.TabPages.Add(vertretung.Seite);
@@ -56,6 +61,8 @@ public static class VertretungsZeitrasterDialog
                 vertretung.Klasse(k);
                 verplanung?.Klasse(k);
                 tipp.SetToolTip(wahl, k.Langname.Length > 0 ? $"{k.Kurzname} ({k.Langname})" : k.Kurzname);
+                var kl = string.Join(", ", k.KlassenlehrerIds.Select(id => AppZustand.Doc.Index.KLehrer(id)).Where(x => x.Length > 0));
+                if (klassenText != null) klassenText.Text = (k.Langname.Length > 0 ? k.Langname : k.Kurzname) + (kl.Length > 0 ? $" ({kl})" : "");
             }
             wahl.SelectedItemChanged += (_, _) =>
             {
@@ -84,10 +91,12 @@ public static class VertretungsZeitrasterDialog
                 verplanung?.Uebernehmen(x);
             });
         }
-        var uebernehmen = new Button { Text = "Übernehmen", Width = 88, Height = 26, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
-        uebernehmen.Location = new Point(f.ClientSize.Width - 96, f.ClientSize.Height - 36);
-        f.Ok.Left -= 96;
-        f.Abbrechen.Left -= 96;
+        // Ok, Abbrechen, Übernehmen je 75 × 23 im Abstand von 80 Pixeln, unten rechts
+        var uebernehmen = new Button { Text = "Übernehmen", Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+        var knopfOben = f.ClientSize.Height - 33;
+        uebernehmen.SetBounds(f.ClientSize.Width - 85, knopfOben, 75, 23);
+        f.Abbrechen.SetBounds(f.ClientSize.Width - 165, knopfOben, 75, 23);
+        f.Ok.SetBounds(f.ClientSize.Width - 245, knopfOben, 75, 23);
         uebernehmen.Click += (_, _) => Speichern();
         f.Controls.Add(uebernehmen);
         if (f.ShowDialog(owner) != DialogResult.OK) return false;
@@ -102,9 +111,11 @@ public static class VertretungsZeitrasterDialog
 /// </summary>
 public sealed class VertretungsZeitrasterSeite
 {
-    private static readonly Color Gruen = Color.FromArgb(128, 255, 128);
-    private static readonly Color GruenHell = Color.FromArgb(178, 255, 178);
-    private static readonly Color Violett = Color.FromArgb(170, 170, 255);
+    // Farben wie im Handbuch-Bild: „*“ grün, „#“ blauviolett, Schaltfläche <Vertretung> hellgrün
+    private static readonly Color Gruen = Color.FromArgb(121, 255, 120);
+    private static readonly Color GruenHell = Color.FromArgb(187, 255, 188);
+    private static readonly Color Violett = Color.FromArgb(172, 190, 236);
+    private static readonly Font RasterSchrift = new("Segoe UI", 8.25f);
     private static readonly Color ViolettHell = Color.FromArgb(214, 214, 255);
 
     private readonly Dictionary<int, VertretungsRegel> _schule;
@@ -125,30 +136,39 @@ public sealed class VertretungsZeitrasterSeite
         _klassen = d.Klassen.ToDictionary(k => k.Id, k => new Dictionary<int, VertretungsRegel>(k.VertretungsZeitraster));
         Aktuell = klasse;
 
-        // Anordnung wie in der Vorlage: Rahmen „Eintragung:“ mit breiten Schaltflächen, rechts daneben <Kopieren>
-        var eintragung = new GroupBox { Text = "Eintragung:", Left = 12, Top = 10, Width = 214, Height = istKlasse ? 124 : 92 };
-        Button Knopf(string text, Color farbe, int y) => new() { Text = text, Left = 14, Top = y, Width = 184, Height = 26, FlatStyle = FlatStyle.Flat, BackColor = farbe, UseVisualStyleBackColor = false };
-        var kVertretung = Knopf("Vertretung", GruenHell, 22);
-        var kEntfall = Knopf("Entfall", Color.White, 54);
-        var kEigen = Knopf("Eigenv. Arbeiten", ViolettHell, 88);
+        // Anordnung wie in den Handbuch-Bildern (96 dpi): Rahmen „Eintragung:“ (170 breit) mit flachen Schaltflächen 145 × 21 im
+        // Abstand von 28 Pixeln, rechts daneben <Kopieren> (105 × 21)
+        var eintragung = new GroupBox { Text = "Eintragung:", Left = 15, Top = 16, Width = 170, Height = istKlasse ? 108 : 83 };
+        Button Knopf(string text, Color farbe, Color rand, int y)
+        {
+            var b = new Button { Text = text, Left = 13, Top = y, Width = 145, Height = 21, FlatStyle = FlatStyle.Flat, BackColor = farbe, UseVisualStyleBackColor = false };
+            b.FlatAppearance.BorderColor = rand;
+            return b;
+        }
+        var kVertretung = Knopf("Vertretung", GruenHell, Color.FromArgb(189, 226, 186), 21);
+        var kEntfall = Knopf("Entfall", Color.White, Color.FromArgb(223, 226, 220), 49);
+        var kEigen = Knopf("Eigenv. Arbeiten", ViolettHell, Color.FromArgb(160, 160, 220), 77);
         eintragung.Controls.Add(kVertretung);
         eintragung.Controls.Add(kEntfall);
         if (istKlasse) eintragung.Controls.Add(kEigen);
         Seite.Controls.Add(eintragung);
-        var kopieren = new Button { Text = "Kopieren", Left = 290, Top = 32, Width = 130, Height = 26, Visible = istKlasse };
+        var kopieren = new Button { Text = "Kopieren", Left = 214, Top = 34, Width = 105, Height = 21, Visible = istKlasse };
         Seite.Controls.Add(kopieren);
 
         var raster = _raster;
         Ui.RasterGestalten(raster, false);
         raster.SelectionMode = DataGridViewSelectionMode.CellSelect;
         raster.MultiSelect = true;
-        raster.RowHeadersWidth = 80;
-        raster.ColumnHeadersHeight = 22;
+        // Raster wie im Handbuch-Bild: Tagesnamen 63 breit, Stundenspalten 33, Kopfzeile 16 und Zeilen 15 Pixel hoch, Schrift Segoe UI 8,25
+        raster.Font = raster.DefaultCellStyle.Font = raster.ColumnHeadersDefaultCellStyle.Font = raster.RowHeadersDefaultCellStyle.Font = RasterSchrift;
+        raster.RowHeadersWidth = 63;
+        raster.ColumnHeadersHeight = 16;
+        raster.RowTemplate.Height = 15;
         raster.ScrollBars = ScrollBars.Both;
         for (var s = 1; s <= _stunden; s++)
         {
             var c = raster.Columns[raster.Columns.Add("S" + s, s.ToString())];
-            c.Width = 42;
+            c.Width = 33;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
             c.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
         }
@@ -167,9 +187,9 @@ public sealed class VertretungsZeitrasterSeite
             raster.Rows[r].HeaderCell.Value = Planungsdienst.Tagname(d, t, true);
             raster.Rows[r].Tag = t;
         }
-        var oben = eintragung.Bottom + 8;
-        void Anordnen() => raster.SetBounds(6, oben, Math.Max(100, Seite.ClientSize.Width - 12),
-            Math.Max(60, Math.Min(Seite.ClientSize.Height - oben - 6, 22 + raster.Rows.Count * 20 + 20)));
+        var oben = eintragung.Bottom + 4;
+        void Anordnen() => raster.SetBounds(2, oben, Math.Max(100, Math.Min(Seite.ClientSize.Width - 4, 63 + _stunden * 33 + 4)),
+            Math.Max(60, Math.Min(Seite.ClientSize.Height - oben - 2, 16 + raster.Rows.Count * 15 + 3)));
         Seite.Resize += (_, _) => Anordnen();
         Anordnen();
 

@@ -475,8 +475,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ("Entf", "Entfall", "Entfall", 44, true, false, false), ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false),
         ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false), ("Neu", "Neu", "Neue Vertretung", 36, true, false, false),
         ("Fix", "(X)", "(X) Fixiert", 30, true, false, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),
-        ("ND", "N.Druck (N)", "N. Druck (N)", 44, true, false, false), ("Text2", "Vertr.-Text-2", "Vertr.-Text-2", 120, false, false, false),
-        ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zählen", "Zählen", 46, true, false, false),
+        ("ND", "N.Druck (N)", "(N) Nicht Drucken", 44, true, false, false), ("Text2", "Vertr.-Text-2", "Vertretungs-Text 2", 120, false, false, false),
+        ("Ben", "Benachr.", "Benachrichtigen", 54, true, false, false), ("Zaehler", "Zählen", "Zähler", 46, true, false, false),
         ("Unterschrift", "Unterschrift", "Unterschrift", 80, true, false, false), ("Wert", "Wert", "Wert bzw. Faktor", 46, false, false, false),
         ("SG", "Schülergruppe", "Schülergruppe", 110, false, false, false), ("Abt", "Abteilung", "Abteilung", 70, true, false, true),
         ("Benutzer", "Benutzer", "Benutzer", 70, true, false, false), ("Mehr", "Mehrarb.", "Mehrarbeit", 54, true, false, false),
@@ -671,24 +671,27 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private void FelderDialog()
     {
         var f = FeldEinstellungen();
+        // Maße wie im Handbuch-Bild (96 dpi, Kap. 7.1): Fenster 366 × 678, oben Ok / Übernahme / Abbrechen (90 × 20, Abstand 9),
+        // darunter die Tabelle ab y = 37 mit Zeilen von 15 Pixeln; Spalten Feld 190, aktiv 41, drucken 44, Anzeige von 67
         using var dlg = new Form
         {
-            Text = "Felder der Ansicht", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.SizableToolWindow, StartPosition = FormStartPosition.CenterParent,
-            Size = new Size(380, 640), MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, BackColor = Ui.Kopf,
+            Text = "Felder der Ansicht", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.Sizable, StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(366, 678), MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false, BackColor = Ui.Kopf, MinimumSize = new Size(300, 300),
         };
-        var oben = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 32, Padding = new Padding(6, 4, 0, 0), WrapContents = false };
-        var ok = new Button { Text = "Ok", Width = 80, Height = 24 };
-        var uebernahme = new Button { Text = "Übernahme", Width = 80, Height = 24 };
-        var abbrechen = new Button { Text = "Abbrechen", Width = 80, Height = 24, DialogResult = DialogResult.Cancel };
-        oben.Controls.AddRange(new Control[] { ok, uebernahme, abbrechen });
-        var t = new DataGridView { Dock = DockStyle.Fill };
+        var ok = new Button { Text = "Ok", Left = 10, Top = 10, Width = 90, Height = 20 };
+        var uebernahme = new Button { Text = "Übernahme", Left = 109, Top = 10, Width = 90, Height = 20 };
+        var abbrechen = new Button { Text = "Abbrechen", Left = 208, Top = 10, Width = 90, Height = 20, DialogResult = DialogResult.Cancel };
+        dlg.Controls.AddRange(new Control[] { ok, uebernahme, abbrechen });
+        var t = new DataGridView { Left = 0, Top = 37, Width = 366, Height = 641, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
         Ui.RasterGestalten(t, true);
         t.AllowUserToAddRows = t.AllowUserToDeleteRows = false;
         t.RowHeadersVisible = false;
-        t.Columns.Add(new DataGridViewTextBoxColumn { Name = "F", HeaderText = "Feld", Width = 180, ReadOnly = true });
-        t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 44 });
-        t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "D", HeaderText = "drucken", Width = 52 });
-        t.Columns.Add(new DataGridViewComboBoxColumn { Name = "L", HeaderText = "Anzeige von", Width = 80, FlatStyle = FlatStyle.Flat, DisplayStyleForCurrentCellOnly = true, DataSource = new[] { "", "Kurzname", "Langname" } });
+        t.ColumnHeadersHeight = 17;
+        t.RowTemplate.Height = 15;
+        t.Columns.Add(new DataGridViewTextBoxColumn { Name = "F", HeaderText = "Feld", Width = 190, ReadOnly = true });
+        t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "A", HeaderText = "aktiv", Width = 41 });
+        t.Columns.Add(new DataGridViewCheckBoxColumn { Name = "D", HeaderText = "drucken", Width = 44 });
+        t.Columns.Add(new DataGridViewComboBoxColumn { Name = "L", HeaderText = "Anzeige von", Width = 67, FlatStyle = FlatStyle.Flat, DisplayStyleForCurrentCellOnly = true, DataSource = new[] { "", "Kurzname", "Langname" } });
         t.DataError += (_, e) => e.ThrowException = false;
         t.CurrentCellDirtyStateChanged += (_, _) => Steuerelemente.SuchKombi.SofortUebernehmen(t);
         foreach (var s in Spalten)
@@ -719,7 +722,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         uebernahme.Click += (_, _) => Uebernehmen();
         dlg.CancelButton = abbrechen;
         dlg.Controls.Add(t);
-        dlg.Controls.Add(oben);
         dlg.ShowDialog(this);
     }
 
@@ -833,7 +835,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var schrift = Ui.OhneFett(e.Font ?? _ansicht.Font);
         var text = item is Vertretungsformat f ? f.Langname : Convert.ToString(item) ?? "";
         // „Löschen“ gilt nur für eigene Formate
-        var grau = ReferenceEquals(item, BefehlLoeschen) && !(_letztesFormat?.Eigen ?? false);
+        var grau = ReferenceEquals(item, BefehlLoeschen) && (!(_letztesFormat?.Eigen ?? false) || (_letztesFormat?.Geschuetzt ?? false));
         var farbe = (e.State & DrawItemState.Selected) != 0 ? SystemColors.HighlightText : grau ? SystemColors.GrayText : SystemColors.ControlText;
         Ui.ListenText(e.Graphics, text, schrift, new Rectangle(e.Bounds.X + 1, e.Bounds.Y, e.Bounds.Width - 2, e.Bounds.Height), farbe);
         if (ReferenceEquals(item, BefehlSpeichern) && (e.State & DrawItemState.ComboBoxEdit) == 0) e.Graphics.DrawLine(SystemPens.ControlDark, e.Bounds.Left, e.Bounds.Top, e.Bounds.Right, e.Bounds.Top);
@@ -853,6 +855,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             var f = Fmt;
             if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
+            if (f.Geschuetzt) { Ui.Info($"Das Format „{f.Langname}“ ist geschützt und kann nicht gelöscht werden."); return; }
             if (!Ui.LoeschenBestaetigen(1, "Vertretungsformat", "Vertretungsformate", f.Langname)) return;
             FormatLoeschen(f);
         }
@@ -1489,7 +1492,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var name = _g.Columns[e.ColumnIndex].Name;
         e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Black;
         // Klassen einer Kopplung („09A, 09B, 09C, 09D“) brechen wie in der Vorlage an den Leerzeichen um (WrapMode der Spalten)
-        if (D.Vertretungseinstellungen.Farben.TryGetValue(v.Art.ToString(), out var farbe) && name == "Art") e.CellStyle.BackColor = Ui.Farbe(farbe, Color.White);
+        // Farbe der Vertretungsart (Einstellungen › Farben und Bezeichnungen) in der Spalte „Art“: wie in den Handbuch-Bildern ist die
+        // Bildschirmliste ohne eigene Einstellung schwarz auf weiß – nur selbst gewählte Vorder- bzw. Hintergrundfarben wirken hier
+        if (name == "Art")
+        {
+            var ve = D.Vertretungseinstellungen;
+            var schl = v.Art.ToString();
+            if (ve.Vordergrundfarben.ContainsKey(schl)) e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Ui.Farbe(VertretungsartFarben.Vordergrund(ve, schl), Color.Black);
+            if (ve.Farben.ContainsKey(schl) && VertretungsartFarben.Hintergrund(ve, schl) is int hg) e.CellStyle.BackColor = Ui.Farbe(hg, Color.White);
+        }
         if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
         // Betreuung wie in der Vorlage: Vertreter, Klasse(n) und Raum in grüner Schrift
         if (v.Art == VertretungsArt.Betreuung && name is "Vertreter" or "Klassen" or "NRaum") e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = BetreuungSchrift;

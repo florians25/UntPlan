@@ -1670,7 +1670,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         if (a.Schritte.Count == 0) return;
         var tpVon = Tagesplan.Berechnen(D, von);
         if (a.Schritte.Any(x => tpVon.Stunde(x.VonStunde).Any(e => (e.Regel?.Unterricht.Id ?? e.Vertretung?.UnterrichtId) == uid &&
-                (e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true))) && !Ui.Frage("Die Stunde ist fixiert. Trotzdem verlegen?")) return;
+                (e.Regel?.Planstunde.Fixiert == true || e.Vertretung?.Fixiert == true))) &&
+            !Ui.Frage($"Eine Unterrichtsstunde ist für die Vertretungsplanung fixiert.\n{Planungsdienst.TageKurz[((int)von.DayOfWeek + 6) % 7]}-{vonStunde}\nU-Nr {uid}\n\nTrotzdem fortfahren?")) return;
         var modus = VerlegeModus.Verlegen;
         if (a.TauschMoeglich)
         {
@@ -1804,17 +1805,17 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             if (uid is int u && Ix.Unterrichte.ContainsKey(u)) UnterrichtFenster.Zeigen(_typ is ElementTyp.Raum or ElementTyp.Fach ? ElementTyp.Unterricht : _typ, _typ is ElementTyp.Raum or ElementTyp.Fach ? null : _id);
         });
         stpl.Enabled = uid is int;
-        var raum = cm.Items.Add("Raum zuordnen / löschen", Symbole.Get("raumzuordnen"), (_, _) =>
+        var raum = cm.Items.Add("Raum zuordnen / löschen", null, (_, _) =>
         {
             if (RaumZuordnenVertretungDialog.Zeigen(this, datum, stunde, uid, uid.HasValue ? zeile : null, e?.Vertretung)) Neuaufbau(false);
         });
         raum.Enabled = findet;
-        cm.Items.Add("Sondereinsatz / Stunde ändern", Symbole.Get("sondereinsatz"), (_, _) =>
+        cm.Items.Add("Sondereinsatz / Stunde ändern", null, (_, _) =>
         {
             if (findet && e != null && uid is int) { if (StundeAendernDialog.Zeigen(this, datum, stunde, StundenEintraege(datum, stunde, e))) Neuaufbau(false); }
             else if (StundeAendernDialog.Neu(this, datum, stunde, _typ == ElementTyp.Klasse ? new[] { _id } : Array.Empty<int>(), _typ == ElementTyp.Lehrer ? new[] { _id } : Array.Empty<int>())) Neuaufbau(false);
         });
-        var entfall = cm.Items.Add("Stunde entfallen lassen", Symbole.Get("entfall"), (_, _) =>
+        var entfall = cm.Items.Add("Stunde entfallen lassen", null, (_, _) =>
         {
             if (uid is int uu) StundeEntfallenLassen(datum, stunde, uu, zeile);
         });
@@ -1840,7 +1841,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                 i.ToolTipText = hinweis;
             }
         }
-        cm.Items.Add("Klausur erstellen", Symbole.Get("klausur"), (_, _) => KlausurDialog.Neu(this, datum, stunde, e));
+        cm.Items.Add("Klausur erstellen", null, (_, _) => KlausurDialog.Neu(this, datum, stunde, e));
         var std = new ToolStripMenuItem("Stpl-Stunde: Standardformat") { Checked = _plan.Format.Standardformat };
         std.Click += (_, _) => { var f = Kopie(_plan.Format); f.Standardformat = !f.Standardformat; FormatSpeichern(f, f.Name); };
         cm.Items.Add(std);
@@ -1851,7 +1852,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         stud.Enabled = schueler.Count > 0;
         cm.Items.Add(ZeitbereichMenue());
         cm.Items.Add(new ToolStripSeparator());
-        cm.Items.Add("Im HTML-Format kopieren", Symbole.Get("html"), (_, _) => HtmlKopieren());
+        cm.Items.Add("Im HTML-Format kopieren", null, (_, _) => HtmlKopieren());
         // weitere Funktionen des Vertretungsmodus
         cm.Items.Add(new ToolStripSeparator());
         if (findet && uid is int uv)

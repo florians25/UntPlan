@@ -85,9 +85,6 @@ public sealed partial class HauptFenster
         {
             E("Bereitschaften", "bereitschaft", () => VertretungsFensterOeffnen("bereit")),
             E("Bereitschaftsplanung", "bereitschaft", () => VertretungsFensterOeffnen("bereitplan")),
-            null,
-            // wie in der Vorlage nicht als eigener Knopf auf dieser Registerkarte (dort unter Start | Module) – hier im Menü erreichbar
-            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause")),
         }));
 
         g = Gruppe(vp, "Planung");
@@ -100,6 +97,13 @@ public sealed partial class HauptFenster
         g.Eintraege.Add(E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm"), true, new()
         {
             E("Vormerkungen", "vormerkung", () => VertretungsFensterOeffnen("vorm")),
+            null,
+            Fenstergruppe(),
+        }));
+        // wie im Handbuch-Bild (Kap. 4.1): großer Knopf „Pausenaufsichten“ mit Pfeil rechts neben „Vormerkungen“
+        g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause"), true, new()
+        {
+            E("Pausenaufsichten", "pausenaufsicht", () => VertretungsFensterOeffnen("pause")),
             null,
             Fenstergruppe(),
         }));

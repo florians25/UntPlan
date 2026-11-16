@@ -1493,6 +1493,19 @@ public sealed partial class HauptFenster
                 throw new InvalidOperationException($"Spaltenbreite nicht gezogen ({a0}/{a1} → {felder[0].Anteil}/{felder[1].Anteil})");
             if (f.Seitenzahl == 0) throw new InvalidOperationException("Seitenlayout ohne Vorschau nach dem Ziehen");
         }, -1);
+        Schritt("27a6_Druckauswahl_Vertretungsliste", () =>
+        {
+            // Druckauswahl wie im Handbuch (Kap. 13.6.1): Auswahl, Ausdruck bearbeiten, Druck nur, wenn geändert nach .., PDF, Ok / HTML-Ausg. / Abbrechen
+            using var d = Druck.VertretungsDruckauswahl.Erzeugen(this, tag, tag, true);
+            d.Show(this);
+            Warten(200);
+            static IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Alle(x)));
+            var texte = Alle(d).Select(c => c.Text).ToList();
+            foreach (var t in new[] { "Auswahl", "Ausdruck bearbeiten", "Druck nur, wenn geändert nach ..", "Heute", "PDF", "Ok", "HTML-Ausg.", "Abbrechen" })
+                if (!texte.Contains(t)) throw new InvalidOperationException("Druckauswahl ohne „" + t + "“: " + string.Join(",", texte));
+            if (!texte.Any(t => t.StartsWith("Lehrer: ", StringComparison.Ordinal))) throw new InvalidOperationException("Druckauswahl ohne Rahmen „Lehrer: n/m“");
+            d.Close();
+        }, -1);
         Schritt("27a3_Seitenlayout_zurueck", DruckZurueck, -1);
         Schritt("27g_Menueband_1280", () =>
         {
@@ -1526,7 +1539,7 @@ public sealed partial class HauptFenster
             // Formate / Vertretung mit Spalte „Tagesliste“; eigenes Format anlegen (Format speichern als…) und löschen
             var fenster = Max(VertretungsformateOeffnen());
             var spalten = fenster.Raster.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText).ToList();
-            if (!spalten.SequenceEqual(new[] { "Name", "Langname", "Standard", "Art", "Tagesliste", "Art2" })) throw new InvalidOperationException("Spalten Formate / Vertretung: " + string.Join(",", spalten));
+            if (!spalten.SequenceEqual(new[] { "Name", "Langname", "Standard", "Art", "Tagesliste", "Art2", "Geschützt" })) throw new InvalidOperationException("Spalten Formate / Vertretung: " + string.Join(",", spalten));
             var liste = AppZustand.Einstellungen.VertretungsformateListe;
             var vorlage = liste.First(x => x.Langname == "Druck - Lehrer");
             // Sortierkriterien gehören zum Format und werden mit „Format speichern als…“ übernommen
@@ -2208,7 +2221,7 @@ public sealed partial class HauptFenster
             var f = Max(FensterOeffnen("abw")!) as AbwesenheitenFenster ?? throw new InvalidOperationException("Absenzfenster fehlt");
             Warten(300);
             f.SelbsttestReiter(0);
-            var soll = new[] { "AbsNr", "Lehrer", "Von TT.MM.", "ab St.", "Bis TT.MM.", "bis St.", "Grund", "Text" };
+            var soll = new[] { "AbsNr.", "Lehrer", "Von TT.MM.", "ab St.", "Bis TT.MM.", "bis St.", "Grund", "Text" };
             var ist = f.SelbsttestSpalten();
             R3cPruefen(ist.Take(soll.Length).SequenceEqual(soll), "Spalten des Absenzfensters: " + string.Join(" | ", ist));
             R3cPruefen(f.SelbsttestKnoepfe().Contains("Löschen"), "Schaltfläche <Löschen> fehlt");
@@ -2262,7 +2275,8 @@ public sealed partial class HauptFenster
             AppZustand.VertretungWaehlen(v);
             Warten(300);
             var spalten = f.SelbsttestSpalten();
-            R3cPruefen(spalten.Take(4).SequenceEqual(new[] { "Name", "Merker zur Stunde", "Klasse", "Fach" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
+            // Reihenfolge wie in den Handbuch-Bildern: Name, Merker zur Stunde, Stundenplan, danach Klasse und Fach
+            R3cPruefen(spalten.Take(5).SequenceEqual(new[] { "Name", "Merker zur Stunde", "Stundenplan", "Klasse", "Fach" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
             var k = f.SelbsttestKandidaten();
             R3cPruefen(k.Count > 0, "Vertretungsvorschlag ohne Kandidaten");
             var l = k[0].Lehrer;
@@ -2395,7 +2409,7 @@ public sealed partial class HauptFenster
                 Warten(300);
                 var erwartet = $"Lehrer {l.Kurzname} hat am {r3cTag.Day}.{r3cTag.Month}. in der {v.Stunde}. Stunde bereits Unterricht";
                 R3cPruefen(frage?.StartsWith(erwartet) == true, $"Rückfrage „{frage}“ statt „{erwartet}…“");
-                R3cPruefen(optionen is { Count: 3 } && optionen[0] == "Lehrer nicht verplanen" && optionen[1] == "Lehrer hält sowohl Unterricht als auch Vertretung (Mitbetreuung)"
+                R3cPruefen(optionen is { Count: 3 } && optionen[0] == "Lehrer nicht verplanen" && optionen[1] == "Lehrer hält sowohl Unterricht als auch Vertretung (Betreuung)"
                            && optionen[2] == "Lehrer im regulären Unterricht vertreten lassen (legt Vertretung an)", "Optionen der Rückfrage: " + string.Join(" | ", optionen ?? Array.Empty<string>()));
                 var nach = AppZustand.D.Vertretungen.First(x => x.Id == v.Id);
                 R3cPruefen(nach.Art == VertretungsArt.Betreuung && nach.VertreterId == l.Id, $"Zeile nicht als Betreuung ausgewiesen ({nach.Art})");

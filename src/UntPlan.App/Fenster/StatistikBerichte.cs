@@ -145,22 +145,27 @@ public static class StatistikBerichte
         var mitLehrer = bericht != Uebersicht;
         using var dlg = new BerichtAuswahlDialog(bericht, von, bis, mitLehrer, bericht == Abrechnung);
         if (dlg.ShowDialog(owner) != DialogResult.OK) return;
-        var lehrer = dlg.Lehrer.Count > 0 ? dlg.Lehrer : Stammdaten.Sortiert(d.Lehrer).ToList();
-        string body;
+        Oeffnen(bericht, Erzeugen(bericht, dlg.Lehrer, dlg.Von, dlg.Bis, dlg.Details), dlg.Ueberschrift, dlg.Schrift);
+    }
+
+    /// <summary>Inhalt (HTML) eines Berichts für die gewählten Lehrkräfte (leer = alle) und den Zeitraum.</summary>
+    public static string Erzeugen(string bericht, List<Lehrer> gewaehlt, DateOnly von, DateOnly bis, AbrechnungsDetails details)
+    {
+        var d = AppZustand.D;
+        var lehrer = gewaehlt.Count > 0 ? gewaehlt : Stammdaten.Sortiert(d.Lehrer).ToList();
         using (new WarteCursor())
-            body = bericht switch
+            return bericht switch
             {
-                Abrechnung => VertretungsAbrechnung(d, lehrer, dlg.Von, dlg.Bis, dlg.Details),
-                Entfalltage => EntfalltageBericht(d, lehrer, dlg.Von, dlg.Bis),
-                Uebersicht => VertretungsUebersicht(d, dlg.Von, dlg.Bis),
-                Mehrarbeit => MehrarbeitBericht(d, lehrer, dlg.Von, dlg.Bis),
-                Monatsabrechnung => MonatsabrechnungBericht(d, lehrer, dlg.Von),
-                MehrarbeitNrw => MehrarbeitNrwBericht(d, lehrer, dlg.Von, dlg.Bis),
-                Wochenwerte => WochenwerteBericht(d, lehrer, dlg.Von, dlg.Bis),
-                Wertkorrektur => WertkorrekturBericht(d, lehrer, dlg.Von, dlg.Bis),
-                _ => AbrechnungUebersicht(d, dlg.Von, dlg.Bis),
+                Abrechnung => VertretungsAbrechnung(d, lehrer, von, bis, details),
+                Entfalltage => EntfalltageBericht(d, lehrer, von, bis),
+                Uebersicht => VertretungsUebersicht(d, von, bis),
+                Mehrarbeit => MehrarbeitBericht(d, lehrer, von, bis),
+                Monatsabrechnung => MonatsabrechnungBericht(d, lehrer, von),
+                MehrarbeitNrw => MehrarbeitNrwBericht(d, lehrer, von, bis),
+                Wochenwerte => WochenwerteBericht(d, lehrer, von, bis),
+                Wertkorrektur => WertkorrekturBericht(d, lehrer, von, bis),
+                _ => AbrechnungUebersicht(d, von, bis),
             };
-        Oeffnen(bericht, body, dlg.Ueberschrift, dlg.Schrift);
     }
 
     /// <summary>Listart „Stammdaten“ der Druckauswahl (die Liste der Lehrer-Stammdaten selbst).</summary>
@@ -176,22 +181,19 @@ public static class StatistikBerichte
     public static bool LehrerDruckauswahl(IWin32Window owner)
     {
         if (Ui.FehlerProtokoll != null) return false; // Selbsttest: keine modalen Dialoge
-        using var f = new Dialog("Druckauswahl", 300, 110);
-        f.Controls.Add(new Label { Text = "Listart", Left = 12, Top = 14, AutoSize = true });
-        var art = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 70, Top = 10, Width = 216 };
-        art.Items.AddRange(LehrerListarten);
-        art.SelectedIndex = Math.Max(0, Array.IndexOf(LehrerListarten, _letzteListart));
-        f.Controls.Add(art);
-        f.Ok.Text = "Ok";
-        if (f.ShowDialog(owner) != DialogResult.OK) return true;
-        _letzteListart = art.SelectedItem as string ?? ListartStammdaten;
-        if (_letzteListart == ListartStammdaten) return false;
         // Zeitraum vorbelegt wie im Handbuch: Monat des Kalenderdatums, höchstens bis Schuljahresende
         var d = AppZustand.D;
         var von = new DateOnly(AppZustand.Datum.Year, AppZustand.Datum.Month, 1);
         var bis = von.AddMonths(1).AddDays(-1);
         if (d.Einstellungen.SchuljahrBis >= von && d.Einstellungen.SchuljahrBis < bis) bis = d.Einstellungen.SchuljahrBis;
-        Starten(owner, _letzteListart, von, bis);
+        using var dlg = new LehrerDruckauswahlDialog(von, bis, _letzteListart);
+        var erg = dlg.ShowDialog(owner);
+        _letzteListart = dlg.Listart;
+        if (erg != DialogResult.OK && !dlg.PdfGewaehlt) return true;
+        if (_letzteListart == ListartStammdaten) return false;
+        var fenster = Oeffnen(_letzteListart, Erzeugen(_letzteListart, dlg.Lehrer, dlg.Von, dlg.Bis, dlg.Details), dlg.Ueberschrift);
+        // Bericht in der Berichtsansicht (dort Drucken/Seitenansicht); „PDF“ speichert ihn direkt als PDF-Datei
+        if (dlg.PdfGewaehlt) fenster.PdfAusgeben();
         return true;
     }
 
@@ -448,10 +450,11 @@ public static class StatistikBerichte
 /// </summary>
 public sealed class BerichtAuswahlDialog : Dialog
 {
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 12, Top = 100, Width = 96 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 116, Top = 100, Width = 96 };
-    private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 12, Top = 146, Width = 96 };
-    private readonly GroupBox _lehrerGruppe = new() { Left = 8, Top = 8, Width = 200, Height = 60 };
+    // Maße nach dem Handbuch-Bild (auf 96 dpi umgerechnet): Fenster 300 × 232, Lehrer-Rahmen 147 × 48, Datumsfelder 85 breit
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 6, Top = 71, Width = 85 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 102, Top = 71, Width = 85 };
+    private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 6, Top = 115, Width = 85 };
+    private readonly GroupBox _lehrerGruppe = new() { Left = 6, Top = 6, Width = 147, Height = 48 };
     private readonly List<Lehrer> _alle;
 
     public List<Lehrer> Lehrer { get; private set; }
@@ -463,21 +466,23 @@ public sealed class BerichtAuswahlDialog : Dialog
     public DateOnly Von => DateOnly.FromDateTime(_von.Value);
     public DateOnly Bis => DateOnly.FromDateTime(_bis.Value);
 
-    public BerichtAuswahlDialog(string titel, DateOnly von, DateOnly bis, bool mitLehrer, bool mitDetails) : base(titel, 330, 230)
+    public BerichtAuswahlDialog(string titel, DateOnly von, DateOnly bis, bool mitLehrer, bool mitDetails) : base(titel, 300, 232)
     {
         Ok.Text = "Ok";
-        Ok.Left = 12;
+        Ok.Anchor = Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        Ok.SetBounds(22, 201, 75, 23);
+        Abbrechen.SetBounds(202, 201, 77, 23);
         _alle = Stammdaten.Sortiert(AppZustand.D.Lehrer).ToList();
         Lehrer = _alle.ToList();
-        var auswahl = new Button { Text = "Auswahl...", Left = 40, Top = 22, Width = 120, Height = 25 };
+        var auswahl = new Button { Text = "Auswahl...", Left = 34, Top = 17, Width = 75, Height = 23 };
         auswahl.Click += (_, _) => Auswaehlen();
         _lehrerGruppe.Controls.Add(auswahl);
         _lehrerGruppe.Visible = mitLehrer;
         LehrerText();
         Controls.Add(_lehrerGruppe);
-        Controls.Add(new Label { Text = "Von", Left = 12, Top = 82, AutoSize = true });
-        Controls.Add(new Label { Text = "Bis", Left = 116, Top = 82, AutoSize = true });
-        Controls.Add(new Label { Text = "Monat", Left = 12, Top = 128, AutoSize = true });
+        Controls.Add(new Label { Text = "Von", Left = 6, Top = 55, AutoSize = true });
+        Controls.Add(new Label { Text = "Bis", Left = 102, Top = 55, AutoSize = true });
+        Controls.Add(new Label { Text = "Monat", Left = 6, Top = 99, AutoSize = true });
         _von.Value = von.ToDateTime(TimeOnly.MinValue);
         _bis.Value = bis.ToDateTime(TimeOnly.MinValue);
         var d = AppZustand.D;
@@ -491,9 +496,9 @@ public sealed class BerichtAuswahlDialog : Dialog
             _bis.Value = m.AddMonths(1).AddDays(-1);
         };
         Controls.AddRange(new Control[] { _von, _bis, _monat });
-        var details = new Button { Text = "Druck - Details", Left = 220, Top = 14, Width = 100, Height = 25, Visible = mitDetails };
-        var ueber = new Button { Text = "Überschrift", Left = 220, Top = 44, Width = 100, Height = 25 };
-        var schrift = new Button { Text = "Schrift", Left = 220, Top = 74, Width = 100, Height = 25 };
+        var details = new Button { Text = "Druck - Details", Left = 202, Top = 9, Width = 84, Height = 23, Visible = mitDetails };
+        var ueber = new Button { Text = "Überschrift", Left = 202, Top = 34, Width = 84, Height = 23 };
+        var schrift = new Button { Text = "Schrift", Left = 202, Top = 59, Width = 84, Height = 23 };
         details.Click += (_, _) => { if (EigeneDetails != null) EigeneDetails(this); else DetailsZeigen(); };
         ueber.Click += (_, _) => { if (Ui.Eingabe("Überschrift des Berichts:", "Überschrift", Ueberschrift) is { } t) Ueberschrift = t; };
         schrift.Click += (_, _) =>
@@ -501,7 +506,7 @@ public sealed class BerichtAuswahlDialog : Dialog
             if (Ui.Eingabe("Schriftgröße in %:", "Schrift", Schrift.ToString()) is { } t && int.TryParse(t, out var p)) Schrift = Math.Clamp(p, 50, 200);
         };
         // „Seite einrichten“: Ränder sowie Kopf- und Fußzeile des Drucks aus der Berichtsansicht
-        var seite = new Button { Text = "Seite Einrichten", Left = 220, Top = 104, Width = 100, Height = 25 };
+        var seite = new Button { Text = "Seite Einrichten", Left = 202, Top = 84, Width = 84, Height = 23, AutoEllipsis = true };
         seite.Click += (_, _) =>
         {
             try { BerichtsansichtFenster.SeiteEinrichtenOhneBericht(); }
@@ -522,23 +527,29 @@ public sealed class BerichtAuswahlDialog : Dialog
         LehrerText();
     }
 
+    private void DetailsZeigen() => DetailsDialog(this, Details);
+
     /// <summary>„Details“ der Vertretungs-Abrechnung wie im Handbuch.</summary>
-    private void DetailsZeigen()
+    internal static void DetailsDialog(IWin32Window owner, StatistikBerichte.AbrechnungsDetails Details)
     {
-        using var f = new Dialog("Details", 270, 230);
+        // Maße nach dem Handbuch-Bild (96 dpi): 270 × 232, OK breit links, Cancel rechts
+        using var f = new Dialog("Details", 270, 232);
         f.Ok.Text = "OK";
         f.Abbrechen.Text = "Cancel";
-        var seite = new CheckBox { Text = "1 Seite / Element", Left = 12, Top = 10, AutoSize = true, Checked = Details.EineSeiteJeElement };
-        var uebertrag = new CheckBox { Text = "Summe mit Übertrag", Left = 12, Top = 32, AutoSize = true, Checked = Details.SummeMitUebertrag };
-        var det = new CheckBox { Text = "Details", Left = 12, Top = 68, AutoSize = true, Checked = Details.Details };
-        var ohneB = new CheckBox { Text = "Ohne Bereitschaften", Left = 30, Top = 90, AutoSize = true, Checked = Details.OhneBereitschaften };
-        var ohneP = new CheckBox { Text = "Ohne Pausenaufsichten", Left = 30, Top = 112, AutoSize = true, Checked = Details.OhnePausenaufsichten };
-        var monate = new CheckBox { Text = "Zwischensummen für Monate ausgeb...", Left = 12, Top = 156, AutoSize = true, Checked = Details.ZwischensummenMonate };
+        f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        f.Ok.SetBounds(10, 197, 121, 23);
+        f.Abbrechen.SetBounds(172, 197, 75, 23);
+        var seite = new CheckBox { Text = "1 Seite / Element", Left = 11, Top = 12, AutoSize = true, Checked = Details.EineSeiteJeElement };
+        var uebertrag = new CheckBox { Text = "Summe mit Übertrag", Left = 11, Top = 30, AutoSize = true, Checked = Details.SummeMitUebertrag };
+        var det = new CheckBox { Text = "Details", Left = 11, Top = 69, AutoSize = true, Checked = Details.Details };
+        var ohneB = new CheckBox { Text = "Ohne Bereitschaften", Left = 29, Top = 87, AutoSize = true, Checked = Details.OhneBereitschaften };
+        var ohneP = new CheckBox { Text = "Ohne Pausenaufsichten", Left = 29, Top = 106, AutoSize = true, Checked = Details.OhnePausenaufsichten };
+        var monate = new CheckBox { Text = "Zwischensummen für Monate ausgeben", Left = 11, Top = 173, Width = 225, Height = 19, AutoEllipsis = true, Checked = Details.ZwischensummenMonate };
         void Freigeben() => ohneB.Enabled = ohneP.Enabled = det.Checked;
         det.CheckedChanged += (_, _) => Freigeben();
         Freigeben();
         f.Controls.AddRange(new Control[] { seite, uebertrag, det, ohneB, ohneP, monate });
-        if (f.ShowDialog(this) != DialogResult.OK) return;
+        if (f.ShowDialog(owner) != DialogResult.OK) return;
         Details.EineSeiteJeElement = seite.Checked;
         Details.SummeMitUebertrag = uebertrag.Checked;
         Details.Details = det.Checked;
@@ -546,4 +557,99 @@ public sealed class BerichtAuswahlDialog : Dialog
         Details.OhnePausenaufsichten = ohneP.Checked;
         Details.ZwischensummenMonate = monate.Checked;
     }
+}
+
+/// <summary>
+/// Druckauswahl der Lehrer-Stammdaten wie im Handbuch-Bild (Maße auf 96 dpi umgerechnet): links „Lehrer: n/m“ mit „Auswahl“, die
+/// Datumsfelder Von/Bis, „Monat“, „Listart“ (Stammdatenliste, Mehrarbeit, Monatsabrechnung, Wertkorrektur …), darunter
+/// „Druck nur, wenn geändert nach ..“ (Datum, Uhrzeit, „Heute“) und „PDF“; rechts „Details“, „Seite Einrichten“ und „Überschrift“.
+/// </summary>
+public sealed class LehrerDruckauswahlDialog : Dialog
+{
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 15, Top = 53, Width = 83 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 112, Top = 53, Width = 84 };
+    private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 15, Top = 89, Width = 83 };
+    private readonly ComboBox _listart = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 12, Top = 125, Width = 184 };
+    private readonly GroupBox _lehrerGruppe = new() { Left = 13, Top = 8, Width = 184, Height = 40 };
+    private readonly Button _details = new() { Text = "Details", Left = 225, Top = 12, Width = 115, Height = 22 };
+    private readonly List<Lehrer> _alle;
+
+    public List<Lehrer> Lehrer { get; private set; }
+    public StatistikBerichte.AbrechnungsDetails Details { get; } = new();
+    public string Ueberschrift { get; private set; } = "";
+    public string Listart => _listart.SelectedItem as string ?? StatistikBerichte.ListartStammdaten;
+    public DateOnly Von => DateOnly.FromDateTime(_von.Value);
+    public DateOnly Bis => DateOnly.FromDateTime(_bis.Value);
+    /// <summary>Druck nur, wenn geändert nach … (Datum und Uhrzeit).</summary>
+    public DateTime GeaendertNach { get; private set; } = new(1970, 1, 1, 1, 0, 0);
+    /// <summary>„PDF“ gewählt: Bericht direkt als PDF-Datei ausgeben.</summary>
+    public bool PdfGewaehlt { get; private set; }
+
+    public LehrerDruckauswahlDialog(DateOnly von, DateOnly bis, string listart) : base("Druckauswahl", 357, 248)
+    {
+        Ok.Text = "Ok";
+        Ok.Anchor = Abbrechen.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+        Ok.SetBounds(205, 214, 70, 22);
+        Abbrechen.SetBounds(281, 214, 70, 22);
+        _alle = Stammdaten.Sortiert(AppZustand.D.Lehrer).ToList();
+        Lehrer = _alle.ToList();
+        var auswahl = new Button { Text = "Auswahl", Left = 26, Top = 13, Width = 137, Height = 21 };
+        auswahl.Click += (_, _) =>
+        {
+            var ids = Druck.ElementAuswahlDialog.Zeigen(this, ElementTyp.Lehrer, Lehrer.Select(l => l.Id));
+            if (ids is null) return;
+            var gewaehlt = ids.ToHashSet();
+            Lehrer = _alle.Where(l => gewaehlt.Contains(l.Id)).ToList();
+            LehrerText();
+        };
+        _lehrerGruppe.Controls.Add(auswahl);
+        LehrerText();
+        _von.Value = von.ToDateTime(TimeOnly.MinValue);
+        _bis.Value = bis.ToDateTime(TimeOnly.MinValue);
+        var d = AppZustand.D;
+        _monat.Items.Add("");
+        for (var m = new DateTime(d.Einstellungen.SchuljahrVon.Year, d.Einstellungen.SchuljahrVon.Month, 1); m <= d.Einstellungen.SchuljahrBis.ToDateTime(TimeOnly.MinValue); m = m.AddMonths(1)) _monat.Items.Add(m);
+        _monat.Format += (_, e) => { if (e.ListItem is DateTime m) e.Value = m.ToString("MMM yyyy", Format.De); };
+        _monat.SelectedIndexChanged += (_, _) =>
+        {
+            if (_monat.SelectedItem is not DateTime m) return;
+            _von.Value = m;
+            _bis.Value = m.AddMonths(1).AddDays(-1);
+        };
+        _listart.Items.AddRange(StatistikBerichte.LehrerListarten);
+        _listart.SelectedIndex = Math.Max(0, Array.IndexOf(StatistikBerichte.LehrerListarten, listart));
+        // „Details“ nur für die Vertretungs-Abrechnung (1 Seite / Element, Summe mit Übertrag, Ohne Bereitschaften …)
+        void Freigeben() => _details.Enabled = Listart == StatistikBerichte.Abrechnung;
+        _listart.SelectedIndexChanged += (_, _) => Freigeben();
+        Freigeben();
+        _details.Click += (_, _) => BerichtAuswahlDialog.DetailsDialog(this, Details);
+        var seite = new Button { Text = "Seite Einrichten", Left = 225, Top = 69, Width = 115, Height = 22 };
+        seite.Click += (_, _) =>
+        {
+            try { BerichtsansichtFenster.SeiteEinrichtenOhneBericht(); }
+            catch (Exception ex) { Ui.Fehler(ex); }
+        };
+        var ueber = new Button { Text = "Überschrift", Left = 225, Top = 97, Width = 115, Height = 22 };
+        ueber.Click += (_, _) => { if (Ui.Eingabe("Überschrift des Berichts:", "Überschrift", Ueberschrift) is { } t) Ueberschrift = t; };
+
+        var geaendert = new GroupBox { Text = "Druck nur, wenn geändert nach ..", Left = 11, Top = 152, Width = 332, Height = 45 };
+        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 16, Width = 101, Value = GeaendertNach.Date };
+        var zeit = new DateTimePicker { Format = DateTimePickerFormat.Time, ShowUpDown = true, Left = 120, Top = 16, Width = 80, Value = GeaendertNach };
+        var heute = new Button { Text = "Heute", Left = 225, Top = 16, Width = 75, Height = 22 };
+        heute.Click += (_, _) => { datum.Value = DateTime.Today; zeit.Value = DateTime.Today; };
+        geaendert.Controls.AddRange(new Control[] { datum, zeit, heute });
+        var pdfGruppe = new GroupBox { Text = "PDF", Left = 11, Top = 200, Width = 184, Height = 40 };
+        var pdf = new Button { Text = "PDF", Left = 10, Top = 13, Width = 137, Height = 21 };
+        pdf.Click += (_, _) => { PdfGewaehlt = true; DialogResult = DialogResult.OK; };
+        pdfGruppe.Controls.Add(pdf);
+        FormClosing += (_, _) => GeaendertNach = datum.Value.Date + zeit.Value.TimeOfDay;
+        Controls.AddRange(new Control[]
+        {
+            _lehrerGruppe, _von, _bis, new Label { Text = "Monat", Left = 15, Top = 75, AutoSize = true }, _monat,
+            new Label { Text = "Listart", Left = 11, Top = 110, AutoSize = true }, _listart,
+            _details, seite, ueber, geaendert, pdfGruppe,
+        });
+    }
+
+    private void LehrerText() => _lehrerGruppe.Text = $"Lehrer: {Lehrer.Count}/{_alle.Count}";
 }

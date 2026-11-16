@@ -5,9 +5,13 @@ namespace UntPlan.App.Fenster;
 /// <summary>Ein- und ausklappbarer Bereich der Vertretungsstatistik (grüne Titelleiste mit schwarzem Pfeil wie im Handbuch).</summary>
 public sealed class Abschnitt : Panel
 {
-    public static readonly Color Leiste = Color.FromArgb(178, 210, 152);
-    public static readonly Color Grund = Color.FromArgb(222, 236, 210);
-    private readonly Panel _kopf = new() { Dock = DockStyle.Top, Height = 20, BackColor = Leiste, Cursor = Cursors.Hand };
+    // Farben und Kopfhöhe (19 px) aus dem Handbuch-Bild gemessen
+    public static readonly Color Leiste = Color.FromArgb(174, 207, 147);
+    public static readonly Color Grund = Color.FromArgb(220, 237, 206);
+    /// <summary>Schrift der Vertretungsstatistik wie im Handbuch-Bild: Tahoma 8,25 (Kopfzeilen fett).</summary>
+    public static readonly Font Schrift = new("Tahoma", 8.25f);
+    public static readonly Font SchriftFett = new("Tahoma", 8.25f, FontStyle.Bold);
+    private readonly Panel _kopf = new() { Dock = DockStyle.Top, Height = 19, BackColor = Leiste, Cursor = Cursors.Hand };
     private readonly Label _pfeil = new() { Dock = DockStyle.Right, Width = 20, Text = "▼", TextAlign = ContentAlignment.MiddleCenter };
     private readonly Control _inhalt;
     private readonly int _standard;
@@ -20,7 +24,7 @@ public sealed class Abschnitt : Panel
         BackColor = Grund;
         Margin = new Padding(2, 2, 2, 4);
         BorderStyle = BorderStyle.FixedSingle;
-        var t = new Label { Text = titel, Dock = DockStyle.Fill, Font = Ui.SchriftFett, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(40, 60, 30) };
+        var t = new Label { Text = titel, Dock = DockStyle.Fill, Font = SchriftFett, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Color.FromArgb(40, 60, 30) };
         _kopf.Controls.Add(t);
         _kopf.Controls.Add(_pfeil);
         inhalt.Dock = DockStyle.Fill;

@@ -33,7 +33,7 @@ public sealed class TagestextFormatDialog : Form
         MaximizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(330, 300);
+        ClientSize = new Size(382, 174); // wie die Abbildung im Handbuch (Kap. 13.5.1, 96 dpi)
         MinimumSize = new Size(260, 200);
         BackColor = Color.FromArgb(240, 240, 240);
 
@@ -57,12 +57,12 @@ public sealed class TagestextFormatDialog : Form
         var innen = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(3) };
         innen.Controls.Add(_text);
         rahmen.Controls.Add(innen);
-        var mitte = new Panel { Dock = DockStyle.Fill, Padding = new Padding(4, 2, 4, 4) };
+        var mitte = new Panel { Dock = DockStyle.Fill, Padding = new Padding(3, 20, 3, 0) };
         mitte.Controls.Add(rahmen);
 
-        var fuss = new Panel { Dock = DockStyle.Bottom, Height = 34 };
-        var ok = new Button { Text = "Ok", DialogResult = DialogResult.OK, Left = 4, Top = 5, Width = 80, Height = 23 };
-        var abbrechen = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, Left = 92, Top = 5, Width = 84, Height = 23 };
+        var fuss = new Panel { Dock = DockStyle.Bottom, Height = 33 };
+        var ok = new Button { Text = "Ok", DialogResult = DialogResult.OK, Left = 5, Top = 5, Width = 89, Height = 25 };
+        var abbrechen = new Button { Text = "Abbrechen", DialogResult = DialogResult.Cancel, Left = 111, Top = 5, Width = 89, Height = 25 };
         fuss.Controls.Add(ok);
         fuss.Controls.Add(abbrechen);
         AcceptButton = null; // Eingabetaste erzeugt im Textfeld einen Zeilenumbruch

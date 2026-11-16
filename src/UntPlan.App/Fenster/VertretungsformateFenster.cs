@@ -6,7 +6,7 @@ namespace UntPlan.App.Fenster;
 
 /// <summary>
 /// „Formate / Vertretung“ wie im Handbuch (Kap. 13.1.1 und 13.3): alle Vertretungsformate mit Name, Langname, Standard, Art, Tagesliste
-/// und Art2. Symbolleiste: Art (Alle, Klasse, Lehrer), Neu (Kopie des markierten Formats), Ansicht zeigen (auch Doppelklick) und Löschen.
+/// Art2 und Geschützt (Spaltenbreiten und Zeilenhöhe nach der Abbildung im Handbuch). Symbolleiste: Art (Alle, Klasse, Lehrer), Neu (Kopie des markierten Formats), Ansicht zeigen (auch Doppelklick) und Löschen.
 /// Mit dem Häkchen „Tagesliste“ werden die Formate über „Ausgabe ▸ Tageslisten“ mit einem Klick gedruckt.
 /// </summary>
 public sealed class VertretungsformateFenster : MdiFenster
@@ -21,7 +21,7 @@ public sealed class VertretungsformateFenster : MdiFenster
         Text = "Formate / Vertretung";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("uebersicht");
-        Size = new Size(470, 330);
+        Size = new Size(483, 330);
         Positionieren();
         var ts = Werkzeugleiste();
         _art.Image = Symbole.Get("uebersicht", 16);
@@ -41,20 +41,26 @@ public sealed class VertretungsformateFenster : MdiFenster
         _g.AllowUserToDeleteRows = false;
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = false;
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "N", HeaderText = "Name", Width = 70 });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "L", HeaderText = "Langname", Width = 140 });
-        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "S", HeaderText = "Standard", Width = 58 });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "A", HeaderText = "Art", Width = 54, ReadOnly = true });
-        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "T", HeaderText = "Tagesliste", Width = 64 });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "A2", HeaderText = "Art2", Width = 44, ReadOnly = true });
+        // Zeilen- und Kopfhöhe wie im Vorbild (17 Pixel bei 96 dpi; bei größerer Schrift nichts abgeschnitten)
+        _g.RowTemplate.Height = Math.Max(17, _g.Font.Height + 1);
+        _g.ColumnHeadersHeight = Math.Max(17, _g.Font.Height + 1);
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "N", HeaderText = "Name", Width = 59 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "L", HeaderText = "Langname", Width = 97 });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "S", HeaderText = "Standard", Width = 60 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "A", HeaderText = "Art", Width = 60, ReadOnly = true });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "T", HeaderText = "Tagesliste", Width = 60 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "A2", HeaderText = "Art2", Width = 35, ReadOnly = true });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "G", HeaderText = "Geschützt", Width = 60, ToolTipText = "Geschützte Formate können weder umbenannt noch gelöscht werden." });
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex].ReadOnly) AnsichtZeigen(); };
         _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex] is DataGridViewCheckBoxColumn) _g.EndEdit(); };
         _g.CurrentCellDirtyStateChanged += (_, _) => { if (_g.CurrentCell is DataGridViewCheckBoxCell) _g.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         _g.CellValueChanged += ZelleGeaendert;
         _g.CellBeginEdit += (_, e) =>
         {
-            // Langname der mitgelieferten Formate ist fest (Schlüssel der Ansicht)
-            if (e.RowIndex >= 0 && _g.Columns[e.ColumnIndex].Name == "L" && _g.Rows[e.RowIndex].Tag is Vertretungsformat { Eigen: false }) e.Cancel = true;
+            // Langname der mitgelieferten Formate ist fest (Schlüssel der Ansicht); geschützte Formate: Name und Langname fest
+            if (e.RowIndex < 0 || _g.Rows[e.RowIndex].Tag is not Vertretungsformat f) return;
+            var spalte = _g.Columns[e.ColumnIndex].Name;
+            if (spalte == "L" && !f.Eigen || spalte is "N" or "L" && f.Geschuetzt) e.Cancel = true;
         };
         Controls.Add(_g);
         Controls.Add(ts);
@@ -76,7 +82,7 @@ public sealed class VertretungsformateFenster : MdiFenster
             _g.Rows.Clear();
             foreach (var f in Formate.Where(f => _filter is null || f.Art == _filter))
             {
-                var i = _g.Rows.Add(f.Name, f.Langname, f.Standard, f.Art == VertretungsformatArt.Lehrer ? "Lehrer" : "Klasse", f.Tagesliste, "Vertr.");
+                var i = _g.Rows.Add(f.Name, f.Langname, f.Standard, f.Art == VertretungsformatArt.Lehrer ? "Lehrer" : "Klasse", f.Tagesliste, "Vertr.", f.Geschuetzt);
                 _g.Rows[i].Tag = f;
                 if (!f.Eigen) _g.Rows[i].Cells["L"].Style.ForeColor = Color.FromArgb(60, 60, 60);
             }
@@ -102,6 +108,9 @@ public sealed class VertretungsformateFenster : MdiFenster
                 break;
             case "T":
                 f.Tagesliste = zelle.Value is true;
+                break;
+            case "G":
+                f.Geschuetzt = zelle.Value is true;
                 break;
             case "N":
                 var name = zelle.Value?.ToString()?.Trim() ?? "";
@@ -144,6 +153,7 @@ public sealed class VertretungsformateFenster : MdiFenster
     {
         if (Aktuell() is not { } f) return;
         if (!f.Eigen) { Ui.Info($"Das mitgelieferte Format „{f.Langname}“ kann nicht gelöscht werden."); return; }
+        if (f.Geschuetzt) { Ui.Info($"Das Format „{f.Langname}“ ist geschützt und kann nicht gelöscht werden."); return; }
         if (!Ui.LoeschenBestaetigen(1, "Vertretungsformat", "Vertretungsformate", f.Langname)) return;
         VertretungenFenster.FormatLoeschen(f);
         Neuaufbau();

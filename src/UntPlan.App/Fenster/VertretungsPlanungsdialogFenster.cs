@@ -17,10 +17,12 @@ namespace UntPlan.App.Fenster;
 public sealed class VertretungsPlanungsdialogFenster : MdiFenster
 {
     private readonly TabControl _ansicht = new() { Dock = DockStyle.Top, Height = 22 };
-    private readonly ComboBox _element = new() { Left = 6, Top = 6, Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly Label _name = new() { Left = 166, Top = 9, Width = 260, Text = "Name" };
-    private readonly DateTimePicker _woche1 = new() { Left = 6, Top = 34, Width = 110, Format = DateTimePickerFormat.Short };
-    private readonly DateTimePicker _woche2 = new() { Left = 188, Top = 34, Width = 110, Format = DateTimePickerFormat.Short };
+    // Auswahlfenster wie in der Handbuch-Abbildung (96 dpi): Element 132 breit mit „Name“ rechts daneben, darunter Woche-1 und
+    // Woche-2 (je 75 breit mit Drehknopf und Beschriftung)
+    private readonly ComboBox _element = new() { Left = 11, Top = 12, Width = 132, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Label _name = new() { Left = 147, Top = 15, Width = 260, Text = "Name" };
+    private readonly DateTimePicker _woche1 = new() { Left = 11, Top = 39, Width = 76, Format = DateTimePickerFormat.Short };
+    private readonly DateTimePicker _woche2 = new() { Left = 162, Top = 39, Width = 76, Format = DateTimePickerFormat.Short };
     private readonly PlanungsRaster _raster = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _lupe = new() { Dock = DockStyle.Bottom, Height = 96, Name = "Lupe" };
     private readonly ToolStripButton _beibehalten;
@@ -80,15 +82,20 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
             ElementlisteFuellen();
             Neuaufbau();
         };
-        var auswahl = new Panel { Dock = DockStyle.Top, Height = 62 };
-        var dreh = new Drehknopf("Nächstes / vorheriges Element") { Left = 138, Top = 6 };
-        dreh.Gedreht += r => Blaettern(r);
-        auswahl.Controls.AddRange(new Control[] { _element, dreh, _name, _woche1, _woche2 });
-        var d1 = new Drehknopf("Woche vor / zurück") { Left = 118, Top = 34 };
+        var auswahl = new Panel { Dock = DockStyle.Top, Height = 72, Font = VorbildMasse.Schrift };
+        // wie im Vorbild ohne Drehknopf neben dem Element: Bild auf / Bild ab blättert zum vorherigen bzw. nächsten Element
+        _element.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode is not (Keys.PageUp or Keys.PageDown)) return;
+            Blaettern(e.KeyCode == Keys.PageDown ? 1 : -1);
+            e.Handled = e.SuppressKeyPress = true;
+        };
+        auswahl.Controls.AddRange(new Control[] { _element, _name, _woche1, _woche2 });
+        var d1 = new Drehknopf("Woche vor / zurück") { Left = 89, Top = 39 };
         d1.Gedreht += r => _woche1.Value = _woche1.Value.AddDays(7 * r);
-        var d2 = new Drehknopf("Woche vor / zurück") { Left = 300, Top = 34 };
+        var d2 = new Drehknopf("Woche vor / zurück") { Left = 240, Top = 39 };
         d2.Gedreht += r => _woche2.Value = _woche2.Value.AddDays(7 * r);
-        auswahl.Controls.AddRange(new Control[] { d1, new Label { Text = "Woche-1", Left = 136, Top = 38, AutoSize = true }, d2, new Label { Text = "Woche-2", Left = 318, Top = 38, AutoSize = true } });
+        auswahl.Controls.AddRange(new Control[] { d1, new Label { Text = "Woche-1", Left = 104, Top = 43, AutoSize = true }, d2, new Label { Text = "Woche-2", Left = 255, Top = 43, AutoSize = true } });
         var montag = Kalender.Montag(AppZustand.Datum);
         _woche1.Value = montag.ToDateTime(TimeOnly.MinValue);
         _woche2.Value = montag.AddDays(7).ToDateTime(TimeOnly.MinValue);
@@ -815,19 +822,22 @@ public static class VertretungsPlanungsdialogEinstellungen
 {
     public static bool Zeigen(IWin32Window owner, PlanungsdialogEinstellungen e)
     {
-        using var d = new Dialog("Einstellungen", 380, 150);
-        var darstellung = new GroupBox { Text = "Darstellung", Left = 8, Top = 6, Width = 160, Height = 80 };
-        var r0 = new RadioButton { Text = "Stunden-Merker (O,X,..)", Left = 8, Top = 16, Width = 148, Checked = e.VertretungDarstellung == 0 };
-        var r1 = new RadioButton { Text = "Fächer", Left = 8, Top = 36, Width = 148, Checked = e.VertretungDarstellung == 1 };
-        var r2 = new RadioButton { Text = "Klassen / Lehrer", Left = 8, Top = 56, Width = 148, Checked = e.VertretungDarstellung == 2 };
+        // Maße wie in der Handbuch-Abbildung (96 dpi): Fenster 381 × 165, Gruppen „Darstellung“ und „Orientierung“, darunter
+        // Spaltenbreite (Eingabefeld) und die Schaltflächen Ok, Schrift, Abbrechen
+        using var d = new Dialog("Einstellungen", 381, 165) { Font = VorbildMasse.Schrift };
+        var darstellung = new GroupBox { Text = "Darstellung", Left = 10, Top = 11, Width = 173, Height = 77 };
+        var r0 = new RadioButton { Text = "Stunden-Merker (O,X,..)", Left = 9, Top = 17, Width = 160, Height = 17, Checked = e.VertretungDarstellung == 0 };
+        var r1 = new RadioButton { Text = "Fächer", Left = 9, Top = 37, Width = 160, Height = 17, Checked = e.VertretungDarstellung == 1 };
+        var r2 = new RadioButton { Text = "Klassen / Lehrer", Left = 9, Top = 56, Width = 160, Height = 17, Checked = e.VertretungDarstellung == 2 };
         darstellung.Controls.AddRange(new Control[] { r0, r1, r2 });
-        var orientierung = new GroupBox { Text = "Orientierung", Left = 176, Top = 6, Width = 196, Height = 80 };
-        var o1 = new RadioButton { Text = "Datum waagrecht, Stunden senkrecht", Left = 8, Top = 16, Width = 184, Height = 30, Checked = e.VertretungDatumZeilen };
-        var o2 = new RadioButton { Text = "Stunden waagrecht, Datum senkrecht", Left = 8, Top = 46, Width = 184, Height = 30, Checked = !e.VertretungDatumZeilen };
+        var orientierung = new GroupBox { Text = "Orientierung", Left = 192, Top = 11, Width = 173, Height = 87 };
+        var o1 = new RadioButton { Text = "Datum waagrecht, Stunden senkrecht", Left = 9, Top = 18, Width = 160, Height = 30, Checked = e.VertretungDatumZeilen };
+        var o2 = new RadioButton { Text = "Stunden waagrecht, Datum senkrecht", Left = 9, Top = 53, Width = 160, Height = 30, Checked = !e.VertretungDatumZeilen };
         orientierung.Controls.AddRange(new Control[] { o1, o2 });
-        var breite = new NumericUpDown { Left = 8, Top = 92, Width = 52, Minimum = 200, Maximum = 2000, Increment = 50, Value = Math.Clamp(e.VertretungSpaltenbreite, 200, 2000) };
+        var breite = new TextBox { Left = 10, Top = 97, Width = 38, Text = Math.Clamp(e.VertretungSpaltenbreite, 200, 2000).ToString() };
+        breite.KeyPress += (_, ev) => { if (!char.IsControl(ev.KeyChar) && !char.IsDigit(ev.KeyChar)) ev.Handled = true; };
         var schrift = new Font(e.Schriftart, e.Schriftgroesse);
-        var schriftKnopf = new Button { Text = "Schrift", Width = 88, Height = 26 };
+        var schriftKnopf = new Button { Text = "Schrift", Size = VorbildMasse.Knopf };
         schriftKnopf.Click += (_, _) =>
         {
             using var fd = new FontDialog { Font = schrift, ShowEffects = false };
@@ -835,14 +845,15 @@ public static class VertretungsPlanungsdialogEinstellungen
         };
         // Schaltflächen wie im Vorbild: Ok, Schrift, Abbrechen
         d.Ok.Text = "Ok";
-        d.Ok.Location = new Point(8 + 80, 114);
-        schriftKnopf.Location = new Point(8 + 176, 114);
-        d.Abbrechen.Location = new Point(8 + 272, 114);
-        d.Controls.AddRange(new Control[] { darstellung, orientierung, breite, new Label { Text = "Spaltenbreite", Left = 64, Top = 95, AutoSize = true }, schriftKnopf });
+        d.Ok.Size = d.Abbrechen.Size = VorbildMasse.Knopf;
+        d.Ok.Location = new Point(55, 132);
+        schriftKnopf.Location = new Point(148, 132);
+        d.Abbrechen.Location = new Point(238, 132);
+        d.Controls.AddRange(new Control[] { darstellung, orientierung, breite, new Label { Text = "Spaltenbreite", Left = 58, Top = 101, AutoSize = true }, schriftKnopf });
         if (d.ShowDialog(owner) != DialogResult.OK) return false;
         e.VertretungDarstellung = r0.Checked ? 0 : r1.Checked ? 1 : 2;
         e.VertretungDatumZeilen = o1.Checked;
-        e.VertretungSpaltenbreite = (int)breite.Value;
+        e.VertretungSpaltenbreite = int.TryParse(breite.Text, out var sb) ? Math.Clamp(sb, 200, 2000) : e.VertretungSpaltenbreite;
         e.Schriftart = schrift.Name;
         e.Schriftgroesse = schrift.SizeInPoints;
         return true;

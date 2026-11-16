@@ -11,7 +11,8 @@ namespace UntPlan.App.Dialoge;
 /// </summary>
 public sealed class VertretungsDiagnoseDialog : Form
 {
-    private readonly DataGridView _g = new() { Left = 8, Top = 44, Width = 300, Height = 300, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+    // Maße nach dem Handbuch-Bild (96 dpi): Fenster 279 × 269, Schaltfläche 142 × 28, Raster ab y = 38 mit Zeilen zu 15 px
+    private readonly DataGridView _g = new() { Left = 1, Top = 38, Width = 277, Height = 230, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
     private readonly DateOnly _von;
     private readonly DateOnly _bis;
 
@@ -21,20 +22,29 @@ public sealed class VertretungsDiagnoseDialog : Form
         _bis = bis;
         Text = "Diagnose";
         Font = Ui.Schrift;
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(316, 352);
-        var pruefen = new Button { Text = "Vertretungen prüfen", Left = 20, Top = 10, Width = 130, Height = 26 };
+        ClientSize = new Size(279, 269);
+        var pruefen = new Button { Text = "Vertretungen prüfen", Left = 7, Top = 6, Width = 142, Height = 28 };
+        var linie = new Label { Left = 0, Top = 36, Width = 279, Height = 2, BorderStyle = BorderStyle.Fixed3D, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
         pruefen.Click += (_, _) => Pruefen();
         Ui.RasterGestalten(_g, false);
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = false;
         _g.RowHeadersVisible = false;
-        foreach (var (n, k, b) in new[] { ("N", "Vtr-Nr.", 50), ("V", "Vertreter", 70), ("A", "", 150) }) _g.Columns[_g.Columns.Add(n, k)].Width = b;
-        _g.Columns["A"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+        _g.ReadOnly = true;
+        _g.AllowUserToAddRows = false;
+        _g.BorderStyle = BorderStyle.None;
+        _g.BackgroundColor = SystemColors.Control;
+        _g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        _g.ColumnHeadersHeight = 15;
+        _g.RowTemplate.Height = 15;
+        foreach (var (n, k, b) in new[] { ("N", "Vtr-Nr.", 38), ("V", "Vertreter", 50), ("A", "", 77) }) _g.Columns[_g.Columns.Add(n, k)].Width = b;
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && _g.Rows[e.RowIndex].Tag is Vertretung v) AppZustand.VertretungWaehlen(v); };
         Controls.Add(pruefen);
+        Controls.Add(linie);
         Controls.Add(_g);
         AppZustand.Doc.Geaendert += Geaendert;
         FormClosed += (_, _) => AppZustand.Doc.Geaendert -= Geaendert;

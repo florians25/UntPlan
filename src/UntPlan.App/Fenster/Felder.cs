@@ -314,14 +314,15 @@ public static class Felder
                 break;
             case ElementTyp.Abwesenheitsgrund:
                 // Spalten wie im Handbuch: Name, Langname, Beschr., Entf zählen, FS n.zählen, N. in Abs.kopf, Statistik
-                // Breiten wie in der Vorlage (Name schmal, Langname breit, Kontrollkästchen mit voller Überschrift)
-                l.Add(T("Kurzname", "Name", e => e.Kurzname, null, std: true, breite: 50));
-                l.Add(T("Langname", "Langname", e => e.Langname, (e, v) => e.Langname = (string)v!, std: true, breite: 176));
-                l.Add(T("Beschreibung", "Beschr.", e => e.Beschreibung, (e, v) => e.Beschreibung = (string)v!, std: true, breite: 60));
-                l.Add(F("EntfallZaehlen", "Entf zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemeines", true, 82));
-                l.Add(F("FreisetzungNichtZaehlen", "FS n.zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemeines", true, 86));
-                l.Add(F("NichtImAbsenzkopf", "N. in Abs.kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemeines", true, 98));
-                l.Add(T("Statistik", "Statistik", e => e.Statistik, (e, v) => e.Statistik = (string)v!, std: true, breite: 62));
+                // Breiten wie im Handbuch-Bild (Kap. 3.12.1, 96 dpi): Name 36, Langname 74, Beschr. 43, Entf zählen 67, FS n.zählen 63,
+                // N. in Abs.kopf 75, Statistik 46
+                l.Add(T("Kurzname", "Name", e => e.Kurzname, null, std: true, breite: 36));
+                l.Add(T("Langname", "Langname", e => e.Langname, (e, v) => e.Langname = (string)v!, std: true, breite: 74));
+                l.Add(T("Beschreibung", "Beschr.", e => e.Beschreibung, (e, v) => e.Beschreibung = (string)v!, std: true, breite: 43));
+                l.Add(F("EntfallZaehlen", "Entf zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).EntfallZaehlen, (e, v) => ((Abwesenheitsgrund)e).EntfallZaehlen = (bool)v!, "Allgemeines", true, 67));
+                l.Add(F("FreisetzungNichtZaehlen", "FS n.zählen", FeldArt.Bool, e => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen, (e, v) => ((Abwesenheitsgrund)e).FreisetzungNichtZaehlen = (bool)v!, "Allgemeines", true, 63));
+                l.Add(F("NichtImAbsenzkopf", "N. in Abs.kopf", FeldArt.Bool, e => ((Abwesenheitsgrund)e).NichtImAbsenzkopf, (e, v) => ((Abwesenheitsgrund)e).NichtImAbsenzkopf = (bool)v!, "Allgemeines", true, 75));
+                l.Add(T("Statistik", "Statistik", e => e.Statistik, (e, v) => e.Statistik = (string)v!, std: true, breite: 46));
                 l.Add(Gemeinsam().ElementAt(2));
                 l.Add(F("Statistikrelevant", "Statistikrelevant", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Statistikrelevant, (e, v) => ((Abwesenheitsgrund)e).Statistikrelevant = (bool)v!, "Allgemeines"));
                 l.Add(F("Vertraulich", "Vertraulich", FeldArt.Bool, e => ((Abwesenheitsgrund)e).Vertraulich, (e, v) => ((Abwesenheitsgrund)e).Vertraulich = (bool)v!, "Allgemeines"));

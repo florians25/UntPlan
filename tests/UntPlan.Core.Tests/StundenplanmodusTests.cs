@@ -101,6 +101,22 @@ public class BereitschaftsplanungTests
     }
 
     [Fact]
+    public void SetzenMitGewaehltemBereitschaftsfach()
+    {
+        var d = Demo.Beispielschule();
+        var erstes = Bereitschaftsplanung.FachSicherstellen(d);
+        var zweites = new Fach { Id = d.NeueId(), Kurzname = "BerD", Langname = "Deputatsbereitschaft", Bereitschaft = true };
+        d.Faecher.Add(zweites);
+        var l = d.Lehrer[0];
+        d.Stundenplan.RemoveAll(p => d.Unterrichte.Any(u => u.Id == p.UnterrichtId && u.Zeilen.Any(z => z.LehrerId == l.Id)));
+        Bereitschaftsplanung.Setzen(d, l.Id, 0, 1, zweites.Id);
+        Bereitschaftsplanung.Setzen(d, l.Id, 1, 1);
+        var stunden = Bereitschaftsplanung.Stunden(d).Where(b => b.Lehrer.Id == l.Id).ToList();
+        Assert.Contains(stunden, b => b.Tag == 0 && b.Unterricht.Zeilen[0].FachId == zweites.Id);
+        Assert.Contains(stunden, b => b.Tag == 1 && b.Unterricht.Zeilen[0].FachId == erstes.Id);
+    }
+
+    [Fact]
     public void BereitschaftWirdNieVertreten()
     {
         var d = Demo.Beispielschule();

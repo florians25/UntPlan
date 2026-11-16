@@ -92,9 +92,20 @@ public static class KommentarDialog
 {
     public static (int Kategorie, string Text)? Neu(IWin32Window owner, string titel, string text = "", int kategorie = 0)
     {
-        using var d = new Dialog(titel, 480, 260);
-        var t = new TextBox { Multiline = true, Left = 10, Top = 10, Width = 460, Height = 170, ScrollBars = ScrollBars.Vertical, Text = text };
-        var kat = new ComboBox { Left = 10, Top = 192, Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed, Font = Ui.ListenSchrift, ItemHeight = 18 };
+        // Aufbau wie im Handbuch-Bild (Kap. 4.5): großes Textfeld über die ganze Breite, darunter links die Kategorie (Farbfeld und Name),
+        // rechts Ok und Abbrechen dicht nebeneinander; Fenster in der Größe veränderbar
+        using var d = new Dialog(titel, 696, 412);
+        d.FormBorderStyle = FormBorderStyle.Sizable;
+        d.MinimumSize = new Size(360, 220);
+        var t = new TextBox { Multiline = true, Left = 1, Top = 5, Width = 694, Height = 373, ScrollBars = ScrollBars.Vertical, Text = text, AcceptsReturn = true,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var kat = new ComboBox { Left = 1, Top = 383, Width = 94, DropDownWidth = 180, DropDownStyle = ComboBoxStyle.DropDownList, DrawMode = DrawMode.OwnerDrawFixed, Font = Ui.ListenSchrift, ItemHeight = 18,
+            Anchor = AnchorStyles.Bottom | AnchorStyles.Left };
+        d.Ok.Text = "Ok";
+        d.Ok.SetBounds(543, 383, 75, 23);
+        d.Abbrechen.SetBounds(620, 383, 75, 23);
+        // Zeilenumbruch im Kommentar statt Ok
+        d.AcceptButton = null;
         foreach (var k in AppZustand.D.KommentarKategorien) kat.Items.Add(k);
         kat.DrawItem += (_, e) =>
         {

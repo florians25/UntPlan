@@ -12,13 +12,14 @@ public sealed class VertretungsautomatikDialog : Dialog
 {
     private readonly DateOnly _von;
     private readonly DateOnly _bis;
-    private readonly Label _vertretungen = new() { Left = 12, Top = 20, Width = 300, Height = 18 };
-    private readonly Label _raum = new() { Left = 12, Top = 40, Width = 300, Height = 18 };
-    private readonly Label _pause = new() { Left = 12, Top = 60, Width = 300, Height = 18 };
-    private readonly ComboBox _methode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 12, Top = 128, Width = 326 };
-    private readonly Button _start = new() { Left = 12, Top = 166, Width = 326, Height = 40 };
-    private readonly Label _schritt = new() { Left = 12, Top = 216, Width = 326, Height = 18, Text = "Vertreter statt: Lehrer (Fach / Klasse(n))" };
-    private readonly ProgressBar _fortschritt = new() { Left = 12, Top = 238, Width = 326, Height = 18, Style = ProgressBarStyle.Continuous };
+    // Maße wie im Handbuch-Bild (96 dpi): Fenster 348 × 266 ohne Schaltflächen unten, Rahmen 329 breit, Zeilen im Abstand von 19 Pixeln
+    private readonly Label _vertretungen = new() { Left = 12, Top = 16, Width = 300, Height = 17 };
+    private readonly Label _raum = new() { Left = 12, Top = 35, Width = 300, Height = 17 };
+    private readonly Label _pause = new() { Left = 12, Top = 54, Width = 300, Height = 17 };
+    private readonly ComboBox _methode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 10, Top = 111, Width = 329 };
+    private readonly Button _start = new() { Left = 10, Top = 149, Width = 329, Height = 50 };
+    private readonly Label _schritt = new() { Left = 10, Top = 206, Width = 329, Height = 18, Text = "Vertreter statt: Lehrer (Fach / Klasse(n))" };
+    private readonly ProgressBar _fortschritt = new() { Left = 10, Top = 232, Width = 329, Height = 22, Style = ProgressBarStyle.Continuous };
 
     public static void Zeigen(IWin32Window owner, DateOnly von, DateOnly bis)
     {
@@ -34,16 +35,22 @@ public sealed class VertretungsautomatikDialog : Dialog
         return f;
     }
 
-    private VertretungsautomatikDialog(DateOnly von, DateOnly bis) : base("Vertretungsautomatik", 350, 300)
+    private VertretungsautomatikDialog(DateOnly von, DateOnly bis) : base("Vertretungsautomatik", 348, 266)
     {
         _von = von;
         _bis = bis;
+        // wie im Vorbild ohne Schaltflächen unten: Schließen über das Kreuz der Titelleiste bzw. Esc
         Ok.Visible = false;
+        Abbrechen.Visible = false;
         Abbrechen.Text = "Schließen";
-        var rahmen = new GroupBox { Text = "offene Vertretungen", Left = 8, Top = 4, Width = 334, Height = 86 };
+        CancelButton = null;
+        AcceptButton = null;
+        KeyPreview = true;
+        KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { e.Handled = true; Close(); } };
+        var rahmen = new GroupBox { Text = "offene Vertretungen", Left = 10, Top = 10, Width = 329, Height = 75 };
         rahmen.Controls.AddRange(new Control[] { _vertretungen, _raum, _pause });
         Controls.Add(rahmen);
-        Controls.Add(new Label { Text = "Auswahl der Methode", Left = 12, Top = 106, AutoSize = true });
+        Controls.Add(new Label { Text = "Auswahl der Methode", Left = 10, Top = 92, AutoSize = true });
         foreach (var (_, text) in Vertretungsautomatik.Methoden) _methode.Items.Add(text);
         _methode.SelectedIndex = 0;
         _methode.SelectedIndexChanged += (_, _) => StartText();

@@ -13,21 +13,25 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class KalenderFenster : MdiFenster
 {
-    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, Width = 50 };
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    // Kopf wie im Handbuch-Bild (Kap. 4.4, 96 dpi): „Kalenderwoche“, Wochennummer ohne Rahmen mit Auf-/Ab-Pfeilen, Datumsfeld 90 breit
+    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(108, 9, 49, 20) };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Bounds = new Rectangle(159, 6, 90, 23) };
+    private static readonly Font TabellenSchrift = new("Segoe UI", 8.25f);
     /// <summary>Wochenbuchstabe der Schulwoche (A/B …) neben dem Datum, nur bei eingestellter Wochenperiodizität.</summary>
-    private readonly Label _wochenTyp = new() { AutoSize = true, Padding = new Padding(4, 4, 0, 0), Font = Ui.SchriftFett };
+    private readonly Label _wochenTyp = new() { AutoSize = true, Location = new Point(253, 10), Font = Ui.SchriftFett };
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _texte = new() { Dock = DockStyle.Fill };
-    private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
-    private readonly Label _tagTitel = new() { AutoSize = true, Font = new Font("Segoe UI", 10f), Location = new Point(14, 12) };
+    // Detailbereich wie im Handbuch-Bild (Kap. 4.4.2): Karteikarten 385 × 170 links unten, Optionsfelder im Abstand von ~20 Pixeln,
+    // „Nur diese Stunden unterricht…“ abgeschnitten wie im Vorbild, Felder rechts bis 370 Pixel
+    private readonly TabControl _tabs = new() { Location = new Point(20, 4), Size = new Size(385, 170) };
+    private readonly Label _tagTitel = new() { AutoSize = true, Location = new Point(17, 10) };
     private readonly RadioButton _normal = new() { Text = "Normaler Schultag", AutoSize = true };
     private readonly RadioButton _feiertag = new() { Text = "Feiertag", AutoSize = true };
     private readonly RadioButton _frei = new() { Text = "Unterrichtsfrei", AutoSize = true };
-    private readonly RadioButton _nurStunden = new() { Text = "Nur diese Stunden unterrichtsfrei", AutoSize = true };
-    private readonly ComboBox _grund = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
-    private readonly TextBox _stunden = new() { Width = 200 };
-    private readonly TextBox _notiz = new() { Width = 300 };
+    private readonly RadioButton _nurStunden = new() { Text = "Nur diese Stunden unterrichtsfrei", AutoSize = false, AutoEllipsis = true, Size = new Size(178, 19) };
+    private readonly ComboBox _grund = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 170 };
+    private readonly TextBox _stunden = new() { Width = 172 };
+    private readonly TextBox _notiz = new() { Width = 264 };
     private static readonly string[] Arten = { "Alle", "Klassen", "Lehrer", "Nur Lehrer" };
     private readonly ToolTip _tipp = new();
     private bool _laedt;
@@ -37,10 +41,12 @@ public sealed class KalenderFenster : MdiFenster
         Text = "Kalender";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("kalender");
-        Size = new Size(560, 480);
+        // Fenstergröße wie im Handbuch-Bild (Kap. 4.4.2, Detailbereich ausgeklappt)
+        Size = new Size(682, 487);
         Positionieren();
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 32, Padding = new Padding(6, 4, 0, 0), WrapContents = false };
-        kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Padding = new Padding(0, 4, 4, 0) });
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 50 };
+        kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(8, 10) });
+        _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
         kopf.Controls.Add(_datum);
         kopf.Controls.Add(_wochenTyp);
@@ -58,21 +64,28 @@ public sealed class KalenderFenster : MdiFenster
         Ui.RasterGestalten(_woche, false);
         _woche.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _woche.MultiSelect = false;
+        // wie im Handbuch-Bild: Schrift Segoe UI 8,25, Zeilen und Überschrift 15 Pixel hoch, alle Spalten 44 breit (lange Überschriften
+        // wie „Offen (Paus.)“ werden abgeschnitten)
+        _woche.Font = _woche.DefaultCellStyle.Font = _woche.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
+        _woche.RowTemplate.Height = 15;
+        _woche.ColumnHeadersHeight = 15;
+        _woche.RowHeadersVisible = false;
         // Spalten wie im Vorbild (Handbuch Kap. 4.4.1): Lehrer | Pausenaufsichten | Klassen | Räume | Tagestexte | Kollisionen
         foreach (var (n, k, w) in new[]
         {
-            ("D", "Datum", 46), ("T", "Tag", 34), ("AL", "Abw.Le.", 52), ("V", "Vertr.", 44), ("O", "Offen", 44), ("PV", "PA-Vertr.", 58), ("PO", "Offen (Paus.)", 76),
-            ("AK", "Abw.Kl.", 50), ("F", "Freis.", 44), ("BR", "Bl.Räume.", 62), ("RV", "Raum-Vtr.", 62), ("RO", "Offen (Raum)", 76), ("TT", "Tagestexte", 66),
-            ("KL", "Koll. Lehrer", 72), ("KR", "Koll. Räume", 72),
+            ("D", "Datum", 44), ("T", "Tag", 44), ("AL", "Abw.Le.", 44), ("V", "Vertr.", 44), ("O", "Offen", 44), ("PV", "PA-Vertr.", 44), ("PO", "Offen (Paus.)", 44),
+            ("AK", "Abw.Kl.", 44), ("F", "Freis.", 44), ("BR", "Bl.Räume.", 44), ("RV", "Raum-Vtr.", 44), ("RO", "Offen (Raum)", 44), ("TT", "Tagestexte", 44),
+            ("KL", "Koll. Lehrer", 44), ("KR", "Koll. Räume", 44),
         })
         {
             var c = _woche.Columns[_woche.Columns.Add(n, k)];
             c.Width = w;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
         }
-        // Anzeige-Reihenfolge wie im Vorbild: Datum | Tag | Abw.Le. | Vertr. | Offen | Abw.Kl. | Freis. | Bl.Räume. | Raum-Vtr. … (Pausenaufsichten danach)
-        var anzeige = new[] { "D", "T", "AL", "V", "O", "AK", "F", "BR", "RV", "RO", "PV", "PO", "TT", "KL", "KR" };
-        for (var i = 0; i < anzeige.Length; i++) _woche.Columns[anzeige[i]]!.DisplayIndex = i;
+        // Reihenfolge wie in den Handbuch-Bildern (Kap. 4.4/4.4.1): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (Paus.) | Abw.Kl. |
+        // Freis. | Bl.Räume. | Raum-Vtr. | Offen (Raum) | Tagestexte | Koll. Lehrer | Koll. Räume
+        // die Standardgestaltung verbreitert Spalten auf ihre Überschrift – hier bleiben sie wie im Vorbild 44 Pixel breit
+        _woche.HandleCreated += (_, _) => { foreach (DataGridViewColumn c in _woche.Columns) c.Width = 44; };
         _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
         _woche.CellFormatting += (_, e) =>
         {
@@ -128,38 +141,30 @@ public sealed class KalenderFenster : MdiFenster
         seiteTexte.Controls.Add(_texte);
 
         // Kalendertag wie im Vorbild: Datum, Normaler Schultag / Feiertag / Unterrichtsfrei [Grund] / Nur diese Stunden unterrichtsfrei [Stunden], Notiz
-        var tag = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 240, 236), Padding = new Padding(8) };
-        var rahmen = new Panel { Location = new Point(6, 6), Size = new Size(520, 210), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(232, 240, 236) };
+        var tag = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 240, 236) };
+        var rahmen = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(232, 240, 236) };
         rahmen.Controls.Add(_tagTitel);
-        var y = 42;
-        foreach (var rb in new[] { _normal, _feiertag, _frei, _nurStunden })
+        foreach (var (rb, y0) in new[] { (_normal, 31), (_feiertag, 50), (_frei, 69), (_nurStunden, 90) })
         {
-            rb.Location = new Point(14, y);
+            rb.Location = new Point(17, y0);
             rahmen.Controls.Add(rb);
             rb.CheckedChanged += (_, _) => { if (rb.Checked) KalendertagGeaendert(); };
-            y += 28;
         }
-        _grund.Location = new Point(290, _frei.Top - 2);
-        _stunden.Location = new Point(290, _nurStunden.Top - 2);
+        _tipp.SetToolTip(_nurStunden, _nurStunden.Text);
+        _grund.Location = new Point(200, 69);
+        _stunden.Location = new Point(198, 89);
         _grund.SelectedIndexChanged += (_, _) => { if (_frei.Checked) KalendertagGeaendert(); };
         _stunden.Enter += (_, _) => { if (!_nurStunden.Checked) { _laedt = true; _nurStunden.Checked = true; _laedt = false; } };
         _stunden.Validated += (_, _) => { if (_nurStunden.Checked) KalendertagGeaendert(); };
         rahmen.Controls.Add(_grund);
         rahmen.Controls.Add(_stunden);
-        var notizLabel = new Label { Text = "Notiz", AutoSize = true, Location = new Point(16, y + 10) };
-        _notiz.Location = new Point(140, y + 6);
-        _notiz.Width = 364;
+        var notizLabel = new Label { Text = "Notiz", AutoSize = true, Location = new Point(17, 118) };
+        _notiz.Location = new Point(105, 115);
         _notiz.Validated += (_, _) => KalendertagGeaendert();
         rahmen.Controls.Add(notizLabel);
         rahmen.Controls.Add(_notiz);
         tag.Controls.Add(rahmen);
-        tag.Resize += (_, _) => rahmen.Width = Math.Max(420, tag.ClientSize.Width - 14);
-        rahmen.Resize += (_, _) =>
-        {
-            var rechts = rahmen.ClientSize.Width - 14;
-            _grund.Width = _stunden.Width = Math.Max(120, rechts - 290);
-            _notiz.Width = Math.Max(160, rechts - 140);
-        };
+
         var seiteTag = new TabPage("Kalendertag");
         seiteTag.Controls.Add(tag);
         _tabs.TabPages.Add(seiteTexte);
@@ -169,8 +174,8 @@ public sealed class KalenderFenster : MdiFenster
         split.Panel1.Controls.Add(_woche);
         split.Panel2.Controls.Add(_tabs);
         // wie im Vorbild: kleiner schwarzer Pfeil links unten klappt den Detailbereich (Tagestexte, Kalendertag) aus bzw. ein
-        var klappe = new Panel { Dock = DockStyle.Bottom, Height = 24 };
-        var pfeil = new Button { Size = new Size(20, 18), Location = new Point(4, 3), FlatStyle = FlatStyle.Flat, BackColor = Color.White, UseVisualStyleBackColor = false };
+        var klappe = new Panel { Dock = DockStyle.Bottom, Height = 20 };
+        var pfeil = new Button { Size = new Size(16, 16), Location = new Point(0, 2), FlatStyle = FlatStyle.Flat, BackColor = Color.White, UseVisualStyleBackColor = false, Padding = Padding.Empty, Font = Ui.SchriftKlein };
         pfeil.FlatAppearance.BorderColor = Color.Gray;
         klappe.Controls.Add(pfeil);
         split.Panel1.Controls.Add(klappe);
@@ -186,7 +191,8 @@ public sealed class KalenderFenster : MdiFenster
         Controls.Add(kopf);
         Load += (_, _) =>
         {
-            split.SplitterDistance = Math.Max(120, (int)(split.Height * 0.52));
+            // Detailbereich wie im Handbuch-Bild: Karteikarten (170 hoch) unter der Wochenübersicht
+            split.SplitterDistance = Math.Max(120, split.Height - split.SplitterWidth - 180);
             Klappen(AppZustand.Einstellungen.KalenderDetailOffen);
         };
         AppZustand.DatumGewechselt += DatumGewechselt;
@@ -643,7 +649,8 @@ public sealed class VormerkungenFenster : MdiFenster
 
     public VormerkungenFenster()
     {
-        Text = "Vormerkungen";
+        // Titel wie im Handbuch: Fenster / Ansicht
+        Text = "Vormerkungen / Vormerkungen";
         HilfeThema = "Vertretungsplanung";
         Icon = SymbolIcon("vormerkung");
         Size = new Size(900, 300);

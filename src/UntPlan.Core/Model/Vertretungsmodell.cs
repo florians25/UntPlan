@@ -617,6 +617,8 @@ public sealed class VertretungsEinstellungen
     /// <summary>Bezeichnungen und Farben je Vertretungsart.</summary>
     public Dictionary<string, string> Bezeichnungen { get; set; } = new();
     public Dictionary<string, int> Farben { get; set; } = new();
+    /// <summary>Vordergrundfarbe (Schrift) je Vertretungsart (Einstellungen › Farben und Bezeichnungen, Spalte „Vordergrund“); <see cref="Farben"/> ist der Hintergrund.</summary>
+    public Dictionary<string, int> Vordergrundfarben { get; set; } = new();
     public bool MitAktuellemDatumStarten { get; set; } = true;
     /// <summary>Vertretungsnachrichten (Einstellungen, Zweig „Vertretungsnachrichten“): Vorlage der Nachricht an die Lehrkräfte.</summary>
     public NachrichtenEinstellungen Nachrichten { get; set; } = new();
