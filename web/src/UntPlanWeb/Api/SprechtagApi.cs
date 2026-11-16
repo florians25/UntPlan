@@ -324,7 +324,7 @@ public static class SprechtagApi
             }
             var abw = d.Abwesenheiten(t.Id);
             var lehrer = admin
-                ? (s?.Lehrer.Keys ?? Enumerable.Empty<string>()).Where(l => l is not ("---" or "???")).OrderBy(l => Sprechtagdienst.LehrerName(s, l), De).ToList()
+                ? d.Lehrkraefte(s).OrderBy(l => Sprechtagdienst.LehrerName(s, l), De).ToList()
                 : new List<string> { b.LehrerKuerzel ?? "" };
             var raumListe = s is null || t.K.Online ? new List<Raumdaten>() : bu.Raeume(s).Where(r => r.Kurz.Length > 0).ToList();
             return Results.Json(new
@@ -456,7 +456,7 @@ public static class SprechtagApi
             var abw = d.Abwesenheiten(t.Id);
             var raeume = d.Raeume(t.Id);
             var liste = alle
-                ? (s?.Lehrer.Keys ?? Enumerable.Empty<string>()).Where(l => l is not ("---" or "???") && (termine.Any(x => Ci.Equals(x.Lehrer, l)) || leer == true))
+                ? d.Lehrkraefte(s).Where(l => termine.Any(x => Ci.Equals(x.Lehrer, l)) || leer == true)
                     .OrderBy(l => Sprechtagdienst.LehrerName(s, l), De).ToList()
                 : new List<string> { Lehrkraft(b, lehrer) };
             var zeilen = new List<IReadOnlyList<string>>();

@@ -420,6 +420,17 @@ public sealed class Sprechtagdienst
 
     private bool Unterrichtet(Stand? s, string lehrer, int schuelerId) => s == null || SchuelerDerLehrkraft(s, lehrer).Any(x => x.Id == schuelerId);
 
+    /// <summary>
+    /// Lehrkräfte des Sprechtags: alle Lehrkräfte des Plans mit Vornamen bzw. eigenem Lehrkraft-Konto – Platzhalter wie „---“, „???“ oder
+    /// Pseudo-Lehrkräfte ohne Vornamen (z. B. „EVA – Bearbeitung von Arbeitsaufträgen“) zählen nicht.
+    /// </summary>
+    public List<string> Lehrkraefte(Stand? s)
+    {
+        if (s == null) return new();
+        var konten = _benutzer.Alle().Where(b => !b.Gesperrt && b.Kollegium && !string.IsNullOrEmpty(b.LehrerKuerzel)).Select(b => b.LehrerKuerzel!).ToHashSet(Ci);
+        return s.Lehrer.Where(x => x.Key is not ("---" or "???" or "+++") && (x.Value.Vorname.Trim().Length > 0 || konten.Contains(x.Key))).Select(x => x.Key).ToList();
+    }
+
     public List<Benutzer> ElternVon(int schuelerId) => _benutzer.Alle().Where(b => !b.Gesperrt && b.Rolle == Rollen.Eltern && b.SchuelerIds.Contains(schuelerId)).ToList();
     public List<Benutzer> KontenDerLehrkraft(string lehrer) => _benutzer.Alle().Where(b => !b.Gesperrt && b.Kollegium && Ci.Equals(b.LehrerKuerzel, lehrer)).ToList();
 
@@ -786,7 +797,7 @@ public sealed class Sprechtagdienst
             {
                 var tage = (int)Math.Ceiling((p1 - jetzt).TotalDays);
                 var raeume = Raeume(t.Id);
-                var ohne = s?.Lehrer.Keys.Where(l => Enumerable.Range(0, t.K.Abschnitte.Count).Any(a => Raum(raeume, l, a).Length == 0)).ToList() ?? new();
+                var ohne = Lehrkraefte(s).Where(l => Enumerable.Range(0, t.K.Abschnitte.Count).Any(a => Raum(raeume, l, a).Length == 0)).ToList();
                 if (ohne.Count > 0 && new[] { 28, 21, 14, 7, 2, 1 }.Contains(tage) && EinmalMerken(t.Id, $"raum-lk-{tage}"))
                     foreach (var l in ohne)
                         n += Melden(absender, KontenDerLehrkraft(l).Select(b => b.Id), "Sprechtag: Raum fehlt",
