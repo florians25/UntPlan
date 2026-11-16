@@ -18,6 +18,7 @@ const BEREICHE = [
   { id: 'zuordnung', text: 'Zuordnungsgruppen', admin: true },
   { id: 'rueckmeldungen', text: 'Rückmeldungen', admin: true },
   { id: 'sperren', text: 'Prüfungssperren', admin: true },
+  { id: 'raumsperren', text: 'Raumsperren', admin: true, recht: 'buchung.verwalten' },
   { id: 'verspaetung', text: 'Verspätungen & Fehlzeiten', admin: true },
   { id: 'ansicht', text: 'Ansichtseinstellungen', admin: true },
   { id: 'monitore', text: 'Monitoransichten', admin: true },
@@ -52,7 +53,7 @@ export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
-  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, zugriff, ueber, rechte, zuordnung, sperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
+  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, zugriff, ueber, rechte, zuordnung, sperren, raumsperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
   ziel.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => kopieren(b.dataset.kopie));
 }
 
@@ -439,6 +440,81 @@ async function sperren(ziel) {
     ${ezeile('Höchstens Prüfungen je Klasse und Woche', zahlfeld('Prüfungen je Woche', 'maxProWoche', w.maxProWoche, 0, 20),
       'Gezählt werden Klausuren aus UntPlan und noch nicht übernommene Prüfungen aus UntPlanWeb. 0 = keine Grenze.')}`));
   einstellungBinden(ziel.querySelector('form'), 'pruefungssperren');
+}
+
+// ------------------------------------------------------------------ Raumsperren (Räume, Raumgruppen, alle Räume, Ressourcen für Buchungen sperren)
+
+const SPERR_ARTEN = [['raum', 'Raum'], ['raumgruppe', 'Raumgruppe'], ['alle_raeume', 'Alle Räume'], ['ressource', 'Ressource'], ['alle_ressourcen', 'Alle Ressourcen']];
+
+async function raumsperren(ziel, kontext, neu, [modus]) {
+  cssLaden();
+  const d = await holen('/api/app/raumsperren');
+  const heute = heuteIso();
+  const liste = () => {
+    ziel.innerHTML = `<div class="pe pe-einstellungen">
+      <div class="pe-listenkopf"><h3 class="pe-titel">Raumsperren <span class="pe-zahl">${d.sperren.length}</span></h3><button type="button" class="pe-knopf klein" data-neu>Neue Sperre</button></div>
+      <p class="pe-unter pe-hinweis">Gesperrte Räume bzw. Ressourcen stehen zu diesen Zeiten nicht für Buchungen zur Verfügung (z. B. Mitnutzung durch eine andere Schule).
+        Kontinuierlich: ohne Unterbrechung vom Beginn bis zum Ende; sonst nur im Zeitbereich an jedem (bzw. dem gewählten) Wochentag – so entstehen regelmäßige Sperren.</p>
+      <table class="pe-tabelle"><thead><tr><th>Art</th><th>Raum / Ressource</th><th>Zeitraum</th><th>Text</th></tr></thead><tbody>
+        ${d.sperren.map(x => `<tr data-bearbeiten="${x.id}" tabindex="0" role="button" aria-label="Sperre bearbeiten"><td>${e(x.artText)}</td><td>${e(x.zielText || '–')}</td>
+          <td>${e(x.beschreibung.split(': ').slice(1).join(': '))}</td><td>${e(x.text)}</td></tr>`).join('') || '<tr class="leer"><td colspan="4">Keine Raumsperren angelegt.</td></tr>'}
+      </tbody></table></div>`;
+    ziel.querySelector('[data-neu]').onclick = () => formular(null);
+    ziel.querySelectorAll('[data-bearbeiten]').forEach(r => {
+      const auf = () => formular(d.sperren.find(x => x.id === Number(r.dataset.bearbeiten)));
+      r.onclick = auf;
+      r.onkeydown = ev => { if (ev.key === 'Enter') auf(); };
+    });
+  };
+  const zielOptionen = (art, wert) => art === 'raum' ? d.raeume.map(r => `<option value="${e(r.kurz)}" ${r.kurz === wert ? 'selected' : ''} data-zweit="${e(r.name)}">${e(r.kurz)}</option>`).join('')
+    : art === 'raumgruppe' ? d.raumgruppen.map(g => `<option ${g === wert ? 'selected' : ''}>${e(g)}</option>`).join('')
+    : art === 'ressource' ? d.ressourcen.map(r => `<option value="${r.id}" ${String(r.id) === String(wert) ? 'selected' : ''}>${e(r.name)}</option>`).join('') : '';
+  const formular = x => {
+    const w = x ?? { art: 'alle_raeume', ziel: '', von: heute, bis: heute, beginn: '00:00', ende: '23:59', kontinuierlich: true, wochentag: -1, text: '' };
+    const zeichnen = () => {
+      const mitZiel = ['raum', 'raumgruppe', 'ressource'].includes(w.art);
+      ziel.innerHTML = `<form class="pe pe-einstellungen" novalidate>
+        ${kasten(x ? 'Sperre bearbeiten' : 'Neue Sperre', `
+          ${ezeile('Art', efeld('Art', `<select class="form-select" name="art">${SPERR_ARTEN.map(([k, t]) => `<option value="${k}" ${k === w.art ? 'selected' : ''}>${t}</option>`).join('')}</select>`))}
+          ${mitZiel ? ezeile(SPERR_ARTEN.find(a => a[0] === w.art)[1], efeld(SPERR_ARTEN.find(a => a[0] === w.art)[1], `<select class="form-select" name="ziel"><option value="">Bitte wählen</option>${zielOptionen(w.art, w.ziel)}</select>`)) : ''}
+          ${ezeile('Von / Bis', `<div class="pe-paar">${efeld('Von', `<input type="date" class="form-control" name="von" value="${e(w.von)}">`)}${efeld('Bis', `<input type="date" class="form-control" name="bis" value="${e(w.bis)}">`)}</div>`)}
+          ${ezeile('Beginnzeit / Endzeit', `<div class="pe-paar">${efeld('Beginnzeit', `<input type="time" class="form-control" name="beginn" value="${e(w.beginn)}">`)}${efeld('Endzeit', `<input type="time" class="form-control" name="ende" value="${e(w.ende)}">`)}</div>`)}
+          ${haken('Kontinuierlich', `<label class="pe-haken"><input type="checkbox" name="kontinuierlich" ${w.kontinuierlich ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span><span>Kontinuierlich (ohne Unterbrechung vom Beginn bis zum Ende)</span></label>`)}
+          ${ezeile('Wochentag', efeld('Wochentag', `<select class="form-select" name="wochentag" ${w.kontinuierlich ? 'disabled' : ''}><option value="-1">jeden Tag</option>${WOCHENTAGE.map((t, i) => `<option value="${i}" ${i === w.wochentag ? 'selected' : ''}>${t}</option>`).join('')}</select>`),
+            'Nur ohne „Kontinuierlich“: die Sperre gilt im Zeitbereich an jedem bzw. dem gewählten Wochentag.')}
+          ${ezeile('Text', efeld('Text', `<input class="form-control" name="text" maxlength="500" value="${e(w.text)}" placeholder="z. B. Mitnutzung durch andere Schule">`))}`)}
+        <div class="pe-fuss rs-fuss">${x ? '<button type="button" class="pe-knopf rs-links" data-loeschen>Löschen</button>' : ''}
+          <button type="submit" class="pe-knopf primaer" data-aktion="speichern">Speichern</button>
+          ${x ? '' : '<button type="submit" class="pe-knopf" data-aktion="neu">Speichern &amp; Neu</button>'}
+          <button type="button" class="pe-knopf" data-abbrechen>Abbrechen</button></div></form>`;
+      const f = ziel.querySelector('form');
+      const lesen = () => {
+        const v = formularWerte(f);
+        Object.assign(w, { art: v.art, ziel: v.ziel ?? '', von: v.von, bis: v.bis, beginn: v.beginn, ende: v.ende, kontinuierlich: f.kontinuierlich.checked,
+          wochentag: f.kontinuierlich.checked ? -1 : Number(v.wochentag ?? -1), text: v.text ?? '' });
+      };
+      f.art.onchange = () => { lesen(); w.ziel = ''; zeichnen(); };
+      f.kontinuierlich.onchange = () => { lesen(); zeichnen(); };
+      f.querySelector('[data-abbrechen]').onclick = () => liste();
+      f.querySelector('[data-loeschen]')?.addEventListener('click', async () => {
+        if (!await bestaetigen('Sperre löschen', 'Die Raumsperre wird gelöscht.')) return;
+        await api(`/api/app/raumsperren/${x.id}`, { methode: 'DELETE' });
+        toast('Sperre gelöscht.'); neu();
+      });
+      f.onsubmit = async ev => {
+        ev.preventDefault();
+        lesen();
+        try {
+          await senden(x ? `/api/app/raumsperren/${x.id}` : '/api/app/raumsperren', w, x ? 'PUT' : 'POST');
+          toast('Sperre gespeichert.');
+          if (ev.submitter?.dataset.aktion === 'neu') { Object.assign(d, await holen('/api/app/raumsperren')); formular(null); }
+          else neu();
+        } catch (err) { toast(err.message, true); }
+      };
+    };
+    zeichnen();
+  };
+  if (modus === 'neu') formular(null); else liste();
 }
 
 async function verspaetung(ziel) {

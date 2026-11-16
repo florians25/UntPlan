@@ -399,6 +399,7 @@ function menue() {
       { nav: 'buchen-ressourcen', href: '#/buchen/ressourcen', text: 'Ressourcenübersicht', icon: 'woche' },
       ...(b.admin ? [{ nav: 'buchen-verwaltung', href: '#/buchen/verwaltung', text: 'Ressourcen verwalten', icon: 'stammdaten' },
         { nav: 'buchen-raumdaten', href: '#/buchen/raumdaten', text: 'Raumdaten', icon: 'raumplan' }] : []),
+      ...(b.admin || b.rechte?.['buchung.verwalten'] ? [{ nav: 'buchen-sperren', href: '#/buchen/sperren', text: 'Buchungen ent-/sperren', icon: 'sperre' }] : []),
     ] });
   } else if (familie(b)) {
     // Schüler*innen und Erziehungsberechtigte wie im Original: Heute, Übersicht, Mitteilungen, Mein Stundenplan, Weitere Stundenpläne,
@@ -455,6 +456,7 @@ function menue() {
       { nav: 'admin-zuordnung', href: '#/admin/zuordnung', text: 'Zuordnungsgruppen', icon: 'zuordnung' },
       { nav: 'admin-rueckmeldungen', href: '#/admin/rueckmeldungen', text: 'Rückmeldungen', icon: 'ruckmeldung' },
       { nav: 'admin-sperren', href: '#/admin/sperren', text: 'Prüfungssperren', icon: 'sperre' },
+      { nav: 'admin-raumsperren', href: '#/admin/raumsperren', text: 'Raumsperren', icon: 'sperre' },
       { nav: 'admin-verspaetung', href: '#/admin/verspaetung', text: 'Verspätungen & Fehlzeiten', icon: 'abwesenheiten' },
       { nav: 'admin-ansicht', href: '#/admin/ansicht', text: 'Ansichtseinstellungen', icon: 'ansicht' },
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
@@ -470,6 +472,7 @@ function menue() {
     if (r['admin.wartung']) unter.push({ nav: 'admin-aktive', href: '#/admin/aktive', text: 'Aktive Benutzer', icon: 'aktive' },
       { nav: 'admin-zugriff', href: '#/admin/zugriff', text: 'Zugriff ent-/sperren', icon: 'sperre' }, { nav: 'admin-ueber', href: '#/admin/ueber', text: 'Über UntPlan', icon: 'info' });
     if (r['admin.benutzer']) unter.push({ nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' }, { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' });
+    if (r['buchung.verwalten']) unter.push({ nav: 'admin-raumsperren', href: '#/admin/raumsperren', text: 'Raumsperren', icon: 'sperre' });
     if (unter.length === 1) m.push({ id: 'admin', ...unter[0] });
     else if (unter.length) m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter });
   }

@@ -281,7 +281,10 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
   const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';
   const ohneFach = !k.fach;
   let oben, rest, titel = '';
-  if (k.unbestaetigt) {
+  if (k.status === 'gesperrt') {
+    // Raumsperre (Administration): graue Fläche, mittig „Gesperrt“ (bzw. der Text der Sperre)
+    return `<div class="z-gesperrt">${e(k.text || 'Gesperrt')}</div>`;
+  } else if (k.unbestaetigt) {
     // nicht bestätigte Buchung (wie in der Vorlage): Lehrkraft fett oben, darunter die Bezeichnung, dann die Klassen
     const lehrer = (k.lehrer || []).filter(w => (w.k || w.alt) && !PLATZHALTER.includes(w.k || ''));
     titel = e(k.text || k.art || '—');
@@ -603,13 +606,13 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     for (const k of alleKarten) {
       const { spur, anzahl } = lage.get(k);
       const breite = 100 / anzahl;
-      const nr = k.ereignis ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
+      const nr = k.ereignis || k.status === 'gesperrt' ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
       // Pausenaufsichten immer automatisch: Blöcke laufen über die Pause hinweg durch, die Aufsicht steht dort schmal daneben
       for (const [von, bis] of abschnitte(k, aufbau, index, true)) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“); bei zwei parallelen Stunden nur in der linken
-        const mitZeit = kartenZeiten && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
+        const mitZeit = kartenZeiten && k.status !== 'gesperrt' && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         belegt.push([oben, oben + h, spur * breite, breite]);
         html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"

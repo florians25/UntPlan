@@ -621,18 +621,24 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std.entfall, .std.abwesend { background: #ffe5e5; box-shadow: var(--u-schatten-karte); }
 /* Durchstreichung genau auf halber Höhe der Großbuchstaben: eigener 0,75-px-Strich statt line-through (dessen Lage hängt von der Schrift ab
    und saß gut ½ px zu tief); die Zeile ist nur so breit wie ihr Text (gekürzt mit „…“ höchstens kartenbreit) */
-.std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt {
+/* nur bei echtem Entfall (Abwesenheit, die die Stunde entfallen lässt, trägt ebenfalls .entfall) – nicht bei abwesender Lehrkraft, deren
+   Stunde stattfindet; macOS zeichnet die Linie selbst (karten.css) */
+html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
   width: fit-content; max-width: 100%; text-decoration: none;
   background: linear-gradient(transparent calc(var(--strich-mitte, 50%) - .375px), currentColor 0, currentColor calc(var(--strich-mitte, 50%) + .375px), transparent 0); }
 /* Mitte der Großbuchstaben (nachgemessen): Zeile 1 1,1 px, übrige Zeilen 0,2 px über der Mitte des Zeilenkastens – Farbverlauf statt
    Hintergrundposition, damit die Lage nicht auf ganze Pixel rastet */
-.std.entfall .z1, .std.abwesend .z1 { --strich-mitte: calc(50% - 1.1px); }
-.std.entfall :is(.z2, .zt), .std.abwesend :is(.z2, .zt) { --strich-mitte: calc(50% - .2px); }
+.std.entfall .z1 { --strich-mitte: calc(50% - 1.1px); }
+.std.entfall :is(.z2, .zt) { --strich-mitte: calc(50% - .2px); }
 .std.klausur { background: var(--u-gelb-hell); box-shadow: var(--u-schatten-karte); }
 .std.bereitschaft { background: #f3f5f7; outline: 1px dashed #8d99a3; outline-offset: -1px; }
 .std.bereitschaft::before { background: #20e0ee; }
 .std.veranstaltung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
 .std.vorgemerkt { background: #fff; outline: 1px dashed #8d99a3; outline-offset: -1px; }
+/* Raumsperre (Administration → Raumsperren): graue Fläche über die gesperrten Stunden, mittig „Gesperrt“ */
+.std.gesperrt { display: flex; align-items: center; justify-content: center; background: #c8d0d7; box-shadow: none; cursor: default; }
+.std.gesperrt::before { display: none; }
+.std.gesperrt .z-gesperrt { padding: 0 6px; font-size: 12px; font-weight: 600; color: #24323d; text-align: center; white-space: normal; }
 /* nicht bestätigte Buchung (in UntPlan noch nicht übernommen): gestrichelt grau wie „vorgemerkt“, oben rechts grünes Quadrat mit „?“ */
 .std.buchung.unbestaetigt { background: #f1f5f8; box-shadow: none; outline: 1px dashed #8d99a3; outline-offset: -1px; }
 .std.buchung.unbestaetigt::before { background: #b9c3cc; }
@@ -1079,6 +1085,8 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std.lehrer-abwesend .z2 { color: #57626b; }
 .std.lehrer-abwesend .zt { color: var(--u-grau-2); }
 .std.lehrer-abwesend .lbl.weg { background: var(--u-gruen-label); color: #fff; font-weight: 600; padding: 0 3px; border-radius: 2px; text-decoration: line-through; text-decoration-thickness: 1px; }
+/* Stunde findet statt (kein Entfall): keine Durchstreichung – auch nicht am Label der abwesenden Lehrkraft */
+.std.lehrer-abwesend:not(.entfall) .lbl.weg { text-decoration: none !important; }
 .tt.ohne-abwesenheiten .std.lehrer-abwesend { display: none; }
 .tt.ohne-abwesenheiten .tt-ereignis.hinweis { display: none; }
 .hilfe-gestrichelt { display: inline-block; width: 22px; height: 14px; background: #f1f5f8; outline: 1px dashed #9aa7af; outline-offset: -1px; border-radius: 3px; flex: none; }

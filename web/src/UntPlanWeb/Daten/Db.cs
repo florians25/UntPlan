@@ -755,6 +755,17 @@ public sealed class Db
             PRIMARY KEY (sprechtag_id, schluessel)
         );
         """),
+
+        // 31: Raumsperren (Administration): einzelne Räume, Raumgruppen, alle Räume, einzelne bzw. alle Ressourcen – kontinuierlich oder
+        //    nur im Zeitbereich je Tag (optional ein Wochentag)
+        Nr(31, """
+        CREATE TABLE raumsperren (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, art VARCHAR(20) NOT NULL, ziel VARCHAR(100) NOT NULL DEFAULT '',
+            von VARCHAR(10) NOT NULL, bis VARCHAR(10) NOT NULL, beginn VARCHAR(5) NOT NULL DEFAULT '00:00', ende VARCHAR(5) NOT NULL DEFAULT '23:59',
+            kontinuierlich INTEGER NOT NULL DEFAULT 1, wochentag INTEGER NOT NULL DEFAULT -1, text VARCHAR(500) NOT NULL DEFAULT '',
+            erstellt_von VARCHAR(60) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT ''
+        );
+        """),
     };
 
 

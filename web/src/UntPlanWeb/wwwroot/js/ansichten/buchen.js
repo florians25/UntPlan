@@ -50,6 +50,7 @@ export async function zeigen(seite, kontext, [bereich, ...rest]) {
     case 'raeume': return raumuebersicht(seite, kontext, rest);
     case 'ressourcen': return ressourcenuebersicht(seite, kontext, rest);
     case 'unterricht': return eigeneUnterrichte(seite, kontext);
+    case 'sperren': return buchungenSperren(seite, kontext);
     case 'verwaltung': case 'raumdaten': return (await import('./buchungsverwaltung.js')).zeigen(seite, kontext, bereich);
     default: return raumBuchen(seite, kontext, rest);
   }
@@ -1307,6 +1308,26 @@ async function eigeneUnterrichte(seite, kontext) {
   });
 }
 
+// ------------------------------------------------------------------ Buchungen ent-/sperren (Administration): keine neuen Buchungen für alle Benutzer
+
+async function buchungenSperren(seite, kontext) {
+  cssLaden();
+  kontext.titel('Buchungen ent-/sperren');
+  const d = await holen('/api/app/raumsperren/buchungen');
+  const zeichnen = () => {
+    seite.innerHTML = `<div class="pe pe-einstellungen"><section class="pe-kasten">
+      <p class="pe-unter" style="padding: 0 14px">Die Buchungen werden für alle Benutzer gesperrt (die Administration bucht weiterhin). Einzelne Räume bzw. Ressourcen sperren Sie unter Administration → Raumsperren.</p>
+      <div class="pe-zeile"><div class="pe-text">Buchungen sperren</div><div class="pe-wert"><label class="sd-schalter"><input type="checkbox" data-sperren ${d.gesperrt ? 'checked' : ''}>
+        <span class="sd-schalter-spur" aria-hidden="true"></span><span>${d.gesperrt ? 'Ja' : 'Nein'}</span></label></div></div></section></div>`;
+    seite.querySelector('[data-sperren]').onchange = async ev => {
+      try { Object.assign(d, await senden('/api/app/raumsperren/buchungen', { gesperrt: ev.target.checked }, 'PUT')); toast(d.gesperrt ? 'Buchungen gesperrt.' : 'Buchungen wieder freigegeben.'); }
+      catch (err) { kontext.fehler(err); }
+      zeichnen();
+    };
+  };
+  zeichnen();
+}
+
 // ------------------------------------------------------------------ Raum buchen (Ablauf wie in der Vorlage, im Grunddesign)
 // 1. „Buchung: Suche nach freien Räumen“ – Zeitbereich (Wiederholung, Datum bzw. Zeitraum, Beginn-/Endzeit, ganztägig) und Auswahlkriterien
 //    (Ressourcenart, Raumart, Kapazität, Abteilung, Gebäude, Raumgruppe, maximale Belegung) → „Suchen“
@@ -1319,6 +1340,7 @@ async function raumBuchen(seite, kontext, rest) {
   const [opt, el] = await Promise.all([holen('/api/app/buchen/optionen'), kontext.elemente()]);
   const raster = opt.zeitraster.filter(z => z.nr > 0 && z.beginn && z.ende);
   const heute = heuteIso();
+  if (opt.buchungenGesperrt && !opt.admin) { kontext.titel('Raum buchen'); seite.innerHTML = '<p class="nl-hinweis"><i class="bi bi-lock"></i>Buchungen sind derzeit gesperrt.</p>'; return; }
   kontext.titel('Raum buchen', `<a class="nl-knopf" href="#/buchen/raeume"><i class="bi bi-grid-3x3-gap"></i>Raumübersicht</a><a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>`);
   const [pDatum, pVon, pBis, pRaum] = rest;
   const vorbelegt = /^\d{4}-\d{2}-\d{2}$/.test(pDatum ?? '');

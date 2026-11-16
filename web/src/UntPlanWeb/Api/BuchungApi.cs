@@ -59,7 +59,7 @@ public static class BuchungApi
     {
         var api = app.MapGroup("/api/app/buchen");
 
-        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan, Uhr uhr) =>
+        api.MapGet("/optionen", (HttpContext c, Paketdienst p, Buchungsdienst bu, Plandienst plan, Uhr uhr, Raumsperrdienst rs) =>
         {
             var b = Ich(c);
             var s = Paket(p);
@@ -74,6 +74,8 @@ public static class BuchungApi
                 raumarten = Werte(r => r.Raumart), gebaeude = Werte(r => r.Gebaeude), abteilungen = Werte(r => r.Abteilung), raumgruppen = Werte(r => r.Raumgruppe),
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
                 maxTermine = Buchungsdienst.MaxTermine,
+                // Buchen → Buchungen ent-/sperren (die Administration bucht weiterhin)
+                buchungenGesperrt = rs.BuchungenGesperrt,
                 // erster Unterrichtstag ab heute (Vorbelegung des Datums, damit der Assistent nicht auf Wochenende oder Ferien startet)
                 naechsterTag = Plandienst.Iso(Enumerable.Range(0, 120).Select(i => uhr.Heute.AddDays(i)).FirstOrDefault(t => !plan.Frei(s, t).Frei, uhr.Heute)),
             });
