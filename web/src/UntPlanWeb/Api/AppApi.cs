@@ -256,7 +256,7 @@ public static class AppApi
             });
         });
 
-        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, int? format, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr, Planformatdienst pf) =>
+        api.MapGet("/plan", (string typ, string element, string? datum, int? schueler, int? format, HttpContext c, Paketdienst p, Plandienst plan, Rueckmeldungsdienst r, Klassenbuchdienst kb, Klassenbuchverwaltung kv, Uhr uhr, Planformatdienst pf, Raumsperrdienst rs, Buchungsdienst bu) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, typ, element);
@@ -265,6 +265,15 @@ public static class AppApi
             // Planfenster der Rolle: außerhalb nur das leere Raster mit Hinweis (gesperrt, sperrhinweis)
             if (!Rechtedienst.PlanSichtbar(b, tag, uhr.Heute)) return Results.Json(plan.Wochenplan(s, typ, element, tag, b.Kollegium).Sperren());
             var w = plan.Wochenplan(s, typ, element, tag, b.Kollegium, d => r.Vorgemerkt(d, s));
+            // Raumplan: Raumsperren der Administration als graue Blöcke „Gesperrt“
+            if (typ == Elementtyp.Raum)
+            {
+                var gruppe = bu.Raeume(s).FirstOrDefault(x => string.Equals(x.Kurz, element, StringComparison.OrdinalIgnoreCase))?.Raumgruppe ?? "";
+                var sperr = rs.Karten(s, element, gruppe, w.Tage.Select(t => DateOnly.Parse(t.Datum)));
+                // im gesperrten Zeitraum steht nur die Karte „Gesperrt“ (über die ganze Breite)
+                if (sperr.Count > 0)
+                    w = w with { Karten = w.Karten.Where(k => !sperr.Any(x => x.Datum == k.Datum && k.Von <= x.Bis && x.Von <= k.Bis)).Concat(sperr).ToList() };
+            }
             // Notizen und fällige Hausaufgaben für die Symbole auf den Karten; eigene Abwesenheiten im eigenen Plan
             w = w with { Karten = kb.Anreichern(w.Karten, b.Kollegium), Abwesenheiten = EigeneAbwesenheiten(b, s, typ, element, tag, schueler, kb, kv) };
             // Stundenplanformat (Administration → Stundenplaneinstellungen): Tage, Zeiten, Aktivitäten, Hervorhebungen, Anordnung auf dem Kärtchen

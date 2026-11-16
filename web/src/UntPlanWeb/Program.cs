@@ -68,6 +68,7 @@ public class Program
         builder.Services.AddSingleton(Updateeinstellungen.Laden(builder.Configuration));
         builder.Services.AddSingleton<Updatedienst>();
         builder.Services.AddSingleton<Schuelerverwaltung>();
+        builder.Services.AddSingleton<Raumsperrdienst>();
         builder.Services.AddSingleton<Buchungsdienst>();
         builder.Services.AddSingleton<Personendienst>();
         builder.Services.AddSingleton<Sprechtagdienst>();
@@ -194,6 +195,7 @@ public class Program
         BenutzerverwaltungApi.Abbilden(app);
         InfocenterApi.Abbilden(app);
         SprechtagApi.Abbilden(app);
+        RaumsperrApi.Abbilden(app);
         HinweisApi.Abbilden(app);
         OffeneStundenApi.Abbilden(app);
         RechteApi.Abbilden(app);

@@ -93,6 +93,7 @@ public sealed class Buchungsdienst
     private readonly Rueckmeldungsdienst _rm;
     private readonly Mitteilungsdienst _mitteilungen;
     private readonly Benutzerdienst _benutzer;
+    private readonly Raumsperrdienst? _sperren;
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
     private static readonly StringComparer De = StringComparer.Create(new CultureInfo("de-DE"), true);
     /// <summary>Prüfen und Speichern hintereinander (keine Doppelbuchung durch gleichzeitige Anfragen).</summary>
@@ -101,10 +102,25 @@ public sealed class Buchungsdienst
     /// <summary>Präfix der Rückmeldungs-Id einer Buchung (Schnittstelle zu UntPlan).</summary>
     public const string RueckmeldungsPraefix = "buchung-";
 
-    public Buchungsdienst(Db db, Uhr uhr, Plandienst plan, Rueckmeldungsdienst rm, Mitteilungsdienst mitteilungen, Benutzerdienst benutzer)
+    public Buchungsdienst(Db db, Uhr uhr, Plandienst plan, Rueckmeldungsdienst rm, Mitteilungsdienst mitteilungen, Benutzerdienst benutzer, Raumsperrdienst? sperren = null)
     {
-        _db = db; _uhr = uhr; _plan = plan; _rm = rm; _mitteilungen = mitteilungen; _benutzer = benutzer;
+        _db = db; _uhr = uhr; _plan = plan; _rm = rm; _mitteilungen = mitteilungen; _benutzer = benutzer; _sperren = sperren;
     }
+
+    /// <summary>Stunden des Zeitrasters, in denen eine Raumsperre (Administration) gilt – je Sperre.</summary>
+    private IEnumerable<(Raumsperre Sperre, int Stunde)> SperrStunden(Stand s, DateOnly d, Func<Raumsperre, bool> welche)
+    {
+        if (_sperren is null) yield break;
+        var sperren = _sperren.Am(d).Where(welche).ToList();
+        if (sperren.Count == 0) yield break;
+        foreach (var z in s.Paket.Zeitraster.Stunden.Where(z => z.Beginn.Length >= 5 && z.Ende.Length >= 5))
+            foreach (var x in sperren.Where(x => Raumsperrdienst.Gilt(x, d, z.Beginn, z.Ende)))
+                yield return (x, z.Nr);
+    }
+
+    /// <summary>Gesperrte Stunden einer Ressource am Tag (Raumsperren der Art „Ressource“ bzw. „Alle Ressourcen“).</summary>
+    private HashSet<int> RessourceGesperrt(Stand? s, DateOnly d, int ressource) =>
+        s is null ? new() : SperrStunden(s, d, x => Raumsperrdienst.BetrifftRessource(x, ressource)).Select(x => x.Stunde).ToHashSet();
 
     private static List<string> JsonListe(string json) => string.IsNullOrEmpty(json) ? new() : JsonSerializer.Deserialize<List<string>>(json) ?? new();
     private string Jetzt => _uhr.Jetzt.ToString("yyyy-MM-dd HH:mm");
@@ -380,6 +396,12 @@ public sealed class Buchungsdienst
         foreach (var a in s.Paket.Absenzen.Where(a => a.Art == "raum" && DateOnly.TryParse(a.Von, out var av) && DateOnly.TryParse(a.Bis, out var ab) && d >= av && d <= ab))
             for (var st = Math.Max(1, a.StundeVon); st <= (a.StundeBis < a.StundeVon ? max : a.StundeBis); st++)
                 res.Add(new Belegt(st, a.Element, "gesperrt", string.IsNullOrWhiteSpace(a.Grund) ? "gesperrt" : a.Grund!, null));
+        // Raumsperren der Administration (einzelner Raum, Raumgruppe, alle Räume)
+        var gesperrt = SperrStunden(s, d, x => x.FuerRaeume).ToList();
+        if (gesperrt.Count > 0)
+            foreach (var r in Raeume(s))
+                foreach (var (x, st) in gesperrt.Where(g => Raumsperrdienst.BetrifftRaum(g.Sperre, r.Kurz, r.Raumgruppe)))
+                    res.Add(new Belegt(st, r.Kurz, "gesperrt", x.Text.Length > 0 ? $"Gesperrt: {x.Text}" : "Gesperrt", null));
         // Buchungen aus UntPlanWeb (nach der Übernahme in UntPlan stehen sie bereits im Paket)
         foreach (var b in AktiveAm(d).Where(b => b.Id != ohneBuchung && b.Raum.Length > 0 && !SchonImPaket(b, paket)))
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
@@ -416,9 +438,14 @@ public sealed class Buchungsdienst
         belegung.Any(x => x.Stunde >= von && x.Stunde <= bis && Ci.Equals(x.Raum, raum));
 
     /// <summary>Gebuchte Menge je mobiler Ressource und Stunde an einem Tag.</summary>
-    private Dictionary<(int Ressource, int Stunde), int> RessourcenGebucht(DateOnly d, int? ohneBuchung = null)
+    private Dictionary<(int Ressource, int Stunde), int> RessourcenGebucht(DateOnly d, int? ohneBuchung = null, Stand? s = null)
     {
         var res = new Dictionary<(int, int), int>();
+        // gesperrte Ressourcen (Raumsperren): in diesen Stunden nicht verfügbar
+        if (s != null)
+            foreach (var (x, st) in SperrStunden(s, d, x => x.Art is Raumsperrdienst.Ressource or Raumsperrdienst.AlleRessourcen))
+                foreach (var r in Ressourcen(true).Where(r => Raumsperrdienst.BetrifftRessource(x, r.Id)))
+                    res[(r.Id, st)] = 1_000_000;
         foreach (var b in AktiveAm(d).Where(b => b.Id != ohneBuchung))
             foreach (var r in b.Ressourcen)
                 for (var st = b.StundeVon; st <= b.StundeBis; st++)
@@ -485,7 +512,7 @@ public sealed class Buchungsdienst
         var k = kriterien ?? new Kriterien();
         var kandidaten = Ressourcen(true).Where(r => r.Mobil && (k.Ressourcenarten is not { Count: > 0 } || (r.ArtId is int a && k.Ressourcenarten.Contains(a)))).ToList();
         var cache = new Dictionary<DateOnly, Dictionary<(int, int), int>>();
-        var gebucht = termine.Select(t => cache.TryGetValue(t.Datum, out var x) ? x : cache[t.Datum] = RessourcenGebucht(t.Datum)).ToList();
+        var gebucht = termine.Select(t => cache.TryGetValue(t.Datum, out var x) ? x : cache[t.Datum] = RessourcenGebucht(t.Datum, null, s)).ToList();
         var max = Math.Clamp(k.MaxBelegung ?? 0, 0, 100);
         var liste = kandidaten.Select(r =>
             {
@@ -533,6 +560,9 @@ public sealed class Buchungsdienst
     public (List<Buchung> Buchungen, List<string> Hinweise) Speichern(Stand s, Benutzer b, BuchungDaten d)
     {
         Kollegium(b);
+        // Buchen → Buchungen ent-/sperren: keine neuen Buchungen (die Administration bucht weiterhin)
+        if (_sperren?.BuchungenGesperrt == true && !Rechtedienst.Darf(b, Recht.BuchungVerwalten))
+            throw new ArgumentException("Buchungen sind derzeit gesperrt.");
         if (!Rechtedienst.Darf(b, Recht.BuchungRaum) && (d.Termine ?? new()).Any(t => !string.IsNullOrWhiteSpace(t.Raum)))
             throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
         if (!Rechtedienst.Darf(b, Recht.BuchungRessourcen) && d.Ressourcen is { Count: > 0 }) throw new UnauthorizedAccessException("Ihr Konto darf keine Ressourcen buchen.");
@@ -614,7 +644,7 @@ public sealed class Buchungsdienst
                 }
                 if (ressourcen.Count > 0)
                 {
-                    var gebucht = RessourcenGebucht(t.Datum);
+                    var gebucht = RessourcenGebucht(t.Datum, null, s);
                     foreach (var (r, menge) in ressourcen.Where(x => Verfuegbar(x.R, gebucht, t.StundeVon, t.StundeBis) < x.Menge))
                         konflikte.Add($"{r.Name} ist am {tag} nicht {(menge > 1 ? $"{menge}× " : "")}verfügbar.");
                 }
@@ -861,6 +891,7 @@ public sealed class Buchungsdienst
             var res = new Dictionary<string, int>();
             if (r.Mobil)
             {
+                foreach (var st in RessourceGesperrt(s, d, r.Id)) res[st.ToString()] = r.Anzahl;
                 foreach (var b in buchungen[d])
                     foreach (var x in b.Ressourcen.Where(x => x.Id == r.Id))
                         for (var st = b.StundeVon; st <= b.StundeBis; st++) res[st.ToString()] = res.GetValueOrDefault(st.ToString()) + x.Menge;
