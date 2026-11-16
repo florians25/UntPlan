@@ -766,7 +766,7 @@ public sealed class Buchungsdienst
             var lehrer = b.Lehrer.Length > 0 ? new List<string> { b.Lehrer } : new List<string>();
             var raeume = b.Raum.Length > 0 ? new List<string> { b.Raum } : new List<string>();
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
-                yield return new Rohstunde(st, null, b.Fach, b.Klassen, lehrer, raeume, "zusaetzlich", null, b.Titel, art);
+                yield return new Rohstunde(st, null, b.Fach, b.Klassen, lehrer, raeume, "zusaetzlich", null, b.Titel, art, Unbestaetigt: true);
         }
     }
 

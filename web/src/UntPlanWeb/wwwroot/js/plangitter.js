@@ -142,6 +142,7 @@ function markerSymbol(name, k, typ) {
     case 'pruefung': return '<i class="mk-kreis"></i>';
     case 'plus': return `<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`;
     case 'aenderung': return '<i class="mk-quadrat"></i>';
+    case 'unbestaetigt': return '<i class="mk-frage" data-hover="Buchung noch nicht bestätigt" data-hover-art="dunkel"></i>';
     default: return '';
   }
 }
@@ -280,7 +281,13 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
   const fachVoll = k.fachName && k.fachName !== k.fach ? k.fachName : '';
   const ohneFach = !k.fach;
   let oben, rest, titel = '';
-  if (k.status === 'veranstaltung') {
+  if (k.unbestaetigt) {
+    // nicht bestätigte Buchung (wie in der Vorlage): Lehrkraft fett oben, darunter die Bezeichnung, dann die Klassen
+    const lehrer = (k.lehrer || []).filter(w => (w.k || w.alt) && !PLATZHALTER.includes(w.k || ''));
+    titel = e(k.text || k.art || '—');
+    oben = lehrer.length ? werteListe(lehrer, entfall, true) : titel;
+    rest = [lehrer.length ? titel : '', werteListe(k.klassen, entfall)];
+  } else if (k.status === 'veranstaltung') {
     // Veranstaltung: mit eingetragenen Lehrkräften oben die Lehrkräfte (lange Listen nur mit „…“ gekürzt), darunter der Text der
     // Veranstaltung (Information zur Stunde), dann der Raum – ein hinzugefügter Wert („+A103“-Label) –, zuletzt die Klassen.
     // Ohne Lehrkräfte (bzw. im eigenen Lehrerplan nur die eigene) steht der Text oben.
@@ -335,7 +342,7 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
 export function kartenKlasse(k, typ, jetztIso, jetzt) {
   // abwesende Klasse: im Plan der übrigen Klassen, der Lehrkraft und des Raums eine grüne Änderungskarte (Status „geaendert“ vom
   // Server), im Plan der abwesenden Klasse selbst wie „Lehrkraft abwesend“ (klasseAbwesend → lehrer-abwesend)
-  return [k.status, lehrerAbwesend(k, typ) ? 'lehrer-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
+  return [k.status, k.unbestaetigt ? 'unbestaetigt' : '', lehrerAbwesend(k, typ) ? 'lehrer-abwesend' : '', istEntfall(k, typ) && k.status === 'abwesend' ? 'entfall' : '',
     vergangen(k, jetztIso, jetzt) && k.status === 'regulaer' ? 'vergangen' : ''].filter(Boolean).join(' ');
 }
 

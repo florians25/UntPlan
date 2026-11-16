@@ -45,6 +45,8 @@ public sealed record Karte(
     public string OnlineLink { get; init; } = "";
     /// <summary>Zusätzlicher Unterricht (Stunde nicht im Regelplan) – Badge „Zusätzl. Unterrichtsstunde“, nie ein Vertretungstext.</summary>
     public bool Zusaetzlich { get; init; }
+    /// <summary>In UntPlanWeb gebucht, aber in UntPlan noch nicht übernommen (nicht bestätigt): gestrichelte graue Karte mit „?“.</summary>
+    public bool Unbestaetigt { get; init; }
     /// <summary>
     /// Verlegung: "von" = ursprüngliche Stunde (von hier weg verlegt; Symbol Pfeil nach rechts), "nach" = Zielstunde (hierher verlegt;
     /// Symbol Pfeil nach links), null = keine Verlegung. Nur an Ursprung und Ziel einer echten Verlegung (Vertretung mit „(Le.) nach“ bzw.
@@ -100,6 +102,7 @@ public sealed record Karte(
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
             else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }
+            else if (verlegung is null && Status == "buchung" && Unbestaetigt) m.Add("unbestaetigt");
             else if (verlegung is null && Status is "geaendert" or "offen" or "buchung" or "veranstaltung") m.Add("aenderung");
             return m;
         }
@@ -236,7 +239,7 @@ public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>
 public sealed record Rohstunde(int Stunde, int? Unterricht, string Fach, IReadOnlyList<string> Klassen, IReadOnlyList<string> Lehrer, IReadOnlyList<string> Raeume,
     string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false, int? Klausur = null,
-    int? Veranstaltung = null);
+    int? Veranstaltung = null, bool Unbestaetigt = false);
 
 public static class Elementtyp
 {
@@ -1513,7 +1516,7 @@ public sealed class Plandienst
         var karte = new Karte(Iso(d), r.Stunde, r.Stunde, zb?.Beginn ?? "", zb?.Ende ?? "", status, fach, fachAlt, fe?.Name ?? fach, fe?.Farbe ?? "",
             r.Klassen.Select(k => new Wert(k)).ToList(), lehrer, raeume, art, text, v?.Id ?? r.Vertretung, r.Unterricht, Gruppe(s, r))
         {
-            Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur, WegenVeranstaltung = wegenVeranstaltung,
+            Zusaetzlich = zusatz, Bereitschaft = bereitschaft, Klausur = r.Klausur, WegenVeranstaltung = wegenVeranstaltung, Unbestaetigt = r.Unbestaetigt,
             // abwesende Lehrkraft: eigene Stunde im Lehrerplan von anderen gehalten bzw. weggefallene Bereitschaft (Lehrer- und
             // Tagesansichten); im Raumplan nie – dort ist die Stunde wie im Klassenplan „geaendert“ bzw. „offen“
             LehrerAbwesend = status == "abwesend" && typ != Elementtyp.Raum && (typ == Elementtyp.Lehrer || bereitschaft),

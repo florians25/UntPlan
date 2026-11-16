@@ -633,6 +633,11 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std.bereitschaft::before { background: #20e0ee; }
 .std.veranstaltung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
 .std.vorgemerkt { background: #fff; outline: 1px dashed #8d99a3; outline-offset: -1px; }
+/* nicht bestätigte Buchung (in UntPlan noch nicht übernommen): gestrichelt grau wie „vorgemerkt“, oben rechts grünes Quadrat mit „?“ */
+.std.buchung.unbestaetigt { background: #f1f5f8; box-shadow: none; outline: 1px dashed #8d99a3; outline-offset: -1px; }
+.std.buchung.unbestaetigt::before { background: #b9c3cc; }
+.mk-frage { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; flex: none; border-radius: 2px; background: #199c5f; }
+.mk-frage::after { content: "?"; color: #fff; font: 700 10px/1 var(--u-schrift); }
 .std.vorgemerkt::before { background: #8d99a3; }
 /* Legende: ausgeblendete Statusfarben zeigen die Karte wie eine normale Stunde */
 .tt.ohne-entfall .std.entfall, .tt.ohne-entfall .std.abwesend,
