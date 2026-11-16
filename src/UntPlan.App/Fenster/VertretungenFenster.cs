@@ -296,6 +296,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _auswahlTimer.Stop();
             _auswahlTimer.Start();
         };
+        Ui.Spaltenhilfe(_g, c => Spaltenhilfen.GetValueOrDefault(c.Name));
         // erst beim Wechsel in eine andere Zeile verschwinden bearbeitete Zeilen, die nicht mehr zum Filter passen
         _g.CurrentCellChanged += (_, _) =>
         {
@@ -391,6 +392,48 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// Felder der Ansicht (wie im Vorbild): Spaltenname, Überschrift, Bezeichnung im Dialog „Felder der Ansicht“, Breite, nur lesen,
     /// standardmäßig aktiv, Anzeige wahlweise als Kurz- oder Langname.
     /// </summary>
+    /// <summary>Kurzer Hilfetext je Spalte für die Statuszeile (Spaltenhilfe).</summary>
+    internal static readonly Dictionary<string, string> Spaltenhilfen = new()
+    {
+        ["Nr"] = "Vertretungsnummer zur eindeutigen Kennzeichnung der Vertretung",
+        ["Art"] = "Art der Vertretung (Vertretung, Entfall, Betreuung, Verlegung, Sondereinsatz …)",
+        ["Datum"] = "Datum der Vertretung (TT.MM.)",
+        ["Tag"] = "Wochentag der Vertretung",
+        ["Std"] = "Stunde der Vertretung",
+        ["Zeit"] = "Beginn- und Endzeit der Stunde laut Zeitraster",
+        ["Fach"] = "(Fach): Fach laut Stundenplan",
+        ["NFach"] = "Fach, das in der Vertretungsstunde unterrichtet wird",
+        ["Lehrer"] = "(Lehrer): Lehrkraft laut Stundenplan, die abwesend ist",
+        ["Vertreter"] = "Vertreter: Lehrkraft, die die Stunde übernimmt (--- = Entfall, +++ = ohne Lehrkraft)",
+        ["AKlassen"] = "(Klasse(n)): Klassen laut Stundenplan",
+        ["Klassen"] = "Klasse(n), die in der Vertretungsstunde unterrichtet werden",
+        ["Raum"] = "(Raum): Raum laut Stundenplan",
+        ["NRaum"] = "Raum, in dem die Vertretungsstunde stattfindet",
+        ["Kz"] = "Statistik-Kennzeichen der Vertretung für eigene Auswertungen",
+        ["Von"] = "Vertr. von: Stunde, aus der der Unterricht hierher verlegt wurde",
+        ["Nach"] = "(Le.) nach: Stunde, in die der Unterricht wegverlegt wurde",
+        ["UText"] = "Text des Unterrichts laut Unterrichtsdaten",
+        ["UZText"] = "Zeilentext der Unterrichtszeile laut Unterrichtsdaten",
+        ["Beschr"] = "Beschreibung der Vertretung",
+        ["Text"] = "Vertretungs-Text – erscheint im Vertretungsplan",
+        ["Entf"] = "Entfall: die Stunde findet nicht statt",
+        ["Mitb"] = "Mitbetreuung: eine Lehrkraft betreut die Klasse zusätzlich zu ihrem eigenen Unterricht",
+        ["Kopp"] = "Vertretungs-Kopplung: gemeinsam vertretene Kopplungszeilen",
+        ["Neu"] = "Neue Vertretung seit der letzten Ausgabe des Vertretungsplans",
+        ["Fix"] = "(X) Fixiert: die Vertretung wird von der Automatik nicht verändert",
+        ["Grund"] = "Absenzgrund der abwesenden Lehrkraft – wird für die Zählerführung gebraucht",
+        ["ND"] = "N. Druck: die Vertretung erscheint nicht im gedruckten Vertretungsplan",
+        ["Text2"] = "Zweiter Vertretungs-Text, z. B. für Lehrerinformationen",
+        ["Ben"] = "Benachrichtigen: die Vertretung soll der Lehrkraft mitgeteilt werden",
+        ["Zaehler"] = "Zählen: die Vertretung im Vertretungszähler der Lehrkraft berücksichtigen",
+        ["Unterschrift"] = "Unterschrift der Lehrkraft zur Kenntnisnahme",
+        ["Wert"] = "Wert bzw. Faktor der Vertretung für den Vertretungszähler",
+        ["SG"] = "Schülergruppe der Vertretungsstunde",
+        ["Abt"] = "Abteilung der Vertretung",
+        ["Benutzer"] = "Benutzer, der die Vertretung zuletzt bearbeitet hat",
+        ["Mehr"] = "Mehrarbeit: die Vertretung zählt als Mehrarbeitsstunde",
+    };
+
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
     {
         // Reihenfolge und Bezeichnungen wie im Dialog „Felder der Ansicht“ des Vorbilds (Handbuch Vertretungsplanung, Kap. 7.1)
@@ -2034,8 +2077,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         cm.Show(_g, pt);
     }
 
-    /// <summary>Vertretungsplan der nächsten Unterrichtstage als HTML (Schüler- oder Lehrerversion) im Browser öffnen.</summary>
-    public static void HtmlAusgabe(DateOnly ab, int tage, bool lehrer)
+    /// <summary>
+    /// Vertretungsplan der nächsten Unterrichtstage als HTML (Schüler- oder Lehrerversion) im Browser öffnen
+    /// (<paramref name="imProgramm"/>: in der Berichtsansicht des Programms).
+    /// </summary>
+    public static void HtmlAusgabe(DateOnly ab, int tage, bool lehrer, bool imProgramm = false)
     {
         var d = AppZustand.D;
         var liste = new List<DateOnly>();
@@ -2044,6 +2090,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             liste.Add(x);
             x = Kalender.NaechsterUnterrichtstag(d, x);
+        }
+        if (imProgramm)
+        {
+            BerichtsansichtFenster.Zeigen(lehrer ? "Vertretungsplan (Lehrer)" : "Vertretungsplan (Schüler)", Export.VertretungsplanHtml(d, liste, lehrer));
+            return;
         }
         var pfad = Path.Combine(Path.GetTempPath(), lehrer ? "UntPlan_Vertretungsplan_Lehrer.html" : "UntPlan_Vertretungsplan.html");
         File.WriteAllText(pfad, Export.VertretungsplanHtml(d, liste, lehrer));

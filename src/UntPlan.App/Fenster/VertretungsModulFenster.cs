@@ -1,6 +1,7 @@
 using UntPlan.App.Dialoge;
 using UntPlan.Core;
 using UntPlan.Core.Model;
+using UntPlan.Core.Module;
 using UntPlan.Core.Planung;
 using UntPlan.Core.Vertretungsplanung;
 
@@ -14,6 +15,8 @@ public sealed class KalenderFenster : MdiFenster
 {
     private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, Width = 50 };
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    /// <summary>Wochenbuchstabe der Schulwoche (A/B …) neben dem Datum, nur bei eingestellter Wochenperiodizität.</summary>
+    private readonly Label _wochenTyp = new() { AutoSize = true, Padding = new Padding(4, 4, 0, 0), Font = Ui.SchriftFett };
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _texte = new() { Dock = DockStyle.Fill };
     private readonly TabControl _tabs = new() { Dock = DockStyle.Fill };
@@ -40,6 +43,7 @@ public sealed class KalenderFenster : MdiFenster
         kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Padding = new Padding(0, 4, 4, 0) });
         kopf.Controls.Add(_kw);
         kopf.Controls.Add(_datum);
+        kopf.Controls.Add(_wochenTyp);
         _kw.ValueChanged += (_, _) =>
         {
             if (_laedt) return;
@@ -197,6 +201,7 @@ public sealed class KalenderFenster : MdiFenster
         var datum = AppZustand.Datum;
         _datum.Value = datum.ToDateTime(TimeOnly.MinValue);
         _kw.Value = System.Globalization.ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue));
+        TitelSetzen(datum);
         _woche.Rows.Clear();
         var montag = Kalender.Montag(datum);
         for (var i = 0; i < 7; i++)
@@ -248,6 +253,18 @@ public sealed class KalenderFenster : MdiFenster
         _notiz.Text = k?.Notiz ?? "";
         _tabs.TabPages[1].Text = "Kalendertag";
         _laedt = false;
+    }
+
+    /// <summary>Fenstertitel „Datum Wochentag / Periode (von–bis)“ und Wochenbuchstabe (A/B …) neben dem Datum.</summary>
+    private void TitelSetzen(DateOnly datum)
+    {
+        var p = D.PeriodeAm(datum);
+        var name = p.Name.Length > 0 ? p.Name : p.Langname;
+        Text = $"{Format.Datum(datum)} {Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)} / {name} ({Format.Datum(p.Von)}–{Format.Datum(Perioden.Ende(D, p))})";
+        var mitWochen = D.Einstellungen.Wochenperiodizitaet > 1;
+        _wochenTyp.Visible = mitWochen;
+        _wochenTyp.Text = mitWochen ? $"{Kalender.WochenTyp(D, datum)}-Woche" : "";
+        _tipp.SetToolTip(_wochenTyp, mitWochen ? $"Schulwoche {Kalender.Schulwoche(D, datum)} – Wochenbuchstabe laut Wochenperiodizität" : "");
     }
 
     private void TexteSpeichern()

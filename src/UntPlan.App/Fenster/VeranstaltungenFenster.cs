@@ -27,6 +27,25 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private readonly ZellKommentare _kommentare;
     private static readonly string[] AuswahlSpalten = { "K", "KT", "L", "R", "SG" };
 
+    /// <summary>Kurzer Hilfetext je Spalte für die Statuszeile (Spaltenhilfe).</summary>
+    internal static readonly Dictionary<string, string> Spaltenhilfen = new()
+    {
+        ["Nr"] = "Veranstaltungsnummer zur eindeutigen Kennzeichnung der Veranstaltung",
+        ["K"] = "Teilnehmende Klasse(n) – mehrere durch Komma getrennt",
+        ["KT"] = "Klassenteil: nur ein Teil der Klasse nimmt teil (z. B. Schülergruppe)",
+        ["L"] = "Begleitende Lehrkräfte – ihr Unterricht in dieser Zeit muss vertreten werden",
+        ["R"] = "Raum der Veranstaltung – er wird für diese Zeit belegt",
+        ["V"] = "Erster Tag der Veranstaltung (TT.MM.)",
+        ["SV"] = "Erste Stunde am ersten Tag (leer = ab der ersten Stunde)",
+        ["B"] = "Letzter Tag der Veranstaltung (TT.MM.)",
+        ["SB"] = "Letzte Stunde am letzten Tag (leer = bis zur letzten Stunde)",
+        ["G"] = "Grund der Veranstaltung – wird für die Zählerführung gebraucht",
+        ["T"] = "Text zur Veranstaltung, erscheint im Vertretungsplan",
+        ["Z"] = "Zählen: Stunden der Veranstaltung im Vertretungszähler der Lehrkräfte berücksichtigen",
+        ["SG"] = "Schülergruppe, die an der Veranstaltung teilnimmt",
+        ["W"] = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
+    };
+
     public VeranstaltungenFenster()
     {
         Text = "Veranst. / Lehrer";
@@ -85,6 +104,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
             ToolTipText = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
         });
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
+        Ui.Spaltenhilfe(_g, c => Spaltenhilfen.GetValueOrDefault(c.Name));
         foreach (var n in new[] { "K", "KT", "L", "R" }) _g.Columns[n]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
         SuchKombi.Aktivieren(_g, (zelle, text) => D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) is { } g ? new ListenStil(Color.White, Color.Black, g.Langname) : null);

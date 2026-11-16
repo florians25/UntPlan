@@ -43,6 +43,25 @@ public static partial class Ui
     }
 
     /// <summary>
+    /// Spaltenhilfe: beim Wechsel in eine andere Spalte steht ein kurzer Hilfetext zu dieser Spalte links in der Statuszeile
+    /// (nur beim Spaltenwechsel, damit Hinweise auf ungültige Eingaben beim Zeilenwechsel stehen bleiben).
+    /// </summary>
+    public static void Spaltenhilfe(DataGridView g, Func<DataGridViewColumn, string?> hilfe)
+    {
+        string? letzte = null;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var c = g.CurrentCell?.OwningColumn;
+            if (c is null || c.Name == letzte) return;
+            letzte = c.Name;
+            if (hilfe(c) is not { Length: > 0 } text) return;
+            try { AppZustand.Haupt?.StatusMelden(text); }
+            catch (ObjectDisposedException) { }
+        };
+        g.Leave += (_, _) => letzte = null;
+    }
+
+    /// <summary>
     /// Rückgängig (Strg+Z) bzw. Wiederherstellen (Strg+Y) für die Schuldatei – in jeder Maske gleich, mit Hinweis in der Statuszeile.
     /// Eine laufende Zelleingabe wird vorher verworfen (sie gehört nicht zur Historie).
     /// </summary>

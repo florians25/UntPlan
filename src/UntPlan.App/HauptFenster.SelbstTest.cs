@@ -857,6 +857,32 @@ public sealed partial class HauptFenster
             if (dd.Pausenaufsichten.Count != planVorher) throw new InvalidOperationException("Übernahme im Vertretungsmodus hat den Aufsichtsplan geändert.");
         }, -1);
         Schritt("19c_Statistik", () => Max(FensterOeffnen("stat")!), -1);
+        Schritt("19c1_Listenauswahl_Berichtsansicht", () =>
+        {
+            // Listenauswahl: alle Gruppen mit Listen; „Fach-Stunden-Liste“ und „Freie Stunden“ erscheinen in der Berichtsansicht (mit Berichtskopf)
+            var lf = Max(ListenauswahlOeffnen());
+            var listen = lf.SelbsttestListen();
+            foreach (var gruppe in ListenauswahlFenster.Gruppen)
+                if (!listen.TryGetValue(gruppe, out var l) || l.Count == 0) throw new InvalidOperationException($"Listenauswahl: Gruppe „{gruppe}“ fehlt oder ist leer");
+            foreach (var n in StatistikBerichte.Namen.Append(Listenberichte.FreieStundenTitel).Append(Listenberichte.FachStundenTitel))
+                if (!listen.Values.Any(l => l.Contains(n))) throw new InvalidOperationException($"Listenauswahl: Liste „{n}“ fehlt");
+            foreach (var titel in new[] { Listenberichte.FachStundenTitel, Listenberichte.FreieStundenTitel, Listenberichte.KlausurenTitel, Listenberichte.PausenaufsichtenTitel })
+            {
+                lf.SelbsttestAusgeben(titel);
+                Warten(300);
+                var bf = MdiChildren.OfType<BerichtsansichtFenster>().FirstOrDefault(f => f.Titel == titel) ?? throw new InvalidOperationException($"Berichtsansicht „{titel}“ nicht geöffnet");
+                if (!bf.Html.Contains("Schuljahr ") || !bf.Html.Contains("Erstellt am")) throw new InvalidOperationException($"Berichtsansicht „{titel}“ ohne Berichtskopf");
+                if (bf is not IDruckbar) throw new InvalidOperationException("Berichtsansicht ohne Drucken/Seitenansicht");
+            }
+            var zahl = MdiChildren.OfType<BerichtsansichtFenster>().Count();
+            lf.SelbsttestAusgeben(Listenberichte.FachStundenTitel);
+            Warten(200);
+            if (MdiChildren.OfType<BerichtsansichtFenster>().Count() != zahl) throw new InvalidOperationException("Erneute Ausgabe desselben Berichts öffnet ein zweites Fenster");
+            // Spaltenhilfe der Statuszeile: jede Spalte der Vertretungsliste hat einen Hilfetext
+            var ohne = VertretungenFenster.Spalten.Select(x => x.Name).Where(n => !VertretungenFenster.Spaltenhilfen.ContainsKey(n)).ToList();
+            if (ohne.Count > 0) throw new InvalidOperationException("Spalten ohne Spaltenhilfe: " + string.Join(", ", ohne));
+            log.Add($"INFO  19c1: {listen.Sum(x => x.Value.Count)} Listen in {listen.Count} Gruppen, {zahl} Berichtsfenster");
+        }, -1);
         Schritt("19d_Kalender_Bereitschaften", () => { FensterOeffnen("kal"); FensterOeffnen("bereit"); FensterOeffnen("vorm"); LayoutMdi(MdiLayout.TileVertical); }, -1);
         Schritt("19d1_Veranstaltungen", () => Max(FensterOeffnen("veranst")!), -1);
         Schritt("19d2_Klausuren", () => Max(FensterOeffnen("klaus")!), -1);
@@ -2223,7 +2249,7 @@ public sealed partial class HauptFenster
             AppZustand.VertretungWaehlen(v);
             Warten(300);
             var spalten = f.SelbsttestSpalten();
-            R3cPruefen(spalten.Take(3).SequenceEqual(new[] { "Name", "Stundenplan", "Merker zur Stunde" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
+            R3cPruefen(spalten.Take(4).SequenceEqual(new[] { "Name", "Merker zur Stunde", "Klasse", "Fach" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
             var k = f.SelbsttestKandidaten();
             R3cPruefen(k.Count > 0, "Vertretungsvorschlag ohne Kandidaten");
             var l = k[0].Lehrer;

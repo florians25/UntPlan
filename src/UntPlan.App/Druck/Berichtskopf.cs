@@ -39,6 +39,26 @@ internal static class Berichtskopf
         return y - r.Top;
     }
 
+    /// <summary>
+    /// Kopf der HTML-Berichte (Berichtsansicht): links Schulname (bzw. Überschrift laut Berichts-Einstellungen) und zweite Zeile,
+    /// in der Mitte das Schuljahr, rechts das Erstelldatum (mit Uhrzeit laut Einstellung).
+    /// </summary>
+    public static string Html()
+    {
+        var d = AppZustand.D;
+        var b = B;
+        static string H(string? s) => System.Net.WebUtility.HtmlEncode(s ?? "");
+        var zeile1 = b.Ueberschrift1.Length > 0 ? b.Ueberschrift1 : d.Einstellungen.Schulname;
+        var zeile2 = b.Ueberschrift2.Length > 0 ? b.Ueberschrift2 : d.Einstellungen.Adresse;
+        var sj = $"Schuljahr {d.Einstellungen.SchuljahrVon.Year}/{d.Einstellungen.SchuljahrBis.Year}";
+        var erstellt = "Erstellt am " + DateTime.Now.ToString("d.M.yyyy", CultureInfo.GetCultureInfo("de-DE")) + (b.UhrzeitDrucken ? DateTime.Now.ToString(" HH:mm") : "");
+        var linie = b.LinieKopf ? "border-bottom:1px solid #000;" : "";
+        return $"<table class=\"bkopf\" style=\"width:100%;border-collapse:collapse;margin-bottom:12px;{linie}\"><tr>" +
+               $"<td style=\"text-align:left;vertical-align:top\"><b>{H(zeile1)}</b>{(zeile2.Length > 0 ? "<br>" + H(zeile2) : "")}</td>" +
+               $"<td style=\"text-align:center;vertical-align:top\">{H(sj)}</td>" +
+               $"<td style=\"text-align:right;vertical-align:top\">{H(erstellt)}</td></tr></table>";
+    }
+
     /// <summary>Text der Fußzeile (Text, Dateiname, Datum, Schulwoche, Kalenderwoche, Wochennummer, Periode).</summary>
     public static string FussText(DateOnly datum)
     {

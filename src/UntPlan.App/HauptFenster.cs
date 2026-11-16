@@ -308,6 +308,8 @@ public sealed partial class HauptFenster : Form
         g = Gruppe(start, "Werkzeuge");
         g.Eintraege.Add(E("Berichte", "drucken", null, menue: new()
         {
+            E("Listenauswahl…", "uebersicht", () => ListenauswahlOeffnen(), hinweis: "Alle Berichte und Listen nach Gruppen: Übersichten, Stundenplan, Unterricht, Pausenaufsichten, Vertretungsplanung, Klausuren"),
+            null,
             E("Stundenpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Klasse)),
             E("Lehrerpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Lehrer)),
             E("Raumpläne drucken…", "drucken", () => DruckauswahlDialog.Stundenplaene(this, ElementTyp.Raum)),
@@ -918,6 +920,9 @@ public sealed partial class HauptFenster : Form
         AppZustand.Doc.Aendern("Abteilung zusammenführen", AenderungsArt.Alles, d => n = Core.Module.Abteilungen.Zusammenfuehren(d, teil, a.Id));
         Ui.Info($"{n} Unterrichte der Abteilung {a.Kurzname} übernommen.");
     }
+
+    /// <summary>„Berichte ▸ Listenauswahl“: alle Berichte und Listen in einem Fenster.</summary>
+    public ListenauswahlFenster ListenauswahlOeffnen() => Oeffnen("listen", () => new ListenauswahlFenster());
 
     public static void Starten(string pfad)
     {

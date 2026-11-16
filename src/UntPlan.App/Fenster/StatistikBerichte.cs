@@ -43,15 +43,18 @@ public static class StatistikBerichte
     /// <summary>Kopf eines Lehrers wie im Handbuch: Kurzname groß, daneben der Langname.</summary>
     private static string Kopf(Lehrer l) => $"<div><span class=\"kn\">{H(l.Kurzname)}</span><span class=\"ln\">{H(l.Langname)}</span></div>";
 
-    public static void Oeffnen(string titel, string body, string? ueberschrift = null, int schriftProzent = 100)
+    /// <summary>Druckfertiges HTML-Dokument eines Berichts: Berichtskopf (Schulname, Schuljahr, Erstelldatum), Überschrift, Inhalt, Fußzeile.</summary>
+    public static string Dokument(string titel, string body, string? ueberschrift = null, int schriftProzent = 100)
     {
         var kopf = string.IsNullOrWhiteSpace(ueberschrift) ? "" : $"<div style=\"text-align:center;margin-bottom:10px\">{H(ueberschrift)}</div>";
-        var html = $"<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\"><title>{H(titel)}</title>{Stil}</head><body style=\"font-size:{10 * schriftProzent / 100.0:0.#}pt\">{kopf}{body}" +
-                   $"<div class=\"fuss\">{H(AppZustand.D.Einstellungen.Schulname)} · Vertretungsplanung mit UntPlan · {DateTime.Now:dd.MM.yyyy HH:mm}</div></body></html>";
-        var pfad = Path.Combine(Path.GetTempPath(), $"UntPlan_{new string(titel.Where(char.IsLetterOrDigit).ToArray())}_{DateTime.Now:yyyyMMdd_HHmmss}.html");
-        File.WriteAllText(pfad, html);
-        HauptFenster.Starten(pfad);
+        return $"<!doctype html><html lang=\"de\"><head><meta charset=\"utf-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"><title>{H(titel)}</title>{Stil}</head>" +
+               $"<body style=\"font-size:{(10 * schriftProzent / 100.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}pt\">{Druck.Berichtskopf.Html()}{kopf}{body}" +
+               $"<div class=\"fuss\">{H(AppZustand.D.Einstellungen.Schulname)} · Vertretungsplanung mit UntPlan · {DateTime.Now:dd.MM.yyyy HH:mm}</div></body></html>";
     }
+
+    /// <summary>Bericht im Programm anzeigen (Berichtsansicht mit Drucken, Seitenansicht, Seite einrichten, Browser und Speichern).</summary>
+    public static BerichtsansichtFenster Oeffnen(string titel, string body, string? ueberschrift = null, int schriftProzent = 100) =>
+        BerichtsansichtFenster.Zeigen(titel, Dokument(titel, body, ueberschrift, schriftProzent));
 
     /// <summary>Inhalt eines Rasters als HTML-Tabelle (Druck der Vertretungsstatistik).</summary>
     public static string Tabelle(DataGridView g)
@@ -437,7 +440,14 @@ public sealed class BerichtAuswahlDialog : Dialog
         {
             if (Ui.Eingabe("Schriftgröße in %:", "Schrift", Schrift.ToString()) is { } t && int.TryParse(t, out var p)) Schrift = Math.Clamp(p, 50, 200);
         };
-        Controls.AddRange(new Control[] { details, ueber, schrift });
+        // „Seite einrichten“: Ränder sowie Kopf- und Fußzeile des Drucks aus der Berichtsansicht
+        var seite = new Button { Text = "Seite einrichten", Left = 220, Top = 104, Width = 100, Height = 25 };
+        seite.Click += (_, _) =>
+        {
+            try { BerichtsansichtFenster.SeiteEinrichtenOhneBericht(); }
+            catch (Exception ex) { Ui.Fehler(ex); }
+        };
+        Controls.AddRange(new Control[] { details, ueber, schrift, seite });
     }
 
     private void LehrerText() => _lehrerGruppe.Text = $"Lehrer: {Lehrer.Count}/{_alle.Count}";
