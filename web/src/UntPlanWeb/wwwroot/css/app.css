@@ -619,7 +619,15 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std.geaendert, .std.offen, .std.buchung { background: var(--u-gruen-hell); box-shadow: var(--u-schatten-karte); }
 /* Entfall wie im Original (Plan-Vorlage nachgemessen): Fläche #ffe5e5, Schrift durchgestrichen, rotes Dreieck #ff4040 */
 .std.entfall, .std.abwesend { background: #ffe5e5; box-shadow: var(--u-schatten-karte); }
-.std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt { text-decoration: line-through; text-decoration-thickness: .75px; }
+/* Durchstreichung genau auf halber Höhe der Großbuchstaben: eigener 0,75-px-Strich statt line-through (dessen Lage hängt von der Schrift ab
+   und saß gut ½ px zu tief); die Zeile ist nur so breit wie ihr Text (gekürzt mit „…“ höchstens kartenbreit) */
+.std.entfall .z1, .std.entfall .z2, .std.abwesend .z1, .std.abwesend .z2, .std.entfall .zt, .std.abwesend .zt {
+  width: fit-content; max-width: 100%; text-decoration: none;
+  background: linear-gradient(transparent calc(var(--strich-mitte, 50%) - .375px), currentColor 0, currentColor calc(var(--strich-mitte, 50%) + .375px), transparent 0); }
+/* Mitte der Großbuchstaben (nachgemessen): Zeile 1 1,1 px, übrige Zeilen 0,2 px über der Mitte des Zeilenkastens – Farbverlauf statt
+   Hintergrundposition, damit die Lage nicht auf ganze Pixel rastet */
+.std.entfall .z1, .std.abwesend .z1 { --strich-mitte: calc(50% - 1.1px); }
+.std.entfall :is(.z2, .zt), .std.abwesend :is(.z2, .zt) { --strich-mitte: calc(50% - .2px); }
 .std.klausur { background: var(--u-gelb-hell); box-shadow: var(--u-schatten-karte); }
 .std.bereitschaft { background: #f3f5f7; outline: 1px dashed #8d99a3; outline-offset: -1px; }
 .std.bereitschaft::before { background: #20e0ee; }
