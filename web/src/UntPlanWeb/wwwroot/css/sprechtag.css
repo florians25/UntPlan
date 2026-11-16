@@ -46,7 +46,7 @@
 .st-jahr + .st-karten { margin-bottom: 36px; }
 .st-info { display: inline-flex; padding: 0; border: 0; background: none; color: var(--st-grau); font-size: 1.05rem; line-height: 1; }
 .st-info:hover { color: var(--u-titel); }
-.st-karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; max-width: 1260px; }
+.st-karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 30px; }
 .st-karte { position: relative; display: flex; flex-direction: column; min-height: 230px; padding: 24px 22px 18px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); cursor: pointer; }
 .st-karte:hover { box-shadow: 0 2px 4px rgba(0, 5, 10, .08), 0 6px 16px rgba(0, 5, 10, .1); }
 .st-karte:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
@@ -56,12 +56,12 @@
 .st-karte-knoepfe { display: flex; gap: 18px; margin-top: auto; padding-top: 14px; }
 .st-symbol { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--st-grau); font-size: 1.2rem; }
 .st-symbol:hover { background: var(--u-hover); color: var(--u-titel); }
-.st-leer { padding: 40px; color: var(--st-grau); text-align: center; background: #fff; border-radius: 8px; max-width: 1260px; }
+.st-leer { padding: 40px; color: var(--st-grau); text-align: center; background: #fff; border-radius: 8px; }
 
 /* ------------------------------------------------------------------ Konfiguration */
 .st-konfig { padding: 22px 40px 0; background: #fff; }
 .st-abschnitt-titel { margin: 26px 0 8px; font-size: 1.45rem; font-weight: 500; color: var(--u-titel); }
-.st-abschnitt-text { margin: 0 0 26px; color: var(--u-text); font-size: 1rem; line-height: 1.6; max-width: 1240px; }
+.st-abschnitt-text { margin: 0 0 26px; color: var(--u-text); font-size: 1rem; line-height: 1.6; }
 .st-trenner { margin: 36px 0 10px; border: 0; border-top: 1px solid var(--st-rand); opacity: 1; }
 .st-feld { position: relative; display: block; margin: 0; }
 .st-feld > span { display: block; margin: 0 0 4px 11px; font-size: .85rem; color: var(--st-grau); }
@@ -69,12 +69,11 @@
   color: var(--u-titel); font: inherit; font-size: 1.02rem; outline: none; }
 .st-feld textarea { height: auto; min-height: 92px; padding: 14px 18px; resize: vertical; }
 .st-feld input:focus, .st-feld select:focus, .st-feld textarea:focus { border-color: var(--u-titel); background: #fff; }
-.st-feld.schmal { max-width: 335px; }
 .st-zaehler { display: block; margin-top: 4px; text-align: right; color: var(--st-grau); font-size: .8rem; }
 .st-zeile { display: flex; align-items: center; gap: 24px; }
 .st-zeile > :first-child { flex: 1; min-width: 0; }
-.st-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 340px)); gap: 18px 16px; }
-.st-raster.phase { grid-template-columns: minmax(0, 248px) minmax(0, 138px); }
+.st-raster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; }
+.st-raster.phase { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .st-box { position: relative; margin: 0 0 24px; padding: 24px 22px 22px; border: 1px solid #8a96a1; border-radius: 8px; background: #fff; }
 .st-box h4 { margin: 0 0 22px; font-size: 1.08rem; font-weight: 500; color: var(--u-titel); }
 .st-box p { margin: -10px 0 20px; color: var(--u-text); }
@@ -86,7 +85,7 @@
 .st-plus-breit:hover { background: #4d5f6c; }
 .st-recht { display: flex; align-items: center; gap: 24px; padding: 18px 0; }
 .st-recht h5 { margin: 0 0 6px; font-size: 1.1rem; font-weight: 500; color: var(--u-titel); }
-.st-recht p { margin: 0; color: var(--u-text); max-width: 880px; line-height: 1.55; }
+.st-recht p { margin: 0; color: var(--u-text); line-height: 1.55; }
 .st-recht > :first-child { flex: 1; min-width: 0; }
 .st-recht .st-feld { width: 355px; flex: none; }
 .st-gross-schalter .sd-schalter-spur { width: 58px; height: 32px; border-radius: 16px; }
@@ -107,8 +106,8 @@
 
 /* ------------------------------------------------------------------ Verwaltung / Meine Termine */
 .st-titel { margin: 0 0 10px; font-size: 1.45rem; font-weight: 500; color: var(--u-titel); }
-.st-text { margin: 0 0 24px; color: var(--u-text); line-height: 1.55; max-width: 1060px; }
-.st-werkzeuge { display: flex; align-items: center; gap: 12px; margin: 0 0 34px; max-width: 1055px; }
+.st-text { margin: 0 0 24px; color: var(--u-text); line-height: 1.55; }
+.st-werkzeuge { display: flex; align-items: center; gap: 12px; margin: 0 0 34px; }
 .st-suche { position: relative; flex: 0 1 527px; }
 .st-suche i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--st-grau); }
 .st-suche input { width: 100%; height: 44px; padding: 0 16px 0 44px; border: 1px solid #8a96a1; border-radius: 999px; background: transparent; font: inherit; color: var(--u-titel); outline: none; }
@@ -116,7 +115,6 @@
 .st-filter { display: flex; gap: 10px; margin-left: auto; }
 .st-filter button { height: 36px; padding: 0 18px; border: 1px solid #8a96a1; border-radius: 999px; background: transparent; color: #414d55; font: inherit; font-weight: 500; }
 .st-filter button.an { border-color: #414d55; background: #414d55; color: #fff; }
-.st-liste { max-width: 1055px; }
 .st-lk { margin: 0 0 18px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
 .st-lk-kopf { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 62px; padding: 0 18px; border: 0; background: none; text-align: left; color: var(--u-titel); font: inherit; }
 .st-lk-kopf b { flex: 1; min-width: 0; font-size: 1.1rem; font-weight: 500; }
@@ -124,7 +122,7 @@
 .st-lk-kopf .bi-chevron-down { margin-left: 14px; font-size: 1.1rem; color: var(--st-grau); transition: transform .15s; }
 .st-lk.offen .st-lk-kopf .bi-chevron-down { transform: rotate(180deg); }
 .st-abschnitt { border-top: 1px solid var(--st-rand); padding: 8px 0; }
-.st-karte-weiss { max-width: 1280px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.st-karte-weiss { background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
 .st-karte-weiss > .st-abschnitt:first-child { border-top: 0; }
 .st-abschnitt-kopf { display: flex; align-items: center; gap: 22px; min-height: 52px; padding: 0 18px; }
 .st-abschnitt-kopf b { font-weight: 500; font-size: 1.02rem; }
@@ -185,7 +183,6 @@
 .st-zeiten-leer { color: var(--st-grau); }
 
 /* ------------------------------------------------------------------ Erziehungsberechtigte */
-.st-eltern { max-width: 760px; }
 .st-banner { display: flex; gap: 18px; margin: 0 0 30px; padding: 18px 20px; border-left: 4px solid #2f5bea; border-radius: 4px; background: #eef3ff; }
 .st-banner i { color: #2f5bea; font-size: 1.3rem; }
 .st-banner b { display: block; margin-bottom: 4px; font-weight: 500; font-size: 1.08rem; }

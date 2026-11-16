@@ -2,7 +2,9 @@
 import { e, minuten, jetztMinuten, heuteIso, datumKurz, WOCHENTAGE_KURZ } from './ui.js';
 
 /** Höhe einer Unterrichtsstunde im Raster (Pausen werden nicht maßstäblich dargestellt). */
-const ZEILE = 80;
+/** Höhe einer Stunde: mindestens 80 px, bei mehr Platz so hoch, dass das Raster bis zum Seitenende reicht (siehe zeileAnpassen). */
+const ZEILE_MIN = 80;
+let ZEILE = ZEILE_MIN;
 
 export const STATUSTEXT = {
   geaendert: 'Änderung', offen: 'Vertretung offen', entfall: 'Entfall', abwesend: 'vertreten', klausur: 'Prüfung',
@@ -386,6 +388,17 @@ const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
 const PAUSE = 30;
 
 /**
+ * Raster bis zum Seitenende: verfügbare Höhe (Fenster abzüglich Kopf mit Tagen und Legende unten) gleichmäßig auf die Stunden verteilen,
+ * nie unter 80 px – auf hohen Bildschirmen (z. B. Handy in der Desktop-Ansicht) füllt der Plan so die ganze Seite.
+ */
+function zeileAnpassen(zeiten, aufsichten) {
+  const RESERVE = 200;
+  const pausen = new Set((aufsichten || []).map(a => a.nachStunde)).size;
+  const hoehe = typeof window === 'undefined' ? 0 : window.innerHeight;
+  ZEILE = Math.max(ZEILE_MIN, Math.floor((hoehe - RESERVE - pausen * PAUSE) / Math.max(1, zeiten.length)));
+}
+
+/**
  * Zeilenaufbau: je Stunde eine Zeile, dazu eine Pausenzeile nur dort, wo im Zeitraster wirklich eine Pause liegt
  * (Ende ≠ nächster Beginn) und in dieser Woche eine Pausenaufsicht stattfindet. Liefert die Oberkante jeder Stunde und jeder Pausenzeile.
  */
@@ -526,6 +539,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   const zeiten = alle;
   const index = new Map(zeiten.map((z, i) => [z.nr, i]));
   const letzte = zeiten[zeiten.length - 1].nr;
+  zeileAnpassen(zeiten, plan.aufsichten);
   const aufbau = zeilenAufbau(zeiten, plan.aufsichten);
   const heute = heuteIso();
   const jetzt = jetztMinuten();
