@@ -328,19 +328,14 @@ export function karteDialog(karte, kontext = {}) {
     const nameW = new Set(sl.map(x => x.klasse)).size > 1 ? { ...sitzW, klasseZeigen: true } : sitzW;
     const kachel = s => {
       const f = fehlzeitVon(s.id);
-      const st = !f ? 'da' : f.art === 'verspaetet' ? 'spaet' : f.art === 'vorzeitig' ? 'frueh' : 'weg';
+      // Kacheln kennen nur anwesend/abwesend – Verspätung bzw. früher gegangen steht nur unten in der Liste (keine Minuten, keine eigene Farbe)
+      const st = f && f.art !== 'verspaetet' && f.art !== 'vorzeitig' ? 'weg' : 'da';
       const befreit = daten.befreit?.has(s.id);
-      const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : st === 'weg' ? `<span class="sd-statusbild weg">${KREUZ}</span>`
-        : st === 'frueh' ? '<span class="sd-statusbild frueh"><i class="bi bi-box-arrow-right"></i></span>' : '<span class="sd-statusbild spaet"><i class="bi bi-clock-fill"></i></span>';
-      // Verspätung / früher gegangen: eigene Zeile unter dem Namen – nur Symbol und Minuten in der Statusfarbe (ohne Text)
-      const zusatz = f && st !== 'weg'
-        ? `<span class="sd-zeitpille ${st} ${f.fehlstunden ? 'gewertet' : ''}" title="${st === 'spaet' ? 'verspätet' : 'früher gegangen'} ${f.minuten} Min."><i class="bi ${st === 'spaet' ? 'bi-clock-fill' : 'bi-box-arrow-right'}"></i><b>${f.minuten} Min.</b></span>`
-        : '';
-      return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : st === 'spaet' ? `verspätet (${f.minuten} min)` : st === 'frueh' ? `vorzeitig gegangen (${f.minuten} min)` : 'anwesend'}${f?.fehlstunden && st !== 'weg' ? ' – als Fehlstunde gewertet' : ''}">
+      const status = st === 'da' ? bildIcon('exact/status_present.svg', 'sd-statusbild') : `<span class="sd-statusbild weg">${KREUZ}</span>`;
+      return `<div class="sd-kachel ${st} ${befreit && st === 'da' ? 'befreit' : ''} ${auswahl.has(s.id) ? 'gewaehlt' : ''}" data-sid="${s.id}" role="button" tabindex="0" aria-pressed="${auswahl.has(s.id)}" title="${befreit ? 'vom Unterricht befreit' : st === 'weg' ? 'abwesend' : 'anwesend'}">
         ${status}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name">${sitz.nameHtml(s, nameW)}</span>
-        ${zusatz}
         ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };
@@ -864,6 +859,9 @@ export function karteDialog(karte, kontext = {}) {
       const m = fzKarte();
       // abwesend → anwesend: Abwesenheitsdialog mit der aktuellen Uhrzeit als Ankunft (Verspätung bis jetzt) – Speichern trägt die teilweise
       // Abwesenheit ein, „Löschen“ macht die Stunde ganz anwesend
+      // Verspätung bzw. früher gegangen gilt auf der Kachel als anwesend: „×“ macht daraus eine Abwesenheit
+      const teil = m.get(id);
+      if (teil && (teil.art === 'verspaetet' || teil.art === 'vorzeitig')) { m.set(id, { art: 'fehlt', minuten: 0 }); anwesenheitSpeichern(m); return; }
       if (m.has(id)) {
         const f = (daten.anwesenheit?.fehlzeiten ?? []).find(x => x.schuelerId === id);
         if (f) abwesenheitDialog([id], ankunftVorgabe(f), { ankunft: true });

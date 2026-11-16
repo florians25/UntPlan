@@ -656,13 +656,5 @@ body .sp-overlay { animation: kbd-ein .16s ease; background: rgba(36, 50, 61, .4
 @media (prefers-reduced-motion: reduce) { .sp-overlay, .sp-overlay .sp-fenster { animation: none; } }
 
 /* Verspätung / früher gegangen an der Schülerkarte: eigene Zeile unter dem Namen mit Abstand zu Name und Umschalter */
-.sd-kachel { grid-template-rows: auto auto auto; }
-.sd-kachel .sd-zeitpille { grid-column: 1 / -1; grid-row: 3; justify-self: stretch; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; margin: 10px 0 0; padding: 3px 8px; border-radius: 999px; font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; }
-.sd-kachel .sd-zeitpille i { font-size: 11px; flex: none; }
-.sd-kachel .sd-zeitpille span { overflow: hidden; text-overflow: ellipsis; }
-.sd-kachel .sd-zeitpille b { font-weight: 500; flex: none; }
-.sd-kachel .sd-zeitpille.spaet { color: #8a5a00; background: #fff1cc; box-shadow: inset 0 0 0 1px #f3d58a; }
-.sd-kachel .sd-zeitpille.frueh { color: #4f3594; background: #eee7fb; box-shadow: inset 0 0 0 1px #d6c8f2; }
-.sd-kachel .sd-zeitpille.gewertet { color: #a32626; background: #fde8e8; box-shadow: inset 0 0 0 1px #f2b8b8; }
 .sd-kachel.spaet, .sd-kachel.frueh { min-height: 112px; }
 .sd-kachel.spaet .sd-umschalten, .sd-kachel.frueh .sd-umschalten { margin-top: 2px; }

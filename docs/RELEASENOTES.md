@@ -27,6 +27,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Seitenleiste animiert wie in der Vorlage: Untermenü öffnen – das Menü gleitet nach links hinaus, das Untermenü kommt von rechts; zurück – das Hauptmenü kommt von links, die Punkte blenden nacheinander ein; der orange Aktiv-Balken gleitet zum neuen Punkt. Kein erneutes Einblenden mehr bei jedem Seitenwechsel.
+- Anwesenheit: Die Schülerkacheln kennen nur noch anwesend/abwesend – Verspätung bzw. früher gegangen erscheint als anwesend (ohne Minuten, ohne eigene Farbe, Kachel bleibt gleich hoch) und steht nur unten in der Liste; „×“ macht daraus eine Abwesenheit.
 - Vertretung ohne Lehrkraft: kein Info-Symbol und kein Vertretungstext „Vertr. o. Lehrkr.“ mehr (auch nicht aus älteren Daten) – nur von Hand eingegebene Texte erscheinen.
 - Raum buchen: Knöpfe (Zurück, Weiter, Speichern …) gleich groß und rechts.
 - Raum buchen wie in der Vorlage (im Grunddesign): „Buchung: Suche nach freien Räumen“ mit Zeitbereich (Einmalig, Täglich, Jede Woche … , Datum bzw. Zeitraum, Beginn- und Endzeit, „ganztägig“) und Auswahlkriterien (Ressourcenart, Raumart, Abteilung, Gebäude, Raumgruppe, Kapazität, maximale Belegung) → „Freie Räume“ als Tabelle mit „frei“ je Termin → „Buchung“ (Lehrkraft, Fach, Klassen, Titel, Anmerkung, Benachrichtigung, Hinweis auf Überschneidungen) → „Erfolgreiche Buchung“ mit PDF-Beleg und „Schließen“.
