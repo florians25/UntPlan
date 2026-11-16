@@ -163,6 +163,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Menüpunkt „Übersicht“ nur noch für Schulleitung und Administration, nicht für Lehrkräfte.
 
 ### iOS
+- Stundendetails: die Reiter oben zeigen immer das Fach – auch bei zusätzlicher Unterrichtsstunde bzw. Fachänderung (z. B. „ITS | MAT“).
 - Fachänderung: Stundendetails mit Vertretungstext und „Information zur Stunde“ wie im Web.
 - Raumplan: offene Raumvertretungen (noch ohne neuen Raum) werden wieder angezeigt.
 - Vertretung ohne Lehrkraft und Fachänderung (zusätzliche Unterrichtsstunde) wie im Web.

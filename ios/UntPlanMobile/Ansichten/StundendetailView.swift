@@ -268,8 +268,9 @@ struct StundendetailInhalt: View {
     static func reitertitel(_ k: Karte) -> String {
         // Veranstaltung: die Bezeichnung steht nur unten in „Information zur Stunde“, nicht im Reiter (wie die PWA)
         if k.istVeranstaltung { return "Veranstaltung" }
-        if k.istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
+        // Fach immer oben im Reiter (auch bei zusätzlicher Unterrichtsstunde bzw. Fachänderung, Vorlage: „ITS | MAT“)
         if !k.fach.isEmpty { return k.fach }
+        if k.istZusatzstunde { return "Zusätzliche Unterrichtsstunde" }
         if !k.anzeigeText.isEmpty { return k.anzeigeText }
         return k.anzeigeArt.isEmpty ? "Stunde" : k.anzeigeArt
     }
