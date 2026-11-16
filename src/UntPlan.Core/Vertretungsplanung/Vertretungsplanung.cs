@@ -699,7 +699,7 @@ public static class Vertretungen
     // Bearbeitung
     // ----------------------------------------------------------------------------------------------
 
-    /// <summary>Vertretungstext, der bei „+++“ (Vertretung ohne Lehrkraft) eingesetzt wird, wenn noch kein anderer Text da ist.</summary>
+    /// <summary>Automatischer Text älterer Versionen bei „+++“ (Vertretung ohne Lehrkraft) – wird nicht mehr eingesetzt und nicht als Text gezeigt.</summary>
     public const string OhneLehrerText = "Vertr. o. Lehrkr.";
 
     /// <summary>Der automatisch eingesetzte Text gehört nur zu „+++“: wird daraus etwas anderes, verschwindet er wieder.</summary>
@@ -842,7 +842,8 @@ public static class Vertretungen
         v.Art = VertretungsArt.VertretungOhneLehrer;
         v.VertreterId = null;
         v.Mehrarbeit = false;
-        if (string.IsNullOrWhiteSpace(v.Text)) v.Text = OhneLehrerText;
+        // kein automatischer Vertretungstext: „Vertr. o. Lehrkr.“ ergibt sich aus der Art (früher eingesetzten Standardtext entfernen)
+        if (v.Text is OhneLehrerText or "Vertr. o. Lehrkraft") v.Text = "";
     }
 
     /// <summary>

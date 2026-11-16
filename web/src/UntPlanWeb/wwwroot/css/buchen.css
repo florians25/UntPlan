@@ -552,7 +552,8 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
 .rb-tage { display: flex; flex-wrap: wrap; gap: 18px; }
 .rb-kriterien { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px 14px; padding: 18px 20px; border: 1px solid var(--u-linie); border-radius: 8px; }
 .rb-kriterien select[multiple] { min-height: 40px; }
-.rb-fuss { display: flex; gap: 12px; margin-top: 18px; }
+.rb-fuss { display: flex; justify-content: flex-end; gap: 12px; margin-top: 18px; }
+.rb-fuss .pe-knopf { min-width: 140px; }
 .rb-kriterienzeile { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 16px; font-size: .9rem; color: var(--u-grau); }
 .rb-kriterienzeile b { font-weight: 500; color: var(--u-titel); }
 .rb-tabelle-huelle { max-height: 62vh; overflow: auto; border: 1px solid var(--u-linie); border-radius: 8px; }
