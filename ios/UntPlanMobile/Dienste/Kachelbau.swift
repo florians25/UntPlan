@@ -365,6 +365,9 @@ enum Kachelbau {
     static func ausRaumGenommen(_ k: Karte, raum: String) -> Bool {
         guard !raum.isEmpty else { return false }
         if k.raeume.contains(where: { gleich($0.k, raum) }) { return false }
+        // offene Raumvertretung (noch kein neuer Raum, „???“): bleibt wie im Web im Raumplan – nur eine in einen anderen Raum
+        // verlegte Stunde verschwindet
+        guard k.raeume.contains(where: { !$0.k.isEmpty && $0.k != "???" }) else { return false }
         return k.raeume.contains { gleich($0.alt ?? "", raum) }
     }
 
