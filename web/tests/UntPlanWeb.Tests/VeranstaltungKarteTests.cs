@@ -51,8 +51,8 @@ public class VeranstaltungKarteTests
             Assert.True(w.Plus);
             Assert.Equal(lehrer.Count, k.Lehrer.Count);
             Assert.All(k.Lehrer, x => Assert.False(x.Neu));
-            // grünes Änderungs-Viereck bleibt, kein „+“-Symbol
-            Assert.Equal(new[] { "aenderung" }, k.Marker);
+            // wie in der Vorlage: „+“ und darunter das grüne Änderungs-Viereck
+            Assert.Equal(new[] { "plus", "aenderung" }, k.Marker);
         }
     }
 

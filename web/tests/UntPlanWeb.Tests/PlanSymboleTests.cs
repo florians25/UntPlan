@@ -126,7 +126,7 @@ public class PlanSymboleTests
     }
 
     [Fact]
-    public void Raumaenderung_Pruefung_Veranstaltung_ohne_Verlegungs_und_Plussymbol()
+    public void Raumaenderung_Pruefung_ohne_Verlegungs_und_Plussymbol_Veranstaltung_mit_Plus()
     {
         var d = Schule();
         var r = Normale(d, Do);
@@ -148,8 +148,9 @@ public class PlanSymboleTests
         Assert.Contains(alle, k => k.Status == "veranstaltung");
         Assert.Contains(alle, k => k.Raeume.Any(w => w.Alt is { Length: > 0 }) && k.Status == "geaendert");
         Assert.DoesNotContain(alle, Verlegungssymbol);
-        Assert.DoesNotContain(alle, k => k.Marker.Contains("plus"));
-        Assert.All(alle.Where(k => k.Status == "veranstaltung"), k => Assert.Equal(new[] { "aenderung" }, k.Marker));
+        Assert.DoesNotContain(alle.Where(k => k.Status != "veranstaltung"), k => k.Marker.Contains("plus"));
+        // Veranstaltung wie in der Vorlage: „+“ und darunter das grüne Änderungssymbol
+        Assert.All(alle.Where(k => k.Status == "veranstaltung"), k => Assert.Equal(new[] { "plus", "aenderung" }, k.Marker));
     }
 
     // ------------------------------------------------------------------ Prüfung im Raumplan wie im Klassenplan

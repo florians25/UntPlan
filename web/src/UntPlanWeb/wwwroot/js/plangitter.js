@@ -160,6 +160,7 @@ function marker(k, typ) {
   else if (istEntfall(k, typ)) m.push('<i class="mk-dreieck"></i>');
   if (k.status === 'klausur') { m.push('<i class="mk-kreis"></i>'); if (wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
   else if (verlegt) { if (richtung === 'nach' && (k.status === 'geaendert' || k.status === 'offen') && wertGeaendert(k)) m.push('<i class="mk-quadrat"></i>'); }
+  else if (k.status === 'veranstaltung') { m.push('<i class="mk-plus"></i>'); m.push('<i class="mk-quadrat"></i>'); }
   else if (istZusatz(k)) {
     m.push(`<i class="mk-plus"${k.zusaetzlich ? ` data-hover="${ZUSATZ_TEXT}" data-hover-art="dunkel"` : ''}></i>`);
     if (k.status !== 'veranstaltung' && zusatzWertGeaendert(k)) m.push('<i class="mk-quadrat"></i>');
@@ -175,6 +176,8 @@ export function infoText(k) {
   // Prüfung: nur ihr Name (Prüfungsart, Notenschema und Teilnehmende stehen in den Stundendetails)
   if (k.status === 'klausur') { if (k.pruefung || k.text) z.push(`Prüfung: ${k.pruefung || k.text}`); }
   else if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
+  // Veranstaltung (Vorlage): Info-Symbol mit dem Text der Veranstaltung
+  else if (k.status === 'veranstaltung' && !k.fach && k.text) z.push(`Information zur Stunde: ${k.text}`);
   if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
   if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
   return z.join('\n');
@@ -599,7 +602,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     const karten = plan.karten.filter(k => (t.spalte ? k.spalte === t.spalte : k.datum === t.datum) && index.has(k.von));
     // Veranstaltungen, die nicht schon als Karte (Teilnahme) im Plan stehen – als grüne Zusatzkarte
     const ereignisKarten = t.ereignisse.filter(x => index.has(Math.max(x.von, zeiten[0].nr)) && !karten.some(k => k.text === x.titel && k.von <= x.bis && k.bis >= x.von))
-      .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: ['aenderung'],
+      .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: ['plus', 'aenderung'],
         klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k, neu: true })) }));
     const alleKarten = [...karten, ...ereignisKarten];
     const lage = spuren(alleKarten);

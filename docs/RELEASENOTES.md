@@ -102,6 +102,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Veranstaltung wie in der Vorlage: oben rechts „+“ und darunter das grüne Änderungssymbol, unten rechts das Info-Symbol mit dem Text der Veranstaltung.
 - Fachänderung: Stundendetails wie in der Vorlage – Badge „Zusätzliche Unterrichtsstunde“, Vertretungstext und derselbe Text als „Information zur Stunde“.
 - Vertretung ohne Lehrkraft (+++): Vertretungstext „Vtr. ohne Lehrer“ mit Info-Symbol auf der Karte (in UntPlan selbst kein Text).
 - Fachänderung: die neue Stunde erscheint als zusätzliche Unterrichtsstunde, daneben die ursprüngliche als Entfall.
