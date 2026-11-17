@@ -569,7 +569,8 @@ export async function zeigen(seite, kontext, [klasseParam]) {
   kontext.titel(`Sitzplan ${klasse}`, `${r.verwalten ? '<button class="btn btn-primary" data-bearbeiten><i class="bi bi-easel me-1"></i>Sitzplan bearbeiten</button>' : ''}
     <button class="btn btn-outline-secondary" data-drucken ${r.plan.vorhanden ? '' : 'disabled'}><i class="bi bi-printer me-1"></i>Drucken</button>
     <button class="btn btn-outline-secondary" data-einstellungen title="Klassenbuch-Einstellungen" aria-label="Klassenbuch-Einstellungen"><i class="bi bi-gear"></i></button>`);
-  const kachel = s => `<div class="sd-kachel da" data-sid="${s.id}"><span class="sd-avatar"><span class="sp-ava" style="--ava:${farbe(s.id)};width:100%;height:100%">${e(initialenVon(s))}</span></span><span class="sd-name">${nameHtml(s, w)}</span></div>`;
+  // @-Symbol: Adresse (E-Mail, Telefon) der Schülerin/des Schülers – Klassenleitung (kontaktdaten.js, Leitfaden Klassenleitung 6.2)
+  const kachel = s => `<div class="sd-kachel da" data-sid="${s.id}"><span class="sd-avatar"><span class="sp-ava" style="--ava:${farbe(s.id)};width:100%;height:100%">${e(initialenVon(s))}</span></span><span class="sd-name">${nameHtml(s, w)}</span>${r.verwalten ? `<button type="button" class="sp-at" data-adresse="${s.id}" title="Adresse" aria-label="Adresse von ${e(anzeigeName(s, w))}">@</button>` : ''}</div>`;
   seite.innerHTML = `<div class="sp-seite">
     <div class="sp-seite-leiste">${filterFeld('Klasse', `<select class="form-select" data-klasse>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}</div>
     ${!r.schueler.length ? leer('Für diese Klasse wurde keine Schülerliste aus UntPlan übertragen.', 'people')
@@ -577,6 +578,11 @@ export async function zeigen(seite, kontext, [klasseParam]) {
       : `<div class="sp-a-hinweis"><i class="bi bi-easel"></i>Für die Klasse ${e(klasse)} ist noch kein Sitzplan hinterlegt.${r.verwalten ? ' <button type="button" class="sp-knopf primaer" data-bearbeiten2>Sitzplan erstellen</button>' : ''}</div>`}
     </div>`;
   seite.querySelector('[data-klasse]').onchange = ev => kontext.navigieren(`#/sitzplan/${encodeURIComponent(ev.target.value)}`);
+  seite.querySelectorAll('[data-adresse]').forEach(b => b.onclick = async ev => {
+    ev.stopPropagation();
+    const s = r.schueler.find(x => String(x.id) === b.dataset.adresse);
+    try { (await import('./kontaktdaten.js')).adresseDialog(Number(b.dataset.adresse), s ? `${s.name} ${s.vorname}` : ''); } catch (err) { kontext.fehler(err); }
+  });
   document.querySelector('[data-bearbeiten]')?.addEventListener('click', bearbeiten);
   seite.querySelector('[data-bearbeiten2]')?.addEventListener('click', bearbeiten);
   document.querySelector('[data-drucken]')?.addEventListener('click', () => pdfOeffnen({ ...d.gueltig, bereich: 'klasse', klasse, klassen: [klasse], belegung: d.gueltig?.belegung ?? {}, titel: `Sitzplan ${klasse}`, vornameZuerst: w.namen === 'vorname', kurz: w.namen === 'kurz', klasseZeigen: w.klasseZeigen }));

@@ -3,6 +3,9 @@
 import { LOGO, icon, e, holen, senden, api, fehler, alarm, lade, initialen, toast } from './ui.js';
 import { beobachten as auswahlBeobachten } from './auswahl.js';
 import { beobachten as kalenderBeobachten } from './kalender.js';
+// Kennwort vergessen und Selbstregistrierung (Leitfaden Klassenleitung, Kapitel 6)
+import { zugangsLink, kennwortVergessen, registrieren } from './zugang.js';
+import { beobachten as bilderBeobachten } from './schuelerbilder.js';
 
 const ANSICHTEN = {
   heute: () => import('./ansichten/heute.js'),
@@ -37,6 +40,10 @@ const ANSICHTEN = {
   hinweise: () => import('./ansichten/hinweise.js'),
   kbeinstellungen: () => import('./ansichten/kbeinstellungen.js'),
   planeinstellungen: () => import('./ansichten/planeinstellungen.js'),
+  // Leitfaden Klassenleitung: Schülergruppen und Schüler-Gruppen-Zuordnung, Kontaktdaten, Offene Stunden pro Klasse
+  schuelergruppen: () => import('./ansichten/schuelergruppen.js'),
+  kontaktdaten: () => import('./ansichten/kontaktdaten.js'),
+  offenklasse: () => import('./ansichten/offenklasse.js'),
 };
 
 const app = document.getElementById('app');
@@ -141,6 +148,7 @@ async function start() {
   }
   elementeCache = null;
   if (!sitzung.eingerichtet) return einrichtung();
+  if (!sitzung.benutzer && zugangsLink(anmeldeRahmen, start)) return;
   if (!sitzung.benutzer) return anmeldung();
   if (sitzung.benutzer.passwortAendern) return passwortPflicht();
   if (weiterNachAnmeldung) {
@@ -149,6 +157,8 @@ async function start() {
     return;
   }
   huelle();
+  // Bilder der Schüler*innen in Abwesenheitskontrolle und Sitzplan (Leitfaden Klassenleitung, Kapitel 5)
+  if (sitzung.benutzer.kollegium) bilderBeobachten();
   route();
 }
 
@@ -244,18 +254,15 @@ function anmeldung() {
       <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required></label>
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Anmelden</button>
-      <button type="button" class="lg-vergessen" data-vergessen aria-expanded="false">Passwort vergessen?</button>
-      <p class="lg-hinweis d-none" data-vergessen-text>Ein neues Passwort vergibt die Administration Ihrer Schule. Bitte wenden Sie sich dorthin.</p>
+      <button type="button" class="lg-vergessen" data-vergessen>Passwort vergessen?</button>
+      <button type="button" class="lg-vergessen" data-registrieren>Registrieren (Eltern und Betriebe)</button>
     </form>`, 'Mit Ihrem Schulkonto weiter zu Stundenplan und Klassenbuch.');
   // Zugriff gesperrt (Wartungsmodus): Hinweis der Administration über dem Formular
   holen('/api/app/zugriff').then(z => {
     if (z.gesperrt) form.querySelector('[data-meldung]').insertAdjacentHTML('beforebegin', `<div class="lg-wartung" role="status"><i class="bi bi-lock" aria-hidden="true"></i><span>${e(z.hinweis)}</span></div>`);
   }).catch(() => { /* ohne Hinweis */ });
-  form.querySelector('[data-vergessen]').onclick = ev => {
-    const t = form.querySelector('[data-vergessen-text]');
-    t.classList.toggle('d-none');
-    ev.currentTarget.setAttribute('aria-expanded', String(!t.classList.contains('d-none')));
-  };
+  form.querySelector('[data-vergessen]').onclick = () => kennwortVergessen(anmeldeRahmen, anmeldung);
+  form.querySelector('[data-registrieren]').onclick = () => registrieren(anmeldeRahmen, anmeldung);
   form.onsubmit = async ev => {
     ev.preventDefault();
     const btn = form.querySelector('button[type=submit]');
@@ -357,9 +364,12 @@ function menue() {
       { nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Mein Unterricht' : 'Unterricht', icon: 'meineunterrichte' },
       { nav: 'buchen-unterricht', href: '#/buchen/unterricht', text: 'Neuer Unterricht', icon: 'meineunterrichte' },
       { nav: 'unterricht-klasse', href: '#/unterricht/klasse', text: 'Klasse', icon: 'klasse' },
+      // Schülergruppen (schuelergruppen.js): Zuordnung der Schüler*innen, Schüler-Gruppen-Zuordnung (Matrix)
+      { nav: 'schuelergruppen', href: '#/schuelergruppen', text: 'Schülergruppen', icon: 'benutzer' },
       // Unterricht Klassen (unterrichtklassen.js): Schülergruppen, Abmeldungen, befristeter Unterrichtswechsel
       ...(b.rechte?.['unterricht.klassen'] ? [{ nav: 'unterrichtklassen', href: '#/unterrichtklassen', text: 'Unterricht Klassen', icon: 'benutzer' }] : []),
       { nav: 'schueler', href: '#/schueler', text: 'Schüler*in', icon: 'benutzer' },
+      ...(b.fehlzeiten || b.admin ? [{ nav: 'kontaktdaten', href: '#/kontaktdaten', text: 'Kontaktdaten', icon: 'lehrkraft' }] : []),
       { nav: 'pruefungen', href: '#/pruefungen', text: 'Prüfungen', icon: 'klausur' },
       { nav: 'pruefungskalender', href: '#/pruefungskalender', text: 'Prüfungskalender', icon: 'pruefung' },
       { nav: 'aufgaben', href: '#/aufgaben', text: 'Aufgaben', icon: 'vertretungen' },
@@ -370,11 +380,11 @@ function menue() {
     m.push({ id: 'klassenbuch', text: 'Klassenbuch', icon: 'klassenbuchnav', unter: [
       { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'uebersicht' },
       { nav: 'offen', href: '#/offen', text: 'Offene Stunden', icon: 'offen' },
+      ...(b.fehlzeiten || b.admin ? [{ nav: 'offenklasse', href: '#/offenklasse', text: 'Offene Stunden pro Klasse', icon: 'offen' }] : []),
       { nav: 'eintraege', href: '#/eintraege', text: 'Klassenbucheinträge', icon: 'eintraege' },
       { nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' },
       { nav: 'dienste', href: '#/dienste', text: 'Klassendienste', icon: 'klassendienste' },
       { nav: 'berichte', href: '#/berichte', text: 'Berichte', icon: 'berichte' },
-      { nav: 'klassenbuch-woche', href: '#/klassenbuch/-/woche', text: 'Wochenübersicht', icon: 'woche' },
       ...(b.fehlzeiten ? [{ nav: 'abwesenheiten', href: '#/abwesenheiten', text: 'Abwesenheiten', icon: 'abwesenheiten' },
         { nav: 'fehlzeiten', href: '#/klassenbuch/-/fehlzeiten', text: 'Fehlzeiten', icon: 'fehlzeiten' }] : []),
       // Fachlehrer-Entschuldigungen: Fehlstunden des eigenen Unterrichts entschuldigen
@@ -391,10 +401,15 @@ function menue() {
     ] });
     // Buchungsmodul (buchen.js): Räume, Ressourcen, Aktivitäten; Verwaltung der Ressourcen und Raumdaten nur für die Administration
     m.push({ id: 'buchen', text: 'Buchen', icon: 'meldenbuchen', unter: [
+      // Termin-Modul (termin.js): Neue Aktivität, Terminsuche, Buchungen, Raum- / Ressourcenliste, Raumwechsel – jeder Punkt genau einmal, kein „Übersicht“
       { nav: 'buchen-raum', href: '#/buchen/raum', text: 'Raum buchen', icon: 'raum' },
-      { nav: 'buchen-ressource', href: '#/buchen/ressource', text: 'Ressource buchen', icon: 'ressource' },
       { nav: 'buchen-aktivitaet', href: '#/buchen/aktivitaet', text: 'Neue Aktivität', icon: 'meineunterrichte' },
+      { nav: 'buchen-terminsuche', href: '#/buchen/terminsuche', text: 'Terminsuche', icon: 'pruefung' },
+      { nav: 'buchen-ressource', href: '#/buchen/ressource', text: 'Ressource buchen', icon: 'ressource' },
       { nav: 'buchen-meine', href: '#/buchen/meine', text: 'Meine Buchungen', icon: 'protokoll' },
+      ...(b.admin ? [{ nav: 'buchen-liste', href: '#/buchen/meine/-/-/alle', text: 'Buchungen', icon: 'protokoll' }] : []),
+      { nav: 'buchen-raumliste', href: '#/buchen/raumliste', text: 'Raum- / Ressourcenliste', icon: 'raumplan' },
+      { nav: 'buchen-raumwechsel', href: '#/buchen/raumwechsel', text: 'Raumwechsel', icon: 'synchron' },
       { nav: 'buchen-raeume', href: '#/buchen/raeume', text: 'Raumübersicht', icon: 'tagraeume' },
       { nav: 'buchen-ressourcen', href: '#/buchen/ressourcen', text: 'Ressourcenübersicht', icon: 'woche' },
       ...(b.admin ? [{ nav: 'buchen-verwaltung', href: '#/buchen/verwaltung', text: 'Ressourcen verwalten', icon: 'stammdaten' },
@@ -457,6 +472,7 @@ function menue() {
       { nav: 'admin-rueckmeldungen', href: '#/admin/rueckmeldungen', text: 'Rückmeldungen', icon: 'ruckmeldung' },
       { nav: 'admin-sperren', href: '#/admin/sperren', text: 'Prüfungssperren', icon: 'sperre' },
       { nav: 'admin-raumsperren', href: '#/admin/raumsperren', text: 'Raumsperren', icon: 'sperre' },
+      { nav: 'buchen-beschraenkungen', href: '#/buchen/beschraenkungen', text: 'Buchungsbeschränkungen', icon: 'sperre' },
       { nav: 'admin-verspaetung', href: '#/admin/verspaetung', text: 'Verspätungen & Fehlzeiten', icon: 'abwesenheiten' },
       { nav: 'admin-ansicht', href: '#/admin/ansicht', text: 'Ansichtseinstellungen', icon: 'ansicht' },
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
@@ -473,6 +489,9 @@ function menue() {
       { nav: 'admin-zugriff', href: '#/admin/zugriff', text: 'Zugriff ent-/sperren', icon: 'sperre' }, { nav: 'admin-ueber', href: '#/admin/ueber', text: 'Über UntPlan', icon: 'info' });
     if (r['admin.benutzer']) unter.push({ nav: 'admin-benutzer', href: '#/admin/benutzer', text: 'Benutzer', icon: 'benutzer' }, { nav: 'admin-personen', href: '#/admin/personen', text: 'Personen & Konten', icon: 'lehrkraft' });
     if (r['buchung.verwalten']) unter.push({ nav: 'admin-raumsperren', href: '#/admin/raumsperren', text: 'Raumsperren', icon: 'sperre' });
+    // Klassenleitungen: Stammdaten → Schüler*innen (Bilder der Schüler*innen hochladen, Leitfaden Klassenleitung Kapitel 5)
+    if (k && b.fehlzeiten) m.push({ id: 'stammdaten', text: 'Stammdaten', icon: 'stammdaten', unter: [
+      { nav: 'stammdaten-schueler', href: '#/stammdaten/schueler', text: 'Schüler*innen', icon: 'benutzer' }] });
     if (unter.length === 1) m.push({ id: 'admin', ...unter[0] });
     else if (unter.length) m.push({ id: 'admin', text: 'Administration', icon: 'verwaltung', unter });
   }
@@ -494,9 +513,10 @@ function navAus(teile) {
     case 'tag': return (teile[3] === 'u' ? 'u-tag-' : 'tag-') + (a || 'klasse');
     case 'unterricht': return a === 'klasse' ? 'unterricht-klasse' : 'unterricht';
     case 'mitteilungen': return ['gesendet', 'entwuerfe', 'listen', 'einstellungen', 'verfassen'].includes(a) ? 'mitteilungen-' + a : 'mitteilungen';
-    case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : c && c !== 'uebersicht' ? 'klassenbuch-woche' : 'klassenbuch';
+    // keine Wochenübersicht mehr: frühere Adressen …/woche (und Vermerke, Lehrstoffverlauf) gehören zur Übersicht
+    case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'uebersicht');
-    case 'buchen': return a === 'stunden' ? 'buchen-unterricht' : 'buchen-' + (a || 'raum');
+    case 'buchen': return a === 'stunden' || a === 'zusatz' ? 'buchen-unterricht' : a === 'buchung' || (a === 'meine' && teile[4] !== 'alle') ? 'buchen-meine' : a === 'meine' ? 'buchen-liste' : 'buchen-' + (a || 'raum');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
     case 'kbeinstellungen': return a === 'unterricht' ? 'kbeinstellungen-unterricht' : 'kbeinstellungen';
     case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));

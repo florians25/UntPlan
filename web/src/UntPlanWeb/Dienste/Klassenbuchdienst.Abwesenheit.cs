@@ -13,7 +13,11 @@ namespace UntPlanWeb.Dienste;
 /// </summary>
 public sealed record Fehlzeile(int Id, int SchuelerId, string Schueler, string Klasse, string Datum, int Stunde, string Beginn, string Ende,
     string AbwesendVon, string AbwesendBis, string Fach, string Lehrer, int Fehltage, int Fehlstunden, int Fehlminuten, bool Zaehlt,
-    string Art, string Grund, string Status, string Text, string Gruppe);
+    string Art, string Grund, string Status, string Text, string Gruppe)
+{
+    /// <summary>Name des Entschuldigungsstatus (z. B. „u-1Mahn“), leer = Grundstatus.</summary>
+    public string StatusName { get; init; } = "";
+}
 
 /// <summary>
 /// Abwesenheit als Zeitraum (von Datum/Uhrzeit bis Datum/Uhrzeit) mit Grund, Status und Text. Sie fasst die Fehlzeiten zusammen,
@@ -33,6 +37,10 @@ public sealed record Abwesenheitszeitraum(string Schluessel, int SchuelerId, str
     /// „offen“, Anzahl je Status zeigen Entschuldigt/Unentschuldigt (gleiche Zählung wie die Fehlzeiten).
     /// </summary>
     public bool StatusGemischt { get; init; }
+    /// <summary>Name des Entschuldigungsstatus (z. B. „Nicht akzeptiert“, „u-1Mahn“), leer = Grundstatus.</summary>
+    public string StatusName { get; init; } = "";
+    /// <summary>Die Abwesenheit darf (noch) gelöscht werden – nach der Löschsperre nur noch von der Administration.</summary>
+    public bool Loeschbar { get; init; } = true;
     public int Entschuldigt { get; init; }
     public int Unentschuldigt { get; init; }
 }
@@ -170,6 +178,9 @@ public sealed partial class Klassenbuchdienst
         var lehrer = LehrerFinder(s);
         var stunden = StundenFinder(s);
         var alle = liste.OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).ToList();
+        // zählt nicht: Abwesenheitsgrund ohne „zählt“ (z. B. andere schulische Veranstaltung) und Fehlzeiten während einer Befreiung
+        var nichtZaehlend = NichtZaehlendeGruende();
+        var befreit = BefreitFinder(s, alle.Select(f => f.SchuelerId));
         // ganze Tage: alle Unterrichtsstunden des Tages als Fehlstunde gewertet → Fehltag in der letzten Stunde
         var fehltag = new HashSet<int>();
         foreach (var g in alle.GroupBy(f => (f.SchuelerId, f.Datum)))
@@ -184,10 +195,10 @@ public sealed partial class Klassenbuchdienst
         {
             var (b, e) = StundenZeit(s, f.Stunde);
             var (ab, bi) = Fenster(s, f);
-            var zaehlt = f.Art == "fehlt";
+            var zaehlt = f.Art == "fehlt" && !nichtZaehlend.Contains(f.Grund) && !befreit(f);
             return new Fehlzeile(f.Id, f.SchuelerId, namen.GetValueOrDefault(f.SchuelerId, $"#{f.SchuelerId}"), f.Klasse, f.Datum, f.Stunde, Hhmm(b), Hhmm(e),
-                Hhmm(ab), Hhmm(bi), f.Fach, lehrer(f), fehltag.Contains(f.Id) ? 1 : 0, zaehlt ? 1 : 0, (int)Math.Round((bi - ab).TotalMinutes), zaehlt,
-                f.Art, f.Grund, f.Status, Klartext(f.Bemerkung), f.Gruppe);
+                Hhmm(ab), Hhmm(bi), f.Fach, lehrer(f), fehltag.Contains(f.Id) ? 1 : 0, f.Art == "fehlt" ? 1 : 0, (int)Math.Round((bi - ab).TotalMinutes), zaehlt,
+                f.Art, f.Grund, f.Status, Klartext(f.Bemerkung), f.Gruppe) { StatusName = f.StatusName };
         }).ToList();
     }
 
@@ -251,6 +262,7 @@ public sealed partial class Klassenbuchdienst
             {
                 Nachweis = f0.Nachweis, EntschuldigtAm = f0.EntschuldigtAm, ElternInformiert = f0.ElternInformiert, NotizIntern = darf ? f0.NotizIntern : "",
                 StatusGemischt = blk.Any(f => f.Status != f0.Status),
+                StatusName = blk.All(f => f.Status == f0.Status && f.StatusName == f0.StatusName) ? f0.StatusName : "",
                 Entschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "entschuldigt"), Unentschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "unentschuldigt"),
             };
         }).OrderByDescending(z => z.VonDatum, StringComparer.Ordinal).ThenByDescending(z => z.VonZeit, StringComparer.Ordinal).ThenBy(z => z.Schueler, StringComparer.Create(new CultureInfo("de-DE"), true)).ToList();
@@ -318,7 +330,10 @@ public sealed partial class Klassenbuchdienst
         var gesperrt = einst.GrundTextGesperrt && !kl && !b.IstAdmin;
         var g = gesperrt ? vorlage?.Grund ?? einst.Standardgrund("fehlt") : (grund ?? vorlage?.Grund ?? "").Trim();
         var t = gesperrt || text is null ? (vorlage is null ? "" : Klartext(vorlage.Bemerkung)) : text.Trim();
-        var st = kl ? Status(status, vorlage?.Status ?? StatusNeu(einst, g)) : vorlage is null ? StatusNeu(einst, g) : StatusNachGrund(einst, vorlage.Status, vorlage.Grund, g);
+        // Entschuldigungsstatus auch mit Namen (z. B. „Nicht akzeptiert“, „u-1Mahn“) – gezählt als Grundstatus, der Name bleibt erhalten
+        var auswahl = kl ? Fehlzeitenrechnung.StatusAus(status) : null;
+        var st = kl ? Status(auswahl?.Status, vorlage?.Status ?? StatusNeu(einst, g)) : vorlage is null ? StatusNeu(einst, g) : StatusNachGrund(einst, vorlage.Status, vorlage.Grund, g);
+        var sn = auswahl?.Name ?? (vorlage is not null && vorlage.Status == st ? vorlage.StatusName : "");
         var nw = kl && nachweis != null ? Klassenbuchverwaltung.Nachweis(nachweis) : vorlage?.Nachweis ?? "";
         var ea = kl && entschuldigtAm != null ? Klassenbuchverwaltung.DatumOderLeer(entschuldigtAm) : vorlage?.EntschuldigtAm ?? "";
         var ei = kl && elternInformiert != null ? elternInformiert.Value : vorlage?.ElternInformiert ?? false;
@@ -340,16 +355,16 @@ public sealed partial class Klassenbuchdienst
                     {
                         Db.Ausfuehren(c, """
                             INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe,
-                                nachweis, entschuldigt_am, eltern_informiert, notiz_intern, beginn, ende)
-                            VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr, @nw, @ea, @ei, @ni, @be, @en)
+                                nachweis, entschuldigt_am, eltern_informiert, notiz_intern, beginn, ende, status_name)
+                            VALUES (@d, @s, @u, @sid, @k, @f, @a, @m, @st, @bem, @l, @e, @b, @g, @gr, @nw, @ea, @ei, @ni, @be, @en, @sn)
                             ON CONFLICT(datum, stunde, schueler_id) DO UPDATE SET unterricht = excluded.unterricht, fach = excluded.fach, art = excluded.art, minuten = excluded.minuten,
                                 status = excluded.status, bemerkung = excluded.bemerkung, lehrer = excluded.lehrer, grund = excluded.grund, gruppe = excluded.gruppe,
                                 nachweis = excluded.nachweis, entschuldigt_am = excluded.entschuldigt_am, eltern_informiert = excluded.eltern_informiert,
-                                notiz_intern = excluded.notiz_intern, beginn = excluded.beginn, ende = excluded.ende
+                                notiz_intern = excluded.notiz_intern, beginn = excluded.beginn, ende = excluded.ende, status_name = excluded.status_name
                             """, Db.P("@d", tag), Db.P("@s", a.Stunde), Db.P("@u", k.Unterricht), Db.P("@sid", schuelerId), Db.P("@k", sch.Klasse), Db.P("@f", k.Fach),
                             Db.P("@a", a.Art), Db.P("@m", a.Minuten), Db.P("@st", st), Db.P("@bem", string.Join(" – ", new[] { a.Hinweis, t }.Where(x => x.Length > 0))),
                             Db.P("@l", lehrer), Db.P("@e", jetzt), Db.P("@b", b.Id), Db.P("@g", g), Db.P("@gr", gruppe), Db.P("@nw", nw), Db.P("@ea", ea), Db.P("@ei", ei ? 1 : 0),
-                            Db.P("@ni", ni), Db.P("@be", a.Beginn), Db.P("@en", a.Ende));
+                            Db.P("@ni", ni), Db.P("@be", a.Beginn), Db.P("@en", a.Ende), Db.P("@sn", sn));
                         anzahl++;
                     }
             }

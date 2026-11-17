@@ -7,7 +7,9 @@ import SwiftUI
 ///   hell ist der Balken links halb deckend.
 /// - Abgegebene Stunde und Bereitschaft der abwesenden Lehrkraft: durchsichtig mit feinen Eckklammern, Kürzel durchgestrichen,
 ///   neue Lehrkraft als grüne Plakette.
-/// - Veranstaltung: hellgrünes Feld über den ganzen Zeitraum, oben Klassen (Klassenplan: Lehrkräfte) fett, darunter der Anlass.
+/// - Veranstaltung: normale Kachel in einer Spur neben parallelen Stunden (ganz links), grün wie eine Änderung (vergangen dunkel:
+///   graue Fläche mit grünem Rahmen); oben fett die Lehrkräfte (abwesende durchgestrichen in grüner Plakette), darunter der Text,
+///   die Räume als grüne Plaketten und die weiteren Klassen; Info-Zeichen unten rechts.
 /// - Aufsicht: schmale Pille in der Pause mit lila Balken, darauf immer nur der Ort; Vertretung (übernommen: grün,
 ///   abgegeben: durchsichtig mit Eckklammern) mit dem grünen „…“ ganz rechts – keine Kürzel, keine Plaketten (wer vertritt,
 ///   zeigen die Details); entfallene Aufsicht wie eine entfallene Stunde (rosa, roter Rahmen, Ort durchgestrichen).

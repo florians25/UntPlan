@@ -169,7 +169,10 @@ Im Einzelnen:
 - **Melden & Buchen** (Lehrkräfte): Abwesenheit melden, freien Raum buchen (nur Räume „buchbar (Web)“), Prüfung eintragen. Die Meldungen gehen
   als Rückmeldungen an UntPlan; Buchungen erscheinen sofort als „vorgemerkt“.
 - **Klassenbuch:**
-  - Wochenübersicht je Klasse mit Lehrstoff, Hausaufgabe, Anwesenheitsprüfung und Fehlenden je Stunde, Vermerke je Tag.
+  - **Übersicht** (erster Punkt, öffnet sich mit „Klassenbuch“): alle Unterrichte des aktuellen Schuljahres je Tag mit Lehrstoff, Abwesenheiten als Tags
+    und Hausaufgaben; Scrollen lädt Vergangenheit bzw. Zukunft (bis zum Planfenster der Rolle), Filter „Lehrstoff fehlt“ und „Abwesenheiten nicht
+    kontrolliert“, Kalender, Auswahl eigener Unterrichte (Klassenleitung: auch andere Lehrkräfte der Klasse), Suchleiste für die Administration.
+    Eine eigene Wochenübersicht gibt es nicht mehr; alte Links führen zur Übersicht.
   - **Offene Stunden:** eigene oder alle Stunden ohne Abwesenheitskontrolle bzw. Lehrstoff (Zeitraum wählbar), *Prüfen* und *Eingeben*
     öffnen die Stundendetails, Mitteilung an die ausgewählten Lehrkräfte, Bericht.
   - Anwesenheit in den Stundendetails (alle anwesend vorbelegt, abwesend/verspätet). Dafür überträgt UntPlan die Schülerliste.
@@ -214,6 +217,7 @@ Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/ap
 |---|---|
 | `GET /api/app/unterricht?lehrer=&klasse=` | Unterrichte der gültigen Periode (Kollegium) |
 | `GET /api/app/pruefungen?von=&bis=&klasse=&lehrer=` | Prüfungen (Klassenkonten: nur eigene Klasse) |
+| `GET /api/app/termine` | „Meine Termine“: eigene Veranstaltungen, Sondereinsätze und Prüfungen bis zum Schuljahresende (`bis`) |
 | `GET /api/app/hausaufgaben?von=&bis=&klasse=&lehrer=` | Hausaufgaben nach Fälligkeit |
 | `GET /api/app/klassenbucheintraege?von=&bis=&klasse=&art=` | Vermerke über alle oder eine Klasse |
 | `GET /api/app/abwesenheiten?von=&bis=&klasse=&status=` | Schülerabwesenheiten, Stunden eines Tages zusammengefasst |

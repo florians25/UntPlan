@@ -355,6 +355,21 @@ public static class AppApi
             });
         });
 
+        // „Meine Termine“ (Startseite der App): eigene Veranstaltungen, Sondereinsätze und Prüfungen von heute bis zum Ende des
+        // Schuljahrs (ohne Schuljahr: ein halbes Jahr); Klassenkonten sehen die Termine ihrer Klasse, Lehrkräfte ihre eigenen
+        api.MapGet("/termine", (HttpContext c, Paketdienst p, Listendienst l, Rueckmeldungsdienst r, Uhr uhr) =>
+        {
+            var b = Ich(c);
+            var s = p.Aktuell;
+            var heute = uhr.Heute;
+            if (s is null) return Results.Json(new { bis = "", termine = new List<Termineintrag>() });
+            var ende = DateOnly.TryParse(s.Paket.Schule.SchuljahrBis, out var sj) && sj >= heute ? sj : heute.AddDays(182);
+            var klasse = b.KlassenKuerzel;
+            var lehrer = klasse is null ? b.LehrerKuerzel : null;
+            var termine = l.MeineTermine(s, r.OffeneKlausuren(s), heute, ende, klasse, lehrer, r.OffeneLoeschungen());
+            return Results.Json(new { bis = Plandienst.Iso(ende), termine });
+        });
+
         // ---------------------------------------------------------------- Meldungen an UntPlan
 
         api.MapGet("/meldungen", (HttpContext c, Rueckmeldungsdienst r) => Results.Json(r.VonBenutzer(Ich(c).Id)));
@@ -710,6 +725,10 @@ public static class AppApi
             var liste = kb.FehlzeitenZeitraum(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse))
                 .Where(f => Klassenbuchdienst.IstKlassenleitung(b, st, f.Klasse)).ToList();
             var zeilen = kb.Zeitraeume(st, liste, k => Klassenbuchdienst.IstKlassenleitung(b, st, k));
+            // Löschen nach Ablauf der Löschsperre nur noch durch die Administration (Knopf „Löschen“ wird dann nicht angezeigt)
+            var einst = kb.Einstellungen();
+            bool Loeschbar(string erstellt) { try { einst.LoeschenPruefen(b, erstellt, uhr.Jetzt); return true; } catch (UnauthorizedAccessException) { return false; } }
+            zeilen = zeilen.Select(z => z with { Loeschbar = Loeschbar(z.Erstellt) }).ToList();
             return Results.Json(Leer(status) is string s2 ? zeilen.Where(z => z.Status == s2).ToList() : zeilen);
         });
         api.MapGet("/abwesenheiten/fehlzeiten", (string? von, string? bis, string? klasse, int? schueler, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>

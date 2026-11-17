@@ -2,7 +2,7 @@ import SwiftUI
 
 // Übersetzt den Wochenplan (Karten, Tagesköpfe, Aufsichten) in Kacheln für das Raster – nach derselben Logik wie
 // UntPlanMobile (Dienste/Kachelbau.cs und app.js): Art der Kachel, Zeilen mit Plaketten, Durchstreichungen,
-// abgegebene Stunden (Eckklammern), Bereitschaften, Veranstaltungen als Feld, Pausenaufsichten als Pillen,
+// abgegebene Stunden (Eckklammern), Bereitschaften, Veranstaltungen als grüne Kachel in einer Spur, Pausenaufsichten als Pillen,
 // vergangene Stunden und die Anordnung paralleler Stunden (Spuren nebeneinander wie im Web, Zählerkarte).
 
 // MARK: - Zeitraster
@@ -61,7 +61,7 @@ enum Kachelart: Equatable {
     case bereitschaft
     /// Bereitschaft der abwesenden Lehrkraft (durchsichtig, Eckklammern, Kürzel durchgestrichen)
     case bereitschaftAbwesend
-    /// Veranstaltung (hellgrünes Feld über den ganzen Zeitraum)
+    /// Veranstaltung (grüne Kachel wie eine Änderung, in einer Spur neben parallelen Stunden)
     case veranstaltung
     /// Ganztägiger Termin als Pille über der ersten Stunde
     case ganztagTermin
@@ -147,7 +147,7 @@ struct Kachel: Identifiable {
     /// Nach Uhrzeit gesetzt (Aufsicht, Termin-Pille)
     var inPause: Bool = false
     var vorErsterStunde: Bool = false
-    /// Feld (Veranstaltung) – liegt vor den verdrängten Stunden
+    /// Feld (Raumsperre) – liegt vor den verdrängten Stunden
     var feld: Bool = false
     var vergangen: Bool = false
     var zeilen: [Kachelzeile] = []
@@ -177,8 +177,9 @@ struct Kachel: Identifiable {
 
     var dauer: Int { max(1, bis - von + 1) }
 
-    /// Grüne Karte (Änderung, Vertretung, Raumänderung, Zusatzstunde): hat bei parallelen Blöcken immer Vorrang.
-    var gruen: Bool { art == .aenderung || (raumAenderung && art == .normal) }
+    /// Grüne Karte (Änderung, Vertretung, Raumänderung, Zusatzstunde, Veranstaltung): hat bei parallelen Blöcken immer Vorrang
+    /// (steht ganz links, die parallelen Stunden – z. B. entfallene – rechts daneben).
+    var gruen: Bool { art == .aenderung || art == .veranstaltung || (raumAenderung && art == .normal) }
 
     /// Überlappen sich die Zeiträume (Minuten)? Aneinanderstoßende Blöcke (Ende = Beginn) überlappen nicht.
     func ueberlappt(_ o: Kachel) -> Bool {
@@ -267,7 +268,7 @@ enum Kachelbau {
                 continue
             }
             // Findet an dem Tag Unterricht statt, steht der Termin als Pille über der ersten Stunde – sonst als Fläche über den Tag
-            let unterricht = kacheln.contains { $0.art != .entfall && $0.art != .aufsicht && !$0.feld }
+            let unterricht = kacheln.contains { $0.art != .entfall && $0.art != .aufsicht && $0.art != .veranstaltung && !$0.feld }
             let k = Karte(datum: tag.datum, von: erste.nr, bis: letzte.nr, beginn: Rasterzeit.uhrzeit(erste.beginn),
                           ende: Rasterzeit.uhrzeit(letzte.ende), status: "termin",
                           klassen: e.klassen.map { Wert(k: $0) }, lehrer: e.lehrer.map { Wert(k: $0) },
@@ -561,10 +562,9 @@ enum Kachelbau {
             return kachel
         }
 
-        // Veranstaltung: Feld über den ganzen Zeitraum
+        // Veranstaltung: normale Kachel in einer Spur (neben parallelen Stunden), grün wie eine Änderung
         if k.status == "veranstaltung" || (k.status == "geaendert" && k.unterricht == nil && k.fach.isEmpty && !k.anzeigeText.isEmpty) {
             kachel.art = .veranstaltung
-            kachel.feld = true
             kachel.online = false
             kachel.titel = k.anzeigeText.isEmpty ? k.anzeigeArt : k.anzeigeText
             kachel.zeilen = veranstaltungsZeilen(k, typ: typ, ich: ich, anlass: kachel.titel)
@@ -724,16 +724,34 @@ enum Kachelbau {
         }
     }
 
-    /// Veranstaltung wie im Original (Vorlage 7c109a75) und wie im Web bzw. in der Web-App: mit eingeteilten Lehrkräften oben (fett)
-    /// die Lehrkräfte als Kommaliste ohne Leerzeichen („AI,AY,BA“), darunter der Text der Veranstaltung, dann der Raum als grünes
-    /// Label (hinzugefügter Wert, ohne „+“), zuletzt die beteiligten Klassen (im Klassenplan ohne die eigene Klasse); ohne Lehrkräfte
+    /// Veranstaltung wie im Original (Vorlage 7c109a75, Konferenzplan) und wie im Web bzw. in der Web-App: mit eingeteilten Lehrkräften
+    /// oben (fett) die Lehrkräfte als Kommaliste ohne Leerzeichen („AI,AY,BA“) – abwesende Lehrkräfte (kein neuer Wert, alter Wert
+    /// gesetzt) an ihrer Stelle durchgestrichen in grüner Plakette –, darunter der Text der Veranstaltung, dann die Räume als grüne
+    /// Labels (hinzugefügter Wert, ohne „+“), zuletzt die beteiligten Klassen (im Klassenplan ohne die eigene Klasse); ohne Lehrkräfte
     /// steht der Text oben. Jede Angabe nur einmal; jede Zeile einzeilig und nur mit „…“ gekürzt (keine Anzahl „+N“).
     private static func veranstaltungsZeilen(_ k: Karte, typ: String, ich: String, anlass: String) -> [Kachelzeile] {
-        // ohne Lehrkräfte kein Platzhalter („---“, „???“)
-        let lehrkraefte = einmal(werte(k.lehrer).filter { !platzhalter.contains($0) })
+        // ohne Lehrkräfte kein Platzhalter („---“, „???“); abwesende in der Reihenfolge der Daten
+        var lehrkraefte: [(name: String, abwesend: Bool)] = []
+        for w in k.lehrer {
+            let jetzt = w.k.trimmingCharacters(in: .whitespaces)
+            let alt = (w.alt ?? "").trimmingCharacters(in: .whitespaces)
+            let abwesend = (jetzt.isEmpty || jetzt == "???") && !alt.isEmpty && !platzhalter.contains(alt)
+            let name = abwesend ? alt : jetzt
+            guard !name.isEmpty, !platzhalter.contains(name), !lehrkraefte.contains(where: { gleich($0.name, name) }) else { continue }
+            lehrkraefte.append((name, abwesend))
+        }
+        // Mit abwesenden Lehrkräften je Kürzel ein Teil (ganze Kürzel bzw. Plaketten, dahinter „…“), sonst eine Kommaliste
         var zeilen: [Kachelzeile] = []
         if !lehrkraefte.isEmpty {
-            zeilen.append(Kachelzeile(schluessel: "lehrer", teile: [Kachelteil(text: lehrkraefte.joined(separator: ","))], fett: true))
+            let teile: [Kachelteil]
+            if lehrkraefte.contains(where: \.abwesend) {
+                teile = lehrkraefte.enumerated().map { i, l in
+                    Kachelteil(text: l.name, stil: l.abwesend ? .offen : .text, trenner: i < lehrkraefte.count - 1 ? "," : "")
+                }
+            } else {
+                teile = [Kachelteil(text: lehrkraefte.map(\.name).joined(separator: ","))]
+            }
+            zeilen.append(Kachelzeile(schluessel: "lehrer", teile: teile, fett: true))
         }
         if !anlass.isEmpty {
             zeilen.append(Kachelzeile(schluessel: "anlass", teile: [Kachelteil(text: anlass)], fett: lehrkraefte.isEmpty))
@@ -1091,7 +1109,7 @@ enum Kachelbau {
         for k in kacheln {
             let schnitte = pausen.filter { $0 >= k.von && $0 < k.bis }.sorted()
             // Klausuren bleiben wie Veranstaltungen eine durchgehende Kachel (die Aufsicht steht in einer eigenen Spur daneben)
-            guard !k.inPause, !k.feld, k.dauer >= 2, !schnitte.isEmpty, k.art != .termin, k.art != .klausur else {
+            guard !k.inPause, !k.feld, k.dauer >= 2, !schnitte.isEmpty, k.art != .termin, k.art != .klausur, k.art != .veranstaltung else {
                 ergebnis.append(k)
                 continue
             }

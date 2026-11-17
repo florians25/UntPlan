@@ -1226,7 +1226,7 @@ struct PlanInfoView: View {
                     legende(Farben.aenderungHintergrund, rand: Farben.aenderungRand, "Vertretung, Änderung bzw. Raumänderung (grün hinterlegt: geänderter Wert)")
                     legende(Farben.entfallHintergrund, rand: Farben.entfallRand, "Entfall (durchgestrichen)")
                     legende(Farben.pruefungHintergrund, rand: Farben.pruefungRand, "Klausur bzw. Prüfung (nur diese gelb)")
-                    legende(Farben.aenderungHintergrund, rand: nil, "Veranstaltung (über den ganzen Zeitraum)")
+                    legende(Farben.aenderungHintergrund, rand: Farben.aenderungRand, "Veranstaltung (Lehrkräfte, Text, Räume; abwesende Lehrkräfte durchgestrichen)")
                     HStack(spacing: 12) {
                         Eckklammern(laenge: 8, radius: 3)
                             .stroke(Farben.eckklammer, lineWidth: 1.4)

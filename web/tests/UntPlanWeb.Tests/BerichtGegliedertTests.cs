@@ -39,7 +39,7 @@ public class BerichtGegliedertTests
         Assert.Equal(2, zs[2]!.GetValue<int>());
         Assert.Equal(2, zs[7]!.GetValue<int>());
 
-        var u = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/unentschuldigt?klasse=7a&von=2026-10-12&bis=2026-10-14&n1=1");
+        var u = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/unentschuldigt?klasse=7a&von=2026-10-12&bis=2026-10-14&n1=0");
         var ua = u["arten"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
         var uz = u["zeilen"]!.AsArray();
         var block = uz[ua.IndexOf("")]!.AsArray();
@@ -47,8 +47,8 @@ public class BerichtGegliedertTests
         Assert.Equal("14.10.2026", block[2]!.GetValue<string>());
         Assert.Equal(2, block[3]!.GetValue<int>());
         Assert.Equal("Krankheit", block[5]!.GetValue<string>());
-        // mindestens 2 Tage am Stück: nur noch das erste Kind
-        var u2 = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/unentschuldigt?klasse=7a&von=2026-10-12&bis=2026-10-14&n1=2");
+        // länger als 1 Tag (wie im Original „länger als {n} Tage“): nur noch das erste Kind
+        var u2 = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/unentschuldigt?klasse=7a&von=2026-10-12&bis=2026-10-14&n1=1");
         Assert.Single(u2["arten"]!.AsArray(), a => a!.GetValue<string>() == "zwischensumme");
 
         foreach (var art in new[] { "fehltage_klasse", "unentschuldigt" })

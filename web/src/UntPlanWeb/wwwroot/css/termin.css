@@ -1,0 +1,92 @@
+/* Termin-Modul (termin.js): Übersicht, Neue Aktivität, Zusätzliche Stunden, Terminsuche, Buchung bearbeiten, Neuer Unterricht,
+   Buchungsbeschränkungen. Baut auf den rb-Bausteinen (buchen.css) und den pe-Bausteinen (kbeinstellungen.css) auf. */
+
+.tm b { font-weight: 500; }
+.tm-abstand { margin-top: 16px; }
+.tm-breit { width: 100%; }
+.tm-status { margin: 0 0 10px; font-size: .9rem; color: var(--u-grau); }
+.tm-status b { color: var(--u-titel); }
+.tm-knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 6px; }
+.tm-knoepfe .pe-knopf.rot { color: var(--u-rot); border-color: #e7b7b9; }
+.tm-haken { display: flex; flex-direction: column; gap: 8px; }
+.tm-kopf { margin-bottom: 8px; }
+
+/* Übersicht: Kacheln je Funktion */
+.tm-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 6px; }
+.tm-kachel { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten);
+  color: var(--u-text); text-decoration: none; border: 1px solid transparent; }
+.tm-kachel:hover { border-color: var(--u-akzent); color: var(--u-text); }
+.tm-kachel:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+.tm-kachel-symbol { flex: none; display: inline-grid; place-content: center; width: 40px; height: 40px; border-radius: 50%; background: #fff1ea; color: var(--u-akzent); font-size: 1.15rem; }
+.tm-kachel-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tm-kachel-text b { color: var(--u-titel); font-size: .98rem; }
+.tm-kachel-text small { color: var(--u-grau); font-size: .82rem; line-height: 1.35; }
+
+/* Gewählte Elemente als Chips: rot = schon eine andere Aktivität, gelb = Raum nur reservieren */
+.tm-spalte { display: flex; flex-direction: column; gap: 6px; }
+.tm-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 260px; }
+.tm-chip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 4px; background: #eef7f1; color: #16794a; font-size: .82rem; }
+.tm-chip.konflikt { background: #fbe3e4; color: #a1262b; }
+.tm-chip.reserv { background: #fff4c7; color: #6b5300; }
+.tm-lehrer.konflikt { border-color: var(--u-rot) !important; background: #fbe3e4 !important; }
+.tm-legende { display: flex; flex-wrap: wrap; gap: 6px 18px; width: 100%; margin: 4px 0; font-size: .82rem; color: var(--u-grau); }
+.tm-legende span { display: inline-flex; align-items: center; gap: 6px; }
+.tm-farbe { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: #c9d0d6; }
+.tm-farbe.konflikt { background: var(--u-rot); }
+.tm-farbe.reserv { background: #f1d34d; }
+.tm-farbe.frei { background: #7fd19b; }
+.tm-farbe.feiertag { background: #b9d8f2; }
+
+/* Status */
+.rb-status.tm-offen { background: #fff4c7; color: #6b5300; }
+.rb-status.tm-aus { background: #eef1f4; color: var(--u-grau); }
+.tm-storniert td { color: var(--u-grau); text-decoration: line-through; }
+.tm-storniert td:first-child, .tm-storniert td:last-child { text-decoration: none; }
+
+/* Zusätzliche Stunden: Beginnzeiten und Zellen */
+.tm-beginn { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-beginnzeit { display: inline-flex; flex-direction: column; align-items: center; min-width: 74px; padding: 6px 10px; border-radius: 6px; border: 1.5px solid #c9d0d6;
+  background: #fff; font: inherit; color: var(--u-text); }
+.tm-beginnzeit b { font-size: .92rem; }
+.tm-beginnzeit small { font-size: .72rem; color: var(--u-grau); }
+.tm-beginnzeit.frei { border-color: #7fd19b; background: #eef9f2; }
+.tm-beginnzeit.belegt { background: #fbeeee; border-color: #ecc1c3; }
+.tm-beginnzeit.an { border-color: var(--u-akzent); box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .18); }
+.tm-beginnzeit:disabled { opacity: .45; }
+.tm-zelle { display: inline-flex; align-items: center; justify-content: center; min-width: 58px; height: 24px; padding: 0 8px; border-radius: 4px; font-size: .78rem; }
+.tm-zelle.frei { background: #e2f6ec; color: #16794a; }
+.tm-zelle.belegt { background: #fbe3e4; color: #a1262b; }
+.tm-zelle.zugelassen { background: #fff4c7; color: #6b5300; }
+.tm-feiertag { background: #e8f2fb; color: #2d5b86; font-size: .8rem; text-align: center; }
+
+/* Terminsuche: Listen und Zeitraster */
+.tm-listen { display: flex; flex-wrap: wrap; gap: 16px; margin: 18px 0; }
+.tm-liste { display: flex; flex-direction: column; gap: 4px; width: 200px; max-width: 100%; margin: 0; }
+.tm-liste > span { font-size: .78rem; color: var(--u-grau); }
+.tm-liste select { height: auto; min-height: 220px; font-size: .88rem; border-color: #c9d0d6; }
+.tm-woche { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; }
+.tm-raster-huelle { overflow-x: auto; border: 1px solid var(--u-linie); border-radius: 8px; }
+.tm-raster { border-collapse: collapse; font-size: .76rem; min-width: 100%; }
+.tm-raster th { position: sticky; top: 0; padding: 4px 6px; background: #fff; font-weight: 500; color: var(--u-titel); white-space: nowrap; border-bottom: 1px solid var(--u-linie); }
+.tm-raster tbody th { position: static; text-align: left; border-right: 1px solid var(--u-linie); }
+.tm-raster td { min-width: 9px; height: 24px; padding: 0; border-left: 1px solid #eef1f4; border-bottom: 1px solid #eef1f4; }
+.tm-raster td:nth-child(4n + 3) { border-left-color: #c9d0d6; }
+.tm-raster td.frei { background: #9fdcb3; cursor: pointer; }
+.tm-raster td.frei:hover, .tm-raster td.frei:focus-visible { background: #4fbf75; outline: none; }
+.tm-raster td.aus { background: #f6f7f8; }
+.tm-raster td.tm-feiertag { padding: 0 8px; }
+
+/* Buchung bearbeiten: Schülerliste */
+.tm-schueler { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; max-height: 320px; overflow: auto; padding: 10px 12px;
+  border: 1px solid var(--u-linie); border-radius: 8px; }
+
+/* Meine Buchungen: Woche, Status und Bearbeiten */
+.tm-wochenleiste { display: inline-flex; align-items: center; gap: 6px; }
+.tm-wochenleiste b { font-weight: 500; color: var(--u-titel); white-space: nowrap; }
+
+@media (max-width: 600px) {
+  .tm-liste { width: 100%; }
+  .tm-liste select { min-height: 140px; }
+  .tm-kacheln { grid-template-columns: 1fr; }
+}
+.tm .rb-feld.breit { width: 440px; max-width: 100%; }

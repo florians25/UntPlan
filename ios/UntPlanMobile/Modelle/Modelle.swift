@@ -746,6 +746,81 @@ struct Termin: Decodable, Identifiable, Sendable {
     }
 }
 
+/// Eintrag in „Meine Termine“ (GET /termine): Veranstaltung, Sondereinsatz oder Prüfung der Lehrkraft bzw. Klasse.
+struct MeinTermin: Decodable, Identifiable, Sendable {
+    var id = UUID()
+    /// veranstaltung, klausur, sondereinsatz
+    var art: String
+    /// Prüfungen: geplant bzw. vorgemerkt (noch nicht übernommen)
+    var status: String = ""
+    var titel: String
+    /// Thema bzw. Text einer Prüfung
+    var text: String = ""
+    /// Fach (Kürzel) einer Prüfung
+    var fach: String = ""
+    var von: String
+    var bis: String
+    var stundeVon: Int?
+    var stundeBis: Int?
+    var beginn: String = ""
+    var ende: String = ""
+    var klassen: [String]
+    var lehrer: [String] = []
+    var raeume: [String] = []
+
+    var istPruefung: Bool { art.lowercased() == "klausur" || art.lowercased() == "pruefung" }
+
+    enum CodingKeys: String, CodingKey { case art, status, titel, text, fach, von, bis, stundeVon, stundeBis, beginn, ende, klassen, lehrer, raeume }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        art = c.text(.art)
+        status = c.text(.status)
+        titel = c.text(.titel)
+        text = c.text(.text)
+        fach = c.text(.fach)
+        von = c.text(.von)
+        bis = c.text(.bis)
+        stundeVon = c.zahl(.stundeVon)
+        stundeBis = c.zahl(.stundeBis)
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+        klassen = c.texte(.klassen)
+        lehrer = c.texte(.lehrer)
+        raeume = c.texte(.raeume)
+    }
+
+    /// Ältere Server ohne /termine: Termine der Startseite (nächste zwei Wochen).
+    init(_ t: Termin) {
+        art = t.art
+        titel = t.titel
+        von = t.von
+        bis = t.bis
+        stundeVon = t.stundeVon
+        stundeBis = t.stundeBis
+        klassen = t.klassen
+    }
+}
+
+/// Antwort von GET /termine: Termine bis zum Ende des Schuljahrs (`bis`).
+struct Terminliste: Decodable, Sendable {
+    var bis: String
+    var termine: [MeinTermin]
+
+    enum CodingKeys: String, CodingKey { case bis, termine }
+
+    init(bis: String, termine: [MeinTermin]) {
+        self.bis = bis
+        self.termine = termine
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        bis = c.text(.bis)
+        termine = c.liste(.termine)
+    }
+}
+
 /// Klassenbucheintrag mit Hausaufgabe (Startseite von Klassenkonten).
 struct Hausaufgabe: Decodable, Identifiable, Sendable {
     var id: Int

@@ -81,6 +81,10 @@ public class Program
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Klassenbucherinnerung>());
         builder.Services.AddHostedService<Sprechtagerinnerung>();
         builder.Services.AddSingleton<Unterrichtsgruppen>();
+        // Leitfaden Klassenleitung: E-Mail-Versand, Kennwort vergessen/Selbstregistrierung/Kennwort-Blatt, Kontaktdaten und Bilder
+        builder.Services.AddSingleton<Maildienst>();
+        builder.Services.AddSingleton<Zugangsdienst>();
+        builder.Services.AddSingleton<Schuelerkontakte>();
         builder.Services.AddSingleton<Systemwartung>();
 
         builder.Services.ConfigureHttpJsonOptions(o =>
@@ -204,6 +208,7 @@ public class Program
         KlassenbuchEinstellungenApi.Abbilden(app);
         EntschuldigungApi.Abbilden(app);
         UnterrichtKlassenApi.Abbilden(app);
+        KlassenleitungApi.Abbilden(app);
         WartungApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());

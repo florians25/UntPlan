@@ -14,6 +14,8 @@ public static partial class PdfBericht
     private const float A4Lang = 841.89f, A4Kurz = 595.28f, Rand = 40f;
     /// <summary>Ausrichtung der gerade erzeugten Datei (je Thread, die Erzeugung ist synchron).</summary>
     [ThreadStatic] private static bool _hoch;
+    /// <summary>Serifenschrift (Times) wie in den Berichten des Originals statt Helvetica.</summary>
+    [ThreadStatic] private static bool _serif;
     private static float Breite => _hoch ? A4Kurz : A4Lang;
     private static float Hoehe => _hoch ? A4Lang : A4Kurz;
 
@@ -253,7 +255,7 @@ public static partial class PdfBericht
                 >= '0' and <= '9' => 0.556f,
                 _ => 0.53f,
             };
-        return s * groesse * (fett ? 1.06f : 1f);
+        return s * groesse * (fett ? 1.06f : 1f) * (_serif ? 0.9f : 1f);
     }
 
     private static string Kuerzen(string t, float max, bool fett, float groesse = Schrift)
@@ -270,8 +272,8 @@ public static partial class PdfBericht
         // 1 Katalog, 2 Seitenbaum, 3 Helvetica, 4 Helvetica-Bold, dann je Seite Seite + Inhalt
         objekte.Add("<< /Type /Catalog /Pages 2 0 R >>");
         objekte.Add($"<< /Type /Pages /Count {anzahl} /Kids [{string.Join(" ", Enumerable.Range(0, anzahl).Select(i => $"{5 + 2 * i} 0 R"))}] >>");
-        objekte.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-        objekte.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+        objekte.Add($"<< /Type /Font /Subtype /Type1 /BaseFont /{(_serif ? "Times-Roman" : "Helvetica")} /Encoding /WinAnsiEncoding >>");
+        objekte.Add($"<< /Type /Font /Subtype /Type1 /BaseFont /{(_serif ? "Times-Bold" : "Helvetica-Bold")} /Encoding /WinAnsiEncoding >>");
         foreach (var (inhalt, i) in seiten.Select((s, i) => (s, i)))
         {
             objekte.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(Breite)} {F(Hoehe)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {6 + 2 * i} 0 R >>");

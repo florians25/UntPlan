@@ -148,6 +148,8 @@ public static partial class OberflaecheApi
             for (var d = start; d <= ende; d = d.AddDays(1))
             {
                 if (plan.Frei(s, d).Frei || (klassen.Count == 0 && lehrerListe.Count == 0)) continue;
+                // Planfenster der Rolle (z. B. nur 2 Wochen voraus): auch die Übersicht zeigt außerhalb keine Unterrichte
+                if (!Rechtedienst.PlanSichtbar(b, d, uhr.Heute)) continue;
                 var iso = Plandienst.Iso(d);
                 // Karten aus den Klassen (bzw. Lehrkräften), doppelte (gleicher Unterricht, gleiche Stunde) nur einmal
                 var quelle = klassen.Count > 0
@@ -194,6 +196,9 @@ public static partial class OberflaecheApi
                 schuljahrVon = s.SchuljahrVon == DateOnly.MinValue ? null : Plandienst.Iso(s.SchuljahrVon),
                 schuljahrBis = s.SchuljahrBis == DateOnly.MaxValue ? null : Plandienst.Iso(s.SchuljahrBis),
                 heute = Plandienst.Iso(uhr.Heute), tage = tageListe,
+                // Grenzen des Planfensters (null = unbegrenzt): weiter zurück bzw. voraus scrollt die Übersicht nicht
+                planVon = b.IstAdmin || b.Planfenster.Zurueck is not int z ? null : Plandienst.Iso(Plandienst.Montag(uhr.Heute).AddDays(-7 * z)),
+                planBis = b.IstAdmin || b.Planfenster.Vor is not int vor ? null : Plandienst.Iso(Plandienst.Montag(uhr.Heute).AddDays(7 * vor + 6)),
             });
         });
 

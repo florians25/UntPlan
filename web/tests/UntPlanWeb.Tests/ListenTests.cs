@@ -251,6 +251,40 @@ public class ListenTests
     }
 
     [Fact]
+    public async Task Meine_Termine_bis_Schuljahresende_mit_Pruefungen()
+    {
+        await using var s = await Testserver.StartenAsync();
+        // Lehrkraft: eigene Veranstaltungen ab heute (Lehrerkonferenz mit Raum, Pädagogischer Tag) und vorgemerkte Prüfung
+        var c = await s.AlsAsync("mue", "lehrer", "MUE");
+        await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/meldungen/klausur", new { datum = "2026-10-15", stundeVon = 5, stundeBis = 6, klassen = new[] { "7a" }, titel = "Mathe-Arbeit", text = "Bruchrechnung" }));
+        var antwort = (await Testserver.HolenAsync(c, "/api/app/termine")).AsObject();
+        Assert.Equal("2027-07-16", antwort["bis"]!.GetValue<string>());
+        var liste = antwort["termine"]!.AsArray();
+        var titel = liste.Select(t => t!["titel"]!.GetValue<string>()).ToList();
+        Assert.Equal(new[] { "Lehrerkonferenz", "Mathe-Arbeit", "Pädagogischer Tag" }, titel);
+        var konferenz = liste[0]!;
+        Assert.Equal("veranstaltung", konferenz["art"]!.GetValue<string>());
+        Assert.Equal("EDV2", Assert.Single(konferenz["raeume"]!.AsArray())!.GetValue<string>());
+        Assert.True(konferenz["beginn"]!.GetValue<string>().Length > 0);
+        var pruefung = liste[1]!;
+        Assert.Equal("klausur", pruefung["art"]!.GetValue<string>());
+        Assert.Equal("vorgemerkt", pruefung["status"]!.GetValue<string>());
+        Assert.Equal("2026-10-15", pruefung["von"]!.GetValue<string>());
+        Assert.Equal("Bruchrechnung", pruefung["text"]!.GetValue<string>());
+        Assert.Equal("7a", Assert.Single(pruefung["klassen"]!.AsArray())!.GetValue<string>());
+        // Vergangene Termine (Elternsprechtag am 13.10.) und fremde (Klausur der EF bei SNE) fehlen
+        Assert.DoesNotContain("Elternsprechtag", titel);
+        Assert.DoesNotContain("Mathematik-Klausur", titel);
+
+        // Klassenkonto: nur die Termine der eigenen Klasse
+        var ef = await s.AlsAsync("klasse-ef", "schueler", "EF");
+        var eigene = (await Testserver.HolenAsync(ef, "/api/app/termine"))["termine"]!.AsArray();
+        var klausur = Assert.Single(eigene)!;
+        Assert.Equal("Mathematik-Klausur", klausur["titel"]!.GetValue<string>());
+        Assert.Equal("TH1", Assert.Single(klausur["raeume"]!.AsArray())!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Hausaufgaben_Eintraege_Abwesenheiten_Offene_Stunden_und_Berichte()
     {
         await using var s = await Testserver.StartenAsync();
