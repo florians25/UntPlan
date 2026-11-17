@@ -108,7 +108,9 @@ public sealed record Karte(
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
             else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }
             else if (verlegung is null && Status == "buchung" && Unbestaetigt) m.Add("unbestaetigt");
-            else if (verlegung is null && Status is "geaendert" or "offen" or "buchung" or "veranstaltung") m.Add("aenderung");
+            // Veranstaltung wie in der Vorlage: „+“ (zusätzlich) und darunter das grüne Änderungssymbol
+            else if (verlegung is null && Status == "veranstaltung") { m.Add("plus"); m.Add("aenderung"); }
+            else if (verlegung is null && Status is "geaendert" or "offen" or "buchung") m.Add("aenderung");
             return m;
         }
     }
