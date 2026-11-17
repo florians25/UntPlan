@@ -38,7 +38,11 @@ public sealed record Ressource(int Id, string Name, int? ArtId, string Art, stri
 
 /// <summary>Raum mit Stammdaten aus UntPlan (Raumart, Kapazität, buchbar) und den Ergänzungen aus UntPlanWeb (Gebäude, Abteilung, Raumgruppe, Ressourcen).</summary>
 public sealed record Raumdaten(string Kurz, string Name, string Raumart, int Kapazitaet, string Gebaeude, string Abteilung, string Raumgruppe, bool Buchbar,
-    List<string> Ressourcen, List<int> RessourcenartIds, int KapazitaetUntPlan);
+    List<string> Ressourcen, List<int> RessourcenartIds, int KapazitaetUntPlan)
+{
+    /// <summary>Nur reservieren: Buchungen müssen von der Raumadministration bestätigt werden (sonst sofort buchbar).</summary>
+    public bool NurReservieren { get; init; }
+}
 
 public sealed record BuchungsRessource(int Id, string Name, int Menge);
 
@@ -49,11 +53,52 @@ public sealed record Buchung(int Id, string Serie, string Art, string Datum, int
 {
     public List<BuchungsRessource> Ressourcen { get; init; } = new();
     public string ArtName => Buchungsarten.Name(Art);
+    /// <summary>Weitere Lehrkräfte (Terminsuche/Verabredung mit mehreren Lehrkräften bzw. zusätzliche Stunden eines Unterrichts mit mehreren Lehrkräften).</summary>
+    public List<string> WeitereLehrer { get; init; } = new();
+    /// <summary>Weitere Räume (Terminsuche/Verabredung mit mehreren Räumen).</summary>
+    public List<string> WeitereRaeume { get; init; } = new();
+    /// <summary>Zusatzangaben der Buchung (Abteilung, Verantwortliche*r, Art, Teilnehmer, Kostenstelle, Menge, E-Mail, Anmerkung).</summary>
+    public BuchungsZusatz Zusatz { get; init; } = new();
+    /// <summary>Bestätigt am (null = Reservierung, noch nicht von der Raumadministration bestätigt).</summary>
+    public string? Bestaetigt { get; init; }
+    public string BestaetigtVon { get; init; } = "";
+    public string Geaendert { get; init; } = "";
+    public string GeaendertVon { get; init; } = "";
+    /// <summary>Schüler*innen der Schülergruppe der Buchung (Ids).</summary>
+    public List<int> Schueler { get; init; } = new();
+    /// <summary>Unterricht aus UntPlan, zu dem die zusätzliche Stunde gebucht wurde.</summary>
+    public int? PlanUnterricht { get; init; }
+    /// <summary>Alle Lehrkräfte (Lehrkraft und weitere).</summary>
+    public List<string> AlleLehrer => (Lehrer.Length > 0 ? new[] { Lehrer } : Array.Empty<string>()).Concat(WeitereLehrer).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    /// <summary>Alle Räume (Raum und weitere).</summary>
+    public List<string> AlleRaeume => (Raum.Length > 0 ? new[] { Raum } : Array.Empty<string>()).Concat(WeitereRaeume).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    public string StatusText => Status == "storniert" ? "Storniert" : Bestaetigt is null ? "Nicht bestätigt" : "Bestätigt";
+}
+
+/// <summary>Zusatzangaben einer Buchung wie im Formular „Neue Aktivität“ bzw. „Veranstaltung“ (Terminsuche).</summary>
+public sealed record BuchungsZusatz(string Abteilung = "", string Verantwortlich = "", string Aktivitaetsart = "", int Teilnehmer = 0, string Kostenstelle = "",
+    int Menge = 0, string Email = "", bool EmailBenachrichtigung = false, string Anmerkung = "")
+{
+    public BuchungsZusatz Bereinigt()
+    {
+        static string T(string? x, int n) { var t = (x ?? "").Trim(); return t.Length > n ? t[..n] : t; }
+        var mail = T(Email, 200);
+        if (mail.Length > 0 && (!mail.Contains('@') || mail.Contains(' '))) throw new ArgumentException("Bitte eine gültige E-Mail-Adresse eingeben.");
+        return new(T(Abteilung, 100), T(Verantwortlich, 100), T(Aktivitaetsart, 60), Math.Clamp(Teilnehmer, 0, 99999), T(Kostenstelle, 100),
+            Math.Clamp(Menge, 0, 99999), mail, EmailBenachrichtigung, T(Anmerkung, 1000));
+    }
 }
 
 /// <summary>In UntPlanWeb angelegter Unterricht (Unterricht | Neuer Unterricht), dessen Stunden als „Zusätzliche Stunden“ gebucht werden.</summary>
 public sealed record EigenerUnterricht(int Id, string Lehrer, string Fach, List<string> Klassen, string Gruppe, string Text, int Wochenstunden, int? BenutzerId,
-    string Erstellt, int GebuchteStunden = 0);
+    string Erstellt, int GebuchteStunden = 0)
+{
+    public UnterrichtZusatz Zusatz { get; init; } = new();
+}
+
+/// <summary>Zusatzangaben „Neuer Unterricht“: Zeitraum (Von – Bis), Jahresstunden, Abteilung, Verantwortliche*r, Art, Anmerkung, E-Mail.</summary>
+public sealed record UnterrichtZusatz(string Von = "", string Bis = "", int Jahresstunden = 0, string Abteilung = "", string Verantwortlich = "", string Aktivitaetsart = "",
+    string Anmerkung = "", string Email = "", bool EmailBenachrichtigung = false);
 
 public sealed record Termin(DateOnly Datum, int StundeVon, int StundeBis);
 
@@ -77,7 +122,16 @@ public sealed record RessourcenWahl(int Id, int? Menge);
 
 /// <summary>Neue Buchung (Einzeltermin oder Serie). Je Termin kann ein anderer Raum gewählt werden.</summary>
 public sealed record BuchungDaten(string Art, List<TerminWahl> Termine, string? Beginn = null, string? Ende = null, List<RessourcenWahl>? Ressourcen = null,
-    List<string>? Klassen = null, string? Lehrer = null, string? Fach = null, string? Titel = null, string? Text = null, bool Benachrichtigen = false, int? UnterrichtId = null);
+    List<string>? Klassen = null, string? Lehrer = null, string? Fach = null, string? Titel = null, string? Text = null, bool Benachrichtigen = false, int? UnterrichtId = null,
+    List<string>? WeitereLehrer = null, List<string>? WeitereRaeume = null, BuchungsZusatz? Zusatz = null, bool? SofortBestaetigen = null,
+    bool? LehrerKonflikteZulassen = null, bool? KlassenKonflikteZulassen = null, int? PlanUnterricht = null, int? QuellBuchung = null);
+
+/// <summary>Details einer Buchung ändern (Buchen | Meine Buchungen | Bearbeiten) – gilt für den Termin bzw. alle kommenden Termine der Serie.</summary>
+public sealed record BuchungAenderung(List<string>? Klassen = null, string? Lehrer = null, List<string>? WeitereLehrer = null, string? Fach = null, string? Titel = null,
+    string? Text = null, BuchungsZusatz? Zusatz = null, bool Serie = true);
+
+/// <summary>Buchungsbeschränkungen (Administration): Standarddauer von Verabredungen in Minuten und Zeitbereich, in dem Verabredungen angelegt werden können.</summary>
+public sealed record Buchungsbeschraenkungen(int Dauer = 45, string Beginn = "07:00", string Ende = "18:00", bool NurUnterrichtstage = true);
 
 /// <summary>
 /// Buchungsmodul: Räume, Ressourcen, Aktivitäten und zusätzliche Stunden buchen – einmalig oder periodisch (Serie mit Serien-ID,
@@ -282,7 +336,8 @@ public sealed class Buchungsdienst
     /// <summary>Alle Räume aus UntPlan mit den Ergänzungen aus UntPlanWeb (Kapazität 0 = Wert aus UntPlan).</summary>
     public List<Raumdaten> Raeume(Stand s)
     {
-        var extra = _db.Liste("SELECT * FROM raum_daten", r => (Raum: r.Text("raum"), Kap: r.Zahl("kapazitaet"), Geb: r.Text("gebaeude"), Abt: r.Text("abteilung"), Gruppe: r.Text("raumgruppe")))
+        var extra = _db.Liste("SELECT * FROM raum_daten", r => (Raum: r.Text("raum"), Kap: r.Zahl("kapazitaet"), Geb: r.Text("gebaeude"), Abt: r.Text("abteilung"), Gruppe: r.Text("raumgruppe"),
+                Res: r.Zahl("nur_reservieren") != 0))
             .GroupBy(x => x.Raum, Ci).ToDictionary(g => g.Key, g => g.First(), Ci);
         var fest = Ressourcen(true).Where(x => !x.Mobil).GroupBy(x => x.Raum, Ci).ToDictionary(g => g.Key, g => g.ToList(), Ci);
         var buchbar = Rueckmeldungsdienst.Buchbar(s).Select(r => r.Kurz).ToHashSet(Ci);
@@ -291,18 +346,25 @@ public sealed class Buchungsdienst
             extra.TryGetValue(r.Kurz, out var x);
             var res = fest.TryGetValue(r.Kurz, out var l) ? l : new List<Ressource>();
             return new Raumdaten(r.Kurz, r.Name, r.Raumart, x.Kap > 0 ? x.Kap : r.Kapazitaet, x.Geb ?? "", x.Abt ?? "", x.Gruppe ?? "", buchbar.Contains(r.Kurz),
-                res.Select(y => y.Name).ToList(), res.Where(y => y.ArtId.HasValue).Select(y => y.ArtId!.Value).Distinct().ToList(), r.Kapazitaet);
+                res.Select(y => y.Name).ToList(), res.Where(y => y.ArtId.HasValue).Select(y => y.ArtId!.Value).Distinct().ToList(), r.Kapazitaet) { NurReservieren = x.Res };
         }).ToList();
     }
 
-    public void RaumdatenSpeichern(Stand s, string raum, int? kapazitaet, string? gebaeude, string? abteilung, string? raumgruppe)
+    public void RaumdatenSpeichern(Stand s, string raum, int? kapazitaet, string? gebaeude, string? abteilung, string? raumgruppe, bool? nurReservieren = null)
     {
         if (!s.Raeume.TryGetValue(raum ?? "", out var r)) throw new ArgumentException($"Unbekannter Raum {raum}.");
         static string T(string? x) { var t = (x ?? "").Trim(); return t.Length > 100 ? t[..100] : t; }
+        // null = unverändert lassen
+        var res = nurReservieren ?? NurReservieren().Contains(r.Kurz);
         _db.Ausfuehren("DELETE FROM raum_daten WHERE raum = @r", Db.P("@r", r.Kurz));
-        _db.Ausfuehren("INSERT INTO raum_daten (raum, kapazitaet, gebaeude, abteilung, raumgruppe, geaendert) VALUES (@r, @k, @g, @a, @rg, @z)",
-            Db.P("@r", r.Kurz), Db.P("@k", Math.Clamp(kapazitaet ?? 0, 0, 9999)), Db.P("@g", T(gebaeude)), Db.P("@a", T(abteilung)), Db.P("@rg", T(raumgruppe)), Db.P("@z", Jetzt));
+        _db.Ausfuehren("INSERT INTO raum_daten (raum, kapazitaet, gebaeude, abteilung, raumgruppe, geaendert, nur_reservieren) VALUES (@r, @k, @g, @a, @rg, @z, @nr)",
+            Db.P("@r", r.Kurz), Db.P("@k", Math.Clamp(kapazitaet ?? 0, 0, 9999)), Db.P("@g", T(gebaeude)), Db.P("@a", T(abteilung)), Db.P("@rg", T(raumgruppe)), Db.P("@z", Jetzt),
+            Db.P("@nr", res));
     }
+
+    /// <summary>Räume, die nur reserviert werden können (Bestätigung durch die Raumadministration).</summary>
+    public HashSet<string> NurReservieren() =>
+        _db.Liste("SELECT raum FROM raum_daten WHERE nur_reservieren = 1", r => r.Text("raum")).ToHashSet(Ci);
 
     private static bool Passt(Raumdaten r, Kriterien k) =>
         (k.Ressourcenarten is not { Count: > 0 } || k.Ressourcenarten.All(r.RessourcenartIds.Contains))
@@ -325,6 +387,10 @@ public sealed class Buchungsdienst
             if (!TimeOnly.TryParseExact(beginn.Trim(), "HH:mm", out var b) || !TimeOnly.TryParseExact(ende.Trim(), "HH:mm", out var e)) throw new ArgumentException("Uhrzeit bitte als HH:mm angeben.");
             if (e <= b) throw new ArgumentException("Die Endzeit liegt vor der Beginnzeit.");
             var treffer = raster.Where(z => TimeOnly.TryParseExact(z.Beginn, "HH:mm", out var zb) && TimeOnly.TryParseExact(z.Ende, "HH:mm", out var ze) && zb < e && ze > b).ToList();
+            // Verabredungen (Terminsuche) dürfen außerhalb des Zeitrasters liegen: dann gilt die nächstgelegene Stunde
+            if (treffer.Count == 0)
+                treffer = raster.Where(z => Min(z.Beginn) >= 0 && Min(z.Ende) >= 0)
+                    .OrderBy(z => Math.Min(Math.Abs(Min(z.Beginn) - (e.Hour * 60 + e.Minute)), Math.Abs(Min(z.Ende) - (b.Hour * 60 + b.Minute)))).Take(1).ToList();
             if (treffer.Count == 0) throw new ArgumentException("Die Uhrzeit liegt außerhalb des Zeitrasters der Schule.");
             return (treffer.First().Nr, treffer.Last().Nr, b.ToString("HH:mm"), e.ToString("HH:mm"));
         }
@@ -405,7 +471,8 @@ public sealed class Buchungsdienst
         // Buchungen aus UntPlanWeb (nach der Übernahme in UntPlan stehen sie bereits im Paket)
         foreach (var b in AktiveAm(d).Where(b => b.Id != ohneBuchung && b.Raum.Length > 0 && !SchonImPaket(b, paket)))
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
-                res.Add(new Belegt(st, b.Raum, "buchung", $"{(b.Titel.Length > 0 ? b.Titel : b.ArtName)} ({b.Absender})", b.Id));
+                foreach (var raum in b.AlleRaeume)
+                    res.Add(new Belegt(st, raum, "buchung", $"{(b.Titel.Length > 0 ? b.Titel : b.ArtName)} ({b.Absender}){(b.Bestaetigt is null ? " – nicht bestätigt" : "")}", b.Id));
         return res;
     }
 
@@ -532,10 +599,10 @@ public sealed class Buchungsdienst
     /// <summary>
     /// Hinweise vor dem Speichern (kein Hindernis): Lehrkraft bzw. Klassen haben zur selben Zeit schon Unterricht oder eine andere Buchung.
     /// </summary>
-    public List<string> Hinweise(Stand s, IEnumerable<TerminWahl> termine, string? lehrer, IEnumerable<string>? klassen)
+    public List<string> Hinweise(Stand s, IEnumerable<TerminWahl> termine, string? lehrer, IEnumerable<string>? klassen, IEnumerable<string>? weitereLehrer = null)
     {
         var kl = (klassen ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
-        var l = (lehrer ?? "").Trim();
+        var ll = new[] { lehrer ?? "" }.Concat(weitereLehrer ?? Enumerable.Empty<string>()).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList();
         // je Element die Termine mit Überschneidung (zusammengefasst, damit eine Serie nicht viele gleiche Zeilen erzeugt)
         var treffer = new Dictionary<string, List<DateOnly>>();
         void Merken(string name, DateOnly d) => (treffer.TryGetValue(name, out var x) ? x : treffer[name] = new()).Add(d);
@@ -543,7 +610,7 @@ public sealed class Buchungsdienst
         {
             var roh = _plan.Rohstunden(s, t.Datum).Where(r => r.Status != "entfall" && r.Stunde >= t.StundeVon && r.Stunde <= t.StundeBis).ToList();
             var buchungen = AktiveAm(t.Datum).Where(b => b.StundeVon <= t.StundeBis && b.StundeBis >= t.StundeVon).ToList();
-            if (l.Length > 0 && (roh.Any(r => r.Lehrer.Contains(l, Ci)) || buchungen.Any(b => Ci.Equals(b.Lehrer, l)))) Merken(l, t.Datum);
+            foreach (var l in ll.Where(l => roh.Any(r => r.Lehrer.Contains(l, Ci)) || buchungen.Any(b => b.AlleLehrer.Contains(l, Ci)))) Merken(l, t.Datum);
             foreach (var k in kl.Where(k => roh.Any(r => r.Klassen.Contains(k, Ci)) || buchungen.Any(b => b.Klassen.Contains(k, Ci)))) Merken($"Klasse {k}", t.Datum);
         }
         string Tag(DateOnly d) => $"{Plandienst.Wochentage[Plandienst.TagIndex(d)][..2]} {d:dd.MM.}";
@@ -586,12 +653,50 @@ public sealed class Buchungsdienst
         if (termine.GroupBy(t => t.Datum).Any(g => g.Count() > 1 && g.Zip(g.Skip(1)).Any(p => p.Second.StundeVon <= p.First.StundeBis)))
             throw new ArgumentException("Termine überschneiden sich.");
 
+        // Zusätzliche Stunden zu einem Unterricht aus UntPlan bzw. zu einer bestehenden Buchung (Aktivität, Unterricht): Angaben übernehmen
+        Buchung? quelle = null;
+        WebUnterricht? pu = null;
+        if (d.QuellBuchung is int qb)
+        {
+            quelle = Holen(qb) ?? throw new ArgumentException("Unbekannte Buchung.");
+            if (quelle.Art == Buchungsarten.Ressource) throw new ArgumentException("Zu einer Ressourcenbuchung gibt es keine zusätzlichen Stunden.");
+            if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && quelle.BenutzerId != b.Id && !quelle.AlleLehrer.Contains(b.LehrerKuerzel ?? "\u0001", Ci))
+                throw new UnauthorizedAccessException("Nur zu eigenen Buchungen.");
+            art = quelle.Art;
+            d = d with { UnterrichtId = quelle.UnterrichtId, PlanUnterricht = quelle.PlanUnterricht };
+        }
+        else if (d.PlanUnterricht is int pnr)
+        {
+            pu = s.Unterricht.GetValueOrDefault(pnr) ?? throw new ArgumentException("Unbekannter Unterricht.");
+            art = Buchungsarten.Unterricht;
+            if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && !pu.Zeilen.Any(z => Ci.Equals(z.Lehrer, b.LehrerKuerzel ?? "\u0001")))
+                throw new UnauthorizedAccessException("Nur für eigenen Unterricht.");
+        }
+        var zusaetzlich = quelle != null || pu != null || art == Buchungsarten.Unterricht;
+        if (zusaetzlich && !Rechtedienst.Darf(b, Recht.Stundenplanaenderung))
+            throw new UnauthorizedAccessException("Für zusätzliche Stunden benötigen Sie das Recht „Stundenplanänderung“ – bitte wenden Sie sich an die Administration.");
+
         EigenerUnterricht? eu = null;
-        if (art == Buchungsarten.Unterricht)
+        if (art == Buchungsarten.Unterricht && pu == null && d.PlanUnterricht == null)
         {
             eu = EigenerUnterrichtHolen(d.UnterrichtId ?? 0) ?? throw new ArgumentException("Unbekannter Unterricht.");
-            if (!Rechtedienst.Darf(b, Recht.BuchungAndere) && eu.BenutzerId != b.Id && !Ci.Equals(eu.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Nur für eigenen Unterricht.");
+            if (quelle == null && !Rechtedienst.Darf(b, Recht.BuchungAndere) && eu.BenutzerId != b.Id && !Ci.Equals(eu.Lehrer, b.LehrerKuerzel ?? "")) throw new UnauthorizedAccessException("Nur für eigenen Unterricht.");
         }
+        if (art == Buchungsarten.Unterricht && pu == null && d.PlanUnterricht is int pnr2) pu = s.Unterricht.GetValueOrDefault(pnr2);
+        var puLehrer = pu?.Zeilen.Select(z => z.Lehrer).Where(x => x.Length > 0).Distinct(Ci).ToList();
+        if (pu != null && quelle == null)
+            d = d with
+            {
+                Klassen = pu.Zeilen.SelectMany(z => z.Klassen).Distinct(Ci).ToList(), Lehrer = puLehrer!.FirstOrDefault() ?? "", WeitereLehrer = puLehrer!.Skip(1).ToList(),
+                Fach = pu.Zeilen.Select(z => z.Fach).FirstOrDefault(x => x.Length > 0) ?? "",
+                Titel = string.IsNullOrWhiteSpace(d.Titel) ? "Zusätzlicher Unterricht" : d.Titel,
+            };
+        if (quelle != null)
+            d = d with
+            {
+                Klassen = quelle.Klassen, Lehrer = quelle.Lehrer, WeitereLehrer = quelle.WeitereLehrer, Fach = quelle.Fach, Titel = quelle.Titel,
+                Text = string.IsNullOrWhiteSpace(d.Text) ? quelle.Text : d.Text, Zusatz = d.Zusatz ?? quelle.Zusatz,
+            };
         var klassen = eu?.Klassen ?? (d.Klassen ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
         if (klassen.FirstOrDefault(x => !s.Klassen.ContainsKey(x)) is { } uk) throw new ArgumentException($"Unbekannte Klasse {uk}.");
         klassen = klassen.Select(x => s.Klassen[x].Kurz).ToList();
@@ -607,6 +712,16 @@ public sealed class Buchungsdienst
             if (!s.Faecher.TryGetValue(fach, out var fw)) throw new ArgumentException($"Unbekanntes Fach {fach}.");
             fach = fw.Kurz;
         }
+        var weitereLehrer = new List<string>();
+        foreach (var x in (d.WeitereLehrer ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()))
+        {
+            if (!s.Lehrer.TryGetValue(x, out var lw2)) throw new ArgumentException($"Unbekannte Lehrkraft {x}.");
+            if (!Ci.Equals(lw2.Kurz, lehrer) && !weitereLehrer.Contains(lw2.Kurz, Ci)) weitereLehrer.Add(lw2.Kurz);
+        }
+        if (lehrer.Length == 0 && weitereLehrer.Count > 0) { lehrer = weitereLehrer[0]; weitereLehrer.RemoveAt(0); }
+        var weitereRaeume = (d.WeitereRaeume ?? new()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct(Ci).ToList();
+        if (weitereRaeume.Count > 0 && !Rechtedienst.Darf(b, Recht.BuchungRaum)) throw new UnauthorizedAccessException("Ihr Konto darf keine Räume buchen.");
+        var zusatz = (d.Zusatz ?? new BuchungsZusatz()).Bereinigt();
         var titel = (d.Titel ?? "").Trim();
         if (titel.Length == 0) titel = eu is null ? Buchungsarten.Name(art) : (eu.Gruppe.Length > 0 ? eu.Gruppe : "Zusätzlicher Unterricht");
         if (titel.Length > 200) titel = titel[..200];
@@ -635,7 +750,7 @@ public sealed class Buchungsdienst
             foreach (var t in termine)
             {
                 var tag = $"{Plandienst.Wochentage[Plandienst.TagIndex(t.Datum)][..2]} {t.Datum:dd.MM.yyyy} ({t.StundeVon}.{(t.StundeBis != t.StundeVon ? $"–{t.StundeBis}." : "")} Std.)";
-                if (t.Raum is string raum)
+                foreach (var raum in (t.Raum is string r0 ? new[] { r0 } : Array.Empty<string>()).Concat(weitereRaeume).Distinct(Ci))
                 {
                     if (!s.Raeume.TryGetValue(raum, out var rw)) throw new ArgumentException($"Unbekannter Raum {raum}.");
                     if (!buchbar.Contains(rw.Kurz)) throw new ArgumentException($"Raum {rw.Kurz} ist nicht buchbar.");
@@ -650,7 +765,17 @@ public sealed class Buchungsdienst
                 }
                 if (konflikte.Count >= 10) break;
             }
+            // Lehrkraft- bzw. Klassenkonflikte (zusätzliche Stunden, Terminsuche): nur wenn ausdrücklich nicht zugelassen
+            if (konflikte.Count == 0 && (d.LehrerKonflikteZulassen == false || d.KlassenKonflikteZulassen == false))
+                konflikte.AddRange(Hinweise(s, termine, d.LehrerKonflikteZulassen == false ? lehrer : null, d.KlassenKonflikteZulassen == false ? klassen : null,
+                    d.LehrerKonflikteZulassen == false ? weitereLehrer : null).Select(h => h.Replace(" zur gleichen Zeit schon Unterricht bzw. eine andere Aktivität.", " zur gleichen Zeit schon Unterricht bzw. eine andere Aktivität (Konflikt nicht zugelassen).")));
             if (konflikte.Count > 0) throw new ArgumentException(string.Join("\n", konflikte));
+
+            // Reservierung: Räume „nur reservieren“ (ohne Verwaltungsrecht) bzw. „Buchung sofort bestätigen“ abgewählt → Bestätigung durch die Raumadministration
+            var reservieren = NurReservieren();
+            var verwalten = Rechtedienst.Darf(b, Recht.BuchungVerwalten);
+            var bestaetigt = d.SofortBestaetigen == false || (!verwalten && termine.SelectMany(t => (t.Raum is string r1 ? new[] { r1 } : Array.Empty<string>()).Concat(weitereRaeume)).Any(reservieren.Contains))
+                ? null : Jetzt;
 
             var serie = termine.Count > 1 ? Guid.NewGuid().ToString("N")[..12] : "";
             var ids = new List<int>();
@@ -661,12 +786,15 @@ public sealed class Buchungsdienst
                     var raum = t.Raum is null ? "" : s.Raeume[t.Raum].Kurz;
                     Db.Ausfuehren(c, """
                         INSERT INTO buchungen (serie, art, datum, stunde_von, stunde_bis, beginn, ende, raum, klassen, lehrer, fach, titel, text, unterricht_id,
-                            benachrichtigen, status, benutzer_id, absender, erstellt)
-                        VALUES (@s, @a, @d, @v, @b, @zb, @ze, @r, @k, @l, @f, @t, @x, @u, @n, 'aktiv', @bid, @abs, @e)
+                            benachrichtigen, status, benutzer_id, absender, erstellt, weitere_lehrer, weitere_raeume, zusatz, bestaetigt, bestaetigt_von, schueler, plan_unterricht)
+                        VALUES (@s, @a, @d, @v, @b, @zb, @ze, @r, @k, @l, @f, @t, @x, @u, @n, 'aktiv', @bid, @abs, @e, @wl, @wr, @zu, @be, @bv, @sch, @pu)
                         """, Db.P("@s", serie), Db.P("@a", art), Db.P("@d", Plandienst.Iso(t.Datum)), Db.P("@v", t.StundeVon), Db.P("@b", t.StundeBis),
                         Db.P("@zb", Beginn(t.StundeVon)), Db.P("@ze", Ende(t.StundeBis)), Db.P("@r", raum), Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@l", lehrer),
                         Db.P("@f", fach), Db.P("@t", titel), Db.P("@x", text), Db.P("@u", eu?.Id), Db.P("@n", d.Benachrichtigen), Db.P("@bid", b.Id),
-                        Db.P("@abs", b.LehrerKuerzel ?? b.Login), Db.P("@e", Jetzt));
+                        Db.P("@abs", b.LehrerKuerzel ?? b.Login), Db.P("@e", Jetzt),
+                        Db.P("@wl", JsonSerializer.Serialize(weitereLehrer)), Db.P("@wr", JsonSerializer.Serialize(weitereRaeume.Select(x => s.Raeume[x].Kurz).Where(x => !Ci.Equals(x, raum)).ToList())),
+                        Db.P("@zu", JsonSerializer.Serialize(zusatz, ZusatzJson)), Db.P("@be", bestaetigt), Db.P("@bv", bestaetigt is null ? "" : b.LehrerKuerzel ?? b.Login),
+                        Db.P("@sch", JsonSerializer.Serialize(quelle?.Schueler ?? new List<int>())), Db.P("@pu", pu?.Id ?? d.PlanUnterricht));
                     var id = (int)Db.LetzteId(c);
                     ids.Add(id);
                     foreach (var (r, menge) in ressourcen)
@@ -675,7 +803,8 @@ public sealed class Buchungsdienst
             });
             var neu = ids.Select(i => Holen(i)!).ToList();
             var hinweise = new List<string>();
-            if (art == Buchungsarten.Aktivitaet && d.Benachrichtigen && lehrer.Length > 0) hinweise.AddRange(Benachrichtigen(s, b, neu));
+            if (art is Buchungsarten.Aktivitaet or Buchungsarten.Unterricht && d.Benachrichtigen && lehrer.Length > 0) hinweise.AddRange(Benachrichtigen(s, b, neu));
+            if (bestaetigt is null) hinweise.Add("Die Buchung ist reserviert und muss noch von der Raumadministration bestätigt werden.");
             return (neu, hinweise);
         }
     }
@@ -684,9 +813,10 @@ public sealed class Buchungsdienst
     private List<string> Benachrichtigen(Stand s, Benutzer b, List<Buchung> neu)
     {
         var erste = neu[0];
-        var konten = _benutzer.Alle().Where(x => !x.Gesperrt && x.Id != b.Id && Ci.Equals(x.LehrerKuerzel ?? "", erste.Lehrer)).ToList();
+        var alle = erste.AlleLehrer;
+        var konten = _benutzer.Alle().Where(x => !x.Gesperrt && x.Id != b.Id && alle.Contains(x.LehrerKuerzel ?? "\u0001", Ci)).ToList();
         if (konten.Count == 0)
-            return erste.Lehrer == b.LehrerKuerzel ? new() : new() { $"Für {erste.Lehrer} gibt es kein Benutzerkonto – keine Benachrichtigung." };
+            return alle.All(l => l == b.LehrerKuerzel) ? new() : new() { $"Für {string.Join(", ", alle.Where(l => l != b.LehrerKuerzel))} gibt es kein Benutzerkonto – keine Benachrichtigung." };
         var zeilen = neu.Take(30).Select(x => $"• {Plandienst.Wochentage[Plandienst.TagIndex(DateOnly.Parse(x.Datum))]}, {DateOnly.Parse(x.Datum):dd.MM.yyyy}, {x.StundeVon}.{(x.StundeBis != x.StundeVon ? $"–{x.StundeBis}." : "")} Stunde"
             + (x.Beginn.Length > 0 ? $" ({x.Beginn}–{x.Ende})" : "") + (x.Raum.Length > 0 ? $", Raum {x.Raum}" : ""));
         var text = $"{b.Anzeigename.Trim() switch { "" => b.Login, var n => n }} hat Sie für die Aktivität „{erste.Titel}“ eingetragen:\n\n{string.Join("\n", zeilen)}"
@@ -731,7 +861,19 @@ public sealed class Buchungsdienst
     private static Buchung Lesen(DbDataReader r) => new(r.Zahl("id"), r.Text("serie"), r.Text("art"), r.Text("datum"), r.Zahl("stunde_von"), r.Zahl("stunde_bis"),
         r.Text("beginn"), r.Text("ende"), r.Text("raum"), JsonListe(r.Text("klassen")), r.Text("lehrer"), r.Text("fach"), r.Text("titel"), r.Text("text"),
         r.ZahlOderNull("unterricht_id"), r.Wahr("benachrichtigen"), r.Text("status"), r.TextOderNull("uebertragen"), r.ZahlOderNull("benutzer_id"), r.Text("absender"),
-        r.Text("erstellt"), r.TextOderNull("storniert"));
+        r.Text("erstellt"), r.TextOderNull("storniert"))
+    {
+        WeitereLehrer = JsonListe(r.Text("weitere_lehrer")), WeitereRaeume = JsonListe(r.Text("weitere_raeume")), Zusatz = ZusatzLesen(r.Text("zusatz")),
+        Bestaetigt = r.TextOderNull("bestaetigt"), BestaetigtVon = r.Text("bestaetigt_von"), Geaendert = r.Text("geaendert"), GeaendertVon = r.Text("geaendert_von"),
+        Schueler = string.IsNullOrEmpty(r.Text("schueler")) ? new() : JsonSerializer.Deserialize<List<int>>(r.Text("schueler")) ?? new(), PlanUnterricht = r.ZahlOderNull("plan_unterricht"),
+    };
+
+    private static readonly JsonSerializerOptions ZusatzJson = new(JsonSerializerDefaults.Web);
+    private static BuchungsZusatz ZusatzLesen(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try { return JsonSerializer.Deserialize<BuchungsZusatz>(json, ZusatzJson) ?? new(); } catch (JsonException) { return new(); }
+    }
 
     private List<Buchung> MitRessourcen(List<Buchung> liste)
     {
@@ -761,9 +903,10 @@ public sealed class Buchungsdienst
     /// </summary>
     public List<Buchung> Liste(Benutzer b, bool alle, DateOnly von, DateOnly bis) =>
         MitRessourcen(_db.Liste($"""
-            SELECT {Spalten} FROM buchungen WHERE datum >= @von AND datum <= @bis AND (@alle = 1 OR benutzer_id = @b OR (lehrer <> '' AND lehrer = @l))
+            SELECT {Spalten} FROM buchungen WHERE datum >= @von AND datum <= @bis AND (@alle = 1 OR benutzer_id = @b OR (lehrer <> '' AND lehrer = @l) OR weitere_lehrer LIKE @wl)
             ORDER BY datum, stunde_von, id LIMIT 3000
-            """, Lesen, Db.P("@von", Plandienst.Iso(von)), Db.P("@bis", Plandienst.Iso(bis)), Db.P("@alle", alle && Rechtedienst.Darf(b, Recht.BuchungAndere)), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001")));
+            """, Lesen, Db.P("@von", Plandienst.Iso(von)), Db.P("@bis", Plandienst.Iso(bis)), Db.P("@alle", alle && Rechtedienst.Darf(b, Recht.BuchungAndere)), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001"),
+            Db.P("@wl", $"%\"{b.LehrerKuerzel ?? "\u0001"}\"%")));
 
     // ------------------------------------------------------------------------------------------ Pläne
 
@@ -793,8 +936,8 @@ public sealed class Buchungsdienst
                 Buchungsarten.Unterricht => "Raumbuchung (Zusätzlicher Unterricht)",
                 _ => "Raumbuchung",
             };
-            var lehrer = b.Lehrer.Length > 0 ? new List<string> { b.Lehrer } : new List<string>();
-            var raeume = b.Raum.Length > 0 ? new List<string> { b.Raum } : new List<string>();
+            var lehrer = b.AlleLehrer;
+            var raeume = b.AlleRaeume;
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
                 yield return new Rohstunde(st, null, b.Fach, b.Klassen, lehrer, raeume, "zusaetzlich", null, b.Titel, art, Unbestaetigt: true);
         }
@@ -812,7 +955,7 @@ public sealed class Buchungsdienst
     /// bis UntPlan sie quittiert – UntPlan entfernt dann die übernommene Änderung (Vertrag vertrag_storno.md).
     /// </remarks>
     public List<WebRueckmeldung> Rueckmeldungen() =>
-        _db.Liste("SELECT * FROM buchungen WHERE status = 'aktiv' AND uebertragen IS NULL AND art <> @r ORDER BY erstellt, id", Lesen, Db.P("@r", Buchungsarten.Ressource))
+        _db.Liste("SELECT * FROM buchungen WHERE status = 'aktiv' AND uebertragen IS NULL AND bestaetigt IS NOT NULL AND art <> @r ORDER BY erstellt, id", Lesen, Db.P("@r", Buchungsarten.Ressource))
             .Where(b => b.Raum.Length > 0 || b.Art != Buchungsarten.Raum)
             .Select(b => AlsRueckmeldung(b, WebRueckmeldungsTypen.Raumbuchung, RueckmeldungsPraefix + b.Id, b.Erstellt))
             .Concat(Stornierungen().Select(b => AlsRueckmeldung(b, WebRueckmeldungsTypen.BuchungStorno, StornoPraefix + b.Id, b.Storniert ?? b.Erstellt) with
@@ -824,7 +967,7 @@ public sealed class Buchungsdienst
     {
         Id = id, Typ = typ, Erstellt = DateTime.TryParse(zeit, out var e) ? e : DateTime.MinValue,
         Absender = b.Absender, Lehrer = b.Lehrer.Length > 0 ? b.Lehrer : null, Von = b.Datum, StundeVon = b.StundeVon, StundeBis = b.StundeBis,
-        Raum = b.Raum.Length > 0 ? b.Raum : null, Raeume = b.Raum.Length > 0 ? new() { b.Raum } : new(), Klassen = b.Klassen,
+        Raum = b.Raum.Length > 0 ? b.Raum : null, Raeume = b.AlleRaeume, Klassen = b.Klassen,
         Fach = b.Fach.Length > 0 ? b.Fach : null, Titel = b.Titel, Text = b.Text.Length > 0 ? b.Text : null,
     };
 
@@ -932,10 +1075,194 @@ public sealed class Buchungsdienst
         };
     }
 
+    // ------------------------------------------------------------------------------------------ Bearbeiten, Bestätigen, Schülergruppe
+
+    private List<Buchung> Betroffene(Buchung x, bool serie) =>
+        serie && x.Serie.Length > 0 ? Serie(x.Serie).Where(t => t.Status == "aktiv" && (t.Id == x.Id || string.CompareOrdinal(t.Datum, Plandienst.Iso(_uhr.Heute)) >= 0)).ToList() : new() { x };
+
+    private static bool DarfBearbeiten(Benutzer b, Buchung x) => Rechtedienst.Darf(b, Recht.BuchungAndere) || x.BenutzerId == b.Id;
+
+    /// <summary>
+    /// Details der Buchung ändern (Klassen, Lehrkräfte, Fach, Titel, Bemerkung, Zusatzangaben) – für den Termin bzw. alle kommenden Termine der Serie.
+    /// Termin und Raum bleiben (dafür: stornieren und neu buchen bzw. zusätzliche Stunden). Noch nicht übertragene Buchungen gehen geändert an UntPlan.
+    /// </summary>
+    public List<Buchung> Aendern(Stand s, Benutzer b, int id, BuchungAenderung d)
+    {
+        var x = Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
+        if (!DarfBearbeiten(b, x)) throw new UnauthorizedAccessException("Nur eigene Buchungen können geändert werden.");
+        if (x.Status != "aktiv") throw new ArgumentException("Die Buchung ist storniert.");
+        var klassen = (d.Klassen ?? x.Klassen).Where(k => !string.IsNullOrWhiteSpace(k)).Select(k => k.Trim()).Distinct(Ci).ToList();
+        if (klassen.FirstOrDefault(k => !s.Klassen.ContainsKey(k)) is { } uk) throw new ArgumentException($"Unbekannte Klasse {uk}.");
+        klassen = klassen.Select(k => s.Klassen[k].Kurz).ToList();
+        string LehrerKurz(string l) => s.Lehrer.TryGetValue(l, out var w) ? w.Kurz : throw new ArgumentException($"Unbekannte Lehrkraft {l}.");
+        var lehrer = (d.Lehrer ?? x.Lehrer).Trim();
+        if (lehrer.Length > 0) lehrer = LehrerKurz(lehrer);
+        var weitere = (d.WeitereLehrer ?? x.WeitereLehrer).Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => LehrerKurz(l.Trim())).Where(l => !Ci.Equals(l, lehrer)).Distinct(Ci).ToList();
+        var fach = (d.Fach ?? x.Fach).Trim();
+        if (fach.Length > 0) fach = s.Faecher.TryGetValue(fach, out var fw) ? fw.Kurz : throw new ArgumentException($"Unbekanntes Fach {fach}.");
+        var titel = (d.Titel ?? x.Titel).Trim();
+        if (titel.Length == 0) titel = x.Titel;
+        if (titel.Length > 200) titel = titel[..200];
+        var text = (d.Text ?? x.Text).Trim();
+        if (text.Length > 1000) text = text[..1000];
+        var zusatz = (d.Zusatz ?? x.Zusatz).Bereinigt();
+        var liste = Betroffene(x, d.Serie);
+        foreach (var t in liste)
+            _db.Ausfuehren("""
+                UPDATE buchungen SET klassen = @k, lehrer = @l, weitere_lehrer = @wl, fach = @f, titel = @t, text = @x, zusatz = @z, geaendert = @g, geaendert_von = @gv
+                WHERE id = @id
+                """, Db.P("@k", JsonSerializer.Serialize(klassen)), Db.P("@l", lehrer), Db.P("@wl", JsonSerializer.Serialize(weitere)), Db.P("@f", fach), Db.P("@t", titel),
+                Db.P("@x", text), Db.P("@z", JsonSerializer.Serialize(zusatz, ZusatzJson)), Db.P("@g", Jetzt), Db.P("@gv", b.LehrerKuerzel ?? b.Login), Db.P("@id", t.Id));
+        return liste.Select(t => Holen(t.Id)!).ToList();
+    }
+
+    /// <summary>
+    /// Reservierung bestätigen (Raumadministration, Recht „Räume und Ressourcen verwalten“): Termin bzw. alle Termine der Serie. Mit
+    /// „E-Mail-Benachrichtigung bei Statusänderung“ erhält die buchende Person eine Mitteilung. Ergebnis: Anzahl bestätigter Termine.
+    /// </summary>
+    public int Bestaetigen(Stand? s, Benutzer b, int id, bool serie)
+    {
+        if (!Rechtedienst.Darf(b, Recht.BuchungVerwalten)) throw new UnauthorizedAccessException("Nur die Raumadministration bestätigt Reservierungen.");
+        var x = Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
+        var liste = (serie && x.Serie.Length > 0 ? Serie(x.Serie) : new() { x }).Where(t => t.Status == "aktiv" && t.Bestaetigt is null).ToList();
+        foreach (var t in liste)
+            _db.Ausfuehren("UPDATE buchungen SET bestaetigt = @z, bestaetigt_von = @v WHERE id = @id AND bestaetigt IS NULL",
+                Db.P("@z", Jetzt), Db.P("@v", b.LehrerKuerzel ?? b.Login), Db.P("@id", t.Id));
+        if (liste.Count > 0 && x.Zusatz.EmailBenachrichtigung && x.BenutzerId is int empf && empf != b.Id && s != null)
+            try
+            {
+                _mitteilungen.Senden(b, s, new[] { "benutzer:" + empf }, $"Buchung bestätigt: {x.Titel}",
+                    $"Ihre Buchung „{x.Titel}“ ({string.Join(", ", liste.Take(10).Select(t => $"{DateOnly.Parse(t.Datum):dd.MM.yyyy} {t.StundeVon}.{(t.StundeBis != t.StundeVon ? $"–{t.StundeBis}." : "")} Std."))}"
+                    + $"{(x.AlleRaeume.Count > 0 ? $", Raum {string.Join(", ", x.AlleRaeume)}" : "")}) wurde von der Raumadministration bestätigt.", false);
+            }
+            catch (ArgumentException) { /* Benachrichtigung ist optional */ }
+        return liste.Count;
+    }
+
+    /// <summary>Schüler*innen der Schülergruppe der Buchung setzen (alle kommenden Termine der Serie). Erlaubt: nur Schüler*innen der gebuchten Klassen.</summary>
+    public List<int> SchuelerSetzen(Stand s, Benutzer b, int id, IEnumerable<int> ids)
+    {
+        var x = Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
+        if (!DarfBearbeiten(b, x) && !x.AlleLehrer.Contains(b.LehrerKuerzel ?? "\u0001", Ci)) throw new UnauthorizedAccessException("Nur eigene Buchungen.");
+        var erlaubt = SchuelerAuswahl(s, x).Select(y => y.Id).ToHashSet();
+        var liste = ids.Distinct().Where(erlaubt.Contains).ToList();
+        foreach (var t in Betroffene(x, true))
+            _db.Ausfuehren("UPDATE buchungen SET schueler = @s, geaendert = @g, geaendert_von = @gv WHERE id = @id", Db.P("@s", JsonSerializer.Serialize(liste)),
+                Db.P("@g", Jetzt), Db.P("@gv", b.LehrerKuerzel ?? b.Login), Db.P("@id", t.Id));
+        return liste;
+    }
+
+    /// <summary>Schüler*innen, die der Schülergruppe einer Buchung hinzugefügt werden können: die der gebuchten Klassen (ohne Klasse: alle).</summary>
+    public List<WebSchueler> SchuelerAuswahl(Stand s, Buchung x) =>
+        s.Schueler.Where(y => x.Klassen.Count == 0 || x.Klassen.Contains(y.Klasse, Ci)).OrderBy(y => y.Klasse, De).ThenBy(y => y.Name, De).ThenBy(y => y.Vorname, De).ToList();
+
+    // ------------------------------------------------------------------------------------------ Verfügbarkeit (Terminsuche, zusätzliche Stunden)
+
+    private static readonly string[] Uhrzeitformate = { "HH:mm", "H:mm" };
+    private static int Min(string hhmm) => TimeOnly.TryParseExact((hhmm ?? "").Trim(), Uhrzeitformate, CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) ? t.Hour * 60 + t.Minute : -1;
+
+    /// <summary>
+    /// Belegte Zeiten (Minuten ab Mitternacht) je Element und Tag für die Terminsuche bzw. zusätzliche Stunden: Lehrkräfte und Klassen laut Plan
+    /// (ohne Entfall) und Buchungen, Räume laut Raumbelegung (Plan, Prüfungen, Termine, Sperren, Buchungen). Unterrichtsfreie Tage (Ferien,
+    /// Feiertage, Wochenende) mit Grund. Schlüssel: „lehrer:KÜRZEL“, „klasse:KÜRZEL“, „raum:KÜRZEL“.
+    /// </summary>
+    public object Verfuegbarkeit(Stand s, DateOnly von, DateOnly bis, IEnumerable<string>? lehrer, IEnumerable<string>? klassen, IEnumerable<string>? raeume, int? ohneBuchung = null)
+    {
+        if (bis < von) (von, bis) = (bis, von);
+        if (bis > von.AddDays(41)) bis = von.AddDays(41);
+        string Kurz<T>(Dictionary<string, T> d, string x, Func<T, string> k, string art) => d.TryGetValue(x.Trim(), out var w) ? k(w) : throw new ArgumentException($"Unbekannte {art} {x}.");
+        var ll = (lehrer ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Kurz(s.Lehrer, x, w => w.Kurz, "Lehrkraft")).Distinct(Ci).ToList();
+        var kl = (klassen ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Kurz(s.Klassen, x, w => w.Kurz, "Klasse")).Distinct(Ci).ToList();
+        var rl = (raeume ?? Enumerable.Empty<string>()).Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Kurz(s.Raeume, x, w => w.Kurz, "Raum")).Distinct(Ci).ToList();
+        var raster = s.Paket.Zeitraster.Stunden.Where(z => z.Nr > 0).ToDictionary(z => z.Nr);
+        (int, int) Zeit(int v, int b2) => (raster.TryGetValue(v, out var a) ? Min(a.Beginn) : -1, raster.TryGetValue(b2, out var e) ? Min(e.Ende) : -1);
+        var buchbar = Rueckmeldungsdienst.Buchbar(s).Select(r => r.Kurz).ToHashSet(Ci);
+        var reserv = NurReservieren();
+        var tage = new List<object>();
+        for (var d = von; d <= bis; d = d.AddDays(1))
+        {
+            var (frei, grund) = _plan.Frei(s, d);
+            var belegt = new Dictionary<string, List<object>>();
+            void Dazu(string schluessel, int a, int e, string text, int? buchung = null)
+            {
+                if (a < 0 || e <= a) return;
+                (belegt.TryGetValue(schluessel, out var l) ? l : belegt[schluessel] = new()).Add(new { von = a, bis = e, text, buchung });
+            }
+            if (!frei)
+            {
+                var roh = _plan.Rohstunden(s, d).Where(r => r.Status != "entfall").ToList();
+                var buchungen = AktiveAm(d).Where(x => x.Id != ohneBuchung && x.Art != Buchungsarten.Ressource).ToList();
+                foreach (var r in roh)
+                {
+                    var (a, e) = Zeit(r.Stunde, r.Stunde);
+                    var text = string.Join(" ", new[] { r.Fach, string.Join(",", r.Klassen), string.Join(",", r.Lehrer) }.Where(x => x.Length > 0));
+                    foreach (var l in ll.Where(l => r.Lehrer.Contains(l, Ci))) Dazu("lehrer:" + l, a, e, text.Length > 0 ? text : r.Text);
+                    foreach (var k in kl.Where(k => r.Klassen.Contains(k, Ci))) Dazu("klasse:" + k, a, e, text.Length > 0 ? text : r.Text);
+                }
+                foreach (var x in buchungen.Where(x => !SchonImPaket(x, roh)))
+                {
+                    var (a0, e0) = Zeit(x.StundeVon, x.StundeBis);
+                    var a = Min(x.Beginn) is var bb and >= 0 ? bb : a0;
+                    var e = Min(x.Ende) is var ee and >= 0 ? ee : e0;
+                    var text = $"{(x.Titel.Length > 0 ? x.Titel : x.ArtName)} ({x.Absender})";
+                    foreach (var l in ll.Where(l => x.AlleLehrer.Contains(l, Ci))) Dazu("lehrer:" + l, a, e, text, x.Id);
+                    foreach (var k in kl.Where(k => x.Klassen.Contains(k, Ci))) Dazu("klasse:" + k, a, e, text, x.Id);
+                }
+                if (rl.Count > 0)
+                {
+                    var rb = RaumBelegung(s, d, ohneBuchung);
+                    foreach (var r in rl)
+                    {
+                        // Buchungen mit Uhrzeit genau, sonst die Stunde des Zeitrasters
+                        foreach (var x in rb.Where(x => Ci.Equals(x.Raum, r)).GroupBy(x => (x.Stunde, x.BuchungId)))
+                        {
+                            var bu = x.Key.BuchungId is int bid ? buchungen.FirstOrDefault(y => y.Id == bid) : null;
+                            var (a, e) = Zeit(x.Key.Stunde, x.Key.Stunde);
+                            if (bu != null && Min(bu.Beginn) >= 0 && Min(bu.Ende) > 0)
+                            {
+                                if (x.Key.Stunde == bu.StundeVon) a = Min(bu.Beginn);
+                                if (x.Key.Stunde == bu.StundeBis) e = Min(bu.Ende);
+                            }
+                            Dazu("raum:" + r, a, e, x.First().Text, x.Key.BuchungId);
+                        }
+                        if (!buchbar.Contains(r)) Dazu("raum:" + r, 0, 24 * 60, "Raum ist nicht buchbar");
+                    }
+                }
+            }
+            tage.Add(new { datum = Plandienst.Iso(d), wochentag = Plandienst.Wochentage[Plandienst.TagIndex(d)], frei, grund, belegt });
+        }
+        return new
+        {
+            zeitraster = _plan.Zeitraster(s), tage, lehrer = ll, klassen = kl, raeume = rl,
+            nurReservieren = rl.Where(reserv.Contains).ToList(), beschraenkungen = Beschraenkungen(),
+        };
+    }
+
+    /// <summary>Buchungsbeschränkungen (Administration | Buchungsbeschränkungen): Standarddauer der Verabredungen und Zeitbereich.</summary>
+    public Buchungsbeschraenkungen Beschraenkungen()
+    {
+        var w = _db.Wert("SELECT wert FROM einstellungen WHERE schluessel = 'buchungsbeschraenkungen'") as string;
+        if (string.IsNullOrEmpty(w)) return new();
+        try { return JsonSerializer.Deserialize<Buchungsbeschraenkungen>(w, ZusatzJson) ?? new(); } catch (JsonException) { return new(); }
+    }
+
+    public Buchungsbeschraenkungen BeschraenkungenSpeichern(Buchungsbeschraenkungen x)
+    {
+        if (Min(x.Beginn) < 0 || Min(x.Ende) < 0) throw new ArgumentException("Uhrzeit bitte als HH:mm angeben.");
+        if (Min(x.Ende) <= Min(x.Beginn)) throw new ArgumentException("Das Ende des Zeitbereichs liegt vor dem Beginn.");
+        if (x.Dauer is < 5 or > 600) throw new ArgumentException("Die Dauer muss zwischen 5 und 600 Minuten liegen.");
+        var neu = x with { Beginn = $"{Min(x.Beginn) / 60:00}:{Min(x.Beginn) % 60:00}", Ende = $"{Min(x.Ende) / 60:00}:{Min(x.Ende) % 60:00}" };
+        new Einstellungen(_db).Schreiben("buchungsbeschraenkungen", JsonSerializer.Serialize(neu, ZusatzJson));
+        return neu;
+    }
+
     // ------------------------------------------------------------------------------------------ Neuer Unterricht
 
     private EigenerUnterricht UnterrichtLesen(DbDataReader r) => new(r.Zahl("id"), r.Text("lehrer"), r.Text("fach"), JsonListe(r.Text("klassen")), r.Text("gruppe"),
-        r.Text("text"), r.Zahl("wochenstunden"), r.ZahlOderNull("benutzer_id"), r.Text("erstellt"), r.Zahl("gebucht"));
+        r.Text("text"), r.Zahl("wochenstunden"), r.ZahlOderNull("benutzer_id"), r.Text("erstellt"), r.Zahl("gebucht"))
+    {
+        Zusatz = string.IsNullOrWhiteSpace(r.Text("zusatz")) ? new() : JsonSerializer.Deserialize<UnterrichtZusatz>(r.Text("zusatz"), ZusatzJson) ?? new(),
+    };
 
     private const string UnterrichtSql = """
         SELECT u.*, (SELECT COALESCE(SUM(b.stunde_bis - b.stunde_von + 1), 0) FROM buchungen b WHERE b.unterricht_id = u.id AND b.status = 'aktiv') AS gebucht
@@ -949,7 +1276,8 @@ public sealed class Buchungsdienst
         _db.Liste(UnterrichtSql + " AND (@alle = 1 OR u.benutzer_id = @b OR u.lehrer = @l) ORDER BY u.lehrer, u.fach, u.id", UnterrichtLesen,
             Db.P("@alle", Rechtedienst.Darf(b, Recht.BuchungAndere)), Db.P("@b", b.Id), Db.P("@l", b.LehrerKuerzel ?? "\u0001"));
 
-    public EigenerUnterricht UnterrichtAnlegen(Stand s, Benutzer b, string? lehrer, string? fach, IEnumerable<string>? klassen, string? gruppe, string? text, int? wochenstunden)
+    public EigenerUnterricht UnterrichtAnlegen(Stand s, Benutzer b, string? lehrer, string? fach, IEnumerable<string>? klassen, string? gruppe, string? text, int? wochenstunden,
+        UnterrichtZusatz? zusatz = null, bool benachrichtigen = false)
     {
         Kollegium(b);
         var l = (lehrer ?? b.LehrerKuerzel ?? "").Trim();
@@ -963,11 +1291,34 @@ public sealed class Buchungsdienst
         k = k.Select(x => s.Klassen[x].Kurz).ToList();
         static string T(string? x, int n) { var t = (x ?? "").Trim(); return t.Length > n ? t[..n] : t; }
         var id = _db.Einfuegen("""
-            INSERT INTO eigene_unterrichte (lehrer, fach, klassen, gruppe, text, wochenstunden, benutzer_id, erstellt, geloescht)
-            VALUES (@l, @f, @k, @g, @t, @w, @b, @e, 0)
+            INSERT INTO eigene_unterrichte (lehrer, fach, klassen, gruppe, text, wochenstunden, benutzer_id, erstellt, geloescht, zusatz)
+            VALUES (@l, @f, @k, @g, @t, @w, @b, @e, 0, @z)
             """, Db.P("@l", lw.Kurz), Db.P("@f", fw.Kurz), Db.P("@k", JsonSerializer.Serialize(k)), Db.P("@g", T(gruppe, 100)), Db.P("@t", T(text, 1000)),
-            Db.P("@w", Math.Clamp(wochenstunden ?? 0, 0, 40)), Db.P("@b", b.Id), Db.P("@e", Jetzt));
-        return EigenerUnterrichtHolen((int)id)!;
+            Db.P("@w", Math.Clamp(wochenstunden ?? 0, 0, 40)), Db.P("@b", b.Id), Db.P("@e", Jetzt), Db.P("@z", JsonSerializer.Serialize(ZusatzPruefen(zusatz), ZusatzJson)));
+        var neu = EigenerUnterrichtHolen((int)id)!;
+        // „Lehrkraft der Aktivität benachrichtigen“: Mitteilung an die eingetragene Lehrkraft (nicht an sich selbst)
+        if (benachrichtigen)
+            foreach (var konto in _benutzer.Alle().Where(x => !x.Gesperrt && x.Id != b.Id && Ci.Equals(x.LehrerKuerzel ?? "", neu.Lehrer)))
+                try
+                {
+                    _mitteilungen.Senden(b, s, new[] { "benutzer:" + konto.Id }, $"Neuer Unterricht: {neu.Fach} {string.Join(", ", neu.Klassen)}",
+                        $"{(b.Anzeigename.Trim().Length > 0 ? b.Anzeigename.Trim() : b.Login)} hat für Sie den Unterricht {neu.Fach}{(neu.Klassen.Count > 0 ? $" ({string.Join(", ", neu.Klassen)})" : "")} angelegt."
+                        + (neu.Zusatz.Von.Length > 0 ? $"\nZeitraum: {neu.Zusatz.Von} – {neu.Zusatz.Bis}" : "") + (neu.Text.Length > 0 ? $"\n\n{neu.Text}" : ""), false);
+                }
+                catch (ArgumentException) { /* optional */ }
+        return neu;
+    }
+
+    private static UnterrichtZusatz ZusatzPruefen(UnterrichtZusatz? z)
+    {
+        z ??= new();
+        static string T(string? x, int n) { var t = (x ?? "").Trim(); return t.Length > n ? t[..n] : t; }
+        var von = DateOnly.TryParse(z.Von, out var v) ? Plandienst.Iso(v) : "";
+        var bis = DateOnly.TryParse(z.Bis, out var bi) ? Plandienst.Iso(bi) : "";
+        if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(bis, von) < 0) throw new ArgumentException("Das Ende des Zeitraums liegt vor dem Beginn.");
+        var mail = T(z.Email, 200);
+        if (mail.Length > 0 && !mail.Contains('@')) throw new ArgumentException("Bitte eine gültige E-Mail-Adresse eingeben.");
+        return new(von, bis, Math.Clamp(z.Jahresstunden, 0, 2000), T(z.Abteilung, 100), T(z.Verantwortlich, 100), T(z.Aktivitaetsart, 60), T(z.Anmerkung, 1000), mail, z.EmailBenachrichtigung);
     }
 
     /// <summary>Unterricht löschen; seine noch kommenden zusätzlichen Stunden werden storniert.</summary>

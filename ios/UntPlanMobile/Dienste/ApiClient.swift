@@ -83,6 +83,11 @@ final class ApiClient: @unchecked Sendable {
         try await anfrage("GET", "/plan", parameter: ["typ": typ, "element": element, "datum": Datumsformat.iso(datum)])
     }
 
+    /// „Meine Termine“: eigene Veranstaltungen, Sondereinsätze und Prüfungen bis zum Schuljahresende.
+    func termine() async throws -> Terminliste {
+        try await anfrage("GET", "/termine")
+    }
+
     func elemente() async throws -> Elemente {
         try await anfrage("GET", "/elemente")
     }

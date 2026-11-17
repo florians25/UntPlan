@@ -288,6 +288,8 @@ export function karteDialog(karte, kontext = {}) {
       ${(k.status === 'klausur' || (k.status === 'vorgemerkt' && /^klausur/i.test(k.art || ''))) && kollegium && k.datum >= heuteIso() ? `<button type="button" class="sd-pille gross" data-pruefung-editieren>Prüfung editieren</button>
         <button type="button" class="sd-pille gross rot" data-pruefung-loeschen>Prüfung löschen</button>`
         : darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
+      ${kollegium && k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status) && (ich.rechte ? !!ich.rechte['buchung.stundenplanaenderung'] : true)
+        ? `<a class="sd-pille gross" href="#/buchen/zusatz/u${k.unterricht}" data-zusatz-link>Zusätzliche Stunden</a>` : ''}
       </div>`;
   }
 
@@ -939,6 +941,8 @@ export function karteDialog(karte, kontext = {}) {
       box.querySelector('[data-hw-neu]')?.scrollIntoView({ block: 'center' });
     });
 
+    // Zusätzliche Stunden (Buchungsmodul): Fenster schließen und zur Buchung der zusätzlichen Stunde wechseln
+    q('[data-zusatz-link]')?.addEventListener('click', ev => { ev.preventDefault(); const z = ev.currentTarget.getAttribute('href'); modal.hide(); setTimeout(() => kontext.navigieren ? kontext.navigieren(z) : (location.hash = z)); });
     q('[data-dienste-link]')?.addEventListener('click', ev => { ev.preventDefault(); const z = ev.currentTarget.getAttribute('href'); modal.hide(); setTimeout(() => kontext.navigieren ? kontext.navigieren(z) : (location.hash = z)); });
     // Hausaufgaben: Anlegen im Fenster, Klick auf eine Hausaufgabe öffnet die Details
     const hwNeuGeladen = async () => { try { await hausaufgabenNeu(); } catch (err) { toast(err.message, true); } zeichnen(); };
@@ -1318,7 +1322,7 @@ export function karteDialog(karte, kontext = {}) {
         <label for="ab-grund">Abwesenheitsgrund</label><select id="ab-grund" data-ab-grund ${grundGesperrt ? 'disabled' : ''}>${gruendeWahl}</select>
         <label for="ab-text">Text</label><input id="ab-text" data-ab-text maxlength="500" value="${e(f?.text ?? '')}" ${grundGesperrt ? 'disabled title="Grund und Text trägt die Klassenleitung ein."' : ''}>
         <label>Status</label><div class="ab-status ab-segment ${verwalten ? '' : 'gesperrt'}" role="radiogroup" aria-label="Entschuldigungsstatus">${radio('entschuldigt', 'entschuldigt')}${radio('unentschuldigt', 'nicht entschuldigt')}${radio('offen', 'offen')}
-          ${verwalten ? (f ? '<div class="ab-hinweis">Wird sofort gespeichert.</div>' : '') : '<div class="ab-hinweis"><i class="bi bi-lock"></i> Entschuldigen und Zeiträume über den Tag hinaus nur durch die Klassenleitung.</div>'}</div>
+          ${verwalten && f ? '<div class="ab-hinweis">Wird sofort gespeichert.</div>' : ''}</div>
       </div>
       ${f?.erstellt ? `<div class="ad-fuss">Erfasst am ${zeitstempel(f.erstellt)} von ${e(f.lehrer || '')}</div>` : ''}
       <div class="ad-knoepfe ab-knoepfe"><button type="button" class="sd-orange" data-ab-speichern>Speichern</button><button type="button" class="ad-pille" data-ad-zu>Abbrechen</button>

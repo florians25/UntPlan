@@ -30,6 +30,8 @@ public static class Recht
     public const string HausaufgabenSehen = "hausaufgaben.sehen", HausaufgabenEintragen = "hausaufgaben.eintragen";
     public const string PruefungSehen = "pruefung.sehen", PruefungAnlegen = "pruefung.anlegen", PruefungSperrenUmgehen = "pruefung.sperren_umgehen";
     public const string BuchungRaum = "buchung.raum", BuchungRessourcen = "buchung.ressourcen", BuchungAndere = "buchung.andere", BuchungVerwalten = "buchung.verwalten";
+    /// <summary>Stundenplanänderung: zusätzliche Stunden zu Unterrichten und Aktivitäten buchen (Unterricht | Mein Unterricht, Tagesunterricht Lehrkraft, Meine Buchungen).</summary>
+    public const string Stundenplanaenderung = "buchung.stundenplanaenderung";
     public const string MitteilungSenden = "mitteilung.senden", MitteilungAlle = "mitteilung.alle", MitteilungFamilie = "mitteilung.familie",
         NachrichtenPflegen = "nachrichten.pflegen", InfocenterVerwalten = "infocenter.verwalten";
     public const string SprechtagVerwalten = "sprechtag.verwalten";
@@ -74,6 +76,7 @@ public static class Recht
         new(PruefungSperrenUmgehen, "Prüfungen", "Prüfungssperren umgehen", "Von den Prüfungssperren ausgenommen (wenn in den Prüfungssperren eingeschaltet).", false, true, S(J, J, N, N, N)),
         new(BuchungRaum, "Raumbuchung & Ressourcen", "Räume buchen", "Räume buchen und Raumänderungen melden.", false, true, S(J, J, J, N, N)),
         new(BuchungRessourcen, "Raumbuchung & Ressourcen", "Ressourcen buchen", "Ressourcen (z. B. Laptopwagen) buchen.", false, true, S(J, J, J, N, N)),
+        new(Stundenplanaenderung, "Raumbuchung & Ressourcen", "Stundenplanänderung", "Zusätzliche Stunden zu Unterrichten und Aktivitäten buchen (Mein Unterricht, Tagesunterricht Lehrkraft, Meine Buchungen | Bearbeiten).", false, true, S(J, J, J, N, N)),
         new(BuchungAndere, "Raumbuchung & Ressourcen", "Buchungen anderer stornieren", "Buchungen und angelegten Unterricht anderer Konten stornieren bzw. löschen.", false, true, S(J, N, N, N, N)),
         new(BuchungVerwalten, "Raumbuchung & Ressourcen", "Räume und Ressourcen verwalten", "Ressourcen, Ressourcenarten und Raumdaten pflegen.", false, true, S(J, N, N, N, N)),
         new(MitteilungSenden, "Kommunikation", "Mitteilungen senden", "Mitteilungen schreiben (Schüler- und Elternkonten zusätzlich nach den Mitteilungs-Einstellungen).", false, false, S(J, J, J, J, J)),

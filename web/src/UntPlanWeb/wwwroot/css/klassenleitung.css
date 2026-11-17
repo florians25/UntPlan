@@ -1,0 +1,140 @@
+/* UntPlanWeb – Leitfaden Klassenleitung: Schülergruppen (Liste, Schülerliste, Schüler-Gruppen-Zuordnung als Matrix), Stammdaten →
+   Schüler*innen mit Bildern, Kontaktdaten, Offene Stunden pro Klasse, Kennwort vergessen / Registrieren. Baut auf den nl-Klassen auf;
+   Schrift nur Regular (400) und Medium (500). */
+
+/* ---------------------------------------------------------------- gemeinsame Felder */
+.sg-feld { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: #67747e; font-size: .85rem; }
+.sg-feld > span:first-child { white-space: nowrap; }
+.sg-feld .form-select { height: 38px; min-width: 150px; padding-top: 4px; padding-bottom: 4px; border: 1.5px solid #c9d0d6; border-radius: 999px; font-size: .9rem; }
+.sg-dfeld { display: grid; gap: 5px; margin: 0 0 12px; font-size: .85rem; color: #414d55; }
+.sg-dfeld > span { font-weight: 500; }
+.sg-reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sg-formular { min-width: min(420px, 80vw); }
+.sg-kopfwahl { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; font-size: .78rem; font-weight: 500; color: #67747e; }
+.sg-unterkopf { margin: 0 0 12px; color: #414d55; font-size: .9rem; }
+
+/* ---------------------------------------------------------------- Unterricht → Schülergruppen */
+.sg-tabelle td { white-space: nowrap; }
+.sg-person { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border: 1.5px solid #dfe3e7; border-radius: 8px; background: #fff; color: #3a6ea5; }
+.sg-person:hover { border-color: #8a96a1; }
+.sg-person small { color: #67747e; font-size: .78rem; }
+.sg-nummer { border: 0; background: none; padding: 0; color: var(--u-akzent, #f56b2a); text-decoration: underline; font-variant-numeric: tabular-nums; }
+.sg-fuss { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; color: #67747e; font-size: .85rem; }
+
+/* Schülerliste einer Gruppe: Werkzeugleiste, Geschlecht, Zuordnungshistorie */
+.sg-werkzeuge { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 10px; }
+.sg-werkzeug { display: inline-grid; place-content: center; width: 34px; height: 34px; border: 1.5px solid #dfe3e7; border-radius: 9px; background: #fff; color: #414d55; }
+.sg-werkzeug:hover:not(:disabled) { border-color: #8a96a1; color: var(--u-text); }
+.sg-werkzeug:disabled { opacity: .45; }
+.sg-werkzeug.klein { width: 26px; height: 26px; border-radius: 7px; font-size: .8rem; }
+.sg-trenn { width: 1px; height: 22px; margin: 0 6px; background: #dfe3e7; }
+.sg-werkzeuge .nl-suche { height: 36px; max-width: 260px; margin: 0; }
+.sg-g-m { color: #3a6ea5; } .sg-g-w { color: #c2417a; } .sg-g-d { color: #6b5bb5; }
+.sg-schuelertabelle { max-height: 58vh; overflow: auto; }
+.sg-schuelertabelle thead th { position: sticky; top: 0; z-index: 1; background: #fff; }
+.sg-schuelertabelle input[type=date], .sg-schuelertabelle .kal-eingabe { height: 32px; width: 120px; padding: 2px 8px; border: 1.5px solid #dfe3e7; border-radius: 8px; font: inherit; font-size: .85rem; }
+.sg-extern { max-width: 150px; overflow: hidden; text-overflow: ellipsis; font-size: .78rem; }
+
+/* ---------------------------------------------------------------- Schüler-Gruppen-Zuordnung (Matrix) */
+.sg-kriterien { position: relative; align-items: center; }
+.sg-kriterien-wahl { position: relative; }
+.sg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sg-chip { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 10px; border-radius: 999px; background: #fff3c4; color: #5c4a00; font-size: .85rem; font-weight: 500; }
+.sg-chip button { display: inline-grid; place-content: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: inherit; font-size: .7rem; }
+.sg-chip button:hover { background: rgba(0, 0, 0, .08); }
+.sg-pop { position: absolute; z-index: 1300; min-width: 260px; padding: 14px; background: #fff; border: 1px solid #dfe3e7; border-radius: 12px; box-shadow: 0 12px 32px rgba(36, 50, 61, .16); }
+.sg-kriterien-pop { left: 0; top: calc(100% + 6px); width: 300px; }
+.sg-pop-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sg-pop-kopf b { font-weight: 500; }
+.sg-matrix { overflow: auto; max-height: calc(100vh - 290px); background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; }
+.sg-matrixtabelle { border-collapse: separate; border-spacing: 0; font-size: .85rem; }
+.sg-matrixtabelle th, .sg-matrixtabelle td { border-bottom: 1px solid #edf0f2; border-right: 1px solid #edf0f2; }
+.sg-matrixtabelle thead th { position: sticky; top: 0; z-index: 2; background: #fff; vertical-align: bottom; }
+.sg-ecke { left: 0; z-index: 3 !important; min-width: 210px; padding: 8px; text-align: left; }
+.sg-eckwerkzeuge { display: flex; flex-wrap: wrap; gap: 3px; max-width: 200px; }
+.sg-spalte { min-width: 72px; max-width: 92px; padding: 6px 4px; text-align: center; font-weight: 400; color: #414d55; cursor: pointer; }
+.sg-spalte span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
+.sg-gname { color: #8a96a1; font-size: .75rem; }
+.sg-spalte:hover, .sg-spalte.markiert { background: #fff3ec; }
+.sg-spalte.markiert { box-shadow: inset 0 -3px 0 var(--u-akzent, #f56b2a); }
+.sg-klasse { position: sticky; left: 0; z-index: 1; width: 28px; min-width: 28px; padding: 6px 2px; background: #f7f8fa; }
+.sg-klasse span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 500; color: #414d55; white-space: nowrap; }
+.sg-name { position: sticky; left: 28px; z-index: 1; min-width: 180px; padding: 6px 10px; background: #fff; font-weight: 400; white-space: nowrap; }
+.sg-zelle { position: relative; min-width: 72px; padding: 6px 4px; text-align: center; white-space: nowrap; }
+.sg-zelle.markiert { background: #fffaf6; }
+.sg-zelle.geaendert { background: #fff6d6; }
+.sg-haken { width: 17px; height: 17px; vertical-align: middle; accent-color: #3a6ea5; }
+.sg-kal { display: inline-grid; place-content: center; width: 22px; height: 22px; margin-left: 2px; border: 0; border-radius: 5px; background: none; color: #67747e; font-size: .78rem;
+  vertical-align: middle; visibility: hidden; }
+.sg-zelle:hover .sg-kal, .sg-zelle:focus-within .sg-kal, .sg-zelle.befristet .sg-kal { visibility: visible; }
+.sg-zelle.befristet .sg-kal { background: #e7eef7; color: #3a6ea5; }
+.sg-kal:hover { background: #eef1f4; }
+.sg-zeitpop { width: 340px; padding: 10px 12px; }
+.sg-zeitkopf, .sg-zeitreihe { display: grid; grid-template-columns: 1fr 1fr 30px; gap: 6px; align-items: center; }
+.sg-zeitkopf { margin-bottom: 4px; color: #67747e; font-size: .8rem; }
+.sg-zeitreihe { margin-bottom: 6px; }
+.sg-zeitreihe input { width: 100%; height: 32px; padding: 2px 8px; border: 1.5px solid #dfe3e7; border-radius: 8px; font: inherit; font-size: .85rem; }
+.sg-zeitweg, .sg-zeitplus { display: inline-grid; place-content: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; }
+.sg-zeitweg { color: #a1262b; } .sg-zeitplus { color: #2f7d4f; }
+.sg-zeitweg:hover, .sg-zeitplus:hover { background: #eef1f4; }
+.sg-matrixfuss { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 0; }
+.sg-matrixfuss [data-stand] { margin-right: auto; color: #67747e; font-size: .85rem; }
+
+/* ---------------------------------------------------------------- Stammdaten → Schüler*innen mit Bildern */
+.sb-bild { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.sb-initialen { display: inline-grid; place-content: center; background: #eef1f4; color: #57626b; font-size: .78rem; font-weight: 500; }
+.sb-stift { width: 44px; }
+.sb-unter { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 12px; }
+.sb-bearbeiten { display: flex; gap: 20px; align-items: flex-start; min-width: min(460px, 80vw); }
+.sb-gross { width: 120px; height: 120px; border-radius: 14px; object-fit: cover; font-size: 2rem; }
+.sb-felder { flex: 1; display: grid; gap: 10px; }
+.sb-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; }
+.sb-import { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+/* ---------------------------------------------------------------- Kontaktdaten */
+.kt-karte { max-width: 760px; padding: 18px 20px; background: #fff; border: 1px solid #dfe3e7; border-radius: 12px; }
+.kt-kopf { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.kt-bild { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; font-size: 1.2rem; }
+.kt-label { display: block; color: #8a96a1; font-size: .78rem; }
+.kt-abschnitt { margin-top: 16px; }
+.kt-abschnitt h3 { display: flex; align-items: center; gap: 4px; margin: 0 0 8px; color: var(--u-akzent, #f56b2a); font-size: .9rem; font-weight: 500; }
+.kt-felder { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; }
+.kt-wert { display: inline-flex; align-items: center; gap: 4px; word-break: break-all; }
+.kt-kopieren { border: 0; background: none; padding: 0 2px; color: #67747e; font-size: .8rem; }
+.kt-kopieren:hover { color: var(--u-text); }
+.kt-fuss { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.kt-adresse { min-width: min(440px, 80vw); }
+.kt-adresse-name { margin-bottom: 12px; font-weight: 500; }
+.kt-adresse-kontakte { display: grid; gap: 8px; margin: 4px 0 8px; }
+@media (max-width: 640px) { .kt-felder, .sg-reihe { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- Offene Stunden pro Klasse */
+.ok-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 12px; color: #414d55; }
+.ok-von { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.ok-von input { height: 36px; width: 140px; padding: 2px 10px; border: 1.5px solid #c9d0d6; border-radius: 999px; font: inherit; }
+.ok-zahlen { margin-left: 18px; } .ok-zahlen b { font-weight: 500; }
+.ok-aktionen { margin: 0 0 12px; }
+.ok-kb { display: inline-grid; place-content: center; width: 30px; height: 30px; border: 0; border-radius: 8px; background: none; }
+.ok-kb.fehlt { color: #b5541c; background: #fff1e8; } .ok-kb.ok { color: #2f7d4f; }
+.ok-kb:hover { filter: brightness(.95); }
+.ok-nachricht { display: grid; gap: 10px; }
+.ok-zeile { display: flex; align-items: center; gap: 10px; }
+.ok-label { width: 60px; color: #67747e; font-size: .85rem; }
+.ok-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.ok-an { display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 2px 0 10px; border-radius: 999px; background: #34414b; color: #fff; font-size: .8rem; font-weight: 500; }
+.ok-an.ohne { background: #c9d0d6; color: #414d55; }
+.ok-an button { display: inline-grid; place-content: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: inherit; }
+.ok-plus { width: 56px; flex: 0 0 56px; border-radius: 999px; }
+
+/* ---------------------------------------------------------------- Anmeldeseite: Kennwort vergessen, Registrieren */
+.an-seite .lg-vergessen + .lg-vergessen { margin-top: 6px; }
+.an-seite .lg-text { margin: 0 0 16px; color: #57626b; font-size: .9rem; }
+
+/* Bilder in Abwesenheitskontrolle und Sitzplan, @-Symbol (Adresse) im Sitzplan */
+.sb-kachelbild { display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.sd-avatar[data-bild="1"], .sp-ava[data-bild="1"] { overflow: hidden; padding: 0; background: #eef1f4; }
+.sp-at { position: absolute; top: 4px; right: 4px; display: inline-grid; place-content: center; width: 24px; height: 24px; border: 1px solid #dfe3e7; border-radius: 50%;
+  background: #fff; color: #57626b; font-size: .8rem; line-height: 1; }
+.sp-at:hover { border-color: #8a96a1; color: var(--u-text); }
+.sg-schuelertabelle th, .sg-schuelertabelle td { padding: 8px 7px; }
+.sg-schuelertabelle input[type=date], .sg-schuelertabelle .kal-eingabe { width: 108px; }

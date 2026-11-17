@@ -10,7 +10,7 @@ const ARTEN = {
   faecher: { titel: 'Fächer', spalten: [['kurz', 'Fach'], ['name', 'Langname'], ['farbe', 'Farbe']] },
   raeume: { titel: 'Räume', spalten: [['kurz', 'Raum'], ['name', 'Langname'], ['buchbar', 'buchbar (Web)']] },
   versionen: { titel: 'Stundenplan-Versionen', spalten: [['revision', 'Revision'], ['empfangen', 'Empfangen'], ['programmversion', 'UntPlan'], ['klassen', 'Klassen'], ['lehrer', 'Lehrkräfte'], ['raeume', 'Räume'], ['tage', 'Tage'], ['vertretungen', 'Vertretungen'], ['von', 'Von'], ['bis', 'Bis']] },
-  gruende: { titel: 'Abwesenheitsgründe', spalten: [['kurz', 'Kürzel'], ['name', 'Bezeichnung'], ['art', 'Art'], ['entschuldigt', 'gilt als entschuldigt'], ['reihenfolge', 'Reihenfolge'], ['aktiv', 'aktiv']] },
+  gruende: { titel: 'Abwesenheitsgründe', spalten: [['kurz', 'Kürzel'], ['name', 'Bezeichnung'], ['art', 'Art'], ['entschuldigt', 'gilt als entschuldigt'], ['zaehlt', 'zählt'], ['reihenfolge', 'Reihenfolge'], ['aktiv', 'aktiv']] },
   dienste: { titel: 'Dienste', spalten: [['kurz', 'Kürzel'], ['name', 'Bezeichnung'], ['reihenfolge', 'Reihenfolge'], ['aktiv', 'aktiv']] },
 };
 
@@ -34,9 +34,11 @@ const anzeige = (schluessel, wert) => {
   return e(wert ?? '');
 };
 
-export async function zeigen(seite, kontext, [artParam]) {
+export async function zeigen(seite, kontext, [artParam, zusatzParam]) {
   // Notenschemen und Prüfungsarten (in UntPlanWeb gepflegt) – eigene Seiten in noten.js
   if (artParam === 'notenschemen' || artParam === 'pruefungsarten') return (await import('./noten.js')).zeigen(seite, kontext, artParam);
+  // Schüler*innen je Klasse mit Bildern, Bildimport und Kennwort-Blatt (Leitfaden Klassenleitung) – stammschueler.js
+  if (artParam === 'schueler') return (await import('./stammschueler.js')).zeigen(seite, kontext, [artParam, zusatzParam]);
   const art = ARTEN[artParam] ? artParam : 'klassen';
   const a = ARTEN[art];
   const bearbeitbar = art === 'gruende' || art === 'dienste';
@@ -72,12 +74,13 @@ export async function zeigen(seite, kontext, [artParam]) {
       <div class="col-sm-4"><label class="form-label">Kürzel</label><input class="form-control" name="kurz" value="${e(x?.kurz ?? '')}" maxlength="10"></div>
       <div class="col-sm-8"><label class="form-label">Bezeichnung</label><input class="form-control" name="name" value="${e(x?.name ?? '')}" required></div>
       ${art === 'gruende' ? `<div class="col-sm-6"><label class="form-label">Art</label><select class="form-select" name="art"><option value="abwesenheit">Abwesenheit</option><option value="befreiung" ${x?.art === 'befreiung' ? 'selected' : ''}>Befreiung</option></select></div>
-        <div class="col-sm-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="entschuldigt" id="sd-e" ${x?.entschuldigt ? 'checked' : ''}><label class="form-check-label" for="sd-e">gilt als entschuldigt</label></div></div>` : ''}
+        <div class="col-sm-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="entschuldigt" id="sd-e" ${x?.entschuldigt ? 'checked' : ''}><label class="form-check-label" for="sd-e">gilt als entschuldigt</label></div></div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" type="checkbox" name="zaehlt" id="sd-z" ${x?.zaehlt ?? true ? 'checked' : ''}><label class="form-check-label" for="sd-z">zählt</label></div></div>` : ''}
       <div class="col-sm-6"><label class="form-label">Reihenfolge</label><input type="number" class="form-control" name="reihenfolge" value="${x?.reihenfolge ?? 10}"></div>
       <div class="col-sm-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="aktiv" id="sd-a" ${x?.aktiv ?? true ? 'checked' : ''}><label class="form-check-label" for="sd-a">aktiv</label></div></div></div>`,
     knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
       const v = n => box.querySelector(`[name=${n}]`);
-      await senden(x ? `${pfad}/${x.id}` : pfad, { kurz: v('kurz').value, name: v('name').value, art: v('art')?.value, entschuldigt: !!v('entschuldigt')?.checked, reihenfolge: Number(v('reihenfolge').value), aktiv: v('aktiv').checked }, x ? 'PUT' : 'POST');
+      await senden(x ? `${pfad}/${x.id}` : pfad, { kurz: v('kurz').value, name: v('name').value, art: v('art')?.value, entschuldigt: !!v('entschuldigt')?.checked, zaehlt: v('zaehlt') ? v('zaehlt').checked : undefined, reihenfolge: Number(v('reihenfolge').value), aktiv: v('aktiv').checked }, x ? 'PUT' : 'POST');
       toast('Gespeichert.'); neu();
     } }],
   });

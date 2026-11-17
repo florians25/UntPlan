@@ -14,12 +14,37 @@ public sealed record Klassenzeitraum(string Klasse, string Beginn, string Ende, 
 /// die Zeilen Abweichungen: ausgeschlossen = abgemeldet; Von/Bis = nimmt nur in diesem Zeitraum teil; Schüler*innen ohne Zeile nehmen
 /// teil, solange sie in einer Klasse des Unterrichts sind.
 /// </summary>
-public sealed record Gruppenmitglied(int SchuelerId, string Von, string Bis, bool Ausgeschlossen);
+public sealed record Gruppenmitglied(int SchuelerId, string Von, string Bis, bool Ausgeschlossen, string Weitere = "")
+{
+    /// <summary>
+    /// Alle Zeiträume der Zugehörigkeit (Zuordnungshistorie, z. B. Gruppenwechsel zum Halbjahr): der erste in Von/Bis, weitere als
+    /// „von|bis;von|bis“ in <see cref="Weitere"/>. Leere Liste = ohne zeitliche Begrenzung.
+    /// </summary>
+    public List<(string Von, string Bis)> Zeitraeume
+    {
+        get
+        {
+            var res = new List<(string, string)>();
+            if (Von.Length > 0 || Bis.Length > 0) res.Add((Von, Bis));
+            foreach (var t in Weitere.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var x = t.Split('|');
+                if (x.Length == 2 && (x[0].Length > 0 || x[1].Length > 0)) res.Add((x[0], x[1]));
+            }
+            return res;
+        }
+    }
+
+    /// <summary>Nimmt die Schülerin/der Schüler an diesem Tag teil (nicht ausgeschlossen und in einem der Zeiträume)?</summary>
+    public bool Am(DateOnly d) => !Ausgeschlossen && (Zeitraeume is var z && (z.Count == 0 || z.Any(x => Klassenzugehoerigkeit.Im(x.Von, x.Bis, d))));
+}
 
 /// <summary>Schülergruppe eines Unterrichts: „standard“ (die Klassen des Unterrichts) oder „gast“ (befristeter Unterrichtswechsel).</summary>
 public sealed record Schuelergruppe(int Id, int Unterricht, string Name, string Art, string Von, string Bis, List<Gruppenmitglied> Mitglieder)
 {
     public bool Gast => Art == Unterrichtsgruppen.Gast;
+    /// <summary>Standardgruppe (die Klassen des Unterrichts); sonst nehmen nur die eingetragenen Mitglieder teil (Gast- bzw. weitere Schülergruppe).</summary>
+    public bool IstStandard => Art == Unterrichtsgruppen.Standard;
 
     /// <summary>Gilt die Gruppe an diesem Tag?</summary>
     public bool Gilt(DateOnly d) => Klassenzugehoerigkeit.Im(Von, Bis, d);
@@ -50,7 +75,7 @@ public sealed class Zuordnungen
                 r.Text("klasse_vorher"), r.Text("von"), r.Text("erstellt")))
             .GroupBy(w => w.SchuelerId).ToDictionary(g => g.Key, g => g.OrderBy(w => w.Von, StringComparer.Ordinal).ToList());
         var mitglieder = db.Liste("SELECT * FROM schuelergruppe_mitglieder", r => (Gruppe: r.Zahl("gruppe_id"),
-                M: new Gruppenmitglied(r.Zahl("schueler_id"), r.Text("von"), r.Text("bis"), r.Wahr("ausgeschlossen"))))
+                M: new Gruppenmitglied(r.Zahl("schueler_id"), r.Text("von"), r.Text("bis"), r.Wahr("ausgeschlossen"), r.Text("zeitraeume"))))
             .GroupBy(x => x.Gruppe).ToDictionary(g => g.Key, g => g.Select(x => x.M).ToList());
         var gruppen = db.Liste("SELECT * FROM schuelergruppen ORDER BY unterricht, art DESC, von, id", r => new Schuelergruppe(r.Zahl("id"), r.Zahl("unterricht"), r.Text("name"),
                 r.Text("art"), r.Text("von"), r.Text("bis"), new List<Gruppenmitglied>()))
@@ -129,18 +154,18 @@ public static class Klassenzugehoerigkeit
         var alle = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First());
         var res = new Dictionary<int, WebSchueler>();
         void Hinzu(int id) { if (!res.ContainsKey(id) && alle.TryGetValue(id, out var x)) res[id] = x with { Klasse = KlasseAm(s, x, d) }; }
-        var standard = gruppen.FirstOrDefault(g => !g.Gast);
+        var standard = gruppen.FirstOrDefault(g => g.IstStandard);
         var zeilen = standard?.Mitglieder.ToDictionary(m => m.SchuelerId) ?? new Dictionary<int, Gruppenmitglied>();
         foreach (var x in basis.Where(x => !zeilen.ContainsKey(x.Id))) res[x.Id] = x;
         foreach (var g in gruppen.Where(g => g.Gilt(d)))
-            foreach (var m in g.Mitglieder.Where(m => !m.Ausgeschlossen && Im(m.Von, m.Bis, d))) Hinzu(m.SchuelerId);
+            foreach (var m in g.Mitglieder.Where(m => m.Am(d))) Hinzu(m.SchuelerId);
         return Sortiert(res.Values);
     }
 
     /// <summary>Gast-Schüler*innen der Stunde (aus einer Gast-Schülergruppe, z. B. befristeter Unterrichtswechsel).</summary>
     public static HashSet<int> Gaeste(Stand s, int? unterricht, DateOnly d) =>
         unterricht is int u && s.Zuordnungen.Gruppen.TryGetValue(u, out var gruppen)
-            ? gruppen.Where(g => g.Gast && g.Gilt(d)).SelectMany(g => g.Mitglieder.Where(m => !m.Ausgeschlossen && Im(m.Von, m.Bis, d)).Select(m => m.SchuelerId)).ToHashSet()
+            ? gruppen.Where(g => g.Gast && g.Gilt(d)).SelectMany(g => g.Mitglieder.Where(m => m.Am(d)).Select(m => m.SchuelerId)).ToHashSet()
             : new HashSet<int>();
 
     /// <summary>Klassenverlauf: Klasse bis zum ersten Wechsel (ab Schuljahresbeginn), danach je Wechsel bis zum Tag vor dem nächsten.</summary>
@@ -160,15 +185,18 @@ public static class Klassenzugehoerigkeit
 }
 
 /// <summary>Eingabe einer Zeile im Dialog „Schüler*innen in der Schülergruppe“.</summary>
-public sealed record MitgliedEingabe(int SchuelerId, bool Auswahl, string? Von, string? Bis);
+public sealed record MitgliedEingabe(int SchuelerId, bool Auswahl, string? Von, string? Bis, List<ZeitraumEingabe>? Zeitraeume = null);
+
+/// <summary>Zeitraum der Zugehörigkeit zu einer Schülergruppe (yyyy-MM-dd, leer = offen).</summary>
+public sealed record ZeitraumEingabe(string? Von, string? Bis);
 
 /// <summary>
 /// Klassenwechsel ab Datum, Schülergruppen je Unterricht und befristeter Unterrichtswechsel (Unterricht → Unterricht Klassen).
 /// Rechte: Klassenwechsel mit „Schülerverwaltung“; Unterricht Klassen lesen bzw. Schülergruppen bearbeiten mit „Unterricht Klassen und Schülergruppen“.
 /// </summary>
-public sealed class Unterrichtsgruppen
+public sealed partial class Unterrichtsgruppen
 {
-    public const string Standard = "standard", Gast = "gast";
+    public const string Standard = "standard", Gast = "gast", Weitere = "gruppe";
 
     private readonly Db _db;
     private readonly Uhr _uhr;
@@ -287,37 +315,57 @@ public sealed class Unterrichtsgruppen
                 return new
                 {
                     z.Id, z.Klassen, z.Fach, z.FachName, z.Farbe, z.Lehrer, z.Wochenstunden, z.Termine, z.Raeume,
-                    gruppe = u is null ? z.Kurs : gruppen.FirstOrDefault(g => !g.Gast)?.Name is { Length: > 0 } n ? n : Standardname(u),
+                    gruppe = u is null ? z.Kurs : gruppen.FirstOrDefault(g => g.IstStandard)?.Name is { Length: > 0 } n ? n : Standardname(u),
                     schueler = Klassenzugehoerigkeit.DerStunde(s, z.Id, z.Klassen, stichtag).Count,
-                    gruppen = gruppen.Count + (gruppen.Any(g => !g.Gast) ? 0 : 1),
+                    gruppen = gruppen.Count + (gruppen.Any(g => g.IstStandard) ? 0 : 1),
                     gaeste = gruppen.Count(g => g.Gast),
-                    geaendert = gruppen.Any(g => !g.Gast && g.Mitglieder.Count > 0),
+                    geaendert = gruppen.Any(g => g.IstStandard && g.Mitglieder.Count > 0),
                 };
             }).OrderBy(z => z.Fach, De).ThenBy(z => z.Id).ToList(),
         };
     }
 
+    /// <summary>
+    /// Darf der Benutzer die Schülergruppen dieses Unterrichts bearbeiten? Recht „Unterricht Klassen und Schülergruppen“, die Lehrkraft
+    /// des Unterrichts oder die Klassenleitung einer Klasse des Unterrichts (Leitfaden Klassenleitung: Lehrkräfte bzw. Klassenleitungen
+    /// ordnen Schüler*innen den Schülergruppen zu).
+    /// </summary>
+    public static bool DarfBearbeiten(Benutzer b, Stand s, WebUnterricht u) =>
+        Rechtedienst.Darf(b, Recht.UnterrichtKlassen)
+        || (b.LehrerKuerzel is string l && b.Rolle != Rollen.Admin && (u.Zeilen.Any(z => Ci.Equals(z.Lehrer, l)) || Klassen(u).Any(k => Klassenbuchdienst.IstKlassenleitung(b, s, k))));
+
+    /// <summary>Lesen: Recht „Unterricht Klassen“ oder Lehrkraft/Klassenleitung des Unterrichts.</summary>
+    private static void LesenFuer(Benutzer b, Stand s, WebUnterricht u)
+    {
+        if (!Rechtedienst.DarfLesen(b, Recht.UnterrichtKlassen) && !DarfBearbeiten(b, s, u)) throw new UnauthorizedAccessException("„Unterricht Klassen“ ist für Ihr Konto nicht freigegeben.");
+    }
+
+    private static void SchreibenFuer(Benutzer b, Stand s, WebUnterricht u)
+    {
+        if (!DarfBearbeiten(b, s, u)) throw new UnauthorizedAccessException("Schülergruppen bearbeiten darf Ihr Konto nicht.");
+    }
+
     /// <summary>Schülergruppen eines Unterrichts (die Standardgruppe auch, wenn sie noch nicht gespeichert ist – Id 0).</summary>
     public object Gruppen(Benutzer b, Stand s, int unterricht, DateOnly stichtag)
     {
-        Lesen(b);
         var u = UnterrichtVon(s, unterricht);
+        LesenFuer(b, s, u);
         var klassen = Klassen(u);
         var gespeichert = s.Zuordnungen.Gruppen.GetValueOrDefault(unterricht) ?? new();
         var liste = new List<Schuelergruppe>();
-        if (!gespeichert.Any(g => !g.Gast)) liste.Add(new Schuelergruppe(0, unterricht, Standardname(u), Standard, "", "", new()));
+        if (!gespeichert.Any(g => g.IstStandard)) liste.Add(new Schuelergruppe(0, unterricht, Standardname(u), Standard, "", "", new()));
         liste.AddRange(gespeichert);
         var alle = Klassenzugehoerigkeit.DerStunde(s, unterricht, klassen, stichtag).Select(x => x.Id).ToHashSet();
         return new
         {
             unterricht, klassen, fach = string.Join(", ", u.Zeilen.Select(z => z.Fach).Where(f => f.Length > 0).Distinct(Ci)),
             lehrer = u.Zeilen.Select(z => z.Lehrer).Where(l => l.Length > 0).Distinct(Ci).ToList(), stichtag,
-            schreiben = Rechtedienst.Darf(b, Recht.UnterrichtKlassen),
+            schreiben = DarfBearbeiten(b, s, u),
             gruppen = liste.Select(g => new
             {
                 g.Id, g.Name, g.Art, g.Von, g.Bis, gast = g.Gast, gilt = g.Gilt(stichtag),
-                anzahl = g.Gast ? g.Mitglieder.Count(m => !m.Ausgeschlossen) : Standardmitglieder(s, u, g, stichtag).Count(alle.Contains),
-                abweichungen = g.Gast ? 0 : g.Mitglieder.Count,
+                anzahl = !g.IstStandard ? g.Mitglieder.Count(m => m.Am(stichtag)) : Standardmitglieder(s, u, g, stichtag).Count(alle.Contains),
+                abweichungen = !g.IstStandard ? 0 : g.Mitglieder.Count,
             }),
         };
     }
@@ -327,46 +375,69 @@ public sealed class Unterrichtsgruppen
     {
         var zeilen = g.Mitglieder.ToDictionary(m => m.SchuelerId);
         return Klassenzugehoerigkeit.Am(s, Klassen(u), d).Where(x => !zeilen.ContainsKey(x.Id)).Select(x => x.Id)
-            .Concat(g.Mitglieder.Where(m => !m.Ausgeschlossen && Klassenzugehoerigkeit.Im(m.Von, m.Bis, d)).Select(m => m.SchuelerId)).Distinct();
+            .Concat(g.Mitglieder.Where(m => m.Am(d)).Select(m => m.SchuelerId)).Distinct();
     }
 
     private Schuelergruppe GruppeVon(Stand s, int unterricht, int id)
     {
         var u = UnterrichtVon(s, unterricht);
         var gespeichert = s.Zuordnungen.Gruppen.GetValueOrDefault(unterricht) ?? new();
-        if (id == 0) return gespeichert.FirstOrDefault(g => !g.Gast) ?? new Schuelergruppe(0, unterricht, Standardname(u), Standard, "", "", new());
+        if (id == 0) return gespeichert.FirstOrDefault(g => g.IstStandard) ?? new Schuelergruppe(0, unterricht, Standardname(u), Standard, "", "", new());
         return gespeichert.FirstOrDefault(g => g.Id == id) ?? throw new ArgumentException("Unbekannte Schülergruppe.");
+    }
+
+    private static string Kuerzen(string t, int n) => t.Length <= n ? t : t[..n];
+
+    /// <summary>Kurzname wie in der Schülerliste: Nachname (6 Zeichen) und Vorname (3 Zeichen), z. B. „BaskhaMed“.</summary>
+    public static string Kurzname(string name, string vorname)
+    {
+        static string Rein(string t) => new string(t.Replace("ä", "ae").Replace("ö", "oe").Replace("ü", "ue").Replace("Ä", "Ae").Replace("Ö", "Oe").Replace("Ü", "Ue").Replace("ß", "ss")
+            .Normalize(System.Text.NormalizationForm.FormD).Where(char.IsLetter).ToArray());
+        return Kuerzen(Rein(name), 6) + Kuerzen(Rein(vorname), 3);
     }
 
     /// <summary>
     /// Schüler*innen in der Schülergruppe: Standardgruppe = alle Schüler*innen der Klassen am Stichtag und weitere eingetragene;
-    /// Gastgruppe = die eingetragenen Gäste. Je Zeile Auswahl (nimmt teil) und Zeitraum.
+    /// weitere Gruppen = die Schüler*innen der Klassen des Unterrichts zur Auswahl; Gastgruppe = die eingetragenen Gäste. Je Zeile Auswahl
+    /// (nimmt am Stichtag bzw. danach teil), aktueller Zeitraum (Von/Bis) und die Zuordnungshistorie (abgelaufene bzw. weitere Zeiträume).
     /// </summary>
     public object Mitglieder(Benutzer b, Stand s, int unterricht, int gruppeId, DateOnly stichtag)
     {
-        Lesen(b);
         var u = UnterrichtVon(s, unterricht);
+        LesenFuer(b, s, u);
         var g = GruppeVon(s, unterricht, gruppeId);
         var alle = s.Schueler.GroupBy(x => x.Id).ToDictionary(x => x.Key, x => x.First());
-        var geschlecht = _db.Liste("SELECT id, geschlecht FROM schueler_daten", r => (Id: r.Zahl("id"), G: r.Text("geschlecht"))).ToDictionary(x => x.Id, x => x.G);
+        var daten = _db.Liste("SELECT id, geschlecht, extern_id FROM schueler_daten", r => (Id: r.Zahl("id"), G: r.Text("geschlecht"), E: r.Text("extern_id"))).ToDictionary(x => x.Id);
         var zeilen = g.Mitglieder.ToDictionary(m => m.SchuelerId);
         var ids = (g.Gast ? new List<int>() : Klassenzugehoerigkeit.Am(s, Klassen(u), stichtag).Select(x => x.Id).ToList()).Concat(g.Mitglieder.Select(m => m.SchuelerId)).Distinct();
+        var t = stichtag.ToString("yyyy-MM-dd");
         var liste = ids.Where(alle.ContainsKey).Select(id =>
         {
             var x = alle[id];
             zeilen.TryGetValue(id, out var m);
+            var zr = m?.Zeitraeume ?? new();
+            // aktueller Zeitraum: der am Stichtag gültige, sonst der nächste künftige; die übrigen bilden die Zuordnungshistorie
+            var aktuell = zr.FirstOrDefault(z => Klassenzugehoerigkeit.Im(z.Von, z.Bis, stichtag));
+            if (aktuell == default) aktuell = zr.Where(z => z.Von.Length > 0 && string.CompareOrdinal(z.Von, t) > 0).OrderBy(z => z.Von, StringComparer.Ordinal).FirstOrDefault();
+            var historie = zr.Where(z => z != aktuell).OrderBy(z => z.Von, StringComparer.Ordinal).ToList();
+            var auswahl = m is null ? g.IstStandard : !m.Ausgeschlossen && (zr.Count == 0 || aktuell != default);
+            daten.TryGetValue(id, out var dz);
             return new
             {
-                x.Id, x.Name, x.Vorname, klasse = Klassenzugehoerigkeit.KlasseAm(s, x, stichtag), geschlecht = geschlecht.GetValueOrDefault(id) ?? "",
-                auswahl = m is null || !m.Ausgeschlossen, von = m?.Von ?? "", bis = m?.Bis ?? "",
-                teilnahme = m is null ? !g.Gast : !m.Ausgeschlossen && Klassenzugehoerigkeit.Im(m.Von, m.Bis, stichtag) && g.Gilt(stichtag),
+                x.Id, x.Name, x.Vorname, klasse = Klassenzugehoerigkeit.KlasseAm(s, x, stichtag), geschlecht = dz.G ?? "",
+                auswahl, von = aktuell.Von ?? "", bis = aktuell.Bis ?? "",
+                historie = historie.Select(z => new { z.Von, z.Bis }).ToList(),
+                zeitraeume = zr.Select(z => new { z.Von, z.Bis }).ToList(),
+                kurzname = Kurzname(x.Name, x.Vorname), externeId = dz.E ?? "", katalognummer = 0,
+                teilnahme = m is null ? g.IstStandard : m.Am(stichtag) && g.Gilt(stichtag),
             };
         }).OrderBy(x => x.Name, De).ThenBy(x => x.Vorname, De).ToList();
         return new
         {
-            unterricht, gruppe = new { g.Id, g.Name, g.Art, g.Von, g.Bis, gast = g.Gast }, klassen = Klassen(u),
+            unterricht, gruppe = new { g.Id, g.Name, g.Art, g.Von, g.Bis, gast = g.Gast, standard = g.IstStandard }, klassen = Klassen(u),
+            lehrer = u.Zeilen.Select(z => z.Lehrer).Where(l => l.Length > 0).Distinct(Ci).ToList(),
             fach = string.Join(", ", u.Zeilen.Select(z => z.Fach).Where(f => f.Length > 0).Distinct(Ci)), stichtag,
-            schreiben = Rechtedienst.Darf(b, Recht.UnterrichtKlassen), schueler = liste,
+            schreiben = DarfBearbeiten(b, s, u), schueler = liste,
         };
     }
 
@@ -378,53 +449,121 @@ public sealed class Unterrichtsgruppen
         return Convert.ToInt32(_db.Wert("SELECT MAX(id) FROM schuelergruppen WHERE unterricht = @u AND art = @a", Db.P("@u", unterricht), Db.P("@a", Standard)));
     }
 
-    /// <summary>Auswahl und Zeiträume der Schülergruppe speichern (nur die übergebenen Zeilen).</summary>
-    public object MitgliederSpeichern(Benutzer b, Stand s, int unterricht, int gruppeId, List<MitgliedEingabe> zeilen, DateOnly stichtag)
+    /// <summary>Zeiträume prüfen, offene/leere entfernen, sortieren; ein Zeitraum ohne Grenzen hebt alle Begrenzungen auf (leere Liste).</summary>
+    private static List<(string Von, string Bis)> ZeitraeumePruefen(WebSchueler x, IEnumerable<ZeitraumEingabe> eingabe)
     {
-        Schreiben(b);
-        var u = UnterrichtVon(s, unterricht);
-        var g = GruppeVon(s, unterricht, gruppeId);
-        var id = g.Id != 0 ? g.Id : StandardgruppeAnlegen(b, s, unterricht);
-        var klassen = Klassen(u);
-        foreach (var z in zeilen.DistinctBy(z => z.SchuelerId))
+        var res = new List<(string Von, string Bis)>();
+        foreach (var z in eingabe)
         {
-            var x = SchuelerVon(s, z.SchuelerId);
             var von = OptionalesDatum(z.Von, "Von");
             var bis = OptionalesDatum(z.Bis, "Bis");
             if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) > 0) throw new ArgumentException($"{x.Vorname} {x.Name}: „Von“ liegt nach „Bis“.");
-            // Standardgruppe: Schüler*innen der Klassen ohne Abweichung brauchen keine Zeile
-            var ohneAbweichung = !g.Gast && z.Auswahl && von.Length == 0 && bis.Length == 0 && klassen.Contains(Klassenzugehoerigkeit.KlasseAm(s, x, stichtag), Ci);
-            if (ohneAbweichung || (g.Gast && !z.Auswahl))
-                _db.Ausfuehren("DELETE FROM schuelergruppe_mitglieder WHERE gruppe_id = @g AND schueler_id = @s", Db.P("@g", id), Db.P("@s", z.SchuelerId));
-            else
-            {
-                var p = new[] { Db.P("@g", id), Db.P("@s", z.SchuelerId), Db.P("@v", von), Db.P("@bi", bis), Db.P("@a", !z.Auswahl) };
-                if (_db.Ausfuehren("UPDATE schuelergruppe_mitglieder SET von = @v, bis = @bi, ausgeschlossen = @a WHERE gruppe_id = @g AND schueler_id = @s", p) == 0)
-                    _db.Ausfuehren("INSERT INTO schuelergruppe_mitglieder (gruppe_id, schueler_id, von, bis, ausgeschlossen) VALUES (@g, @s, @v, @bi, @a)", p);
-            }
+            if (von.Length == 0 && bis.Length == 0) return new();
+            res.Add((von, bis));
         }
+        return res.Distinct().OrderBy(z => z.Von, StringComparer.Ordinal).ThenBy(z => z.Bis, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Auswahl und Zeiträume der Schülergruppe speichern (nur die übergebenen Zeilen). Mit <see cref="MitgliedEingabe.Zeitraeume"/>
+    /// (Zuordnungshistorie, Matrix): ohne Häkchen und ohne Zeitraum = nicht in der Gruppe; mit Zeiträumen = nimmt genau in diesen teil.
+    /// </summary>
+    public object MitgliederSpeichern(Benutzer b, Stand s, int unterricht, int gruppeId, List<MitgliedEingabe> zeilen, DateOnly stichtag)
+    {
+        var u = UnterrichtVon(s, unterricht);
+        SchreibenFuer(b, s, u);
+        var g = GruppeVon(s, unterricht, gruppeId);
+        var id = g.Id != 0 ? g.Id : StandardgruppeAnlegen(b, s, unterricht);
+        foreach (var z in zeilen.DistinctBy(z => z.SchuelerId)) MitgliedSchreiben(s, u, g, id, z, stichtag);
         return Mitglieder(b, Neu(), unterricht, id, stichtag);
     }
 
-    /// <summary>Gast-Schülergruppe umbenennen bzw. ihren Zeitraum ändern.</summary>
-    public void GruppeAendern(Benutzer b, Stand s, int unterricht, int id, string? name, string? von, string? bis)
+    private void MitgliedSchreiben(Stand s, WebUnterricht u, Schuelergruppe g, int id, MitgliedEingabe z, DateOnly stichtag)
     {
-        Schreiben(b);
-        var g = GruppeVon(s, unterricht, id);
-        if (!g.Gast) throw new ArgumentException("Die Standardgruppe wird über ihre Schüler*innen bearbeitet.");
+        var x = SchuelerVon(s, z.SchuelerId);
+        var inKlasse = Klassen(u).Contains(Klassenzugehoerigkeit.KlasseAm(s, x, stichtag), Ci);
+        List<(string Von, string Bis)> zr;
+        bool ausgeschlossen;
+        if (z.Zeitraeume is null)
+        {
+            // einfacher Dialog: Häkchen und ein Zeitraum
+            var von = OptionalesDatum(z.Von, "Von");
+            var bis = OptionalesDatum(z.Bis, "Bis");
+            if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) > 0) throw new ArgumentException($"{x.Vorname} {x.Name}: „Von“ liegt nach „Bis“.");
+            zr = von.Length > 0 || bis.Length > 0 ? new() { (von, bis) } : new();
+            ausgeschlossen = !z.Auswahl;
+        }
+        else
+        {
+            zr = ZeitraeumePruefen(x, z.Zeitraeume);
+            ausgeschlossen = !z.Auswahl && zr.Count == 0;
+        }
+        var loeschen = g.IstStandard ? (!ausgeschlossen && zr.Count == 0 && inKlasse) || (ausgeschlossen && !inKlasse) : ausgeschlossen;
+        if (loeschen)
+        {
+            _db.Ausfuehren("DELETE FROM schuelergruppe_mitglieder WHERE gruppe_id = @g AND schueler_id = @s", Db.P("@g", id), Db.P("@s", z.SchuelerId));
+            return;
+        }
+        var (v1, b1) = zr.Count > 0 ? zr[0] : ("", "");
+        var weitere = string.Join(";", zr.Skip(1).Select(t => $"{t.Von}|{t.Bis}"));
+        var p = new[] { Db.P("@g", id), Db.P("@s", z.SchuelerId), Db.P("@v", v1), Db.P("@bi", b1), Db.P("@a", ausgeschlossen), Db.P("@w", weitere) };
+        if (_db.Ausfuehren("UPDATE schuelergruppe_mitglieder SET von = @v, bis = @bi, ausgeschlossen = @a, zeitraeume = @w WHERE gruppe_id = @g AND schueler_id = @s", p) == 0)
+            _db.Ausfuehren("INSERT INTO schuelergruppe_mitglieder (gruppe_id, schueler_id, von, bis, ausgeschlossen, zeitraeume) VALUES (@g, @s, @v, @bi, @a, @w)", p);
+    }
+
+    /// <summary>Neue Schülergruppe für den Unterricht („Neu“): nur die ausgewählten Schüler*innen nehmen teil, optional befristet.</summary>
+    public object GruppeAnlegen(Benutzer b, Stand s, int unterricht, string? name, string? von, string? bis)
+    {
+        var u = UnterrichtVon(s, unterricht);
+        SchreibenFuer(b, s, u);
         var n = (name ?? "").Trim();
         if (n.Length is 0 or > 100) throw new ArgumentException("Bitte einen Namen (höchstens 100 Zeichen) eingeben.");
-        var v = DatumPruefen(von, "Von");
-        var bi = DatumPruefen(bis, "Bis");
-        if (bi < v) throw new ArgumentException("„Bis“ liegt vor „Von“.");
-        _db.Ausfuehren("UPDATE schuelergruppen SET name = @n, von = @v, bis = @b WHERE id = @id", Db.P("@n", n), Db.P("@v", v.ToString("yyyy-MM-dd")), Db.P("@b", bi.ToString("yyyy-MM-dd")), Db.P("@id", id));
+        var v = OptionalesDatum(von, "Von");
+        var bi = OptionalesDatum(bis, "Bis");
+        if (v.Length > 0 && bi.Length > 0 && string.CompareOrdinal(v, bi) > 0) throw new ArgumentException("„Bis“ liegt vor „Von“.");
+        _db.Ausfuehren("INSERT INTO schuelergruppen (unterricht, name, art, von, bis, erstellt, benutzer_id) VALUES (@u, @n, @a, @v, @b, @e, @bn)",
+            Db.P("@u", unterricht), Db.P("@n", n), Db.P("@a", Weitere), Db.P("@v", v), Db.P("@b", bi), Db.P("@e", Jetzt), Db.P("@bn", b.Id));
+        var id = Convert.ToInt32(_db.Wert("SELECT MAX(id) FROM schuelergruppen WHERE unterricht = @u", Db.P("@u", unterricht)));
+        Neu();
+        return new { id, name = n, von = v, bis = bi };
+    }
+
+    /// <summary>Schülergruppe umbenennen bzw. ihren Zeitraum ändern (Standardgruppe: nur der Name).</summary>
+    public void GruppeAendern(Benutzer b, Stand s, int unterricht, int id, string? name, string? von, string? bis)
+    {
+        var u = UnterrichtVon(s, unterricht);
+        SchreibenFuer(b, s, u);
+        var g = GruppeVon(s, unterricht, id);
+        var n = (name ?? "").Trim();
+        if (n.Length is 0 or > 100) throw new ArgumentException("Bitte einen Namen (höchstens 100 Zeichen) eingeben.");
+        if (g.IstStandard)
+        {
+            var gid = g.Id != 0 ? g.Id : StandardgruppeAnlegen(b, s, unterricht);
+            _db.Ausfuehren("UPDATE schuelergruppen SET name = @n WHERE id = @id", Db.P("@n", n), Db.P("@id", gid));
+            Neu();
+            return;
+        }
+        string v, bi;
+        if (g.Gast)
+        {
+            var dv = DatumPruefen(von, "Von");
+            var db = DatumPruefen(bis, "Bis");
+            if (db < dv) throw new ArgumentException("„Bis“ liegt vor „Von“.");
+            (v, bi) = (dv.ToString("yyyy-MM-dd"), db.ToString("yyyy-MM-dd"));
+        }
+        else
+        {
+            (v, bi) = (OptionalesDatum(von, "Von"), OptionalesDatum(bis, "Bis"));
+            if (v.Length > 0 && bi.Length > 0 && string.CompareOrdinal(v, bi) > 0) throw new ArgumentException("„Bis“ liegt vor „Von“.");
+        }
+        _db.Ausfuehren("UPDATE schuelergruppen SET name = @n, von = @v, bis = @b WHERE id = @id", Db.P("@n", n), Db.P("@v", v), Db.P("@b", bi), Db.P("@id", id));
         Neu();
     }
 
     /// <summary>Schülergruppe löschen (Standardgruppe: alle Abweichungen zurücksetzen).</summary>
     public void GruppeLoeschen(Benutzer b, Stand s, int unterricht, int id)
     {
-        Schreiben(b);
+        SchreibenFuer(b, s, UnterrichtVon(s, unterricht));
         var g = GruppeVon(s, unterricht, id);
         if (g.Id == 0) return;
         _db.Ausfuehren("DELETE FROM schuelergruppe_mitglieder WHERE gruppe_id = @id", Db.P("@id", g.Id));

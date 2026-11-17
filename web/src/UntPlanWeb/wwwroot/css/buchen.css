@@ -583,3 +583,9 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
 .rb-angaben dd { margin: 0; color: var(--u-titel); }
 .rb-ergebnis { width: auto; min-width: 420px; border: 1px solid var(--u-linie); border-radius: 8px; overflow: hidden; }
 .rb-status { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #e2f6ec; color: #16794a; font-size: .8rem; font-weight: 500; }
+
+/* Meine Buchungen: ausgewählte Woche, Buchungsnummer (Bearbeiten) */
+.bu-woche { display: inline-flex; align-items: center; gap: 6px; margin-right: 12px; }
+.bu-woche b { font-weight: 500; color: var(--u-titel); white-space: nowrap; }
+.bu-nr-link { flex: none; font-size: .8rem; color: var(--u-akzent); text-decoration: none; }
+.bu-nr-link:hover { color: var(--u-akzent-dunkel); }

@@ -51,6 +51,7 @@ export async function zeigen(seite, kontext, [klasseParam, bereichParam, vonPara
   const neu = () => kontext.navigieren(location.hash);
   const knoepfe = seite.querySelector('[data-knoepfe]');
   knoepfe.innerHTML = `${d.schreiben ? '<button type="button" class="nl-knopf" data-wechsel><i class="bi bi-arrow-left-right"></i>Befristeter Unterrichtswechsel</button>' : ''}
+    <a class="nl-knopf" href="#/schuelergruppen/matrix/${encodeURIComponent(klasse)}/-/-"><i class="bi bi-grid-3x3"></i>Schüler-Gruppen-Zuordnung</a>
     <button type="button" class="nl-knopf" data-bericht><i class="bi bi-filetype-csv"></i>Bericht</button>`;
   const zahlknopf = (attr, symbol, zahl, titel, markiert = false, extra = '') =>
     `<button type="button" class="ug-zahlknopf ${markiert ? 'markiert' : ''}" ${attr} title="${e(titel)}" aria-label="${e(titel)}"><i class="bi bi-${symbol}" aria-hidden="true"></i>${zahl}${extra}</button>`;
@@ -136,58 +137,9 @@ export async function gruppenDialog(unterricht, stichtag, nachher) {
 
 // ------------------------------------------------------------------ Schüler*innen in der Schülergruppe
 
+// Schülerliste mit Auswahl, Von/Bis, Zuordnungshistorie, Umkehrung und Zwischenablage (schuelergruppen.js, Leitfaden Klassenleitung)
 export async function mitgliederDialog(unterricht, gruppe, stichtag, nachher) {
-  const d = await holen(`/api/app/unterrichtklassen/${unterricht}/gruppen/${gruppe}/schueler?datum=${stichtag}`);
-  const zeilen = d.schueler.map(x => ({ ...x }));
-  const status = x => !x.auswahl ? '<span class="nl-chip rot">abgemeldet</span>'
-    : x.von || x.bis ? `<span class="nl-chip gelb">${e(zeitraum(x.von, x.bis))}</span>`
-    : d.gruppe.gast ? `<span class="nl-chip lila">Gast</span>` : '<span class="nl-chip gruen">nimmt teil</span>';
-  const zeile = (x, i) => `<tr data-i="${i}" class="${x.auswahl ? '' : 'ug-aus'}" data-name="${e(`${x.name} ${x.vorname} ${x.klasse}`.toLowerCase())}">
-      <td class="nl-wahl"><input type="checkbox" class="nl-rund" data-auswahl ${x.auswahl ? 'checked' : ''} ${d.schreiben ? '' : 'disabled'} aria-label="${e(`${x.vorname} ${x.name} nimmt teil`)}"></td>
-      <td class="nl-avatar-zelle"><span class="nl-avatar">${e(initialen(`${x.vorname} ${x.name}`))}</span></td>
-      <td><div class="ug-name">${e(x.name)}, ${e(x.vorname)}</div><div class="nl-unter">${e(GESCHLECHT[x.geschlecht] ?? '')}</div></td>
-      <td>${e(x.klasse)}</td>
-      <td><input type="date" data-von value="${x.von}" ${d.schreiben ? '' : 'disabled'} aria-label="Von"></td>
-      <td><input type="date" data-bis value="${x.bis}" ${d.schreiben ? '' : 'disabled'} aria-label="Bis (letzter Tag)"></td>
-      <td data-status>${status(x)}</td></tr>`;
-  const box = dialog({
-    titel: `Schüler*innen in der Schülergruppe ${d.gruppe.name}`, breit: true,
-    inhalt: `<div class="ug-dialog">
-      <div class="ug-kopf"><span>Klasse: <b>${e(d.klassen.join(', '))}</b></span><span>Fach: <b>${e(d.fach)}</b></span><span>Schüler*innen: <b data-zahl>${zeilen.filter(x => x.auswahl).length}</b></span>
-        ${d.gruppe.gast ? `<span>Zeitraum: <b>${e(zeitraum(d.gruppe.von, d.gruppe.bis))}</b></span>` : `<span>Stand: <b>${datumDe(d.stichtag)}</b></span>`}</div>
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Name suchen" aria-label="Name suchen"></label>
-      <div class="nl-tabelle">${zeilen.length ? `<table><thead><tr><th class="nl-wahl">${d.schreiben ? `<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen" ${zeilen.every(x => x.auswahl) ? 'checked' : ''}>` : ''}</th><th></th><th>Name</th><th>Klasse</th><th>Von</th><th>Bis</th><th>Teilnahme</th></tr></thead>
-        <tbody>${zeilen.map(zeile).join('')}</tbody></table>` : leer('Keine Schüler*innen in dieser Gruppe.', 'people')}</div>
-      <p class="ug-hinweis">${d.gruppe.gast ? 'Ohne Häkchen wird der Gast aus der Gruppe entfernt. Von/Bis schränken die Teilnahme innerhalb des Gruppenzeitraums ein.'
-        : 'Ohne Häkchen ist die Schülerin bzw. der Schüler vom Unterricht abgemeldet. Mit „Bis“ (letzter Tag) endet die Teilnahme, mit „Von“ beginnt sie zu diesem Datum. Das Klassenbuch einer Stunde zeigt nur, wer an diesem Tag teilnimmt.'}</p></div>`,
-    knoepfe: d.schreiben ? [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async () => {
-      for (const x of zeilen) if (x.von && x.bis && x.von > x.bis) throw new Error(`${x.vorname} ${x.name}: „Von“ liegt nach „Bis“.`);
-      await senden(`/api/app/unterrichtklassen/${unterricht}/gruppen/${gruppe}/schueler?datum=${stichtag}`,
-        { schueler: zeilen.map(x => ({ schuelerId: x.id, auswahl: x.auswahl, von: x.von, bis: x.bis })) }, 'PUT');
-      toast('Schülergruppe gespeichert.');
-      nachher?.();
-    } }] : [{ text: 'Schließen' }],
-  });
-  const zahl = () => { box.querySelector('[data-zahl]').textContent = zeilen.filter(x => x.auswahl).length; };
-  box.querySelectorAll('tbody tr[data-i]').forEach(tr => {
-    const x = zeilen[Number(tr.dataset.i)];
-    const neuZeichnen = () => { tr.classList.toggle('ug-aus', !x.auswahl); tr.querySelector('[data-status]').innerHTML = status(x); zahl(); };
-    tr.querySelector('[data-auswahl]').onchange = ev => { x.auswahl = ev.target.checked; neuZeichnen(); };
-    tr.querySelector('[data-von]').onchange = ev => { x.von = ev.target.value; neuZeichnen(); };
-    tr.querySelector('[data-bis]').onchange = ev => { x.bis = ev.target.value; neuZeichnen(); };
-  });
-  box.querySelector('[data-alle]')?.addEventListener('change', ev => {
-    box.querySelectorAll('tbody tr[data-i]').forEach(tr => {
-      if (tr.hidden) return;
-      const c = tr.querySelector('[data-auswahl]');
-      c.checked = ev.target.checked;
-      c.dispatchEvent(new Event('change'));
-    });
-  });
-  box.querySelector('[data-suche]').oninput = ev => {
-    const t = ev.target.value.trim().toLowerCase();
-    box.querySelectorAll('tbody tr[data-i]').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
-  };
+  return (await import('./schuelergruppen.js')).schuelerDialog(unterricht, gruppe, nachher, stichtag);
 }
 
 // ------------------------------------------------------------------ Befristeter Unterrichtswechsel (Assistent)

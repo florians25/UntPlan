@@ -29,6 +29,28 @@ export async function zeigen(seite, kontext, [reiterParam]) {
         <label class="form-check-label" for="pf-b">Benachrichtigungen über neue Mitteilungen erhalten (Hinweis im Browser bzw. auf dem Gerät)</label></div>
       <div class="d-flex flex-wrap gap-2 mt-4"><button class="btn btn-primary" type="submit">Speichern</button><button class="btn btn-outline-secondary" type="button" data-passwort>Passwort ändern</button></div>
       </form></div></div>`;
+    // Schülerkonten: eigenes Bild hochladen (Leitfaden Klassenleitung, Kapitel 5 – erscheint bei Abwesenheitskontrolle und Sitzplan)
+    const ich = kontext.ich;
+    if (ich.rolle === 'schueler' && ich.schuelerIds?.length === 1) {
+      const sid = ich.schuelerIds[0];
+      const hat = (await holen('/api/app/schueler/bilder').catch(() => [])).includes(sid);
+      inhalt.insertAdjacentHTML('beforeend', `<div class="card mt-3"><div class="card-body p-4 d-flex flex-wrap align-items-center gap-3">
+        ${hat ? `<img class="sb-gross" src="/api/app/schueler/${sid}/bild?v=${Date.now()}" alt="Mein Bild">` : '<span class="sb-gross sb-initialen"><i class="bi bi-person"></i></span>'}
+        <div><div class="fw-semibold mb-2">Mein Bild</div>
+          <input type="file" class="form-control mb-2" accept="image/jpeg,image/png,image/gif,image/webp" data-bilddatei aria-label="Bild auswählen">
+          <button type="button" class="btn btn-primary" data-bild-hochladen>Bild hochladen</button>
+          ${hat ? '<button type="button" class="btn btn-outline-secondary ms-2" data-bild-loeschen>Bild entfernen</button>' : ''}</div></div></div>`);
+      inhalt.querySelector('[data-bild-hochladen]').onclick = async () => {
+        const datei = inhalt.querySelector('[data-bilddatei]').files[0];
+        if (!datei) { toast('Bitte eine Bilddatei auswählen.', true); return; }
+        const f = new FormData();
+        f.append('datei', datei);
+        try { await api(`/api/app/schueler/${sid}/bild`, { methode: 'POST', formular: f }); toast('Bild gespeichert.'); kontext.navigieren(location.hash); } catch (err) { kontext.fehler(err); }
+      };
+      inhalt.querySelector('[data-bild-loeschen]')?.addEventListener('click', async () => {
+        try { await api(`/api/app/schueler/${sid}/bild`, { methode: 'DELETE' }); toast('Bild entfernt.'); kontext.navigieren(location.hash); } catch (err) { kontext.fehler(err); }
+      });
+    }
     const form = inhalt.querySelector('[data-profil]');
     form.onsubmit = async ev => {
       ev.preventDefault();

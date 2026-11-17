@@ -1,3 +1,4 @@
+using UntPlan.Web.Contracts;
 using UntPlanWeb.Dienste;
 
 namespace UntPlanWeb.Api;
@@ -15,6 +16,8 @@ namespace UntPlanWeb.Api;
 /// <item><c>POST /</c> BuchungDaten → { serie, buchungen, hinweise }; belegter Raum bzw. Ressource → 400 mit allen Konflikten.</item>
 /// <item><c>GET  /liste?von&amp;bis&amp;alle</c> (Meine Buchungen; alle nur Administration), <c>DELETE /{id}?serie=true</c> (Storno).</item>
 /// <item><c>GET  /raumuebersicht?datum&amp;tage&amp;…Kriterien</c>, <c>GET /ressourcenuebersicht?datum&amp;arten=1,2&amp;tage=1</c> (Woche bzw. ein Tag, mit gebuchter Menge je Stunde).</item>
+/// <item><c>GET /{id}/details</c>, <c>PUT /{id}</c> (Details ändern), <c>POST /{id}/bestaetigen?serie</c> (Reservierung bestätigen), <c>PUT /{id}/schueler</c>
+/// (Schülergruppe der Buchung), <c>POST /verfuegbarkeit</c> (Terminsuche, zusätzliche Stunden), <c>GET /stundenquelle?u|e|b</c>, <c>GET/PUT /beschraenkungen</c>.</item>
 /// <item><c>GET/POST/DELETE /unterricht</c>: in UntPlanWeb angelegter Unterricht (Unterricht | Neuer Unterricht).</item>
 /// <item>Administration: <c>/ressourcenarten</c> (mit Symbol, erlaubte Symbole: <c>GET /symbole</c>), <c>/ressourcen</c> (GET, POST, PUT /{id}, DELETE /{id};
 /// mit Standort), <c>POST /ressourcen/beispiele</c> (Beispiel-Ressourcen, solange keine angelegt sind), <c>PUT /raumdaten/{raum}</c>.</item>
@@ -26,8 +29,11 @@ public static class BuchungApi
     public sealed record HinweisAnfrage(List<TerminWahl> Termine, string? Lehrer, List<string>? Klassen);
     public sealed record ArtDaten(string Name, int? Reihenfolge, string? Symbol = null);
     public sealed record RessourceDaten(string Name, int? ArtId, string? Raum, int? Anzahl, string? Bemerkung, bool? Aktiv, string? Standort = null);
-    public sealed record RaumDaten(int? Kapazitaet, string? Gebaeude, string? Abteilung, string? Raumgruppe);
-    public sealed record UnterrichtDaten(string? Lehrer, string Fach, List<string>? Klassen, string? Gruppe, string? Text, int? Wochenstunden);
+    public sealed record RaumDaten(int? Kapazitaet, string? Gebaeude, string? Abteilung, string? Raumgruppe, bool? NurReservieren = null);
+    public sealed record UnterrichtDaten(string? Lehrer, string Fach, List<string>? Klassen, string? Gruppe, string? Text, int? Wochenstunden,
+        UnterrichtZusatz? Zusatz = null, bool Benachrichtigen = false);
+    public sealed record VerfuegbarkeitAnfrage(DateOnly Von, DateOnly? Bis, List<string>? Lehrer, List<string>? Klassen, List<string>? Raeume, int? OhneBuchung);
+    public sealed record SchuelerWahl(List<int>? Ids);
 
     private static Benutzer Ich(HttpContext c)
     {
@@ -49,6 +55,8 @@ public static class BuchungApi
     {
         b.Id, b.Serie, b.Art, artName = b.ArtName, b.Datum, b.StundeVon, b.StundeBis, b.Beginn, b.Ende, b.Raum, b.Klassen, b.Lehrer, b.Fach, b.Titel, b.Text,
         b.UnterrichtId, b.Benachrichtigen, b.Status, b.Uebertragen, b.BenutzerId, b.Absender, b.Erstellt, b.Storniert, b.Ressourcen,
+        b.WeitereLehrer, b.WeitereRaeume, b.Zusatz, b.Bestaetigt, b.BestaetigtVon, b.Geaendert, b.GeaendertVon, b.PlanUnterricht, b.StatusText,
+        alleLehrer = b.AlleLehrer, alleRaeume = b.AlleRaeume, schueler = b.Schueler.Count,
         wochentag = DateOnly.TryParse(b.Datum, out var d) ? Plandienst.Wochentage[Plandienst.TagIndex(d)] : "",
     };
 
@@ -70,6 +78,7 @@ public static class BuchungApi
             {
                 admin = Rechtedienst.Darf(b, Recht.BuchungVerwalten), raumBuchen = Rechtedienst.Darf(b, Recht.BuchungRaum),
                 ressourcenBuchen = Rechtedienst.Darf(b, Recht.BuchungRessourcen), andere = Rechtedienst.Darf(b, Recht.BuchungAndere), ich = b.LehrerKuerzel ?? "",
+                stundenplanaenderung = Rechtedienst.Darf(b, Recht.Stundenplanaenderung), beschraenkungen = bu.Beschraenkungen(),
                 raeume, ressourcenarten = bu.Arten(), ressourcen = bu.Ressourcen(!Rechtedienst.Darf(b, Recht.BuchungVerwalten)),
                 raumarten = Werte(r => r.Raumart), gebaeude = Werte(r => r.Gebaeude), abteilungen = Werte(r => r.Abteilung), raumgruppen = Werte(r => r.Raumgruppe),
                 zeitraster = plan.Zeitraster(s), tageProWoche = Math.Max(5, s.Paket.Zeitraster.TageProWoche),
@@ -160,6 +169,83 @@ public static class BuchungApi
             return Results.File(pdf, "application/pdf", $"buchung-{x.Id}.pdf");
         });
 
+        // Buchen | Meine Buchungen | Bearbeiten: Details der Buchung mit allen Terminen der Serie, Schülergruppe und Rechten
+        api.MapGet("/{id:int}/details", (int id, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
+        {
+            var b = Ich(c);
+            var x = bu.Holen(id) ?? throw new ArgumentException("Unbekannte Buchung.");
+            var darf = x.BenutzerId == b.Id || Rechtedienst.Darf(b, Recht.BuchungAndere);
+            if (!darf && !x.AlleLehrer.Contains(b.LehrerKuerzel ?? "\u0001", StringComparer.OrdinalIgnoreCase)) throw new UnauthorizedAccessException("Nur eigene Buchungen.");
+            var s = p.Aktuell;
+            var auswahl = s is null ? new List<WebSchueler>() : bu.SchuelerAuswahl(s, x);
+            return Results.Json(new
+            {
+                buchung = Json(x), termine = (x.Serie.Length > 0 ? bu.Serie(x.Serie) : new List<Buchung> { x }).Select(Json),
+                schueler = auswahl.Select(y => new { y.Id, name = $"{y.Name}, {y.Vorname}", y.Klasse, gewaehlt = x.Schueler.Contains(y.Id) }),
+                darf, bestaetigen = Rechtedienst.Darf(b, Recht.BuchungVerwalten), stundenplanaenderung = Rechtedienst.Darf(b, Recht.Stundenplanaenderung),
+            });
+        });
+
+        api.MapPut("/{id:int}", (int id, BuchungAenderung d, HttpContext c, Paketdienst p, Buchungsdienst bu, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var liste = bu.Aendern(Paket(p), b, id, d);
+            prot.Schreiben(b.Login, "Buchung geändert", $"Nr. {id}{(liste.Count > 1 ? $" (Serie, {liste.Count} Termine)" : "")}");
+            return Results.Json(liste.Select(Json));
+        });
+
+        api.MapPost("/{id:int}/bestaetigen", (int id, bool? serie, HttpContext c, Paketdienst p, Buchungsdienst bu, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var n = bu.Bestaetigen(p.Aktuell, b, id, serie == true);
+            prot.Schreiben(b.Login, "Buchung bestätigt", $"Nr. {id} ({n} Termine)");
+            return Results.Json(new { ok = true, bestaetigt = n });
+        });
+
+        api.MapPut("/{id:int}/schueler", (int id, SchuelerWahl d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
+            Results.Json(new { schueler = bu.SchuelerSetzen(Paket(p), Ich(c), id, d.Ids ?? new()) }));
+
+        // Terminsuche (Verabredungen) und zusätzliche Stunden: belegte Zeiten je Lehrkraft, Klasse und Raum
+        api.MapPost("/verfuegbarkeit", (VerfuegbarkeitAnfrage d, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
+        {
+            Ich(c);
+            return Results.Json(bu.Verfuegbarkeit(Paket(p), d.Von, d.Bis ?? d.Von, d.Lehrer, d.Klassen, d.Raeume, d.OhneBuchung));
+        });
+
+        // Zusätzliche Stunden: Angaben des Unterrichts aus UntPlan (u), des neuen Unterrichts (e) bzw. der Buchung (b)
+        api.MapGet("/stundenquelle", (int? u, int? e, int? b, HttpContext c, Paketdienst p, Buchungsdienst bu) =>
+        {
+            var ich = Ich(c);
+            var s = Paket(p);
+            if (u is int nr)
+            {
+                var x = s.Unterricht.GetValueOrDefault(nr) ?? throw new ArgumentException("Unbekannter Unterricht.");
+                var lehrer = x.Zeilen.Select(z => z.Lehrer).Where(l => l.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                return Results.Json(new
+                {
+                    quelle = "u", id = nr, art = "Unterricht", titel = "Zusätzlicher Unterricht", lehrer, klassen = x.Zeilen.SelectMany(z => z.Klassen).Distinct(StringComparer.OrdinalIgnoreCase),
+                    fach = x.Zeilen.Select(z => z.Fach).FirstOrDefault(f => f.Length > 0) ?? "", gruppe = x.Kurs, raum = "",
+                });
+            }
+            if (e is int eid)
+            {
+                var x = bu.EigenerUnterrichtHolen(eid) ?? throw new ArgumentException("Unbekannter Unterricht.");
+                return Results.Json(new { quelle = "e", id = eid, art = "Unterricht", titel = x.Gruppe.Length > 0 ? x.Gruppe : "Zusätzlicher Unterricht", lehrer = new[] { x.Lehrer }, x.Klassen, x.Fach, gruppe = x.Gruppe, raum = "" });
+            }
+            var y = bu.Holen(b ?? 0) ?? throw new ArgumentException("Unbekannte Buchung.");
+            return Results.Json(new { quelle = "b", id = y.Id, art = y.ArtName, y.Titel, lehrer = y.AlleLehrer, y.Klassen, y.Fach, gruppe = "", raum = y.Raum });
+        });
+
+        // Administration | Buchungsbeschränkungen: Standarddauer und Zeitbereich der Verabredungen (Terminsuche)
+        api.MapGet("/beschraenkungen", (HttpContext c, Buchungsdienst bu) => { Ich(c); return Results.Json(bu.Beschraenkungen()); });
+        api.MapPut("/beschraenkungen", (Buchungsbeschraenkungen d, HttpContext c, Buchungsdienst bu, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var x = bu.BeschraenkungenSpeichern(d);
+            prot.Schreiben(b.Login, "Buchungsbeschränkungen geändert", $"{x.Dauer} Min., {x.Beginn}–{x.Ende}");
+            return Results.Json(x);
+        });
+
         api.MapDelete("/{id:int}", (int id, bool? serie, HttpContext c, Buchungsdienst bu, Protokoll prot) =>
         {
             var b = Ich(c);
@@ -189,7 +275,7 @@ public static class BuchungApi
         api.MapPost("/unterricht", (UnterrichtDaten d, HttpContext c, Paketdienst p, Buchungsdienst bu, Protokoll prot) =>
         {
             var b = Ich(c);
-            var u = bu.UnterrichtAnlegen(Paket(p), b, d.Lehrer, d.Fach, d.Klassen, d.Gruppe, d.Text, d.Wochenstunden);
+            var u = bu.UnterrichtAnlegen(Paket(p), b, d.Lehrer, d.Fach, d.Klassen, d.Gruppe, d.Text, d.Wochenstunden, d.Zusatz, d.Benachrichtigen);
             prot.Schreiben(b.Login, "Unterricht angelegt", $"{u.Fach} {string.Join(",", u.Klassen)} {u.Lehrer}");
             return Results.Json(u);
         });
@@ -227,7 +313,7 @@ public static class BuchungApi
         api.MapPut("/raumdaten/{raum}", (string raum, RaumDaten d, HttpContext c, Paketdienst p, Buchungsdienst bu, Protokoll prot) =>
         {
             var b = Admin(c);
-            bu.RaumdatenSpeichern(Paket(p), raum, d.Kapazitaet, d.Gebaeude, d.Abteilung, d.Raumgruppe);
+            bu.RaumdatenSpeichern(Paket(p), raum, d.Kapazitaet, d.Gebaeude, d.Abteilung, d.Raumgruppe, d.NurReservieren);
             prot.Schreiben(b.Login, "Raumdaten geändert", raum);
             return Results.Json(new { ok = true });
         });

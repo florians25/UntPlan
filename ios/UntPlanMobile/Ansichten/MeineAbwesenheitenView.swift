@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// „Meine Abwesenheiten“ für Schüler*innen und Erziehungsberechtigte (Vorlage): Kopf mit Zurück, Titel und Zeitraum,
-/// rechts der Filter (Zeitraum, Status, bei mehreren Kindern das Kind). Je Abwesenheit eine Karte: Datum groß
-/// („15. Okt. - 16. Okt.“), Uhrzeit, Grund, die Bemerkung als eigene Zeile (nur wenn vorhanden) und der Status
-/// (entschuldigt grün, offen orange, nicht entschuldigt rot).
+/// „Meine Abwesenheiten“ für Schüler*innen und Erziehungsberechtigte im Grunddesign von „Meine Termine“: Kopf mit Zurück,
+/// Titel und Zeitraum, rechts der Filter (Zeitraum, Status, bei mehreren Kindern das Kind). Die Abwesenheiten nach Datum
+/// gruppiert („Do., 15.10.2026“), je Abwesenheit eine dunkle Karte mit dem Status-Symbol links (entschuldigt grün, offen
+/// orange, nicht entschuldigt rot) und den Zeilen Art, Uhrzeit, Grund, Bemerkung (nur wenn vorhanden) und Status.
 struct MeineAbwesenheitenView: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var daten: FamilieAbwesenheiten? = nil
@@ -19,7 +19,7 @@ struct MeineAbwesenheitenView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: 12) {
                 if let fehler {
                     Fehlerhinweis(text: fehler)
                 }
@@ -32,8 +32,13 @@ struct MeineAbwesenheitenView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 8)
                     }
-                    ForEach(daten.zeilen) { z in
-                        Abwesenheitskarte(zeile: z, grund: gruendeName(z.grund))
+                    ForEach(Datumsgruppe.bilden(daten.zeilen, datum: \.vonDatum)) { g in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Datumsgruppenkopf(text: Datumsgruppenkopf.text(g.datum))
+                            ForEach(g.eintraege) { z in
+                                Abwesenheitskarte(zeile: z, grund: gruendeName(z.grund))
+                            }
+                        }
                     }
                 } else if laedt {
                     ProgressView()
@@ -42,7 +47,7 @@ struct MeineAbwesenheitenView: View {
                 }
             }
             .padding(.horizontal, rand)
-            .padding(.top, 8)
+            .padding(.top, 4)
             .padding(.bottom, 28)
             .zentriert(maxBreite: 736)
         }
@@ -54,18 +59,8 @@ struct MeineAbwesenheitenView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text("Meine Abwesenheiten")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Farben.tinte2)
-                    if let daten, !daten.von.isEmpty {
-                        Text("\(Datumsformat.anzeige(daten.von, "dd.MM.yyyy")) - \(Datumsformat.anzeige(daten.bis, "dd.MM.yyyy"))")
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(Farben.gedaempft)
-                    }
-                }
-                .lineLimit(1)
-                .accessibilityElement(children: .combine)
+                Listentitel(titel: "Meine Abwesenheiten",
+                            untertitel: daten.map { $0.von.isEmpty ? "" : "\(Datumsformat.anzeige($0.von, "dd.MM.yyyy")) - \(Datumsformat.anzeige($0.bis, "dd.MM.yyyy"))" })
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -138,36 +133,30 @@ struct Abwesenheitsfilter: Equatable {
     var aktiv: Bool { !status.isEmpty }
 }
 
-/// Karte einer Abwesenheit wie in der Vorlage.
+/// Karte einer Abwesenheit im Grunddesign von „Meine Termine“: Status-Symbol links, Überschrift (Abwesenheit, Verspätung bzw.
+/// vorzeitig gegangen), darunter Uhrzeit (mehrtägig mit Datum), Grund, Bemerkung (nur wenn vorhanden) und der Status.
 struct Abwesenheitskarte: View {
     let zeile: Abwesenheitszeitraum
     let grund: String
 
-    /// „15. Okt. - 16. Okt.“ bzw. „8. Okt.“
+    private var mehrtaegig: Bool { !zeile.bisDatum.isEmpty && zeile.bisDatum.prefix(10) != zeile.vonDatum.prefix(10) }
+
+    /// „Abwesenheit“, „Verspätung (12 min)“ bzw. „Vorzeitig gegangen (20 min)“.
     private var titel: String {
-        let von = Datumsformat.anzeige(zeile.vonDatum, "d. MMM")
-        if zeile.bisDatum.isEmpty || zeile.bisDatum == zeile.vonDatum { return von }
-        return "\(von) - \(Datumsformat.anzeige(zeile.bisDatum, "d. MMM"))"
+        switch zeile.art {
+        case "verspaetet": return zeile.minuten > 0 ? "Verspätung (\(zeile.minuten) min)" : "Verspätung"
+        case "vorzeitig": return zeile.minuten > 0 ? "Vorzeitig gegangen (\(zeile.minuten) min)" : "Vorzeitig gegangen"
+        default: return mehrtaegig ? "Abwesenheit (mehrere Tage)" : "Abwesenheit"
+        }
     }
 
-    /// „7:45 - 21:00“ bzw. über mehrere Tage „Do., 07:45 - Fr., 21:00“, dahinter die Fehlstunden.
+    /// „07:45 - 13:00“ bzw. über mehrere Tage „Do., 15.10., 07:45 - Fr., 16.10., 21:00“, dahinter die Fehlstunden.
     private var zeit: String {
         let stunden = zeile.fehlstunden > 0 ? " (\(zeile.fehlstunden) \(zeile.fehlstunden == 1 ? "Fehlstunde" : "Fehlstunden"))" : ""
-        if zeile.bisDatum.isEmpty || zeile.bisDatum == zeile.vonDatum {
+        if !mehrtaegig {
             return "\(Detailmass.uhrzeit(zeile.vonZeit)) - \(Detailmass.uhrzeit(zeile.bisZeit))" + stunden
         }
-        return "\(Datumsformat.anzeige(zeile.vonDatum, "EE")), \(zeile.vonZeit) - \(Datumsformat.anzeige(zeile.bisDatum, "EE")), \(zeile.bisZeit)" + stunden
-    }
-
-    /// Grund, bei Verspätung bzw. vorzeitigem Gehen mit Minuten („Verspätung (12 min) · Krankheit“).
-    private var anlass: String {
-        let art: String
-        switch zeile.art {
-        case "verspaetet": art = zeile.minuten > 0 ? "Verspätung (\(zeile.minuten) min)" : "Verspätung"
-        case "vorzeitig": art = zeile.minuten > 0 ? "Vorzeitig gegangen (\(zeile.minuten) min)" : "Vorzeitig gegangen"
-        default: art = ""
-        }
-        return [art, grund].filter { !$0.isEmpty }.joined(separator: " · ")
+        return "\(Datumsformat.anzeige(zeile.vonDatum, "EE, dd.MM.")), \(zeile.vonZeit) - \(Datumsformat.anzeige(zeile.bisDatum, "EE, dd.MM.")), \(zeile.bisZeit)" + stunden
     }
 
     private var status: (text: String, symbol: String, farbe: Color) {
@@ -182,40 +171,120 @@ struct Abwesenheitskarte: View {
         }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(titel)
-                .font(.system(size: 21, weight: .regular))
-                .foregroundStyle(Farben.tinte)
-                .padding(.bottom, 2)
-            zeileMitSymbol("clock", zeit, farbe: Farben.tinte2)
-            if !anlass.isEmpty {
-                zeileMitSymbol("info.circle", anlass, farbe: Farben.tinte2)
-            }
-            // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
-            let bemerkung = zeile.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !bemerkung.isEmpty {
-                zeileMitSymbol("text.bubble", bemerkung, farbe: Farben.tinte2)
-            }
-            zeileMitSymbol(status.symbol, status.text, farbe: Farben.tinte2, symbolFarbe: status.farbe)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityElement(children: .combine)
+    /// Zeilen unter der Überschrift: Uhrzeit, Grund, Bemerkung (nur wenn vorhanden), Status.
+    private var zeilen: [Listenkartenzeile] {
+        var z = [Listenkartenzeile(text: zeit)]
+        if !grund.isEmpty { z.append(Listenkartenzeile(text: grund)) }
+        let bemerkung = zeile.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bemerkung.isEmpty { z.append(Listenkartenzeile(text: bemerkung, farbe: Farben.tinte2)) }
+        z.append(Listenkartenzeile(text: status.text, farbe: status.farbe))
+        return z
     }
 
-    private func zeileMitSymbol(_ symbol: String, _ text: String, farbe: Color, symbolFarbe: Color? = nil) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(symbolFarbe ?? Farben.gedaempft)
-                .frame(width: 18, alignment: .leading)
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundStyle(farbe)
-                .lineLimit(4)
+    var body: some View {
+        Listenkarte(symbol: status.symbol, symbolFarbe: status.farbe, titel: titel, zeilen: zeilen)
+    }
+}
+
+/// „Meine Abwesenheiten“ für Lehrkräfte: die eigenen gemeldeten Abwesenheiten im Grunddesign von „Meine Termine“ – nach
+/// Datum gruppiert, je Meldung eine dunkle Karte mit Symbol links (Status) und den Zeilen Zeitraum, Grund, Bemerkung, Status.
+struct EigeneAbwesenheitenView: View {
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.horizontalSizeClass) private var groessenklasse
+    @State private var meldungen: [Meldung]? = nil
+    @State private var fehler: String? = nil
+
+    private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
+
+    private var gruppen: [Datumsgruppe<Meldung>] {
+        Datumsgruppe.bilden((meldungen ?? []).filter(\.istAbwesenheit)) { $0.von ?? $0.erstellt }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if let fehler {
+                    Fehlerhinweis(text: fehler)
+                }
+                if meldungen != nil {
+                    if gruppen.isEmpty {
+                        Text("Keine Abwesenheiten gemeldet.")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.gedaempft)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                    }
+                    ForEach(gruppen) { g in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Datumsgruppenkopf(text: Datumsgruppenkopf.text(g.datum))
+                            ForEach(g.eintraege) { m in
+                                karte(m)
+                            }
+                        }
+                    }
+                } else if fehler == nil {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                }
+            }
+            .padding(.horizontal, rand)
+            .padding(.top, 4)
+            .padding(.bottom, 28)
+            .zentriert(maxBreite: 736)
+        }
+        .scrollIndicators(.hidden)
+        .background(Farben.grund.ignoresSafeArea())
+        .refreshable { await laden() }
+        .navigationTitle("Meine Abwesenheiten")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Listentitel(titel: "Meine Abwesenheiten")
+            }
+        }
+        .task { if meldungen == nil { await laden() } }
+    }
+
+    private func karte(_ m: Meldung) -> some View {
+        let offen = m.status == "offen"
+        let statusText = offen ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status)
+        var zeilen = [Listenkartenzeile(text: zeitraum(m))]
+        let grund = (m.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !grund.isEmpty { zeilen.append(Listenkartenzeile(text: grund)) }
+        // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
+        let bemerkung = (m.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bemerkung.isEmpty { zeilen.append(Listenkartenzeile(text: bemerkung, farbe: Farben.tinte2)) }
+        zeilen.append(Listenkartenzeile(text: statusText, farbe: offen ? Farben.orange : Farben.gruen))
+        return Listenkarte(symbol: offen ? "clock.badge.questionmark" : "checkmark.circle", symbolFarbe: offen ? Farben.orange : Farben.gruen,
+                           titel: "Abwesenheit", zeilen: zeilen)
+    }
+
+    /// „ganztägig“ bzw. „2.–4. Stunde“, mehrtägig „bis Fr., 16.10.2026“.
+    private func zeitraum(_ m: Meldung) -> String {
+        let von = m.von ?? ""
+        let bis = m.bis ?? von
+        var teile: [String] = []
+        if !bis.isEmpty && bis.prefix(10) != von.prefix(10) {
+            teile.append("bis \(Datumsformat.anzeige(bis, "EE, dd.MM.yyyy"))")
+        }
+        if let v = m.stundeVon {
+            let b = m.stundeBis ?? v
+            teile.append(v == b ? "\(v). Stunde" : "\(v).–\(b). Stunde")
+        } else if teile.isEmpty {
+            teile.append("ganztägig")
+        }
+        return teile.joined(separator: " · ")
+    }
+
+    private func laden() async {
+        do {
+            meldungen = try await zustand.api.meldungen()
+            fehler = nil
+        } catch {
+            if let text = zustand.fehlertext(error) { fehler = text }
+            if meldungen == nil { meldungen = [] }
         }
     }
 }

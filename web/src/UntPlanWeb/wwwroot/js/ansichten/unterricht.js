@@ -13,6 +13,8 @@ const BEREICHE = {
 };
 
 export async function zeigen(seite, kontext, [artParam, elementParam, bereichParam, vonParam, bisParam, aktParam]) {
+  // Unterricht → Mein Unterricht → Berichte (Symbol ganz rechts): Berichte zum Unterricht
+  if (artParam === 'berichte') return (await import('./unterrichtsberichte.js')).zeigen(seite, kontext, [elementParam, bereichParam, vonParam, bisParam]);
   const ich = kontext.ich;
   const el = await kontext.elemente();
   const sj = kontext.schuljahr;
@@ -27,7 +29,7 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   const ziel = (a = art, x = element, b = bereich, v = von, bi = bis, ak = aktivitaet) => `#/unterricht/${a}/${encodeURIComponent(x || '-')}/${b}/${v}/${bi}/${encodeURIComponent(ak || '-')}`;
   const titel = art === 'lehrer' ? `${element === ich.element ? 'Mein Unterricht' : 'Unterricht'} ${element}` : `Unterricht ${element}`;
   // Unterricht | Mein Unterricht | Neuer Unterricht (Buchungsmodul): Unterricht anlegen und zusätzliche Stunden verplanen
-  kontext.titel(titel, ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht"><i class="bi bi-plus-lg"></i>Neuer Unterricht</a>' : '');
+  kontext.titel(titel, ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht/neu"><i class="bi bi-plus-lg"></i>Neuer Unterricht</a>' : '');
   const pille = (inhalt, aktiv = false) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}">${inhalt}</label>`;
   seite.innerHTML = `
     <div class="nl-leiste">
@@ -52,14 +54,17 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   if (!element) { inhalt.innerHTML = `<div class="p-3">${leer('Bitte eine Klasse wählen.', 'meineunterrichte')}</div>`; return; }
 
   // Unterrichte der Periode und die Stunden im Zeitraum (geänderte Unterrichte lila)
-  const [liste, stunden] = await Promise.all([
+  const [liste, stunden, eigene] = await Promise.all([
     holen(`/api/app/unterricht?${art}=${encodeURIComponent(element)}&datum=${von}`),
     art === 'lehrer' ? holen(`/api/app/klassenbuch/stunden?von=${von}&bis=${bis}&lehrer=${encodeURIComponent(element)}`).catch(() => null) : Promise.resolve(null),
+    // in UntPlanWeb angelegter Unterricht (Neuer Unterricht) erscheint ebenfalls in „Mein Unterricht“
+    ich.kollegium ? holen('/api/app/buchen/unterricht').catch(() => []) : Promise.resolve([]),
   ]);
+  const neue = eigene.filter(u => art === 'lehrer' ? u.lehrer === element : u.klassen.includes(element));
   const geaendert = new Set((stunden?.zeilen ?? []).filter(z => z.status !== 'regulaer').map(z => z.unterricht));
   const zeilen = liste.map(u => ({ ...u, aktivitaet: geaendert.has(u.id) ? 'Vertretung' : 'Unterricht' })).filter(u => !aktivitaet || u.aktivitaet === aktivitaet || (aktivitaet === 'Prüfung' && /klausur|prüfung/i.test(u.text)));
   const knopf = (href, icon, titel) => `<a class="nl-icon sichtbar" href="${href}" title="${titel}" aria-label="${titel}"><i class="bi bi-${icon}"></i></a>`;
-  inhalt.innerHTML = zeilen.length ? `<table><thead><tr><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th><th class="text-end">Wst</th><th>Zeitraum</th><th>Aktivität</th><th></th></tr></thead><tbody>
+  inhalt.innerHTML = zeilen.length || neue.length ? `<table><thead><tr><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th><th class="text-end">Wst</th><th>Zeitraum</th><th>Aktivität</th><th></th></tr></thead><tbody>
     ${zeilen.map(u => { const k = u.klassen[0] ?? ''; return `<tr data-name="${e([u.klassen.join(' '), u.kurs, u.fach, u.lehrer.join(' ')].join(' ').toLowerCase())}">
       <td><div class="nl-name">${e(u.klassen.join(', ') || '–')}</div></td>
       <td class="nl-unter">${e(u.kurs || (k ? `SG_${u.klassen.join('_')}` : ''))}</td>
@@ -68,13 +73,23 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
       <td class="text-nowrap nl-unter">${datumDe(sj?.von)} – ${datumDe(sj?.bis)}</td>
       <td>${u.aktivitaet === 'Vertretung' ? '<span class="nl-chip lila">Vertretung</span>' : '<span class="nl-chip grau">Unterricht</span>'}</td>
       <td class="text-end text-nowrap nl-aktionen">
-        ${knopf(`#/klassenbuch/${encodeURIComponent(k || '-')}/woche`, 'journal-text', 'Klassenbuch')}
+        ${knopf(`#/klassenbuch/${encodeURIComponent(k ? `k:${k}` : '-')}/uebersicht/${heuteIso()}/-`, 'journal-text', 'Klassenbuch')}
         ${knopf(`#/plan/klasse/${encodeURIComponent(k)}/${von}`, 'calendar3-week', e(u.termine.join(', ') || 'Termine im Stundenplan'))}
         ${knopf(`#/klassenbuch/${encodeURIComponent(k)}/verlauf`, 'card-text', 'Lehrstoff')}
         ${knopf(`#/klassenbuch/${encodeURIComponent(k)}/fehlzeiten`, 'person-x', 'Schüler*innen und Fehlzeiten')}
-        ${knopf(`#/schueler/${encodeURIComponent(k)}`, 'people', 'Schülergruppe')}
-        ${knopf(`#/berichte/-/${encodeURIComponent(k)}/${von}/${bis}`, 'file-earmark-bar-graph', 'Berichte')}</td></tr>`; }).join('')}
+        <button type="button" class="nl-icon sichtbar" data-schuelergruppen="${u.id}" title="${e(`Schüler*innen in der Schülergruppe ${u.kurs || (k ? `SG_${u.klassen.join('_')}` : '')}`)}" aria-label="Schülergruppen"><i class="bi bi-people"></i></button>
+        ${knopf(`#/unterricht/berichte/${u.id}/${von}/${bis}/${encodeURIComponent(k || '-')}`, 'file-earmark-bar-graph', 'Berichte zum Unterricht')}
+        ${ich.kollegium ? knopf(`#/buchen/zusatz/u${u.id}`, 'calendar-plus', 'Zusätzliche Stunden') : ''}</td></tr>`; }).join('')}
+    ${neue.map(u => `<tr data-name="${e([u.klassen.join(' '), u.gruppe, u.fach, u.lehrer].join(' ').toLowerCase())}">
+      <td><div class="nl-name">${e(u.klassen.join(', ') || '–')}</div></td><td class="nl-unter">${e(u.gruppe)}</td><td><span class="nl-tag">${e(u.fach)}</span></td><td>${e(u.lehrer)}</td>
+      <td class="text-end">${u.wochenstunden}</td><td class="text-nowrap nl-unter">${datumDe(u.zusatz?.von || sj?.von)} – ${datumDe(u.zusatz?.bis || sj?.bis)}</td>
+      <td><span class="nl-chip gelb">Neuer Unterricht</span></td>
+      <td class="text-end text-nowrap nl-aktionen">${knopf(`#/buchen/zusatz/e${u.id}`, 'calendar-plus', 'Zusätzliche Stunden')}</td></tr>`).join('')}
     </tbody></table>` : `<div class="p-3">${leer('Keine Unterrichte gefunden.', 'meineunterrichte')}</div>`;
+  // Schülergruppen des Unterrichts (Leitfaden Klassenleitung, Weg 1): Zuordnung der Schüler*innen (schuelergruppen.js)
+  inhalt.querySelectorAll('[data-schuelergruppen]').forEach(b => b.onclick = async () => {
+    try { (await import('./schuelergruppen.js')).zuordnungDialog(Number(b.dataset.schuelergruppen)); } catch (err) { kontext.fehler(err); }
+  });
   seite.querySelector('[data-suche]').oninput = ev => {
     const t = ev.target.value.trim().toLowerCase();
     inhalt.querySelectorAll('tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });

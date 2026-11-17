@@ -115,6 +115,12 @@ struct StartView: View {
                 case .klassenAbwesenheiten:
                     KlassenAbwesenheitenStart()
                         .environmentObject(zustand)
+                case .termine:
+                    MeineTermineView(heute: heute)
+                        .environmentObject(zustand)
+                case .abwesenheiten:
+                    EigeneAbwesenheitenView()
+                        .environmentObject(zustand)
                 case .sprechtag(let id):
                     // Rückfall (sonst als Blatt): Kopf mit Zurück statt X über dieselbe Ansicht
                     SprechtagView(id: id, titel: sprechtage.first { $0.id == id }?.titel ?? "Sprechtag",
@@ -689,14 +695,246 @@ struct NaechsteStunde: View {
     }
 }
 
-/// Unterseite der Startliste: Termine, Hausaufgaben, Aufsichten oder Änderungen.
+/// „Meine Termine“ wie in der Vorlage: Kopf mit Zurück, Titel und „bis <Schuljahresende>“, rechts Filter (Art) und Suche;
+/// die Termine nach Datum gruppiert („Mo., 07.12.2026“), je Termin eine dunkle Karte mit Symbol links (Prüfung, Veranstaltung,
+/// Sondereinsatz) und den Zeilen Fach (Langname mit Kürzel) bzw. Anlass, Titel, Thema, Klassen, Räume mit Langname und Zeit.
+/// Langnamen von Fach und Raum kommen aus den Stammdaten der App (Elemente). Ältere Server ohne /termine: die Termine der
+/// Startseite (nächste zwei Wochen).
+struct MeineTermineView: View {
+    let heute: Heute?
+    @EnvironmentObject var zustand: AppZustand
+    @Environment(\.horizontalSizeClass) private var groessenklasse
+    @State private var liste: Terminliste? = nil
+    @State private var faecher: [String: String] = [:]
+    @State private var raeume: [String: String] = [:]
+    @State private var fehler: String? = nil
+    @State private var laedt = false
+    @State private var art = ""
+    @State private var suche = ""
+    @State private var sucheOffen = false
+
+    private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
+
+    /// Filter nach Art (leer = alle)
+    private static let arten: [(wert: String, titel: String)] = [
+        ("", "Alle Termine"), ("klausur", "Prüfungen"), ("veranstaltung", "Veranstaltungen"), ("sondereinsatz", "Sondereinsätze")
+    ]
+
+    private var gefiltert: [MeinTermin] {
+        let alle = liste?.termine ?? []
+        let nachArt = art.isEmpty ? alle : alle.filter { art == "klausur" ? $0.istPruefung : $0.art.lowercased() == art }
+        let s = suche.trimmingCharacters(in: .whitespaces)
+        guard !s.isEmpty else { return nachArt }
+        return nachArt.filter { t in
+            ([ueberschrift(t)] + zeilen(t).map(\.text) + t.lehrer).contains { $0.localizedCaseInsensitiveContains(s) }
+        }
+    }
+
+    /// Termine nach Datum (Beginn) gruppiert, in der Reihenfolge der Daten.
+    private var gruppen: [Datumsgruppe<MeinTermin>] {
+        Datumsgruppe.bilden(gefiltert.sorted { ($0.von, $0.stundeVon ?? 0) < ($1.von, $1.stundeVon ?? 0) }, datum: \.von)
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 12) {
+                if sucheOffen {
+                    Suchleiste(text: $suche, platzhalter: "Termine durchsuchen")
+                }
+                if let fehler {
+                    Fehlerhinweis(text: fehler)
+                }
+                if liste != nil {
+                    if gruppen.isEmpty {
+                        Text(leertext)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.gedaempft)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                    }
+                    ForEach(gruppen) { g in
+                        VStack(alignment: .leading, spacing: 12) {
+                            Datumsgruppenkopf(text: Datumsgruppenkopf.text(g.datum))
+                            ForEach(g.eintraege) { t in
+                                Listenkarte(symbol: symbol(t), titel: ueberschrift(t), zeilen: zeilen(t))
+                            }
+                        }
+                    }
+                } else if laedt {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 40)
+                }
+            }
+            .padding(.horizontal, rand)
+            .padding(.top, 4)
+            .padding(.bottom, 28)
+            .zentriert(maxBreite: 736)
+        }
+        .scrollIndicators(.hidden)
+        .background(Farben.grund.ignoresSafeArea())
+        .refreshable { await laden() }
+        .navigationTitle("Meine Termine")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Listentitel(titel: "Meine Termine",
+                            untertitel: (liste?.bis ?? "").isEmpty ? nil : "bis \(Datumsformat.anzeige(liste?.bis ?? "", "dd.MM.yyyy"))")
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Art", selection: $art) {
+                        ForEach(Self.arten, id: \.wert) { a in
+                            Text(a.titel).tag(a.wert)
+                        }
+                    }
+                } label: {
+                    Glasknopf {
+                        Image(systemName: art.isEmpty ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                            .font(.system(size: 17, weight: .regular))
+                    }
+                }
+                .accessibilityLabel("Filter")
+                Button {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        sucheOffen.toggle()
+                        if !sucheOffen { suche = "" }
+                    }
+                } label: {
+                    Glasknopf {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 17, weight: .regular))
+                    }
+                }
+                .accessibilityLabel(sucheOffen ? "Suche schließen" : "Termine durchsuchen")
+            }
+        }
+        .task {
+            if liste == nil {
+                await laden()
+                await stammdatenLaden()
+            }
+        }
+    }
+
+    private var leertext: String {
+        if !suche.trimmingCharacters(in: .whitespaces).isEmpty { return "Kein Termin passt zu „\(suche)“." }
+        if !art.isEmpty { return "Keine Termine dieser Art." }
+        return (liste?.bis ?? "").isEmpty ? "Keine Termine in den nächsten zwei Wochen." : "Keine Termine bis zum Ende des Schuljahrs."
+    }
+
+    // MARK: Inhalt einer Karte
+
+    private func symbol(_ t: MeinTermin) -> String {
+        if t.istPruefung { return "list.bullet.clipboard" }
+        switch t.art.lowercased() {
+        case "veranstaltung": return "person.3"
+        case "sondereinsatz": return "calendar.badge.clock"
+        default: return "calendar"
+        }
+    }
+
+    /// Fachname mit Kürzel („Politik (PK)“) bei Prüfungen, sonst der Titel bzw. die Art.
+    private func ueberschrift(_ t: MeinTermin) -> String {
+        if t.istPruefung && !t.fach.isEmpty {
+            if let name = faecher[t.fach.uppercased()], !name.isEmpty, name.caseInsensitiveCompare(t.fach) != .orderedSame {
+                return "\(name) (\(t.fach))"
+            }
+            return t.fach
+        }
+        if !t.titel.isEmpty { return t.titel }
+        return artName(t)
+    }
+
+    private func artName(_ t: MeinTermin) -> String {
+        if t.istPruefung { return "Prüfung" }
+        switch t.art.lowercased() {
+        case "veranstaltung": return "Veranstaltung"
+        case "sondereinsatz": return "Sondereinsatz"
+        default: return t.art.isEmpty ? "Termin" : t.art
+        }
+    }
+
+    /// Zeilen unter der Überschrift: Titel (bei Prüfungen mit Fach), Thema, Klassen, Räume mit Langname, Zeit.
+    private func zeilen(_ t: MeinTermin) -> [Listenkartenzeile] {
+        var z: [Listenkartenzeile] = []
+        let kopf = ueberschrift(t)
+        if t.istPruefung && !t.fach.isEmpty && !t.titel.isEmpty && t.titel != kopf {
+            z.append(Listenkartenzeile(text: t.titel))
+        }
+        let thema = t.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !thema.isEmpty && thema != t.titel { z.append(Listenkartenzeile(text: thema)) }
+        if !t.klassen.isEmpty { z.append(Listenkartenzeile(text: t.klassen.joined(separator: ", "))) }
+        let raumtext = t.raeume.filter { !$0.isEmpty }.map { r -> String in
+            if let name = raeume[r.uppercased()], !name.isEmpty, name.caseInsensitiveCompare(r) != .orderedSame { return "\(r) (\(name))" }
+            return r
+        }
+        if !raumtext.isEmpty { z.append(Listenkartenzeile(text: raumtext.joined(separator: ", "))) }
+        let zeit = zeittext(t)
+        if !zeit.isEmpty { z.append(Listenkartenzeile(text: zeit, farbe: Farben.tinte2)) }
+        if t.status == "vorgemerkt" { z.append(Listenkartenzeile(text: "Vorgemerkt (noch nicht übernommen)", farbe: Farben.orange)) }
+        return z
+    }
+
+    /// „3.–4. Stunde · 09:35 – 11:05“, mehrtägig „bis Fr., 16.10.2026“.
+    private func zeittext(_ t: MeinTermin) -> String {
+        var teile: [String] = []
+        if !t.bis.isEmpty && t.bis.prefix(10) != t.von.prefix(10) {
+            teile.append("bis \(Datumsformat.anzeige(t.bis, "EE, dd.MM.yyyy"))")
+        } else if let v = t.stundeVon, v > 0 {
+            let b = max(t.stundeBis ?? v, v)
+            teile.append(v == b ? "\(v). Stunde" : "\(v).–\(b). Stunde")
+            if !t.beginn.isEmpty && !t.ende.isEmpty { teile.append("\(t.beginn) – \(t.ende)") }
+        }
+        return teile.joined(separator: " · ")
+    }
+
+    // MARK: Laden
+
+    private func laden() async {
+        laedt = true
+        defer { laedt = false }
+        do {
+            liste = try await zustand.api.termine()
+            fehler = nil
+        } catch {
+            // Älterer Server ohne /termine: die Termine der Startseite (nächste zwei Wochen)
+            let ersatz = Terminliste(bis: "", termine: (heute?.termine ?? []).map(MeinTermin.init))
+            var alterServer = false
+            if let a = error as? ApiFehler {
+                switch a {
+                case .server, .antwortUnlesbar: alterServer = true
+                default: break
+                }
+            }
+            if alterServer {
+                fehler = nil
+            } else if let text = zustand.fehlertext(error) {
+                fehler = text
+            }
+            if liste == nil { liste = ersatz }
+        }
+    }
+
+    /// Langnamen von Fächern und Räumen aus den Stammdaten (Elemente).
+    private func stammdatenLaden() async {
+        guard let e = try? await zustand.api.elemente() else { return }
+        var f: [String: String] = [:]
+        for x in e.faecher where !x.kurz.isEmpty { f[x.kurz.uppercased()] = x.name }
+        var r: [String: String] = [:]
+        for x in e.raeume where !x.kurz.isEmpty { r[x.kurz.uppercased()] = x.name }
+        faecher = f
+        raeume = r
+    }
+}
+
+/// Unterseite der Startliste: Hausaufgaben, Aufsichten oder Änderungen.
 struct StartlisteView: View {
     let ziel: Startziel
     let heute: Heute?
     let antippen: (Karte) -> Void
     @EnvironmentObject var zustand: AppZustand
-    @State private var meldungen: [Meldung]? = nil
-    @State private var fehler: String? = nil
 
     private var titel: String {
         switch ziel {
@@ -716,12 +954,10 @@ struct StartlisteView: View {
         List {
             if let h = heute {
                 switch ziel {
-                case .termine: termine(h)
-                case .abwesenheiten, .familieAbwesenheiten: abwesenheiten()
                 case .hausaufgaben: hausaufgaben(h)
                 case .aufsichten: aufsichten(h)
                 case .aenderungen: aenderungen(h)
-                case .sprechtag, .entschuldigungen, .klassenleitung, .klassenAbwesenheiten: EmptyView()
+                case .termine, .abwesenheiten, .familieAbwesenheiten, .sprechtag, .entschuldigungen, .klassenleitung, .klassenAbwesenheiten: EmptyView()
                 }
             }
         }
@@ -731,125 +967,6 @@ struct StartlisteView: View {
         .navigationTitle(titel)
         .navigationBarTitleDisplayMode(.large)
         .toolbar(.visible, for: .navigationBar)
-        .task {
-            if ziel == .abwesenheiten { await meldungenLaden() }
-        }
-    }
-
-    // MARK: Meine Abwesenheiten (eigene Meldungen vom Typ Abwesenheit)
-
-    @ViewBuilder
-    private func abwesenheiten() -> some View {
-        if let fehler {
-            Fehlerhinweis(text: fehler)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-        }
-        if let liste = meldungen?.filter(\.istAbwesenheit) {
-            if liste.isEmpty {
-                leer("Keine Abwesenheiten gemeldet.")
-            }
-            ForEach(liste) { m in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(abwesenheitszeitraum(m))
-                            .font(.system(size: 17.5, weight: .medium))
-                            .foregroundStyle(Farben.tinte)
-                        Spacer()
-                        Text(m.status == "offen" ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status))
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(m.status == "offen" ? Farben.heute : Farben.gruen)
-                    }
-                    let grund = (m.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !grund.isEmpty {
-                        Text(grund)
-                            .font(.system(size: 16))
-                            .foregroundStyle(Farben.tinte2)
-                    }
-                    // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
-                    let bemerkung = (m.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !bemerkung.isEmpty {
-                        Text(bemerkung)
-                            .font(.system(size: 16))
-                            .foregroundStyle(Farben.gedaempft)
-                            .lineLimit(4)
-                    }
-                }
-                .padding(.vertical, 4)
-                .listRowBackground(Farben.flaeche)
-            }
-        } else if fehler == nil {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .listRowBackground(Farben.flaeche)
-        }
-    }
-
-    private func abwesenheitszeitraum(_ m: Meldung) -> String {
-        let von = m.von ?? ""
-        let bis = m.bis ?? von
-        var text = Datumsformat.anzeige(von, "EE d.M.yyyy")
-        if !bis.isEmpty && bis.prefix(10) != von.prefix(10) {
-            text += " – " + Datumsformat.anzeige(bis, "EE d.M.yyyy")
-        }
-        if let v = m.stundeVon {
-            let b = m.stundeBis ?? v
-            text += v == b ? ", \(v). Std." : ", \(v).–\(b). Std."
-        }
-        return text
-    }
-
-    private func meldungenLaden() async {
-        do {
-            meldungen = try await zustand.api.meldungen()
-            fehler = nil
-        } catch {
-            if let text = zustand.fehlertext(error) { fehler = text }
-            if meldungen == nil { meldungen = [] }
-        }
-    }
-
-    @ViewBuilder
-    private func termine(_ h: Heute) -> some View {
-        if h.termine.isEmpty {
-            leer("Keine Termine in den nächsten zwei Wochen.")
-        }
-        ForEach(h.termine) { t in
-            HStack(spacing: 12) {
-                VStack(spacing: 0) {
-                    Text(Datumsformat.anzeige(t.von, "d"))
-                        .font(.system(size: 22, weight: .medium))
-                    Text(Datumsformat.anzeige(t.von, "MMM"))
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundStyle(Farben.heute)
-                .frame(width: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(t.titel.isEmpty ? t.art : t.titel)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Farben.tinte)
-                    Text(termintext(t))
-                        .font(.system(size: 13))
-                        .foregroundStyle(Farben.tinte2)
-                }
-            }
-            .padding(.vertical, 4)
-            .listRowBackground(Farben.flaeche)
-        }
-    }
-
-    private func termintext(_ t: Termin) -> String {
-        var teile: [String] = []
-        if !t.art.isEmpty && !t.titel.isEmpty { teile.append(t.art) }
-        if !t.bis.isEmpty && t.bis.prefix(10) != t.von.prefix(10) {
-            teile.append("bis \(Datumsformat.anzeige(t.bis, "d.M."))")
-        }
-        if let v = t.stundeVon {
-            let b = t.stundeBis ?? v
-            teile.append(v == b ? "\(v). Stunde" : "\(v).–\(b). Stunde")
-        }
-        if !t.klassen.isEmpty { teile.append(t.klassen.joined(separator: ", ")) }
-        return teile.joined(separator: " · ")
     }
 
     @ViewBuilder

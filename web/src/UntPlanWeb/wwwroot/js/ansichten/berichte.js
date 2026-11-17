@@ -3,6 +3,8 @@
 import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 
+/** Berichte, die es im Original nur als PDF gibt. */
+const NUR_PDF = ['entschuldigungsschreiben', 'klassenbuch_deckblatt'];
 const ALIAS = { fehlzeiten: 'fehlzeiten_schueler', lehrstoff: 'arbeitsbericht_tag' };
 const GRUPPEN = {
   Abwesenheiten: { symbol: 'person-x', farbe: 'rot' },
@@ -10,7 +12,26 @@ const GRUPPEN = {
   Arbeitsbericht: { symbol: 'journal-check', farbe: 'gruen' },
   Prüfungen: { symbol: 'file-earmark-check', farbe: 'gelb' },
   Weitere: { symbol: 'grid', farbe: 'lila' },
+  Klassenbuch: { symbol: 'journal-bookmark', farbe: 'blau' },
 };
+/** Einstellungen je Bericht (Auswahl wie „pro Stunde“, Haken wie „Fehltage und -zeiten trennen“) – je Sitzung gemerkt. */
+const OPT_SCHLUESSEL = 'untplan:berichtoptionen';
+let optStand = {};
+try { optStand = JSON.parse(sessionStorage.getItem(OPT_SCHLUESSEL) || '{}') || {}; } catch { optStand = {}; }
+const optWahl = (a, o) => optStand[a.id]?.[o.name] ?? o.vorgabe;
+const optQuery = (a, extra = {}) => (a.optionen ?? []).map(o => `&${o.name}=${encodeURIComponent(extra[o.name] ?? optWahl(a, o))}`).join('');
+const optMerken = (a, werte) => { optStand[a.id] = { ...(optStand[a.id] ?? {}), ...werte }; try { sessionStorage.setItem(OPT_SCHLUESSEL, JSON.stringify(optStand)); } catch { /* privat */ } };
+/** Kurzfassung der gewählten Auswahl-Einstellungen für die Berichtszeile (z. B. „pro Stunde“). */
+const optKurz = a => (a.optionen ?? []).filter(o => o.typ === 'auswahl').map(o => o.werte.find(w => w.wert === optWahl(a, o))?.text).filter(t => t && t !== '- Alle -');
+/** Schuljahresende: die 6 Dateien des Klassenbuchs mit Bericht, Einstellungen und Dateiname. */
+const ABSCHLUSS = [
+  { nr: '01', name: 'Deckblatt', art: 'klassenbuch_deckblatt', titel: 'Klassenbuch Deckblatt', opt: {} },
+  { nr: '02', name: 'Lehrnachweis', art: 'wochenuebersicht', titel: 'Wochenübersicht Klasse mit Abwesenheiten', opt: { mitabw: '1' } },
+  { nr: '03', name: 'Fehlzeitenstatistik', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – Gesamtübersicht', opt: { ausgabe: 'gesamt', status: 'alle', fehlzeiten: '1', verspaetungen: '1', zaehlend: '1', alle: '1', sortiert: '1', trennen: '1' } },
+  { nr: '04', name: 'Fehlzeiten-e', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – pro Stunde [entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'entschuldigt', sortiert: '1', trennen: '1' } },
+  { nr: '05', name: 'Fehlzeiten-u', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – pro Stunde [nicht entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'nicht_entschuldigt', sortiert: '1', trennen: '1' } },
+  { nr: '06', name: 'Klassenbucheinträge', art: 'klassenbucheintraege', titel: 'Klassenbucheinträge pro Klasse sortiert nach Schülernamen', opt: { sortiert: '1' } },
+];
 const BESCHREIBUNG = {
   fehlzeiten_schueler: 'Fehlstunden, Fehltage und Entschuldigungsstatus je Schüler*in im gewählten Zeitraum.',
   fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse – geeignet für Konferenzen und Zeugnisse.',
@@ -42,7 +63,8 @@ const holeDatei = async url => {
 
 export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonParam, bisParam, schuelerParam, n1Param, n2Param]) {
   const el = await kontext.elemente();
-  const arten = await holen('/api/app/berichte/liste');
+  // Berichte zum Unterricht stehen unter Unterricht → Mein Unterricht → Berichte
+  const arten = (await holen('/api/app/berichte/liste')).filter(a => !a.unterricht);
   const art = arten.find(a => a.id === (ALIAS[berichtParam] ?? berichtParam))?.id ?? null;
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
@@ -59,7 +81,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   try { gruppe = sessionStorage.getItem('untplan:berichtgruppe') || 'alle'; } catch { /* privat */ }
   if (gruppe !== 'alle' && !gruppen.includes(gruppe)) gruppe = 'alle';
   let suche = '';
-  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 1 : 16) : (a.id === art && n2 ? n2 : 4);
+  const vorgabe = (a, n) => n === 1 ? (a.id === art && n1 ? n1 : a.id === 'unentschuldigt' ? 3 : 16) : (a.id === art && n2 ? n2 : 4);
   const abfrage = (p) => `klasse=${encodeURIComponent(p.klasse)}&von=${p.von}&bis=${p.bis}${p.schueler ? `&schueler=${p.schueler}` : ''}&n1=${p.n1}&n2=${p.n2}`;
   const standard = a => ({ klasse, schueler, von, bis, n1: vorgabe(a, 1), n2: vorgabe(a, 2) });
 
@@ -92,25 +114,61 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       <button type="button" class="br-reihe-text" data-panel="${a.id}" aria-label="${e(a.titel)}: Parameter und Export">
         <b>${e(a.titel)}</b><span>${e(BESCHREIBUNG[a.id] ?? a.gruppe)}</span></button>
       <span class="br-reihe-tags">${a.klasseNoetig ? `<span class="s-label ${fehltKlasse ? 'orange' : ''}">${fehltKlasse ? 'Klasse wählen' : 'je Klasse'}</span>` : ''}
-        ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}</span>
+        ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}
+        ${optKurz(a).map(t => `<span class="s-label">${e(t)}</span>`).join('')}</span>
       <span class="br-reihe-aktionen">
         <button type="button" class="br-knopf" data-anzeigen="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Anzeigen"><i class="bi bi-eye"></i><span>Anzeigen</span></button>
         <button type="button" class="br-knopf" data-pdf="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Als PDF herunterladen"><i class="bi bi-file-earmark-pdf"></i><span>PDF</span></button>
-        <button type="button" class="br-knopf" data-csv="${a.id}" ${fehltKlasse || a.id === 'entschuldigungsschreiben' ? 'disabled' : ''} title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i><span>CSV</span></button>
+        <button type="button" class="br-knopf" data-csv="${a.id}" ${fehltKlasse || NUR_PDF.includes(a.id) ? 'disabled' : ''} title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i><span>CSV</span></button>
       </span></div>`;
   };
   const rasterZeichnen = () => {
     const q = suche.trim().toLowerCase();
     const sicht = arten.filter(a => (gruppe === 'alle' || a.gruppe === gruppe) && (!q || `${a.titel} ${BESCHREIBUNG[a.id] ?? ''}`.toLowerCase().includes(q)));
     raster.innerHTML = sicht.length ? (gruppe === 'alle' && !q
-      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}</div></section>`).join('')
+      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}${g === 'Klassenbuch' ? abschlussZeile() : ''}</div></section>`).join('')
       : `<div class="br-liste" role="list">${sicht.map(karte).join('')}</div>`)
       : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-search"></i></span><b>Kein Bericht gefunden</b><p>Für „${e(suche)}“ gibt es keinen passenden Bericht.</p></div>`;
     raster.querySelectorAll('[data-panel]').forEach(b => b.onclick = () => panel(arten.find(a => a.id === b.dataset.panel)));
     raster.querySelectorAll('[data-anzeigen]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.anzeigen); anzeigen(a, standard(a)); });
     raster.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.pdf); exportieren(a, standard(a), 'pdf', b); });
     raster.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.csv); exportieren(a, standard(a), 'csv', b); });
+    raster.querySelectorAll('[data-abschluss]').forEach(b => b.onclick = abschluss);
   };
+  // Schuljahresende: Klassenbuch als PDF-Dateien (6 Dateien je Klasse bzw. Klassengruppe) – Zeitraum aktuelles Schuljahr bzw. bis zum letzten Schultag der Klasse
+  function abschlussZeile() {
+    return `<div class="br-reihe" role="listitem"><span class="br-symbol blau"><i class="bi bi-file-earmark-zip" aria-hidden="true"></i></span>
+      <button type="button" class="br-reihe-text" data-abschluss><b>Schuljahresende: Klassenbuch als PDF-Datei</b></button>
+      <span class="br-reihe-tags"><span class="s-label ${klasse ? '' : 'orange'}">${klasse ? 'je Klasse' : 'Klasse wählen'}</span></span>
+      <span class="br-reihe-aktionen"><button type="button" class="br-knopf" data-abschluss ${klasse ? '' : 'disabled'}><i class="bi bi-files"></i><span>Dateien</span></button></span></div>`;
+  }
+  function abschluss() {
+    if (!klasse) { kontext.fehler(new Error('Bitte zuerst im Kopf die Klasse einstellen.')); return; }
+    document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
+    const sj = kontext.schuljahr ?? {};
+    const h = dialog({ titel: 'Klassenbuch als PDF-Datei', breite: 'm', klasse: 'br-dialog',
+      inhalt: `<div class="br-panel-rumpf">
+        <label class="kd-dfeld"><span>Klasse</span><input class="form-control" value="${e(klasse)}" disabled></label>
+        <div class="kd-dialog-reihe zwei">
+          <label class="kd-dfeld"><span>Von</span><input type="date" class="form-control" data-a-von value="${e(sj.von || von)}"></label>
+          <label class="kd-dfeld"><span>Bis</span><input type="date" class="form-control" data-a-bis value="${e(sj.bis && sj.bis < heuteIso() ? sj.bis : heuteIso())}"></label>
+        </div>
+        <ol class="br-abschluss-liste">${ABSCHLUSS.map((d, i) => `<li class="br-abschluss"><span class="flex-fill">${e(`${klasse}-${d.nr}-${d.name}.pdf`)}<br><small class="text-body-secondary">${e(d.titel)}</small></span>
+          <button type="button" class="nl-knopf" data-datei="${i}"><i class="bi bi-file-earmark-pdf"></i>PDF</button></li>`).join('')}</ol>
+      </div>`,
+      fuss: `<button type="button" class="nl-knopf nw-primaer" data-alle-dateien><i class="bi bi-download"></i>Alle 6 Dateien herunterladen</button>` });
+    const q = x => h.querySelector(x);
+    const datei = async (d, knopf) => {
+      const v = q('[data-a-von]').value || von, b = q('[data-a-bis]').value || bis;
+      const ex = new URLSearchParams({ klasse, von: v, bis: b, format: 'pdf', ausrichtung: d.art === 'klassenbuch_deckblatt' ? 'hoch' : 'quer', ...d.opt });
+      if (knopf) knopf.disabled = true;
+      try { herunterladen(`${klasse}-${d.nr}-${d.name}.pdf`, await holeDatei(`/api/app/berichte/erstellen/${d.art}?${ex}`)); }
+      catch (err) { kontext.fehler(err); }
+      finally { if (knopf) knopf.disabled = false; }
+    };
+    h.querySelectorAll('[data-datei]').forEach(b => b.onclick = () => datei(ABSCHLUSS[Number(b.dataset.datei)], b));
+    q('[data-alle-dateien]').onclick = async ev => { for (const d of ABSCHLUSS) await datei(d, ev.currentTarget); };
+  }
   rasterZeichnen();
   // gemeinsames Suchfeld mit Filter: Freitext und Berichtsgruppe als Dropdown im Suchfeld
   suchfeldMitFilterBinden(seite.querySelector('[data-gruppen]'), {
@@ -145,7 +203,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     const ausrichtung = format === 'pdf' ? await pdfAusrichtung('quer', 'bericht') : null;
     if (format === 'pdf' && !ausrichtung) return;
     if (knopf) knopf.disabled = true;
-    try { herunterladen(`${a.id}-${p.klasse || 'alle'}-${p.von}-${p.bis}.${format}`, await holeDatei(`/api/app/berichte/erstellen/${a.id}?${abfrage(p)}&format=${format}${ausrichtung ? `&ausrichtung=${ausrichtung}` : ''}`)); }
+    try { herunterladen(`${a.id}-${p.klasse || 'alle'}-${p.von}-${p.bis}.${format}`, await holeDatei(`/api/app/berichte/erstellen/${a.id}?${abfrage(p)}${optQuery(a)}&format=${format}${ausrichtung ? `&ausrichtung=${ausrichtung}` : ''}`)); }
     catch (err) { kontext.fehler(err); }
     finally { if (knopf) knopf.disabled = false; }
   }
@@ -171,8 +229,11 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
           </div>
           <div class="kd-schnell"><button type="button" class="s-pille" data-zeit="30">30 Tage</button><button type="button" class="s-pille" data-zeit="hj">Halbjahr</button><button type="button" class="s-pille" data-zeit="sj">Schuljahr</button></div>
           ${param ? `<div class="kd-dfeld"><span>Schwellenwert</span><div class="br-param">${param}</div></div>` : ''}
+          ${a.optionen?.length ? `<div class="kd-dfeld"><span>Einstellungen</span><div class="br-optionen">${a.optionen.map(o => o.typ === 'haken'
+            ? `<label class="form-check"><input type="checkbox" class="form-check-input" data-opt="${e(o.name)}" ${optWahl(a, o) === '1' ? 'checked' : ''}><span class="form-check-label">${e(o.titel)}</span></label>`
+            : `<select class="form-select form-select-sm" data-opt="${e(o.name)}" aria-label="${e(o.titel)}">${o.werte.map(w => `<option value="${e(w.wert)}" ${w.wert === optWahl(a, o) ? 'selected' : ''}>${e(w.text)}</option>`).join('')}</select>`).join('')}</div></div>` : ''}
         </div>`,
-      fuss: `<button type="button" class="nl-knopf" data-p-csv ${a.id === 'entschuldigungsschreiben' ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button>
+      fuss: `<button type="button" class="nl-knopf" data-p-csv ${NUR_PDF.includes(a.id) ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button>
         <button type="button" class="nl-knopf" data-p-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button>
         <button type="button" class="nl-knopf nw-primaer" data-p-anzeigen><i class="bi bi-eye"></i>Anzeigen</button>` });
     const q = x => h.querySelector(x);
@@ -193,7 +254,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       q('[data-p-von]').value = start;
       q('[data-p-bis]').value = heute;
     });
-    const werte = () => ({ klasse: q('[data-p-klasse]').value, schueler: q('[data-p-schueler]').value, von: q('[data-p-von]').value || von, bis: q('[data-p-bis]').value || bis,
+    const werte = () => (optMerken(a, Object.fromEntries([...h.querySelectorAll('[data-opt]')].map(x => [x.dataset.opt, x.type === 'checkbox' ? (x.checked ? '1' : '0') : x.value]))), {
+      klasse: q('[data-p-klasse]').value, schueler: q('[data-p-schueler]').value, von: q('[data-p-von]').value || von, bis: q('[data-p-bis]').value || bis,
       n1: Number(q('[data-p-n1]')?.value) || p.n1, n2: Number(q('[data-p-n2]')?.value) || p.n2 });
     q('[data-p-anzeigen]').onclick = () => anzeigen(a, werte());
     q('[data-p-pdf]').onclick = ev => exportieren(a, werte(), 'pdf', ev.currentTarget);
@@ -206,7 +268,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   const a = arten.find(x => x.id === art);
   const p = { klasse, schueler, von, bis, n1: vorgabe(a, 1), n2: vorgabe(a, 2) };
   let r;
-  try { r = await holen(`/api/app/berichte/erstellen/${art}?${abfrage(p)}`); }
+  try { r = await holen(`/api/app/berichte/erstellen/${art}?${abfrage(p)}${optQuery(a)}`); }
   catch (err) { vorschau.innerHTML = `<div class="br-vorschau s-karte p-3">${e(err.message)}</div>`; return; }
   const kopf = `<div class="br-druckkopf"><b>${e(kontext.sitzung.schule.name || '')}</b> · ${e(r.titel)}${klasse ? ` · Klasse ${e(klasse)}` : ''} · ${datumDe(r.von)} – ${datumDe(r.bis)}</div>`;
   const g = GRUPPEN[a.gruppe] ?? GRUPPEN.Weitere;
@@ -220,8 +282,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !zeilenArten?.[n] && z[i] !== '' && z[i] != null)
     && r.zeilen.every((z, n) => zeilenArten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
   const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${zeilenArten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
-    ${zeilen.map((z, n) => zeilenArten?.[n] === 'gruppe'
-      ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(z[0] ?? '')}</td></tr>`
+    ${zeilen.map((z, n) => ['gruppe', 'block'].includes(zeilenArten?.[n])
+      ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(String(z[0] ?? '').replace(/\t/g, ' ').replace(/\n/g, ' · '))}</td></tr>`
       : `<tr class="${zeilenArten?.[n] ? `br-${zeilenArten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   if (art === 'entschuldigungsschreiben') {
     // je Schüler*in eine Seite mit Unterschriftsfeld

@@ -780,3 +780,122 @@ struct Hinweisfeld: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+// MARK: - Listen mit Datumsgruppen („Meine Termine“, „Meine Abwesenheiten“)
+
+/// Kopf der Listen „Meine Termine“ bzw. „Meine Abwesenheiten“ wie in der Vorlage: Titel mittig (17 pt halbfett), darunter
+/// der Zeitraum („bis 18.07.2027“) etwas kleiner.
+struct Listentitel: View {
+    let titel: String
+    var untertitel: String? = nil
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(titel)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Farben.tinte2)
+            if let untertitel, !untertitel.isEmpty {
+                Text(untertitel)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Farben.tinte2)
+            }
+        }
+        .lineLimit(1)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Datumsgruppe über den Karten („Mo., 07.12.2026“).
+struct Datumsgruppenkopf: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 15))
+            .foregroundStyle(Farben.tinte2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 1)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// „Mo., 07.12.2026“ aus einem ISO-Datum.
+    static func text(_ iso: String) -> String {
+        Datumsformat.anzeige(iso, "EE, dd.MM.yyyy")
+    }
+}
+
+/// Zeile einer Listenkarte (unter der Überschrift).
+struct Listenkartenzeile {
+    var text: String
+    var farbe: Color? = nil
+    var symbol: String? = nil
+}
+
+/// Karte der Listen „Meine Termine“ und „Meine Abwesenheiten“ wie in der Vorlage: dunkle, abgerundete Fläche, links mittig
+/// ein Symbol (Mitte ≈ 28 pt vom Rand), ab ≈ 57 pt die Überschrift (20 pt) und darunter die Zeilen (17 pt).
+struct Listenkarte: View {
+    let symbol: String
+    var symbolFarbe: Color = Farben.tinte2
+    let titel: String
+    var zeilen: [Listenkartenzeile] = []
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Image(systemName: symbol)
+                .font(.system(size: 25, weight: .light))
+                .foregroundStyle(symbolFarbe)
+                .frame(width: 56)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(titel)
+                    .font(.system(size: 20))
+                    .foregroundStyle(Farben.tinte)
+                    .padding(.bottom, 1)
+                ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
+                    let z = eintrag.element
+                    HStack(alignment: .firstTextBaseline, spacing: 5) {
+                        if let s = z.symbol {
+                            Image(systemName: s)
+                                .font(.system(size: 14))
+                                .foregroundStyle(z.farbe ?? Farben.gedaempft)
+                        }
+                        Text(z.text)
+                            .font(.system(size: 17))
+                            .foregroundStyle(z.symbol == nil ? (z.farbe ?? Farben.tinte) : Farben.tinte)
+                            .lineLimit(4)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 1)
+        }
+        .padding(.trailing, 14)
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Einträge eines Tages in einer Liste mit Datumsgruppen.
+struct Datumsgruppe<Eintrag>: Identifiable {
+    let datum: String
+    var eintraege: [Eintrag]
+    var id: String { datum }
+
+    /// Nach Datum (ISO, die ersten zehn Zeichen) gruppieren; Reihenfolge der Einträge bleibt.
+    static func bilden(_ liste: [Eintrag], datum: (Eintrag) -> String) -> [Datumsgruppe<Eintrag>] {
+        var ergebnis: [Datumsgruppe<Eintrag>] = []
+        for e in liste {
+            let d = String(datum(e).prefix(10))
+            if let i = ergebnis.firstIndex(where: { $0.datum == d }) {
+                ergebnis[i].eintraege.append(e)
+            } else {
+                ergebnis.append(Datumsgruppe(datum: d, eintraege: [e]))
+            }
+        }
+        return ergebnis
+    }
+}

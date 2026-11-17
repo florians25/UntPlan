@@ -25,6 +25,7 @@ public static class ErweiterungApi
     public sealed record AbwesenheitAenderDaten(List<int> Ids, string? Grund, string? Bemerkung, string? Status,
         string? Nachweis = null, string? EntschuldigtAm = null, bool? ElternInformiert = null, string? NotizIntern = null);
     public sealed record IdsDaten(List<int> Ids);
+    public sealed record BereichDaten(DateOnly Von, DateOnly Bis, string? Klasse, int? Schueler);
     public sealed record DienstDaten(int DienstId, int SchuelerId, DateOnly Von, DateOnly Bis, string? Text);
     public sealed record DienstWocheDaten(int DienstId, int SchuelerId, DateOnly Datum, bool An);
     public sealed record DienstAutoDaten(string Klasse, int DienstId, DateOnly Von, DateOnly Bis, int? ProWoche);
@@ -33,7 +34,7 @@ public static class ErweiterungApi
         bool AntwortErlaubt = true);
     public sealed record ListeDaten(string Name, List<string>? Mitglieder);
     public sealed record ProfilDaten(string? Email, string? Sprache, bool Benachrichtigung);
-    public sealed record GrundDaten(string Kurz, string Name, string? Art, bool Entschuldigt, int? Reihenfolge, bool? Aktiv);
+    public sealed record GrundDaten(string Kurz, string Name, string? Art, bool Entschuldigt, int? Reihenfolge, bool? Aktiv, bool? Zaehlt = null);
     public sealed record DienstartDaten(string? Kurz, string Name, bool? Aktiv, int? Reihenfolge);
     public sealed record FreierTagDaten(DateOnly Von, DateOnly Bis, string? Art, string Name);
     public sealed record MassenDaten(string Aktion, List<int>? Ids);
@@ -183,6 +184,15 @@ public static class ErweiterungApi
             Results.Json(new { geloescht = kv.AbwesenheitenLoeschen(Kollegium(c), Paket(p), d.Ids ?? new()) }));
         api.MapPost("/abwesenheiten/zusammenfassen", (IdsDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
             Results.Json(new { zusammengefasst = kv.Zusammenfassen(Kollegium(c), Paket(p), d.Ids ?? new()) }));
+        // „Zusammenfassen“: alle dargestellten Abwesenheiten im Zeitbereich (Klasse bzw. Schüler*in), unabhängig von der Auswahl
+        api.MapPost("/abwesenheiten/zusammenfassen-bereich", (BereichDaten d, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv) =>
+            Results.Json(new { abwesenheiten = kv.ZusammenfassenBereich(Kollegium(c), Paket(p), d.Von, d.Bis, Leer(d.Klasse), d.Schueler) }));
+        // Entschuldigungsstatus mit Bedeutung (Dialog „Entschuldigung“) und Hinweis vor dem Zusammenfassen
+        api.MapGet("/abwesenheiten/statusliste", (HttpContext c) =>
+        {
+            Kollegium(c);
+            return Results.Json(new { status = Fehlzeitenrechnung.Statusliste, zusammenfassen = Fehlzeitenrechnung.ZusammenfassenHinweis });
+        });
 
         // ---------------------------------------------------------------- Klassendienste
 
@@ -259,15 +269,21 @@ public static class ErweiterungApi
             var b = RechtePruefung.Verlangen(Kollegium(c), Recht.BerichteSehen);
             var v = D(von, uhr.Heute.AddDays(-30));
             var bi = D(bis, uhr.Heute);
-            var bericht = kv.BerichtErstellen(Paket(p), b, art, v, bi, Leer(klasse), schueler, n1 ?? 0, n2 ?? 0);
+            // Einstellungen des Berichts (z. B. ausgabe=pro_stunde, status=entschuldigt, trennen=1, unterricht=…) aus der Anfrage
+            var optionen = c.Request.Query.ToDictionary(q => q.Key, q => q.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+            var bericht = kv.BerichtErstellen(Paket(p), b, art, v, bi, Leer(klasse), schueler, n1 ?? 0, n2 ?? 0, optionen);
             var dateiname = $"{art}-{Leer(klasse) ?? "alle"}-{v:yyyy-MM-dd}-{bi:yyyy-MM-dd}";
             if (format == "pdf")
             {
-                var schule = es.Schulname.Length > 0 ? es.Schulname : Paket(p).Paket.Schule.Name;
-                var unter = $"{(Leer(klasse) is { } kl ? $"Klasse {kl} · " : "")}Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}";
-                var pdf = PdfBericht.Erzeugen(schule, bericht.Titel, unter, bericht.Spalten,
-                    bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(), bericht.Hinweis,
-                    b.Anzeigename, true, PdfBericht.Hochformat(ausrichtung, false), bericht.Arten);
+                // wie im Original: rechts oben Schule und Schuljahr, Titel, Zeitraum, Linie, Kopfzeilen des Berichts, Tabelle (ohne Erklärtexte)
+                var stand = Paket(p);
+                var schule = es.Schulname.Length > 0 ? es.Schulname : stand.Paket.Schule.Name;
+                var sj = stand.Paket.Schule;
+                var schuljahr = sj.SchuljahrVon.Length >= 4 && sj.SchuljahrBis.Length >= 4 ? $"{sj.SchuljahrVon[..4]}/{sj.SchuljahrBis[..4]}" : "";
+                var darstellung = bericht.Darstellung ?? new Berichtsdarstellung { Kontext = Leer(klasse) is { } kl ? new() { $"Klasse: {kl}" } : null };
+                var pdf = PdfBericht.Original(schule, schuljahr, bericht.Titel, $"{v:dd.MM.yyyy} - {bi:dd.MM.yyyy}", bericht.Spalten,
+                    bericht.Zeilen.Select(z => (IReadOnlyList<string>)z.Select(x => Convert.ToString(x, System.Globalization.CultureInfo.GetCultureInfo("de-DE")) ?? "").ToList()).ToList(),
+                    bericht.Arten, darstellung, PdfBericht.Hochformat(ausrichtung, false), optionen.TryGetValue("ohneumbruch", out var ou) && ou is "1" or "true");
                 return Results.File(pdf, "application/pdf", dateiname + ".pdf");
             }
             return format == "csv"
@@ -361,12 +377,12 @@ public static class ErweiterungApi
         admin.MapPost("/gruende", (GrundDaten d, HttpContext c, Klassenbuchverwaltung kv) =>
         {
             Admin(c);
-            return Results.Json(kv.GrundSpeichern(null, d.Kurz, d.Name, d.Art ?? "abwesenheit", d.Entschuldigt, d.Reihenfolge ?? 0, d.Aktiv ?? true));
+            return Results.Json(kv.GrundSpeichern(null, d.Kurz, d.Name, d.Art ?? "abwesenheit", d.Entschuldigt, d.Reihenfolge ?? 0, d.Aktiv ?? true, d.Zaehlt));
         });
         admin.MapPut("/gruende/{id:int}", (int id, GrundDaten d, HttpContext c, Klassenbuchverwaltung kv) =>
         {
             Admin(c);
-            return Results.Json(kv.GrundSpeichern(id, d.Kurz, d.Name, d.Art ?? "abwesenheit", d.Entschuldigt, d.Reihenfolge ?? 0, d.Aktiv ?? true));
+            return Results.Json(kv.GrundSpeichern(id, d.Kurz, d.Name, d.Art ?? "abwesenheit", d.Entschuldigt, d.Reihenfolge ?? 0, d.Aktiv ?? true, d.Zaehlt));
         });
         admin.MapDelete("/gruende/{id:int}", (int id, HttpContext c, Klassenbuchverwaltung kv) => { Admin(c); kv.GrundLoeschen(id); return Results.Json(new { ok = true }); });
         admin.MapPost("/dienstarten", (DienstartDaten d, HttpContext c, Klassenbuchverwaltung kv) =>

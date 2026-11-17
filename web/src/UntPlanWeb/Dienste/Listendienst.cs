@@ -22,6 +22,13 @@ public sealed record Pruefung(string Datum, int StundeVon, int StundeBis, string
     public bool DarfLoeschen { get; init; }
 }
 
+/// <summary>Eintrag in „Meine Termine“ (App-Startseite): Veranstaltung, Sondereinsatz oder Prüfung der Lehrkraft bzw. Klasse.</summary>
+/// <param name="Art">veranstaltung, klausur, sondereinsatz</param>
+/// <param name="Status">Prüfungen: geplant bzw. vorgemerkt (in UntPlanWeb eingetragen, noch nicht übernommen); sonst leer.</param>
+/// <param name="Fach">Fach (Kürzel) einer Prüfung, wenn bekannt.</param>
+public sealed record Termineintrag(string Art, string Status, string Titel, string Text, string Fach, string Von, string Bis, int StundeVon, int StundeBis,
+    string Beginn, string Ende, List<string> Klassen, List<string> Lehrer, List<string> Raeume);
+
 /// <summary>Abwesenheit einer Schülerin/eines Schülers an einem Tag (aufeinanderfolgende Stunden zusammengefasst).</summary>
 public sealed record Abwesenheitszeile(int SchuelerId, string Schueler, string Klasse, string Datum, int StundeVon, int StundeBis, string Beginn, string Ende,
     string Art, int Minuten, string Status, string Bemerkung, List<string> Faecher, List<string> Lehrer, List<int> Ids, bool Verwalten, string Grund = "", string Gruppe = "")
@@ -145,6 +152,36 @@ public sealed class Listendienst
             { Art = PruefungsArt(m.Titel ?? "", m.Text ?? ""), Fach = FachAus(s, m.Titel ?? ""), Aufgegeben = m.Erstellt.Length >= 10 ? m.Erstellt[..10] : "" });
         }
         return res.OrderBy(x => x.Datum).ThenBy(x => x.StundeVon).ThenBy(x => x.Klassen.FirstOrDefault() ?? "", De).ToList();
+    }
+
+    /// <summary>
+    /// „Meine Termine“: Veranstaltungen und Sondereinsätze aus UntPlan sowie Prüfungen (auch vorgemerkte), die von
+    /// <paramref name="von"/> bis <paramref name="bis"/> stattfinden (mehrtägige auch, wenn sie schon begonnen haben) –
+    /// gefiltert nach Klasse bzw. Lehrkraft (ohne beides: alle), nach Datum und Stunde sortiert.
+    /// </summary>
+    public List<Termineintrag> MeineTermine(Stand s, IEnumerable<Meldung> offeneKlausuren, DateOnly von, DateOnly bis, string? klasse, string? lehrer,
+        IEnumerable<Meldung>? loeschungen = null)
+    {
+        var zeiten = Zeiten(s);
+        string Beginn(int n) => zeiten.TryGetValue(n, out var z) ? z.Beginn : "";
+        string Ende(int n) => zeiten.TryGetValue(n, out var z) ? z.Ende : "";
+        bool Passt(IReadOnlyCollection<string> klassen, IReadOnlyCollection<string> lehrerListe) =>
+            (string.IsNullOrEmpty(klasse) || klassen.Contains(klasse, Ci)) && (string.IsNullOrEmpty(lehrer) || lehrerListe.Contains(lehrer, Ci));
+        var res = new List<Termineintrag>();
+        foreach (var t in s.Paket.Termine)
+        {
+            if (t.Art == "klausur" || !DateOnly.TryParse(t.Von, out var anfang)) continue;
+            var ende = DateOnly.TryParse(t.Bis, out var e) && e >= anfang ? e : anfang;
+            if (ende < von || anfang > bis || !Passt(t.Klassen, t.Lehrer)) continue;
+            var sv = t.StundeVon;
+            var sb = Math.Max(sv, t.StundeBis);
+            res.Add(new Termineintrag(t.Art, "", t.Titel, "", "", t.Von, t.Bis.Length > 0 ? t.Bis : t.Von, sv, sb, sv > 0 ? Beginn(sv) : "", sb > 0 ? Ende(sb) : "",
+                t.Klassen, t.Lehrer, t.Raeume));
+        }
+        foreach (var p in Pruefungen(s, offeneKlausuren, von, bis, klasse, lehrer, loeschungen))
+            res.Add(new Termineintrag("klausur", p.Status, p.Titel, p.Text, p.Fach, p.Datum, p.Datum, p.StundeVon, p.StundeBis, p.Beginn, p.Ende,
+                p.Klassen, p.Lehrer, p.Raeume));
+        return res.OrderBy(x => x.Von, StringComparer.Ordinal).ThenBy(x => x.StundeVon).ThenBy(x => x.Titel, De).ToList();
     }
 
     public static readonly string[] Pruefungsarten = { "Klassenarbeit", "Klausur", "Test", "Abschlussprüfung", "Präsentation", "Referat", "Vergleichsarbeit" };

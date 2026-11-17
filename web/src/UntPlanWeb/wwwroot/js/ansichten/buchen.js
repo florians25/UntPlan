@@ -44,12 +44,22 @@ export async function zeigen(seite, kontext, [bereich, ...rest]) {
   stileLaden();
   switch (bereich) {
     case 'ressource': return assistent(seite, kontext, 'ressource', rest);
-    case 'aktivitaet': return assistent(seite, kontext, 'aktivitaet', rest);
-    case 'stunden': return assistent(seite, kontext, 'unterricht', rest);
+    // Termin-Modul (termin.js): Neue Aktivität, zusätzliche Stunden, Terminsuche, Buchung bearbeiten, Übersicht, Raumliste, Raumwechsel,
+    // Neuer Unterricht und Buchungsbeschränkungen
+    case 'aktivitaet': return (await import('./termin.js')).neueAktivitaet(seite, kontext, rest);
+    case 'stunden': return (await import('./termin.js')).zusaetzlicheStunden(seite, kontext, [`e${rest[0] ?? ''}`]);
+    case 'zusatz': return (await import('./termin.js')).zusaetzlicheStunden(seite, kontext, rest);
+    case 'terminsuche': return (await import('./termin.js')).terminsuche(seite, kontext, rest);
+    case 'buchung': return (await import('./termin.js')).buchungBearbeiten(seite, kontext, rest);
+    // frühere Adresse …/uebersicht: kein eigener Menüpunkt mehr → erster echter Punkt „Raum buchen“
+    case 'uebersicht': kontext.navigieren('#/buchen/raum', true); return;
+    case 'raumliste': return (await import('./termin.js')).raumliste(seite, kontext);
+    case 'raumwechsel': return (await import('./termin.js')).raumwechsel(seite, kontext, rest);
+    case 'beschraenkungen': return (await import('./termin.js')).beschraenkungen(seite, kontext);
     case 'meine': return meineBuchungen(seite, kontext, rest);
     case 'raeume': return raumuebersicht(seite, kontext, rest);
     case 'ressourcen': return ressourcenuebersicht(seite, kontext, rest);
-    case 'unterricht': return eigeneUnterrichte(seite, kontext);
+    case 'unterricht': return rest[0] === 'neu' ? (await import('./termin.js')).neuerUnterricht(seite, kontext) : eigeneUnterrichte(seite, kontext);
     case 'sperren': return buchungenSperren(seite, kontext);
     case 'verwaltung': case 'raumdaten': return (await import('./buchungsverwaltung.js')).zeigen(seite, kontext, bereich);
     default: return raumBuchen(seite, kontext, rest);
@@ -544,9 +554,11 @@ const ANSICHTEN = [['kommend', 'Kommend'], ['vergangen', 'Vergangen'], ['stornie
 async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
   const ich = kontext.ich;
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
-  const bis = iso.test(bisParam ?? '') ? bisParam : plusTage(heuteIso(), 180);
+  // wie in der Vorlage: Buchungen der ausgewählten Woche (Blättern je Woche; über Von/Bis auch längere Zeiträume)
+  const von = iso.test(vonParam ?? '') ? vonParam : montag(heuteIso());
+  const bis = iso.test(bisParam ?? '') ? bisParam : plusTage(montag(heuteIso()), 6);
   const alle = ich.admin && alleParam === 'alle';
+  const woche = n => { const m = plusTage(montag(von), 7 * n); return ziel(m, plusTage(m, 6)); };
   const ziel = (v = von, b = bis, a = alle) => `#/buchen/meine/${v}/${b}${a ? '/alle' : ''}`;
   kontext.titel(alle ? 'Alle Buchungen' : 'Meine Buchungen', '', '');
   const liste = await holen(`/api/app/buchen/liste?von=${von}&bis=${bis}${alle ? '&alle=true' : ''}`);
@@ -561,14 +573,28 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
       ${suchfeldMitFilter({ platzhalter: 'Titel, Raum, Klasse …', wert: filter.suche, label: 'Buchungen durchsuchen', klasse: 'bu-meine-suche',
         filter: [{ name: 'art', label: 'Art', optionen: Object.entries(ART_NAME), wert: filter.art, alle: 'Alle Arten' }] })}
       ${zeitraumPillen(von, bis)}
-      <div class="u-sf-rechts"><button type="button" class="nl-knopf" data-csv title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Export</button>
-        <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neue Buchung</a></div>
+      <div class="u-sf-rechts"><button type="button" class="nl-knopf" data-csv title="Buchungsliste als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Buchungsliste</button>
+        <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neu</a></div>
     </div>
     <div class="nl-leiste bu-leiste2">
+      <span class="bu-woche"><a class="nl-knopf klein" href="${woche(-1)}" title="Vorherige Woche" aria-label="Vorherige Woche"><i class="bi bi-chevron-left"></i></a>
+        <b>${e(datumDe(von))} - ${e(datumDe(bis))}</b><a class="nl-knopf klein" href="${woche(1)}" title="Nächste Woche" aria-label="Nächste Woche"><i class="bi bi-chevron-right"></i></a>
+        <a class="nl-knopf klein" href="${ziel(montag(heuteIso()), plusTage(montag(heuteIso()), 6))}">Aktuelle Woche</a></span>
       <div class="bu-segment" role="radiogroup" aria-label="Ansicht">${ANSICHTEN.map(([w, t]) => `<button type="button" role="radio" aria-checked="${filter.ansicht === w}" class="${filter.ansicht === w ? 'an' : ''}" data-ansicht="${w}">${t}<span class="bu-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
       ${ich.admin ? `<label class="rw-schalter ms-auto"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
     </div>
-    <div data-liste></div>`;
+    <div data-liste></div>
+    <div data-eigene></div>`;
+  // Neuer Unterricht (ohne Termin angelegt) erscheint auch hier – zusätzliche Stunden direkt verplanen
+  holen('/api/app/buchen/unterricht').then(eigene => {
+    const ziel = seite.querySelector('[data-eigene]');
+    if (!ziel || !eigene.length) return;
+    ziel.innerHTML = `<div class="bu-monat">Neuer Unterricht</div><div class="bu-liste">${eigene.map(u => `<div class="bu-eintrag-zeile">
+      <div class="bu-datum"><i class="bi bi-easel" aria-hidden="true"></i></div>
+      <div class="bu-haupt"><div class="bu-titelzeile"><span class="bu-titel">${e(u.fach)} ${e(u.klassen.join(', '))}</span><span class="nl-chip grau">Unterricht</span></div>
+        <div class="bu-meta"><span><i class="bi bi-person"></i>${e(u.lehrer)}</span>${u.gruppe ? `<span>${e(u.gruppe)}</span>` : ''}<span class="nl-unter">${u.gebuchteStunden} Stunden gebucht</span></div></div>
+      <div class="bu-status"></div><div class="bu-aktionen"><a class="nl-knopf klein" href="#/buchen/zusatz/e${u.id}"><i class="bi bi-calendar-plus"></i>Zusätzliche Stunden</a></div></div>`).join('')}</div>`;
+  }).catch(() => {});
   const sichtbar = () => liste.filter(b => passtAnsicht(b, filter.ansicht, heute) && (!filter.art || b.art === filter.art)
     && (!filter.suche || [b.titel, b.text, b.raum, b.klassen.join(' '), b.lehrer, b.fach, b.absender, b.artName, b.ressourcen.map(r => r.name).join(' '), datumDe(b.datum)].join(' ').toLowerCase().includes(filter.suche.toLowerCase())))
     .sort((a, b) => (filter.ansicht === 'vergangen' ? -1 : 1) * (a.datum.localeCompare(b.datum) || a.stundeVon - b.stundeVon));
@@ -576,17 +602,24 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
   const zeile = (b, kind = false) => `<div class="bu-eintrag-zeile ${b.status === 'storniert' ? 'storniert' : ''} ${b.datum < heute ? 'vergangen' : ''} ${kind ? 'kind' : ''}">
       <div class="bu-datum"><b>${e(new Date(b.datum + 'T12:00').getDate())}</b><span>${e(new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { month: 'short' }))}</span><small>${e(new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' }))}</small></div>
       <div class="bu-haupt">
-        <div class="bu-titelzeile"><span class="bu-titel">${e(b.titel || b.artName)}</span><span class="nl-chip ${ART_CHIP[b.art] ?? 'grau'}">${e(b.artName)}</span></div>
+        <div class="bu-titelzeile"><a class="bu-nr-link" href="#/buchen/buchung/${b.id}" title="Buchung ${b.id} bearbeiten">${b.id}</a><span class="bu-titel">${e(b.titel || b.artName)}</span><span class="nl-chip ${ART_CHIP[b.art] ?? 'grau'}">${e(b.artName)}</span>
+          ${b.status === 'aktiv' ? `<span class="nl-chip ${b.bestaetigt ? 'gruen' : 'gelb'}">${e(b.statusText ?? 'Bestätigt')}</span>` : ''}</div>
         <div class="bu-meta"><span><i class="bi bi-clock"></i>${stdText(b.stundeVon, b.stundeBis)} · ${e(b.beginn)}–${e(b.ende)}</span>
           ${b.raum ? `<span><i class="bi bi-door-open"></i><a href="#/plan/raum/${encodeURIComponent(b.raum)}/${b.datum}">${e(b.raum)}</a></span>` : ''}
           ${b.ressourcen.length ? `<span><i class="bi bi-box-seam"></i>${e(b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}× ` : ''}${r.name}`).join(', '))}</span>` : ''}
           ${b.klassen.length ? `<span><i class="bi bi-people"></i>${e(b.klassen.join(', '))}</span>` : ''}
-          ${b.lehrer ? `<span><i class="bi bi-person"></i>${e(b.lehrer)}${b.fach ? ` · ${e(b.fach)}` : ''}</span>` : ''}
+          ${b.lehrer ? `<span><i class="bi bi-person"></i>${e((b.alleLehrer ?? [b.lehrer]).join(', '))}${b.fach ? ` · ${e(b.fach)}` : ''}</span>` : ''}
+          ${b.weitereRaeume?.length ? `<span><i class="bi bi-door-open"></i>${e(b.weitereRaeume.join(', '))}</span>` : ''}
+          ${b.schueler ? `<span><i class="bi bi-person-check"></i>${b.schueler} Schüler*innen</span>` : ''}
+          <span class="nl-unter">${b.serie ? 'Serie' : 'einmalig'} · aufgegeben am ${e(b.erstellt)}</span>
           ${alle || b.benutzerId !== ich.id ? `<span class="nl-unter">gebucht von ${e(b.absender)}</span>` : ''}</div>
         ${b.text ? `<div class="bu-text">${e(b.text)}</div>` : ''}
       </div>
       <div class="bu-status">${b.status === 'storniert' ? '<span class="rw-status belegt">storniert</span>' : b.uebertragen ? '<span class="rw-status frei" title="von UntPlan übernommen">übernommen</span>' : b.datum < heute ? '<span class="rw-status">vergangen</span>' : '<span class="rw-status teil">gebucht</span>'}</div>
-      <div class="bu-aktionen">${darf(b) ? `<button type="button" class="nl-knopf klein" data-storno="${b.id}"><i class="bi bi-x-circle"></i>Stornieren</button>` : ''}</div></div>`;
+      <div class="bu-aktionen"><a class="nl-knopf klein" href="#/buchen/buchung/${b.id}"><i class="bi bi-pencil"></i>Bearbeiten</a>
+        <button type="button" class="nl-icon sichtbar" data-bericht="${b.id}" title="Bericht (PDF)" aria-label="Bericht (PDF)"><i class="bi bi-filetype-pdf"></i></button>
+        ${ich.admin && b.status === 'aktiv' && !b.bestaetigt ? `<button type="button" class="nl-knopf klein" data-bestaetigen="${b.id}"><i class="bi bi-check2-circle"></i>Bestätigen</button>` : ''}
+        ${darf(b) ? `<button type="button" class="nl-knopf klein" data-storno="${b.id}"><i class="bi bi-x-circle"></i>Stornieren</button>` : ''}</div></div>`;
   const zeichnen = () => {
     const l = sichtbar();
     const box = seite.querySelector('[data-liste]');
@@ -621,6 +654,17 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
       } else html.push(zeile(b));
     }
     box.innerHTML = `<div class="bu-liste">${html.join('')}</div>`;
+    box.querySelectorAll('[data-bestaetigen]').forEach(k => k.onclick = async () => {
+      try { const r = await senden(`/api/app/buchen/${k.dataset.bestaetigen}/bestaetigen?serie=true`, {}); toast(`${r.bestaetigt} ${r.bestaetigt === 1 ? 'Termin' : 'Termine'} bestätigt.`); kontext.navigieren(ziel(), true); }
+      catch (err) { kontext.fehler(err); }
+    });
+    box.querySelectorAll('[data-bericht]').forEach(k => k.onclick = async () => {
+      try {
+        const r = await fetch(`/api/app/buchen/${k.dataset.bericht}/beleg.pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+        if (!r.ok) throw new Error('PDF konnte nicht erstellt werden.');
+        herunterladen(`buchung-${k.dataset.bericht}.pdf`, await r.blob(), 'application/pdf');
+      } catch (err) { kontext.fehler(err); }
+    });
     box.querySelectorAll('[data-serie-auf]').forEach(k => k.onclick = () => { const s = k.dataset.serieAuf; if (offenSerien.has(s)) offenSerien.delete(s); else offenSerien.add(s); zeichnen(); });
     box.querySelectorAll('[data-storno], [data-serie-storno]').forEach(k => k.onclick = async () => {
       const b = liste.find(x => String(x.id) === (k.dataset.storno ?? k.dataset.serieStorno));
@@ -645,9 +689,9 @@ async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
   seite.querySelectorAll('[data-von], [data-bis]').forEach(f => f.onchange = () => kontext.navigieren(ziel(seite.querySelector('[data-von]').value || von, seite.querySelector('[data-bis]').value || bis)));
   seite.querySelector('[data-alle]')?.addEventListener('change', ev => kontext.navigieren(ziel(von, bis, ev.target.checked)));
   seite.querySelector('[data-csv]').onclick = () => herunterladen(`buchungen-${von}-${bis}.csv`, csv([
-    ['Datum', 'Wochentag', 'Stunde von', 'Stunde bis', 'Beginn', 'Ende', 'Art', 'Raum', 'Ressourcen', 'Klassen', 'Lehrkraft', 'Fach', 'Titel', 'Bemerkung', 'Status', 'Serie', 'Gebucht von', 'Erstellt'],
-    ...sichtbar().map(b => [datumDe(b.datum), b.wochentag, b.stundeVon, b.stundeBis, b.beginn, b.ende, b.artName, b.raum, b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}x ` : ''}${r.name}`).join(', '),
-      b.klassen.join(', '), b.lehrer, b.fach, b.titel, b.text, b.status, b.serie, b.absender, b.erstellt])]));
+    ['Buchung', 'Datum', 'Wochentag', 'Stunde von', 'Stunde bis', 'Beginn', 'Ende', 'Art', 'Raum', 'Ressourcen', 'Klassen', 'Lehrkraft', 'Fach', 'Titel', 'Bemerkung', 'Anmerkung', 'Status', 'Periodizität', 'Serie', 'Schüler', 'Gebucht von', 'Aufgegeben am'],
+    ...sichtbar().map(b => [b.id, datumDe(b.datum), b.wochentag, b.stundeVon, b.stundeBis, b.beginn, b.ende, b.artName, (b.alleRaeume ?? [b.raum]).join(', '), b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}x ` : ''}${r.name}`).join(', '),
+      b.klassen.join(', '), (b.alleLehrer ?? [b.lehrer]).join(', '), b.fach, b.titel, b.text, b.zusatz?.anmerkung ?? '', b.status === 'aktiv' ? b.statusText ?? b.status : b.status, b.serie ? 'Serie' : 'einmalig', b.serie, b.schueler ?? 0, b.absender, b.erstellt])]));
   zeichnen();
 }
 /** Filter von „Meine Buchungen“ (bleibt während der Sitzung erhalten). */
@@ -1278,11 +1322,11 @@ async function eigeneUnterrichte(seite, kontext) {
   kontext.titel('Neuer Unterricht', `<a class="nl-knopf" href="#/unterricht"><i class="bi bi-easel"></i>Mein Unterricht</a>`, `${liste.length}`);
   seite.innerHTML = `
     <div class="nl-leiste"><p class="nl-hinweis mb-0"><i class="bi bi-info-circle"></i>Legen Sie hier Unterricht an, der nicht im Stundenplan aus UntPlan steht, und verplanen Sie danach seine Stunden über „Zusätzliche Stunden“.</p>
-      <button type="button" class="nl-hinzu ms-auto" data-neu><i class="bi bi-plus-lg"></i>Neuer Unterricht</button></div>
+      <button type="button" class="nl-knopf ms-auto" data-neu>Schnell anlegen</button><a class="nl-hinzu" href="#/buchen/unterricht/neu"><i class="bi bi-plus-lg"></i>Neuer Unterricht</a></div>
     <div class="nl-tabelle bu-tabelle">${liste.length ? `<table><thead><tr><th>Fach</th><th>Klassen</th><th>Lehrkraft</th><th>Bezeichnung</th><th class="text-end">Wst</th><th class="text-end">gebucht</th><th></th></tr></thead><tbody>
       ${liste.map(u => `<tr><td><span class="nl-tag">${e(u.fach)}</span></td><td><div class="nl-name">${e(u.klassen.join(', ') || '–')}</div></td><td>${e(u.lehrer)}</td>
         <td class="nl-text">${e(u.gruppe)}${u.text ? `<div class="nl-unter">${e(u.text)}</div>` : ''}</td><td class="text-end">${u.wochenstunden || ''}</td><td class="text-end">${u.gebuchteStunden} Std.</td>
-        <td class="text-end text-nowrap"><a class="nl-knopf" href="#/buchen/stunden/${u.id}"><i class="bi bi-calendar-plus"></i>Zusätzliche Stunden</a>
+        <td class="text-end text-nowrap"><a class="nl-knopf" href="#/buchen/zusatz/e${u.id}"><i class="bi bi-calendar-plus"></i>Zusätzliche Stunden</a>
           ${ich.admin || u.benutzerId === ich.id ? `<button type="button" class="nl-icon rot" data-weg="${u.id}" title="Löschen" aria-label="Löschen"><i class="bi bi-trash"></i></button>` : ''}</td></tr>`).join('')}
       </tbody></table>` : `<div class="p-3">${leer('Noch kein Unterricht in UntPlanWeb angelegt.', 'easel')}</div>`}</div>`;
   seite.querySelectorAll('[data-weg]').forEach(b => b.onclick = async () => {
@@ -1303,7 +1347,7 @@ async function eigeneUnterrichte(seite, kontext) {
       const u = await senden('/api/app/buchen/unterricht', { lehrer: w('lehrer').value || null, fach: w('fach').value, klassen: [...w('klassen').selectedOptions].map(o => o.value),
         gruppe: w('gruppe').value, text: w('text').value, wochenstunden: Number(w('wochenstunden').value) || 0 });
       toast('Unterricht angelegt – jetzt zusätzliche Stunden verplanen.');
-      kontext.navigieren(`#/buchen/stunden/${u.id}`);
+      kontext.navigieren(`#/buchen/zusatz/e${u.id}`);
     } }],
   });
 }
@@ -1526,9 +1570,9 @@ async function raumBuchen(seite, kontext, rest) {
       <dl class="rb-angaben"><dt>Klasse</dt><dd>${e(x.klassen.join(', ') || '–')}</dd><dt>Lehrkraft</dt><dd>${e(x.lehrer || '–')}</dd><dt>Fach</dt><dd>${e(x.fach || '–')}</dd>
         ${x.titel ? `<dt>Titel</dt><dd>${e(x.titel)}</dd>` : ''}</dl>
       <table class="pe-tabelle rb-ergebnis"><thead><tr><th>Datum</th><th>Zeit</th><th>${e(raum)}</th></tr></thead>
-        <tbody>${b.map(t => `<tr><td>${e(datumDe(t.datum))}</td><td>${e(zeit(t))}</td><td><span class="rb-status">Bestätigt</span></td></tr>`).join('')}</tbody></table>
+        <tbody>${b.map(t => `<tr><td>${e(datumDe(t.datum))}</td><td>${e(zeit(t))}</td><td><span class="rb-status" ${t.bestaetigt ? '' : 'style="background:#fff4c7;color:#6b5300"'}>${e(t.statusText ?? 'Bestätigt')}</span></td></tr>`).join('')}</tbody></table>
       ${gespeichert.hinweise?.length ? `<p class="rb-leer">${e(gespeichert.hinweise.join(' '))}</p>` : ''}`,
-      '<button type="button" class="pe-knopf" data-pdf>PDF</button><button type="button" class="pe-knopf primaer" data-schliessen>Schließen</button>');
+      `<button type="button" class="pe-knopf" data-pdf>PDF</button><a class="pe-knopf" href="#/buchen/buchung/${x.id}">Bearbeiten</a><button type="button" class="pe-knopf primaer" data-schliessen>Schließen</button>`);
     seite.querySelector('[data-pdf]').onclick = async () => {
       try {
         const r = await fetch(`/api/app/buchen/${x.id}/beleg.pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });

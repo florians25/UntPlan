@@ -40,6 +40,8 @@ public sealed record Fehlzeit(int Id, string Datum, int Stunde, int Unterricht, 
     public string Beginn { get; init; } = "";
     /// <summary>Minutengenau: abwesend bis (HH:mm) innerhalb der Stunde; leer = bis Stundenende bzw. aus Art und Minuten abgeleitet.</summary>
     public string Ende { get; init; } = "";
+    /// <summary>Name des Entschuldigungsstatus (z. B. „Nicht akzeptiert“, „u-1Mahn“); leer = einer der Grundstatus.</summary>
+    public string StatusName { get; init; } = "";
 }
 
 /// <summary>Vermerk im Klassenbuch (zur Klasse oder zu einzelnen Schülern), z. B. Ordnungsmaßnahme, Elterngespräch, Lob.</summary>
@@ -119,6 +121,8 @@ public sealed partial class Klassenbuchdienst
     {
         Nachweis = r.Text("nachweis"), EntschuldigtAm = r.Text("entschuldigt_am"), ElternInformiert = r.Zahl("eltern_informiert") != 0, NotizIntern = r.Text("notiz_intern"),
         Beginn = r.Text("beginn"), Ende = r.Text("ende"),
+        // Name des Entschuldigungsstatus nur, solange er zum gezählten Status passt (z. B. nach „Entschuldigen“ nicht mehr „u-1Mahn“)
+        StatusName = r.Text("status_name") is { Length: > 0 } sn && Fehlzeitenrechnung.StatusAus(sn)?.Status == r.Text("status") ? sn : "",
     };
 
     internal static Fehlzeit FehlzeitLesen(System.Data.Common.DbDataReader r) => LesenFehlzeit(r);
@@ -127,7 +131,14 @@ public sealed partial class Klassenbuchdienst
         r.Text("art"), r.Text("text"), r.Text("lehrer"), r.Text("erstellt")) { Zeit = r.Text("zeit"), BenutzerId = r.ZahlOderNull("benutzer_id") ?? 0 };
 
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
-    public static readonly string[] VermerkArten = { "Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt" };
+    public static readonly string[] VermerkArten = { "Vermerk", "Ordnungsmaßnahme", "Elterngespräch", "Lob", "Material vergessen", "Hausaufgabe fehlt",
+        "Erzieherische Maßnahme", "Trainingsraum", "Konsequenzmodell" };
+
+    /// <summary>Kategoriegruppen der Klassenbucheinträge: Maßnahmen (EM, OM, TR, KoMo) – Übersicht je Schüler*in und Bericht zur Beratung.</summary>
+    public static readonly Dictionary<string, string[]> VermerkGruppen = new()
+    {
+        ["Maßnahme"] = new[] { "Erzieherische Maßnahme", "Ordnungsmaßnahme", "Trainingsraum", "Konsequenzmodell" },
+    };
 
     /// <summary>Einträge im Zeitraum – ohne <paramref name="mitEinzelstunden"/> nur Blockeinträge (wie vor den Einzelstunden: Listen, Berichte, Abgleich mit UntPlan).</summary>
     public List<Klassenbucheintrag> Zeitraum(DateOnly von, DateOnly bis, bool mitEinzelstunden = false) =>

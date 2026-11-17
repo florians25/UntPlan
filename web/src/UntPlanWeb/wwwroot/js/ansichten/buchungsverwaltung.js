@@ -125,7 +125,7 @@ async function raumdaten(seite, kontext) {
       ...(opt.gebaeude.length ? [{ name: 'gebaeude', label: 'Gebäude', alle: 'Alle Gebäude', wert: '', optionen: opt.gebaeude.map(x => [x, x]) }] : []),
       { name: 'buchbar', label: 'Buchbar', alle: 'Alle Räume', wert: '', optionen: [['ja', 'Nur buchbare'], ['nein', 'Nicht buchbare']] }] })}</div>
     ${liste('bu-geb', opt.gebaeude)}${liste('bu-abt', opt.abteilungen)}${liste('bu-grp', opt.raumgruppen)}
-    <div class="nl-tabelle bu-tabelle"><table class="bu-raumdaten"><thead><tr><th>Raum</th><th>Raumart</th><th>Buchbar</th><th>Kapazität</th><th>Gebäude</th><th>Abteilung</th><th>Raumgruppe</th><th>Feste Ressourcen</th></tr></thead><tbody>
+    <div class="nl-tabelle bu-tabelle"><table class="bu-raumdaten"><thead><tr><th>Raum</th><th>Raumart</th><th>Buchbar</th><th>Kapazität</th><th>Gebäude</th><th>Abteilung</th><th>Raumgruppe</th><th>Nur reservieren</th><th>Feste Ressourcen</th></tr></thead><tbody>
       ${opt.raeume.map(r => `<tr data-raum="${e(r.kurz)}" data-gebaeude="${e(r.gebaeude)}" data-buchbar="${r.buchbar ? 'ja' : 'nein'}" data-name="${e(`${r.kurz} ${r.name} ${r.raumart} ${r.gebaeude} ${r.abteilung} ${r.raumgruppe}`.toLowerCase())}">
         <td><div class="nl-name">${e(r.kurz)}</div><div class="nl-unter">${e(r.name !== r.kurz ? r.name : '')}</div></td>
         <td>${r.raumart ? `<span class="nl-tag">${e(r.raumart)}</span>` : ''}</td>
@@ -134,13 +134,15 @@ async function raumdaten(seite, kontext) {
         <td><input class="form-control" name="gebaeude" list="bu-geb" maxlength="100" value="${e(r.gebaeude)}" aria-label="Gebäude ${e(r.kurz)}"></td>
         <td><input class="form-control" name="abteilung" list="bu-abt" maxlength="100" value="${e(r.abteilung)}" aria-label="Abteilung ${e(r.kurz)}"></td>
         <td><input class="form-control" name="raumgruppe" list="bu-grp" maxlength="100" value="${e(r.raumgruppe)}" aria-label="Raumgruppe ${e(r.kurz)}"></td>
+        <td><input type="checkbox" class="form-check-input" name="nurReservieren" ${r.nurReservieren ? 'checked' : ''} aria-label="Raum ${e(r.kurz)} nur reservieren (Bestätigung durch die Raumadministration)"></td>
         <td><div class="nl-chips">${r.ressourcen.map(x => `<span class="nl-chip grau">${e(x)}</span>`).join('')}</div></td></tr>`).join('')}
     </tbody></table></div>`;
   seite.querySelectorAll('tr[data-raum] input').forEach(f => f.addEventListener('change', async () => {
     const tr = f.closest('tr');
     const w = n => tr.querySelector(`[name=${n}]`).value;
     try {
-      await senden(`/api/app/buchen/raumdaten/${encodeURIComponent(tr.dataset.raum)}`, { kapazitaet: Number(w('kapazitaet')) || 0, gebaeude: w('gebaeude'), abteilung: w('abteilung'), raumgruppe: w('raumgruppe') }, 'PUT');
+      await senden(`/api/app/buchen/raumdaten/${encodeURIComponent(tr.dataset.raum)}`, { kapazitaet: Number(w('kapazitaet')) || 0, gebaeude: w('gebaeude'), abteilung: w('abteilung'), raumgruppe: w('raumgruppe'),
+        nurReservieren: tr.querySelector('[name=nurReservieren]').checked }, 'PUT');
       toast(`Raum ${tr.dataset.raum} gespeichert.`);
     } catch (err) { kontext.fehler(err); }
   }));

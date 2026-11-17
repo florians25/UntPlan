@@ -6,7 +6,11 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 /// <summary>Abwesenheits- bzw. Befreiungsgrund (Stammdaten in UntPlanWeb).</summary>
-public sealed record Abwesenheitsgrund(int Id, string Kurz, string Name, string Art, bool Entschuldigt, int Reihenfolge, bool Aktiv);
+public sealed record Abwesenheitsgrund(int Id, string Kurz, string Name, string Art, bool Entschuldigt, int Reihenfolge, bool Aktiv)
+{
+    /// <summary>Abwesenheiten mit diesem Grund zählen als Fehlzeit (z. B. „Schul“ – andere schulische Veranstaltung – zählt nicht).</summary>
+    public bool Zaehlt { get; init; } = true;
+}
 
 /// <summary>Art eines Klassendienstes (z. B. Klassenordner, Klassensprecher*in).</summary>
 public sealed record Dienstart(int Id, string Kurz, string Name, bool Aktiv, int Reihenfolge);
@@ -24,10 +28,43 @@ public sealed record Stundenzeile(string Lehrer, List<string> Klassen, string Fa
 /// <summary>Bericht als Tabelle (Vorschau, Druck, CSV).</summary>
 /// <param name="Arten">Optional je Zeile: <c>""</c> (Datenzeile), <c>gruppe</c> (Gruppenkopf, z. B. „Klasse 7a“), <c>zwischensumme</c> (Summe je
 /// Schüler*in), <c>summe</c> (Summe je Klasse) – für gegliederte Berichte in der Web-Ansicht und im PDF.</param>
-public sealed record Bericht(string Id, string Titel, List<string> Spalten, List<List<object?>> Zeilen, string? Hinweis = null, List<string>? Arten = null);
+public sealed record Bericht(string Id, string Titel, List<string> Spalten, List<List<object?>> Zeilen, string? Hinweis = null, List<string>? Arten = null)
+{
+    /// <summary>Darstellung im PDF wie im Original (Spaltengruppen, Kopfzeilen, Gitter, Seitenumbrüche); null = Vorgabe.</summary>
+    public Berichtsdarstellung? Darstellung { get; init; }
+}
+
+/// <summary>
+/// PDF-Darstellung eines Berichts wie im Original: Zeilen unter dem Kopf (z. B. „Klasse: 7a, Fach: M“), Spaltengruppen über mehreren Spalten
+/// (z. B. „Fehlstunden“ über „Schulst“ und „Std.“), eigene Spaltenköpfe, grau hinterlegte Spalten, senkrechte Spaltenköpfe (Fehlstundenmatrix),
+/// Tabelle mit Gitter oder nur grauem Kopf, Seitenumbruch je Block (Schüler*in). Zeilenart <c>block</c>: Kopfblock „Bezeichnung\tWert“ je Zeile.
+/// </summary>
+public sealed record Berichtsdarstellung
+{
+    public List<string>? Kontext { get; init; }
+    public bool KontextFett { get; init; }
+    public List<string>? Gruppen { get; init; }
+    public List<string>? Koepfe { get; init; }
+    public List<int>? Grau { get; init; }
+    public bool Gitter { get; init; } = true;
+    public int SenkrechtAb { get; init; } = -1;
+    public bool Seitenumbruch { get; init; }
+    /// <summary>Spaltenköpfe fett.</summary>
+    public bool KopfFett { get; init; }
+    /// <summary>Tabelle über die ganze Seitenbreite: der freie Platz geht an diese Spalten.</summary>
+    public List<int>? Breit { get; init; }
+    /// <summary>ohne Spaltenköpfe (z. B. Deckblatt).</summary>
+    public bool OhneKopf { get; init; }
+}
 
 /// <summary>Verfügbarer Bericht (Gruppe wie im Original: Abwesenheiten, Klassenbucheinträge, Arbeitsbericht, Prüfungen, Weitere).</summary>
-public sealed record Berichtsart(string Id, string Gruppe, string Titel, bool KlasseNoetig = false, string? Parameter = null);
+public sealed record Berichtsart(string Id, string Gruppe, string Titel, bool KlasseNoetig = false, string? Parameter = null)
+{
+    /// <summary>Einstellungen des Berichts (Auswahl wie „pro Stunde“, Haken wie „Fehltage und -zeiten trennen“).</summary>
+    public List<Berichtsoption>? Optionen { get; init; }
+    /// <summary>Bericht zum Unterricht (Unterricht → Mein Unterricht → Berichte), braucht die Unterrichtsnummer.</summary>
+    public bool Unterricht { get; init; }
+}
 
 /// <summary>
 /// Verwaltung im Klassenbuch über die Einträge je Stunde hinaus:
@@ -38,7 +75,7 @@ public sealed record Berichtsart(string Id, string Gruppe, string Titel, bool Kl
 /// <item>Berichte (Fehlzeiten, Fehltage, Überschreitungen, Einträge, Arbeitsbericht, Prüfungen …).</item>
 /// </list>
 /// </summary>
-public sealed class Klassenbuchverwaltung
+public sealed partial class Klassenbuchverwaltung
 {
     private readonly Db _db;
     private readonly Uhr _uhr;
@@ -109,9 +146,10 @@ public sealed class Klassenbuchverwaltung
     // ------------------------------------------------------------------------------------------ Abwesenheitsgründe
 
     public List<Abwesenheitsgrund> Gruende(string? art = null) => _db.Liste("SELECT * FROM abwesenheitsgruende WHERE (@a IS NULL OR art = @a) ORDER BY art, reihenfolge, name",
-        r => new Abwesenheitsgrund(r.Zahl("id"), r.Text("kurz"), r.Text("name"), r.Text("art"), r.Wahr("entschuldigt"), r.Zahl("reihenfolge"), r.Wahr("aktiv")), Db.P("@a", art));
+        r => new Abwesenheitsgrund(r.Zahl("id"), r.Text("kurz"), r.Text("name"), r.Text("art"), r.Wahr("entschuldigt"), r.Zahl("reihenfolge"), r.Wahr("aktiv")) { Zaehlt = r.Wahr("zaehlt") },
+        Db.P("@a", art));
 
-    public Abwesenheitsgrund GrundSpeichern(int? id, string kurz, string name, string art, bool entschuldigt, int reihenfolge, bool aktiv)
+    public Abwesenheitsgrund GrundSpeichern(int? id, string kurz, string name, string art, bool entschuldigt, int reihenfolge, bool aktiv, bool? zaehlt = null)
     {
         if (string.IsNullOrWhiteSpace(kurz) || string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Bitte Kürzel und Bezeichnung eingeben.");
         art = art == "befreiung" ? "befreiung" : "abwesenheit";
@@ -119,6 +157,7 @@ public sealed class Klassenbuchverwaltung
         if (id is null) id = (int)_db.Einfuegen("INSERT INTO abwesenheitsgruende (kurz, name, art, entschuldigt, reihenfolge, aktiv) VALUES (@k, @n, @a, @e, @r, @ak)", p);
         else if (_db.Ausfuehren("UPDATE abwesenheitsgruende SET kurz = @k, name = @n, art = @a, entschuldigt = @e, reihenfolge = @r, aktiv = @ak WHERE id = @id", p) == 0)
             throw new ArgumentException("Unbekannter Eintrag.");
+        if (zaehlt is bool z) _db.Ausfuehren("UPDATE abwesenheitsgruende SET zaehlt = @z WHERE id = @id", Db.P("@z", z), Db.P("@id", id));
         return Gruende().First(g => g.Id == id);
     }
 
@@ -145,16 +184,23 @@ public sealed class Klassenbuchverwaltung
     {
         var n = 0;
         var einst = _kb.Einstellungen();
+        // Entschuldigungsstatus mit Namen (z. B. „Nicht akzeptiert“, „u-1Mahn“): gezählt als unentschuldigt, der Name bleibt sichtbar
+        string? statusName = null;
+        if (status is not null)
+        {
+            var sa = Fehlzeitenrechnung.StatusAus(status) ?? throw new ArgumentException("Unbekannter Entschuldigungsstatus.");
+            (status, statusName) = sa;
+        }
         foreach (var f in FehlzeitenNachIds(b, s, ids))
         {
             // „Entschuldigungsstatus immer mit Abwesenheitsgrund ändern“: neuer Grund ohne ausdrücklichen Status
             if (status is null && grund is not null && _kb.StatusNachGrund(einst, f.Status, f.Grund, grund.Trim()) is var sg && sg != f.Status) status = sg;
             n += _db.Ausfuehren("UPDATE fehlzeiten SET grund = COALESCE(@g, grund), bemerkung = COALESCE(@b, bemerkung), status = COALESCE(@s, status), " +
                 "nachweis = COALESCE(@n, nachweis), entschuldigt_am = COALESCE(@ea, entschuldigt_am), eltern_informiert = COALESCE(@ei, eltern_informiert), " +
-                "notiz_intern = COALESCE(@ni, notiz_intern) WHERE id = @i",
+                "notiz_intern = COALESCE(@ni, notiz_intern), status_name = COALESCE(@sn, status_name) WHERE id = @i",
                 Db.P("@g", grund?.Trim()), Db.P("@b", bemerkung?.Trim()), Db.P("@s", status is "offen" or "entschuldigt" or "unentschuldigt" ? status : null),
                 Db.P("@n", nachweis is null ? null : Nachweis(nachweis)), Db.P("@ea", entschuldigtAm is null ? null : DatumOderLeer(entschuldigtAm)),
-                Db.P("@ei", elternInformiert is null ? null : elternInformiert.Value ? 1 : 0), Db.P("@ni", notizIntern?.Trim()), Db.P("@i", f.Id));
+                Db.P("@ei", elternInformiert is null ? null : elternInformiert.Value ? 1 : 0), Db.P("@ni", notizIntern?.Trim()), Db.P("@sn", statusName), Db.P("@i", f.Id));
         }
         return n;
     }
@@ -187,6 +233,62 @@ public sealed class Klassenbuchverwaltung
             _db.Ausfuehren("UPDATE fehlzeiten SET gruppe = @gr, grund = @g, bemerkung = @b, status = @s WHERE id = @i",
                 Db.P("@gr", gruppe), Db.P("@g", grund), Db.P("@b", bem), Db.P("@s", status), Db.P("@i", f.Id));
         return liste.Count;
+    }
+
+    /// <summary>
+    /// „Zusammenfassen“ in Klassenbuch → Abwesenheiten: unabhängig von einer Auswahl werden alle dargestellten Abwesenheiten im Zeitbereich
+    /// (Klasse bzw. Schüler*in) möglichst zusammengefasst – auch jene ohne Entschuldigungsstatus. Abwesenheiten mit verschiedenen
+    /// Abwesenheitsgründen oder Entschuldigungsstatus und solche, zwischen denen die Schülerin bzw. der Schüler im Unterricht anwesend war,
+    /// bleiben getrennt (<see cref="Fehlzeitenrechnung.Zusammenfassen"/>). Ergebnis: Zahl der entstandenen Abwesenheiten.
+    /// </summary>
+    public int ZusammenfassenBereich(Benutzer b, Stand s, DateOnly von, DateOnly bis, string? klasse, int? schueler)
+    {
+        var liste = _kb.FehlzeitenZeitraum(von, bis, string.IsNullOrEmpty(klasse) ? null : klasse)
+            .Where(f => (schueler is null || f.SchuelerId == schueler) && Klassenbuchdienst.IstKlassenleitung(b, s, f.Klasse)).ToList();
+        var zeitraeume = _kb.Zeitraeume(s, liste, _ => true);
+        static DateTime Zeit(string d, string z) => DateTime.TryParse($"{d} {z}", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) ? t : DateTime.MinValue;
+        var bloecke = zeitraeume.Select(z => new Zusammenfassblock(z.Schluessel, z.SchuelerId, z.Grund,
+            z.StatusGemischt ? $"gemischt:{z.Schluessel}" : z.StatusName.Length > 0 ? z.StatusName : z.Status, Zeit(z.VonDatum, z.VonZeit), Zeit(z.BisDatum, z.BisZeit))).ToList();
+        var nachSchluessel = zeitraeume.ToDictionary(z => z.Schluessel);
+        var fehlend = liste.Select(f => (f.SchuelerId, f.Datum, f.Stunde)).ToHashSet();
+        var klassen = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Klasse);
+        // anwesend dazwischen: eine Unterrichtsstunde der Klasse liegt ganz zwischen beiden Abwesenheiten und hat keine Fehlzeit
+        bool AnwesendDazwischen(int sid, DateTime ende, DateTime beginn)
+        {
+            if (!klassen.TryGetValue(sid, out var kl)) return true;
+            for (var d = DateOnly.FromDateTime(ende); d <= DateOnly.FromDateTime(beginn); d = d.AddDays(1))
+            {
+                if (_plan.Frei(s, d).Frei) continue;
+                foreach (var k in _plan.Karten(s, d, Elementtyp.Klasse, kl).Where(k => k.Unterricht.HasValue && k.Status is not ("entfall" or "veranstaltung")))
+                    for (var n = k.Von; n <= k.Bis; n++)
+                    {
+                        var (sb, se) = Klassenbuchdienst.StundenZeit(s, n);
+                        var b0 = d.ToDateTime(sb);
+                        var e0 = d.ToDateTime(se);
+                        if (b0 >= ende && e0 <= beginn && !fehlend.Contains((sid, Plandienst.Iso(d), n))) return true;
+                    }
+            }
+            return false;
+        }
+        var n = 0;
+        foreach (var (gruppe, status) in Fehlzeitenrechnung.Zusammenfassen(bloecke, AnwesendDazwischen))
+        {
+            var ids = gruppe.SelectMany(g => nachSchluessel[g.Schluessel].Ids).ToList();
+            var text = gruppe.Select(g => nachSchluessel[g.Schluessel].Text).FirstOrDefault(t => t.Length > 0);
+            var (st, name) = Fehlzeitenrechnung.StatusAus(status) ?? ("offen", "");
+            var neu = Klassenbuchdienst.GruppenPraefix + Sicherheit.Zufall(10);
+            _db.Transaktion(c =>
+            {
+                foreach (var id in ids)
+                    Db.Ausfuehren(c, "UPDATE fehlzeiten SET gruppe = @gr, status = @s, status_name = @sn WHERE id = @i",
+                        Db.P("@gr", neu), Db.P("@s", st), Db.P("@sn", name), Db.P("@i", id));
+                if (text is not null)
+                    foreach (var id in ids)
+                        Db.Ausfuehren(c, "UPDATE fehlzeiten SET bemerkung = @b WHERE id = @i AND bemerkung = ''", Db.P("@b", text), Db.P("@i", id));
+            });
+            n++;
+        }
+        return n;
     }
 
     /// <summary>Zuletzt verwendete Texte (Vorschläge beim Entschuldigen).</summary>
@@ -393,41 +495,54 @@ public sealed class Klassenbuchverwaltung
 
     public static readonly List<Berichtsart> Berichtsarten = new()
     {
-        new("fehlzeiten_schueler", "Abwesenheiten", "Fehlzeiten pro Schüler*in"),
-        new("fehlzeiten_klasse", "Abwesenheiten", "Fehlzeiten pro Klasse"),
-        new("fehlzeiten_fach", "Abwesenheiten", "Fehlzeiten pro Fach"),
-        new("fehltage_klasse", "Abwesenheiten", "Fehltage pro Klasse"),
+        new("fehlzeiten_schueler", "Abwesenheiten", "Fehlzeiten pro Schüler*in") { Optionen = OptionenFehlzeitenSchueler },
+        new("fehlzeiten_klasse", "Abwesenheiten", "Fehlzeiten pro Klasse") { Optionen = OptionenFehlzeitenKlasse },
+        new("fehlzeiten_fach", "Abwesenheiten", "Fehlzeiten pro Fach") { Optionen = OptionenFehlzeitenFach },
+        new("fehltage_klasse", "Abwesenheiten", "Fehltage pro Klasse") { Optionen = OptionenFehltage },
         new("verspaetungen", "Abwesenheiten", "Verspätungen und vorzeitiges Gehen"),
         new("verspaetungen_auffaellig", "Abwesenheiten", "Auffällige Verspätungen", false, "mindestens {n1} Verspätungen"),
         new("abwesenheitsueberschreitung", "Abwesenheiten", "Abwesenheitsüberschreitung", false, "mehr als {n1} Fehlstunden in {n2} Wochen"),
         new("abwesenheiten", "Abwesenheiten", "Abwesenheiten"),
         new("anwesenheiten", "Abwesenheiten", "Anwesenheiten"),
-        new("unentschuldigt", "Abwesenheiten", "Unentschuldigte Abwesenheiten", false, "mindestens {n1} Tage am Stück"),
+        new("unentschuldigt", "Abwesenheiten", "Unentschuldigte Abwesenheiten", false, "länger als {n1} Tage"),
         new("statusuebersicht", "Abwesenheiten", "Fehlzeitenübersicht nach Entschuldigungsstatus"),
-        new("entschuldigungsschreiben", "Abwesenheiten", "Entschuldigungsschreiben"),
-        new("klassenbucheintraege", "Klassenbucheinträge", "Klassenbucheinträge pro Klasse"),
-        new("klassenbucheintraege_schueler", "Klassenbucheinträge", "Klassenbucheinträge pro Schüler*in"),
+        new("entschuldigungsschreiben", "Abwesenheiten", "Entschuldigungsschreiben") { Optionen = OptionenEntschuldigung },
+        new("klassenbucheintraege", "Klassenbucheinträge", "Klassenbucheinträge pro Klasse") { Optionen = OptionenEintraegeKlasse },
+        new("klassenbucheintraege_schueler", "Klassenbucheinträge", "Klassenbucheinträge pro Schüler*in") { Optionen = OptionenEintraegeSchueler },
         new("arbeitsbericht_tag", "Arbeitsbericht", "Arbeitsbericht je Tag", true),
-        new("tagesuebersicht", "Arbeitsbericht", "Tagesübersicht Klasse", true),
-        new("wochenuebersicht", "Arbeitsbericht", "Wochenübersicht Klasse", true),
+        new("tagesuebersicht", "Arbeitsbericht", "Tagesübersicht Klasse", true) { Optionen = OptionenTag },
+        new("wochenuebersicht", "Arbeitsbericht", "Wochenübersicht Klasse", true) { Optionen = OptionenWoche },
         new("pruefungen", "Prüfungen", "Prüfungen"),
         new("befreiungen", "Weitere", "Befreiungen"),
         new("klassendienste", "Weitere", "Klassendienste"),
+        new("klassenbuch_deckblatt", "Klassenbuch", "Klassenbuch Deckblatt", true),
+        // Berichte zum Unterricht (Unterricht → Mein Unterricht → Berichte)
+        new("arbeitsbericht_unterricht", "Unterricht", "Arbeitsbericht") { Unterricht = true },
+        new("fehlzeiten_unterricht_schueler", "Unterricht", "Fehlzeiten pro Unterricht pro Schüler*in") { Unterricht = true },
+        new("fehlzeiten_unterricht_stunde", "Unterricht", "Fehlzeiten pro Unterricht pro Stunde") { Unterricht = true },
+        new("fehlstundenmatrix", "Unterricht", "Fehlstundenmatrix") { Unterricht = true, Optionen = OptionenMatrix },
+        new("schueler_unterricht", "Unterricht", "Schüler*innen im Unterricht") { Unterricht = true },
     };
 
-    public Bericht BerichtErstellen(Stand s, Benutzer b, string art, DateOnly von, DateOnly bis, string? klasse, int? schueler, int n1, int n2)
+    public Bericht BerichtErstellen(Stand s, Benutzer b, string art, DateOnly von, DateOnly bis, string? klasse, int? schueler, int n1, int n2) =>
+        BerichtErstellen(s, b, art, von, bis, klasse, schueler, n1, n2, null);
+
+    /// <param name="optionen">Einstellungen des Berichts (siehe <see cref="Berichtsart.Optionen"/>), z. B. ausgabe=pro_stunde, trennen=1.</param>
+    public Bericht BerichtErstellen(Stand s, Benutzer b, string art, DateOnly von, DateOnly bis, string? klasse, int? schueler, int n1, int n2,
+        IReadOnlyDictionary<string, string>? optionen)
     {
         var info = Berichtsarten.FirstOrDefault(x => x.Id == art) ?? throw new ArgumentException("Unbekannter Bericht.");
         if (info.KlasseNoetig && string.IsNullOrEmpty(klasse)) throw new ArgumentException("Bitte eine Klasse wählen.");
         if (bis < von) (von, bis) = (bis, von);
         if (bis.DayNumber - von.DayNumber > 400) throw new ArgumentException("Bitte einen Zeitraum von höchstens einem Schuljahr wählen.");
+        if (Zusatzbericht(s, b, info, von, bis, klasse, schueler, optionen ?? new Dictionary<string, string>()) is Bericht zusatz) return zusatz;
         var namen = Schueler(s);
         var klassen = string.IsNullOrEmpty(klasse) ? s.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList() : new List<string> { klasse };
         var schuelerListe = Klassenzugehoerigkeit.ImZeitraum(s, klassen, von, bis).Where(x => schueler is null || x.Id == schueler).ToList();
         List<Fehlzeit> Fz(DateOnly v, DateOnly bi) => _kb.FehlzeitenZeitraum(v, bi, string.IsNullOrEmpty(klasse) ? null : klasse).Where(f => schueler is null || f.SchuelerId == schueler).ToList();
         string N(int id) => Name(namen, id);
         string Datum(string iso) => DateOnly.TryParse(iso, out var d) ? d.ToString("dd.MM.yyyy") : iso;
-        var gruende = Gruende().ToDictionary(g => g.Kurz, g => g.Name, Ci);
+        var gruende = Gruende().GroupBy(g => g.Kurz, Ci).ToDictionary(g => g.Key, g => g.First().Name, Ci);
         string Grund(string g) => gruende.TryGetValue(g, out var n) ? n : g;
         Bericht B(List<string> spalten, IEnumerable<IEnumerable<object?>> zeilen, string? hinweis = null) => new(art, info.Titel, spalten, zeilen.Select(z => z.ToList()).ToList(), hinweis);
         // gegliederter Bericht: Zeilen mit Art (Gruppenkopf, Datenzeile, Zwischensumme je Schüler*in, Summe je Klasse)
@@ -504,7 +619,9 @@ public sealed class Klassenbuchverwaltung
             }
             case "fehlzeiten_fach":
             {
-                var fz = Fz(von, bis).Where(f => f.Art == "fehlt");
+                // Status wie im Original: - Alle - | [entschuldigt] | [nicht entschuldigt] (offen zählt als nicht entschuldigt)
+                var st = optionen?.GetValueOrDefault("status") ?? "alle";
+                var fz = Fz(von, bis).Where(f => f.Art == "fehlt" && (st is not ("entschuldigt" or "nicht_entschuldigt") || (st == "entschuldigt") == (f.Status == "entschuldigt")));
                 return B(new() { "Klasse", "Fach", "Fehlstunden", "Schüler*innen", "entschuldigt", "unentschuldigt", "offen" },
                     fz.GroupBy(f => (f.Klasse, f.Fach)).OrderBy(g => g.Key.Klasse, De).ThenBy(g => g.Key.Fach, De)
                         .Select(g => new object?[] { g.Key.Klasse, g.Key.Fach.Length > 0 ? g.Key.Fach : "–", g.Count(), g.Select(f => f.SchuelerId).Distinct().Count(),
@@ -515,6 +632,13 @@ public sealed class Klassenbuchverwaltung
                 // wie die Vorlage „Fehltage pro Klasse“: je Klasse, je Schüler*in eine Zeile je Fehltag, Summe je Schüler*in mit Schultagen, Summe je Klasse.
                 // Ein Tag gilt als unentschuldigt, wenn eine Stunde unentschuldigt ist, als entschuldigt, wenn alle Stunden entschuldigt sind, sonst als offen.
                 var fz = Fz(von, bis).Where(f => f.Art == "fehlt").ToList();
+                // „Ganze Tage“: nur Tage, an denen in allen Unterrichtsstunden laut Plan gefehlt wurde
+                if (optionen?.GetValueOrDefault("ganze") is "1" or "true")
+                {
+                    var plan = _kb.PlanFinder(s);
+                    fz = fz.GroupBy(f => (f.SchuelerId, f.Datum)).Where(g => { var pl = plan(g.First().Klasse, g.Key.Datum); return pl.Count > 0 && pl.All(e => g.Any(f => f.Stunde == e.Stunde)); })
+                        .SelectMany(g => g).ToList();
+                }
                 var zeilen = new List<(string, object?[])>();
                 foreach (var k in klassen)
                 {
@@ -564,7 +688,8 @@ public sealed class Klassenbuchverwaltung
             {
                 // wie die Vorlage „Unentschuldigte Abwesenheiten“: je Klasse und Schüler*in die zusammenhängenden Abwesenheiten ohne Entschuldigung
                 // (unentschuldigt bzw. noch offen) mit Beginn, Ende, Tagen, Stunden und Grund; Summe je Schüler*in und je Klasse
-                n1 = Math.Max(1, n1);
+                // „länger als {n1} Tage“ (Vorgabe im Dialog 3)
+                n1 = Math.Max(0, n1);
                 var fz = Fz(von, bis).Where(f => f.Art == "fehlt" && f.Status is "unentschuldigt" or "offen").ToList();
                 var zeilen = new List<(string, object?[])>();
                 foreach (var k in klassen)
@@ -587,7 +712,7 @@ public sealed class Klassenbuchverwaltung
                             }
                             bloecke.Add(new() { t });
                         }
-                        bloecke = bloecke.Where(bl => bl.Count >= n1).ToList();
+                        bloecke = bloecke.Where(bl => bl.Count > n1).ToList();
                         if (bloecke.Count > 0) kinder.Add((x.Id, bloecke));
                     }
                     if (kinder.Count == 0) continue;
@@ -611,7 +736,7 @@ public sealed class Klassenbuchverwaltung
                     zeilen.Add(("summe", new object?[] { $"Summe {k}", $"{kinder.Count} Schüler*innen", "", kT, kS, "", "" }));
                 }
                 return G(new() { "Schüler*in", "Beginn", "Ende", "Tage", "Stunden", "Grund", "Status" }, zeilen,
-                    n1 > 1 ? $"Zusammenhängende Abwesenheiten ohne Entschuldigung (unentschuldigt oder noch offen) von mindestens {n1} Tagen."
+                    n1 > 0 ? $"Zusammenhängende Abwesenheiten ohne Entschuldigung (unentschuldigt oder noch offen), länger als {n1} Tage."
                         : "Zusammenhängende Abwesenheiten ohne Entschuldigung (unentschuldigt oder noch offen).");
             }
             case "statusuebersicht":
@@ -651,23 +776,6 @@ public sealed class Klassenbuchverwaltung
                         return new object?[] { x.Klasse, N(x.Id), soll, Math.Max(0, soll - fehl), fehl, soll == 0 ? "–" : $"{Math.Round(100.0 * Math.Max(0, soll - fehl) / soll)} %" };
                     }));
             }
-            case "entschuldigungsschreiben":
-                return B(new() { "Schüler*in", "Klasse", "Datum", "Stunden", "Fächer", "Grund", "Status" },
-                    _listen.Abwesenheiten(s, b, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null)
-                        .Where(z => z.Art == "fehlt" && z.Status != "entschuldigt" && (schueler is null || z.SchuelerId == schueler))
-                        .OrderBy(z => z.Schueler, De).ThenBy(z => z.Datum)
-                        .Select(z => new object?[] { z.Schueler, z.Klasse, Datum(z.Datum), z.StundeVon == z.StundeBis ? $"{z.StundeVon}." : $"{z.StundeVon}.–{z.StundeBis}.",
-                            string.Join(", ", z.Faecher), Grund(z.Grund), z.Status }),
-                    "Je Schüler*in eine Seite mit den noch nicht entschuldigten Fehlstunden zum Unterschreiben durch die Erziehungsberechtigten.");
-            case "klassenbucheintraege":
-            case "klassenbucheintraege_schueler":
-            {
-                var liste = _listen.Vermerke(s, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null).Where(v => schueler is null || v.SchuelerId == schueler);
-                if (art == "klassenbucheintraege_schueler") liste = liste.Where(v => v.SchuelerId != null).OrderBy(v => v.Schueler, De).ThenBy(v => v.Datum);
-                else liste = liste.OrderBy(v => v.Klasse, De).ThenBy(v => v.Datum);
-                return B(new() { "Datum", "Klasse", "Schüler*in", "Kategorie", "Text", "Lehrkraft" },
-                    liste.Select(v => new object?[] { Datum(v.Datum), v.Klasse, v.Schueler, v.Art, v.Text, v.Lehrer }));
-            }
             case "arbeitsbericht_tag":
             case "wochenuebersicht":
             {
@@ -680,21 +788,33 @@ public sealed class Klassenbuchverwaltung
             }
             case "tagesuebersicht":
             {
-                var tag = _kb.Woche(s, klasse!, Plandienst.Montag(von));
-                var iso = Plandienst.Iso(von);
-                var json = JsonSerializer.SerializeToElement(tag, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-                var zeilen = new List<object?[]>();
-                foreach (var t in json.GetProperty("tage").EnumerateArray().Where(t => t.GetProperty("datum").GetString() == iso))
-                    foreach (var st in t.GetProperty("stunden").EnumerateArray())
+                // je Unterrichtstag im Zeitraum ein Kopf mit dem Datum und eine eigene Seite (außer „ohne Seitenumbrüche“), höchstens 31 Tage
+                var zeilen = new List<(string, object?[])>();
+                var optJson = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+                var wochen = new Dictionary<DateOnly, JsonElement>();
+                var tage = 0;
+                for (var d = von; d <= bis && tage < 31; d = d.AddDays(1))
+                {
+                    var mo = Plandienst.Montag(d);
+                    if (!wochen.TryGetValue(mo, out var json)) wochen[mo] = json = JsonSerializer.SerializeToElement(_kb.Woche(s, klasse!, mo), optJson);
+                    var iso = Plandienst.Iso(d);
+                    var stunden = json.GetProperty("tage").EnumerateArray().Where(t => t.GetProperty("datum").GetString() == iso).SelectMany(t => t.GetProperty("stunden").EnumerateArray()).ToList();
+                    if (stunden.Count == 0) continue;
+                    tage++;
+                    zeilen.Add(("block", new object?[] { $"{Plandienst.Wochentage[Plandienst.TagIndex(d)]}\t{d:dd.MM.yyyy}", "", "", "", "", "", "", "" }));
+                    foreach (var st in stunden)
                     {
                         var vonN = st.GetProperty("von").GetInt32();
                         var bisN = st.GetProperty("bis").GetInt32();
-                        zeilen.Add(new object?[] { vonN == bisN ? $"{vonN}." : $"{vonN}.–{bisN}.", $"{st.GetProperty("beginn").GetString()}–{st.GetProperty("ende").GetString()}",
+                        zeilen.Add(("", new object?[] { vonN == bisN ? $"{vonN}." : $"{vonN}.–{bisN}.", $"{st.GetProperty("beginn").GetString()}–{st.GetProperty("ende").GetString()}",
                             st.GetProperty("fach").GetString(), string.Join(", ", st.GetProperty("lehrer").EnumerateArray().Select(x => x.GetString())),
                             string.Join(", ", st.GetProperty("raeume").EnumerateArray().Select(x => x.GetString())), st.GetProperty("status").GetString() == "entfall" ? "Entfall" : st.GetProperty("thema").GetString(),
-                            string.Join(", ", st.GetProperty("fehlend").EnumerateArray().Select(x => x.GetString())), st.GetProperty("hausaufgabe").GetString() });
+                            string.Join(", ", st.GetProperty("fehlend").EnumerateArray().Select(x => x.GetString())), st.GetProperty("hausaufgabe").GetString() }));
                     }
-                return B(new() { "Std.", "Zeit", "Fach", "Lehrkraft", "Raum", "Lehrstoff", "Abwesend", "Hausaufgabe" }, zeilen, $"{Plandienst.Wochentage[Plandienst.TagIndex(von)]}, {von:dd.MM.yyyy}");
+                }
+                return G(new() { "Std.", "Zeit", "Fach", "Lehrkraft", "Raum", "Lehrstoff", "Abwesend", "Hausaufgabe" }, zeilen,
+                    von == bis ? $"{Plandienst.Wochentage[Plandienst.TagIndex(von)]}, {von:dd.MM.yyyy}" : $"{von:dd.MM.yyyy} – {bis:dd.MM.yyyy}") with
+                    { Darstellung = new Berichtsdarstellung { Kontext = new() { $"Klasse: {klasse}" }, Seitenumbruch = true } };
             }
             case "pruefungen":
                 return B(new() { "Datum", "Stunden", "Zeit", "Prüfung", "Klassen", "Lehrkräfte", "Räume", "Status" },

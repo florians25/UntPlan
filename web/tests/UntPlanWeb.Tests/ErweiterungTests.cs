@@ -169,7 +169,7 @@ public class ErweiterungTests
         var leitung = await s.AlsAsync("leitung", "leitung", "");
         var sid = stand.Paket.Elemente.Schueler.First(x => x.Klasse == "7a").Id;
         await Testserver.JsonAsync(await leitung.PostAsJsonAsync("/api/app/abwesenheiten", new { schuelerId = sid, von = "2026-10-12", bis = "2026-10-12", grund = "K" }));
-        var r = await Testserver.HolenAsync(leitung, $"/api/app/berichte/erstellen/{art}?klasse=7a&von=2026-10-12&bis=2026-10-14&n1=1&n2=2");
+        var r = await Testserver.HolenAsync(leitung, $"/api/app/berichte/erstellen/{art}?klasse=7a&von=2026-10-12&bis=2026-10-14&n1={(art == "unentschuldigt" ? 0 : 1)}&n2=2");
         Assert.NotEmpty(r["spalten"]!.AsArray());
         if (art is "fehlzeiten_schueler" or "fehltage_klasse" or "abwesenheiten" or "unentschuldigt")
             Assert.NotEmpty(r["zeilen"]!.AsArray());

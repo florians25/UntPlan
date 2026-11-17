@@ -15,8 +15,9 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
   const klasse = alleKlassen ? '' : klasseParam && klasseParam !== '-' && klasseParam !== 'alle' ? klasseParam : eigene ?? el.klassen[0]?.kurz ?? '';
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const sj = kontext.sitzung.schuljahr;
-  const von = iso.test(vonParam ?? '') ? vonParam : montag(heuteIso());
-  const bis = iso.test(bisParam ?? '') ? bisParam : (sj?.bis && sj.bis > von ? (plusTage(von, 7 * 10) < sj.bis ? plusTage(von, 7 * 10 - 1) : sj.bis) : plusTage(von, 69));
+  // Listenansicht: Datumsbereich automatisch das ganze Schuljahr (Leitfaden Klassenleitung, Klassensprecher eintragen)
+  const von = iso.test(vonParam ?? '') ? vonParam : liste && sj?.von ? sj.von : montag(heuteIso());
+  const bis = iso.test(bisParam ?? '') ? bisParam : liste && sj?.bis ? sj.bis : (sj?.bis && sj.bis > von ? (plusTage(von, 7 * 10) < sj.bis ? plusTage(von, 7 * 10 - 1) : sj.bis) : plusTage(von, 69));
   const d = await holen(`/api/app/klassendienste?klasse=${encodeURIComponent(klasse)}&von=${von}&bis=${bis}`);
   const alleDienste = liste && (!dienstParam || dienstParam === '-' || dienstParam === 'alle');
   const dienst = d.arten.find(a => String(a.id) === dienstParam) ?? d.arten.find(a => a.name === 'Klassenordner') ?? d.arten[0];
@@ -91,8 +92,8 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
     gruppen.sort((a, b) => a.von.localeCompare(b.von) || a.dienst.localeCompare(b.dienst, 'de'));
     const phase = g => g.bis < heute ? ['vorbei', 'grau'] : g.von > heute ? ['geplant', 'blau'] : ['aktuell', 'gruen'];
     const darf = d.verwalten || ich.admin;
-    kontext.titel('Klassendienste', `<a class="btn btn-outline-secondary" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">${icon('woche')}Zeitansicht</a>
-      ${d.verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Dienst einteilen</button>` : ''}`, klasse || 'alle Klassen');
+    kontext.titel('Klassendienste', `<a class="btn btn-outline-secondary" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">${icon('woche')}Zur Zeitansicht wechseln</a>
+      ${d.verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}`, klasse || 'alle Klassen');
     seite.innerHTML = `<div class="kd-seite">
       <div class="u-sf-leiste u-kopfteil kd-filter">
         ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Dienst oder Text suchen', label: 'Einteilungen durchsuchen', filter: [
@@ -147,13 +148,14 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
       const kl = g?.klasse || klasse;
       if (!schueler.length && kl) schueler = await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(kl)}`).catch(() => []);
       const gewaehlt = new Set((g?.eintraege ?? []).map(z => z.schuelerId));
-      const vonV = g?.von ?? montag(heuteIso()), bisV = g?.bis ?? plusTage(montag(heuteIso()), 4);
+      // neuer Dienst: Datumsbereich der Liste (Standard: ganzes Schuljahr, z. B. Klassensprecher*in)
+      const vonV = g?.von ?? von, bisV = g?.bis ?? bis;
       dialog({
-        titel: g ? 'Einteilung bearbeiten' : `Dienst einteilen · ${kl}`,
+        titel: g ? `Klassendienste ${g.klasse || kl}` : `Klassendienste ${kl}`,
         breit: true,
         inhalt: `<div class="kd-dialog">
           <div class="kd-dialog-reihe">
-            <label class="kd-dfeld"><span>Dienst</span><select class="form-select" name="dienstId">${d.arten.map(a => `<option value="${a.id}" ${a.id === (g?.dienstId ?? (alleDienste ? d.arten[0]?.id : dienst?.id)) ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
+            <label class="kd-dfeld"><span>Dienst</span><select class="form-select" name="dienstId">${g ? '' : '<option value="">- Auswahl -</option>'}${d.arten.map(a => `<option value="${a.id}" ${a.id === (g?.dienstId ?? (alleDienste ? d.arten[0]?.id : dienst?.id)) ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
             <label class="kd-dfeld"><span>Von</span><input type="date" class="form-control" name="von" value="${vonV}"></label>
             <label class="kd-dfeld"><span>Bis</span><input type="date" class="form-control" name="bis" value="${bisV}"></label>
           </div>
@@ -162,7 +164,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
           <div class="kd-dfeld"><span>Schüler*innen <small data-zahl>${gewaehlt.size ? `· ${gewaehlt.size} gewählt` : ''}</small></span>
             <div class="kd-auswahl"><input type="search" class="form-control" data-suche placeholder="Name suchen …" aria-label="Schüler*in suchen">
               <div class="kd-liste">${schueler.map(x => `<label class="kd-option" data-name="${e(`${x.name} ${x.vorname}`.toLowerCase())}"><input type="checkbox" value="${x.id}" ${gewaehlt.has(x.id) ? 'checked' : ''}><span class="kd-avatar">${e(ini(`${x.name} ${x.vorname}`))}</span>${e(x.name)} ${e(x.vorname)}</label>`).join('') || '<div class="small text-body-secondary p-2">Keine Schülerliste übertragen.</div>'}</div></div></div>
-          <label class="kd-dfeld"><span>Text (optional)</span><input class="form-control" name="text" maxlength="200" value="${e(g?.text ?? '')}" placeholder="z. B. Tafel wischen, Fenster schließen"></label>
+          <label class="kd-dfeld"><span>Anmerkung</span><input class="form-control" name="text" maxlength="200" value="${e(g?.text ?? '')}"></label>
         </div>`,
         beimOeffnen: box => {
           const zahl = () => { const n = box.querySelectorAll('.kd-liste input:checked').length; box.querySelector('[data-zahl]').textContent = n ? `· ${n} gewählt` : ''; };
@@ -179,9 +181,9 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
             for (const z of g.eintraege) await api(`/api/app/klassendienste/${z.id}`, { methode: 'DELETE' });
             toast('Einteilung gelöscht.'); neu();
           } }] : []),
-          { text: 'Abbrechen' },
           { text: 'Speichern', art: 'haupt', aktion: async box => {
             const q = n => box.querySelector(`[name=${n}]`).value;
+            if (!q('dienstId')) { toast('Bitte einen Dienst auswählen (z. B. „Klassensprecher*in“ oder „Klassensprecher*in Stv.“).', true); return false; }
             const ids = [...box.querySelectorAll('.kd-liste input:checked')].map(c => Number(c.value));
             if (!ids.length) { toast('Bitte mindestens eine Schülerin bzw. einen Schüler wählen.', true); return false; }
             if (q('bis') < q('von')) { toast('Das Ende liegt vor dem Beginn.', true); return false; }
@@ -193,6 +195,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
             for (const sid of ids.filter(x => !gewaehlt.has(x))) await senden('/api/app/klassendienste', daten(sid));
             toast('Gespeichert.'); neu();
           } },
+          { text: 'Schließen' },
         ],
       });
     }

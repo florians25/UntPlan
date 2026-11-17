@@ -766,6 +766,65 @@ public sealed class Db
             erstellt_von VARCHAR(60) NOT NULL DEFAULT '', erstellt VARCHAR(30) NOT NULL DEFAULT ''
         );
         """),
+
+        // 44: Buchungsmodul (Termin) – weitere Lehrkräfte/Räume (Terminsuche), Zusatzangaben (Abteilung, Verantwortliche*r, Art, Teilnehmer,
+        //    Kostenstelle, Menge, E-Mail, Anmerkung), Bestätigung durch die Raumadministration (Reservierung), Änderungsvermerk, Schülergruppe
+        //    der Buchung, Unterricht aus UntPlan (zusätzliche Stunden); Räume „nur reservieren“; Zusatzangaben „Neuer Unterricht“ – nur Standard-SQL
+        Nr(44, """
+        ALTER TABLE buchungen ADD COLUMN weitere_lehrer VARCHAR(1000) NOT NULL DEFAULT '[]';
+        ALTER TABLE buchungen ADD COLUMN weitere_raeume VARCHAR(1000) NOT NULL DEFAULT '[]';
+        ALTER TABLE buchungen ADD COLUMN zusatz TEXT;
+        ALTER TABLE buchungen ADD COLUMN bestaetigt VARCHAR(30);
+        ALTER TABLE buchungen ADD COLUMN bestaetigt_von VARCHAR(100) NOT NULL DEFAULT '';
+        ALTER TABLE buchungen ADD COLUMN geaendert VARCHAR(30) NOT NULL DEFAULT '';
+        ALTER TABLE buchungen ADD COLUMN geaendert_von VARCHAR(100) NOT NULL DEFAULT '';
+        ALTER TABLE buchungen ADD COLUMN schueler TEXT;
+        ALTER TABLE buchungen ADD COLUMN plan_unterricht INTEGER;
+        UPDATE buchungen SET bestaetigt = erstellt;
+        ALTER TABLE raum_daten ADD COLUMN nur_reservieren INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE eigene_unterrichte ADD COLUMN zusatz TEXT;
+        """),
+
+        // 58: Kontrolle der Abwesenheiten – Abwesenheitsgrund „zählt“ (z. B. andere schulische Veranstaltung zählt nicht als Fehlzeit),
+        //    Entschuldigungsstatus mit Namen (Nicht akzeptiert, Zu spät, u-1Mahn …) je Fehlzeit, Abwesenheitsgründe des Leitfadens – nur Standard-SQL
+        Nr(58, """
+        ALTER TABLE abwesenheitsgruende ADD COLUMN zaehlt INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE fehlzeiten ADD COLUMN status_name VARCHAR(30) NOT NULL DEFAULT '';
+        UPDATE abwesenheitsgruende SET zaehlt = 0 WHERE art = 'abwesenheit' AND kurz = 'S';
+        INSERT INTO abwesenheitsgruende (kurz, name, art, entschuldigt, reihenfolge, zaehlt) VALUES
+            ('u', 'unbekannt', 'abwesenheit', 0, 1, 1), ('v', 'verspätet', 'abwesenheit', 0, 2, 1), ('Z', 'Zug/Bus verspätet', 'abwesenheit', 0, 3, 1),
+            ('v/ne', 'verspätet, nicht entschuldigt', 'abwesenheit', 0, 4, 1), ('Schul', 'andere schulische Veranstaltung', 'abwesenheit', 1, 51, 0),
+            ('Klab', 'Klasse abbestellt', 'abwesenheit', 1, 52, 0), ('b-KbR', 'Kind beruflich Reisender – geplant abwesend', 'abwesenheit', 1, 70, 0),
+            ('OM', 'Ordnungsmaßnahme', 'abwesenheit', 1, 80, 0);
+        """),
+
+        // 67: Leitfaden Klassenleitung – Zuordnungshistorie der Schülergruppen (mehrere Zeiträume je Schüler*in), Bilder der Schüler*innen,
+        //    Kontaktdaten (eigene Telefonnummern, Erziehungsberechtigte, Ausbildungsbeauftragte), Kennwort vergessen und Selbstregistrierung
+        //    (Einmal-Links), Postausgang für E-Mails, Dienst „Klassensprecher*in Stv.“ – nur Standard-SQL
+        Nr(67, """
+        ALTER TABLE schuelergruppe_mitglieder ADD COLUMN zeitraeume VARCHAR(2000) NOT NULL DEFAULT '';
+        ALTER TABLE schueler_daten ADD COLUMN telefon VARCHAR(50) NOT NULL DEFAULT '';
+        ALTER TABLE schueler_daten ADD COLUMN mobil VARCHAR(50) NOT NULL DEFAULT '';
+        CREATE TABLE schueler_bilder (
+            schueler_id INTEGER NOT NULL PRIMARY KEY, typ VARCHAR(50) NOT NULL DEFAULT 'image/jpeg', daten BLOB NOT NULL,
+            geaendert VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER
+        );
+        CREATE TABLE schueler_kontakte (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, schueler_id INTEGER NOT NULL, rolle VARCHAR(30) NOT NULL, name VARCHAR(200) NOT NULL DEFAULT '',
+            betrieb VARCHAR(200) NOT NULL DEFAULT '', telefon VARCHAR(50) NOT NULL DEFAULT '', mobil VARCHAR(50) NOT NULL DEFAULT '',
+            email VARCHAR(200) NOT NULL DEFAULT '', geaendert VARCHAR(30) NOT NULL DEFAULT '', benutzer_id INTEGER
+        );
+        CREATE INDEX ix_schueler_kontakte_schueler ON schueler_kontakte (schueler_id);
+        CREATE TABLE zugang_token (
+            token VARCHAR(100) NOT NULL PRIMARY KEY, art VARCHAR(20) NOT NULL, benutzer_id INTEGER, email VARCHAR(200) NOT NULL DEFAULT '',
+            erstellt VARCHAR(30) NOT NULL DEFAULT '', gueltig_bis VARCHAR(30) NOT NULL DEFAULT '', benutzt INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE mail_ausgang (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, an VARCHAR(200) NOT NULL, betreff VARCHAR(300) NOT NULL DEFAULT '', text TEXT,
+            erstellt VARCHAR(30) NOT NULL DEFAULT '', status VARCHAR(30) NOT NULL DEFAULT 'offen', fehler VARCHAR(500) NOT NULL DEFAULT ''
+        );
+        INSERT INTO klassendienste (kurz, name, reihenfolge) VALUES ('KS Stv.', 'Klassensprecher*in Stv.', 25);
+        """),
     };
 
 

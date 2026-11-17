@@ -1,4 +1,4 @@
-// Klassenbuch: Wochenübersicht mit Anwesenheit, Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
+// Klassenbuch: Übersicht (Liste aller Unterrichte des Schuljahres), Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
 import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
@@ -38,25 +38,28 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
     return;
   }
 
-  if (!klasseParam || reiterParam === 'uebersicht') return uebersicht(seite, kontext, klasseParam && klasseParam !== '-' ? klasseParam : '', datumParam, vonParam);
-  const reiter = ['woche', 'fehlzeiten', 'vermerke', 'verlauf'].includes(reiterParam) ? reiterParam : 'woche';
+  // Eine Wochenübersicht gibt es im Klassenbuch nicht mehr: frühere Adressen (#/klassenbuch/<Klasse>[/woche[/<Datum>]]) zeigen die Übersicht
+  if (!['fehlzeiten', 'vermerke', 'verlauf'].includes(reiterParam)) {
+    const krit = klasseParam && klasseParam !== '-' ? klasseParam : '';
+    const ueb = reiterParam === 'uebersicht';
+    if (!ueb) history.replaceState(null, '', `#/klassenbuch/${encodeURIComponent(krit || '-')}/uebersicht/${/^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso()}/-`);
+    return uebersicht(seite, kontext, krit, datumParam, ueb ? vonParam : null);
+  }
+  const reiter = reiterParam;
   // Fehlzeiten und Abwesenheiten teilen sich Zeitraum und Klasse (gleiche Daten, gleiche Auswahl in beiden Bereichen)
   const gemeinsam = reiterParam === 'fehlzeiten' ? abwZeitraum() : null;
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : gemeinsam?.bis ?? heuteIso();
   const ziel = (k, r, d = datum) => `#/klassenbuch/${encodeURIComponent(k ?? '')}/${r}/${d}`;
-  // ohne Reiter-Leiste: Wochenübersicht, Fehlzeiten und Klassenbucheinträge erreicht man über das Klassenbuch-Menü
+  // ohne Reiter-Leiste: Übersicht, Fehlzeiten und Klassenbucheinträge erreicht man über das Klassenbuch-Menü
   seite.innerHTML = `
     <div class="u-filter mb-2"><label class="u-feld"><span>Klasse</span><span data-wahl></span></label></div>
     <div data-reiterinhalt>${lade()}</div>`;
   if (klasse) seite.querySelector('[data-wahl]').replaceWith(elementWahl({ eintraege: el.klassen, wert: klasse, platzhalter: 'Klasse wählen', beiWahl: k => kontext.navigieren(ziel(k, reiter)) }));
   const inhalt = seite.querySelector('[data-reiterinhalt]');
   const neuLaden = () => kontext.navigieren(location.hash);
-  const k2 = { ...kontext, nachSpeichern: neuLaden };
 
   if (!klasse) { inhalt.innerHTML = leer('Keine Klassen vorhanden.'); return; }
   const q = encodeURIComponent(klasse);
-
-  if (reiter === 'woche') return wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden);
 
   if (reiter === 'fehlzeiten') {
     // Fehlzeiten der Klasse: nur echte Fehlzeiten (Verspätungen stehen unter Abwesenheiten), eine Tabelle – je Schüler*in eine Zeile,
@@ -282,6 +285,18 @@ const montagVon = iso => plusTage(iso, -((datumVon(iso).getDay() + 6) % 7));
 const jetztHhmm = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const tagText = iso => { const d = datumVon(iso); return `${d.getDate()}. ${MONATE[d.getMonth()]} ${d.getFullYear()}`; };
 const BLOCK = 21; // Tage je Nachladen
+const PLAN_SPERRE = 'Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt';
+
+/**
+ * Planfenster der Rolle als Datumsgrenzen (wie Planfenster.Erlaubt auf dem Server: ganze Kalenderwochen ab Montag der aktuellen Woche):
+ * von = Montag der frühesten, bis = Sonntag der spätesten erlaubten Woche; null = unbegrenzt. Administration ist immer unbegrenzt.
+ */
+export function planfensterGrenzen(ich, heute) {
+  if (ich?.admin) return { von: null, bis: null };
+  const m = montagVon(heute);
+  const z = Number.isInteger(ich?.planWochenZurueck) ? ich.planWochenZurueck : null, v = Number.isInteger(ich?.planWochenVor) ? ich.planWochenVor : null;
+  return { von: z === null ? null : plusTage(m, -7 * z), bis: v === null ? null : plusTage(m, 7 * v + 6) };
+}
 
 /** Kriterien der Übersicht aus der Adresse: „k:7a,l:LAN,f:D“ (alt: „7a“ bzw. „@LAN“). */
 export function kriterienAus(code) {
@@ -321,7 +336,12 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
   const el = await kontext.elemente();
   const heute = heuteIso();
   const sj = kontext.sitzung.schuljahr ?? {};
-  const sjVon = sj.von || plusTage(heute, -300), sjBis = sj.bis || plusTage(heute, 300);
+  const sjVonRoh = sj.von || plusTage(heute, -300), sjBisRoh = sj.bis || plusTage(heute, 300);
+  // Planfenster der Rolle (z. B. „Stundenplan nur 2 Wochen voraus“): auch in der Übersicht nicht weiter scrollen; Administration unbegrenzt
+  const fenster = planfensterGrenzen(ich, heute);
+  const sjVon = fenster.von && fenster.von > sjVonRoh ? fenster.von : sjVonRoh;
+  const sjBis = fenster.bis && fenster.bis < sjBisRoh ? fenster.bis : sjBisRoh;
+  const beschraenktVon = sjVon !== sjVonRoh, beschraenktBis = sjBis !== sjBisRoh;
   const begrenzt = iso => iso < sjVon ? sjVon : iso > sjBis ? sjBis : iso;
   const ziel_datum = begrenzt(/^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heute);
   const unterricht = /^\d+$/.test(unterrichtParam ?? '') ? Number(unterrichtParam) : null;
@@ -355,7 +375,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       <button type="button" class="kbl-fknopf ${filter.has('kontrolle') ? 'an' : ''}" data-f="kontrolle" aria-pressed="${filter.has('kontrolle')}">Abwesenheiten nicht kontrolliert</button></div>`;
   const w = kontext.werkzeug(suchModus ? `<div class="kbl-kopf">
       <div class="os-suche kbl-suche" data-suchfeld>${icon('suchen')}
-        ${kriterien.map((c, i) => `<span class="os-chip">${e(c.typ === 'fach' ? c.kurz : c.kurz)}<button type="button" data-chip-weg="${i}" aria-label="Filter ${e(c.kurz)} entfernen"><i class="bi bi-x"></i></button></span>`).join('')}
+        ${kriterien.map((c, i) => `<span class="os-chip" title="${e(c.kurz)}">${e(c.typ === 'lehrer' ? lehrerName(c.kurz) : c.kurz)}<button type="button" data-chip-weg="${i}" aria-label="Filter ${e(c.kurz)} entfernen"><i class="bi bi-x"></i></button></span>`).join('')}
         <input type="search" data-suche autocomplete="off" placeholder="Suche" aria-label="Klasse, Lehrkraft oder Fach suchen" aria-expanded="false" aria-controls="kbl-vorschlaege">
         ${kriterien.length ? '<button type="button" class="os-leeren" data-leeren title="Alle Kriterien entfernen" aria-label="Alle Kriterien entfernen"><i class="bi bi-x-circle-fill"></i></button>' : ''}
         <div class="os-vorschlaege" id="kbl-vorschlaege" role="listbox" hidden></div></div>
@@ -477,9 +497,11 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
         </div></section>`;
     }).join('');
     const anfang = von <= sjVon, ende = bis >= sjBis;
-    listeEl.innerHTML = `${anfang ? `<div class="kbl-grenze"><i class="bi bi-flag"></i>Beginn des Schuljahres · ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
+    listeEl.innerHTML = `${anfang && beschraenktVon ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)} · frühestens ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
+      ${anfang && !beschraenktVon ? `<div class="kbl-grenze"><i class="bi bi-flag"></i>Beginn des Schuljahres · ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
       ${html || `<div class="kbl-leerseite klein"><span class="kbl-leer-symbol"><i class="bi bi-${filter.size ? 'check2-circle' : 'calendar-x'}"></i></span><p>${filter.size ? 'Im geladenen Zeitraum gibt es keine passenden Unterrichte.' : 'Im geladenen Zeitraum gibt es keinen Unterricht.'}</p></div>`}
-      ${ende ? `<div class="kbl-grenze"><i class="bi bi-flag-fill"></i>Ende des Schuljahres · ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}`;
+      ${ende && !beschraenktBis ? `<div class="kbl-grenze"><i class="bi bi-flag-fill"></i>Ende des Schuljahres · ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}
+      ${ende && beschraenktBis ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)} · bis ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}`;
     listeEl.querySelectorAll('[data-k]').forEach(z => {
       const oeffnen = () => karteDialog(karten[Number(z.dataset.k)], { ...kontext, liste: karten, nachSpeichern: aktualisieren });
       z.onclick = oeffnen;
@@ -621,133 +643,4 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
     w.querySelector('[data-leeren]')?.addEventListener('click', () => kontext.navigieren(ziel({ k: [], u: null })));
     w.querySelector('[data-suchfeld]').addEventListener('click', ev => { if (!ev.target.closest('button')) suche.focus(); });
   }
-}
-
-// ------------------------------------------------------------------ Wochenansicht einer Klasse: Raster Tage × Stunden
-
-const WT_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-
-/** Überlappende Stunden eines Tages zu Blöcken zusammenfassen und in Spuren nebeneinander legen (z. B. KR 2.–3. neben ER 2. und ER 3.). */
-function bloecke(stunden) {
-  const sortiert = stunden.slice().sort((a, b) => a.von - b.von || b.bis - a.bis);
-  const liste = [];
-  for (const s of sortiert) {
-    const b = liste[liste.length - 1];
-    if (b && s.von <= b.bis) { b.stunden.push(s); b.bis = Math.max(b.bis, s.bis); } else liste.push({ von: s.von, bis: s.bis, stunden: [s] });
-  }
-  for (const b of liste) {
-    const spuren = [];
-    for (const s of b.stunden) {
-      let i = spuren.findIndex(ende => ende < s.von);
-      if (i < 0) { i = spuren.length; spuren.push(0); }
-      spuren[i] = s.bis;
-      s.spur = i + 1;
-    }
-    b.spuren = spuren.length;
-  }
-  return liste;
-}
-
-/**
- * Klassenbuch einer Klasse für eine Woche als ruhiges Raster: Zeilen = Unterrichtsstunden, Spalten = Tage. Jede Stunde zeigt Fach,
- * Lehrkraft, Lehrstoff (bzw. „Lehrstoff fehlt“), Abwesenheiten, Klassenbucheinträge und Hausaufgaben; Klick öffnet die Stundendetails.
- * Darunter die Klassenbucheinträge (Vermerke) der Woche.
- */
-async function wochenraster(inhalt, kontext, klasse, datum, ziel, k2, neuLaden) {
-  const w = await holen(`/api/app/klassenbuch/woche?klasse=${encodeURIComponent(klasse)}&datum=${datum}`);
-  const heute = heuteIso();
-  const jetzt = jetztHhmm();
-  const tage = w.tage.filter(t => t.stunden.length || t.frei || !['Sa', 'So'].includes(WT_KURZ[datumVon(t.datum).getDay()]));
-  const genutzt = tage.flatMap(t => t.stunden.map(s => s.bis));
-  const letzte = Math.max(0, ...genutzt, ...w.raster.filter(r => r.nr <= 6).map(r => r.nr));
-  const raster = w.raster.filter(r => r.nr <= letzte);
-  const zeileVon = nr => Math.max(0, raster.findIndex(r => r.nr === nr)) + 2;
-  const karten = [];
-  // Zahlen der Woche (dezent über dem Raster)
-  const vergangen = s => s.status !== 'entfall' && (s.datum < heute || (s.datum === heute && (s.ende || '99:99') <= jetzt));
-  const alle = tage.flatMap(t => t.stunden.map(s => Object.assign(s, { datum: t.datum })));
-  const gehalten = alle.filter(vergangen);
-  const ohneStoff = gehalten.filter(s => !s.thema).length;
-  const ohneKontrolle = gehalten.filter(s => s.geprueft == null).length;
-  const fehlend = alle.reduce((n, s) => n + (s.fehlend?.length ?? 0), 0);
-  const eintraege = tage.reduce((n, t) => n + t.vermerke.length, 0);
-
-  const karte = s => {
-    const i = karten.length;
-    karten.push({ datum: s.datum, von: s.von, bis: s.bis, beginn: s.beginn, ende: s.ende, status: s.status, fach: s.fach, fachName: s.fachName, farbe: s.farbe, art: s.art, text: '',
-      klassen: [{ k: klasse }], lehrer: s.lehrer.map(k => ({ k })), raeume: s.raeume.map(k => ({ k })), unterricht: s.unterricht });
-    const entfall = s.status === 'entfall';
-    const kommend = !entfall && !vergangen(s);
-    const farbe = /^#[0-9a-f]{6}$/i.test(s.farbe || '') ? s.farbe : '';
-    const hw = (s.hausaufgaben?.length ? s.hausaufgaben : [s.hausaufgabe]).filter(Boolean);
-    const zusatz = [];
-    if (!entfall) {
-      if (s.fehlend.length) zusatz.push(`<span class="kbw-info" title="${e(`fehlt: ${s.fehlend.join('; ')}`)}"><i class="bi bi-person-x"></i>${s.fehlend.length}</span>`);
-      const spaet = s.verspaetet.length + (s.vorzeitig?.length ?? 0);
-      if (spaet) zusatz.push(`<span class="kbw-info" title="${e([...s.verspaetet, ...(s.vorzeitig ?? [])].join('; '))}"><i class="bi bi-clock"></i>${spaet}</span>`);
-      if (!s.fehlend.length && !spaet && s.geprueft != null) zusatz.push('<span class="kbw-info ok" title="Abwesenheiten kontrolliert – alle anwesend"><i class="bi bi-person-check"></i></span>');
-      if (s.eintraege) zusatz.push(`<span class="kbw-info" title="${s.eintraege} ${s.eintraege === 1 ? 'Klassenbucheintrag' : 'Klassenbucheinträge'}"><i class="bi bi-journal-text"></i>${s.eintraege}</span>`);
-      if (hw.length) zusatz.push(`<span class="kbw-info" title="${e(`Hausaufgabe: ${hw.join(' · ')}`)}"><i class="bi bi-house"></i></span>`);
-    }
-    const stoff = entfall ? `<span class="kbw-entfall">${e(s.art || 'Entfall')}</span>`
-      : s.thema ? `<span class="kbw-stoff" title="${e(s.thema)}">${e(s.thema)}</span>`
-      : kommend ? '' : '<span class="kbw-fehlt">Lehrstoff fehlt</span>';
-    const offenKontrolle = !entfall && !kommend && s.geprueft == null;
-    return `<button type="button" class="kbw-stunde ${entfall ? 'entfall' : ''} ${kommend ? 'kommend' : ''} ${!entfall && !kommend && !s.thema ? 'luecke' : ''}" data-k="${i}"
-        style="grid-row:${s.von - s.blockVon + 1} / span ${s.bis - s.von + 1};grid-column:${s.spur};${farbe ? `--fach:${farbe}` : ''}"
-        aria-label="${e(`${s.von === s.bis ? s.von : `${s.von}.–${s.bis}`}. Stunde ${s.fach}, ${s.lehrer.join(', ')}${entfall ? ', entfällt' : ''}`)}">
-      <span class="kbw-kopf"><b>${e(s.fach)}</b><span>${e(s.lehrer.join(', '))}</span>${offenKontrolle ? '<i class="kbw-punkt" title="Abwesenheiten nicht kontrolliert"></i>' : ''}</span>
-      ${stoff}
-      ${zusatz.length ? `<span class="kbw-zusatz">${zusatz.join('')}</span>` : ''}
-    </button>`;
-  };
-
-  const spalten = tage.map((t, x) => {
-    const spalte = x + 2;
-    const kopf = `<div class="kbw-tag ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte}">
-        <span><b>${WT_KURZ[datumVon(t.datum).getDay()]}</b> ${tt(t.datum)}</span>
-        ${!t.frei ? `<button type="button" class="kbw-plus" data-vermerk="${t.datum}" title="Klassenbucheintrag am ${tt(t.datum)}" aria-label="Klassenbucheintrag am ${tt(t.datum)}"><i class="bi bi-plus-lg"></i></button>` : ''}</div>`;
-    if (t.frei) return `${kopf}<div class="kbw-frei" style="grid-column:${spalte};grid-row:2 / span ${Math.max(1, raster.length)}"><i class="bi bi-lock"></i>${e(t.freiGrund || 'unterrichtsfrei')}</div>`;
-    const leer = raster.filter(r => !t.stunden.some(s => r.nr >= s.von && r.nr <= s.bis))
-      .map(r => `<div class="kbw-leer ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(r.nr)}"></div>`).join('');
-    return kopf + leer + bloecke(t.stunden.filter(s => s.von <= letzte)).map(b => {
-      b.stunden.forEach(s => { s.blockVon = b.von; });
-      return `<div class="kbw-block ${t.datum === heute ? 'ist-heute' : ''}" style="grid-column:${spalte};grid-row:${zeileVon(b.von)} / span ${b.bis - b.von + 1};grid-template-columns:repeat(${b.spuren}, minmax(0, 1fr));grid-template-rows:repeat(${b.bis - b.von + 1}, minmax(0, 1fr))">
-        ${b.stunden.map(karte).join('')}</div>`;
-    }).join('');
-  }).join('');
-
-  const vermerke = tage.flatMap(t => t.vermerke.map(v => ({ ...v, datum: t.datum })));
-  inhalt.innerHTML = `<div class="kbw">
-    <div class="kbw-leiste">
-      <div class="kbw-woche">
-        <a class="kbu-pfeil" href="${ziel(klasse, 'woche', plusTage(w.von, -7))}" title="Vorherige Woche" aria-label="Vorherige Woche"><i class="bi bi-chevron-left"></i></a>
-        <span class="kbw-zeitraum"><b>KW ${kwVon(w.von)}</b> ${tt(w.von)} – ${tt(w.bis)}${w.bis.slice(0, 4)}</span>
-        <a class="kbu-pfeil" href="${ziel(klasse, 'woche', plusTage(w.von, 7))}" title="Nächste Woche" aria-label="Nächste Woche"><i class="bi bi-chevron-right"></i></a>
-        <a class="kbw-heute ${heute >= w.von && heute <= w.bis ? 'aktiv' : ''}" href="${ziel(klasse, 'woche', heute)}">Heute</a>
-      </div>
-      <div class="kbw-zahlen">
-        <span><b>${gehalten.length}</b> gehalten</span>
-        <span class="${ohneStoff ? 'warn' : ''}"><b>${ohneStoff}</b> ohne Lehrstoff</span>
-        <span><b>${ohneKontrolle}</b> nicht kontrolliert</span>
-        <span><b>${fehlend}</b> Abwesenheiten</span>
-        <span><b>${eintraege}</b> ${eintraege === 1 ? 'Eintrag' : 'Einträge'}</span>
-        <span class="kbw-schueler">${w.schuelerAnzahl ? `${w.schuelerAnzahl} Schüler*innen` : 'keine Schülerliste übertragen'}</span>
-      </div>
-    </div>
-    ${!raster.length || !tage.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-calendar-x"></i></span><b>Kein Unterricht</b><p>In dieser Woche gibt es für ${e(klasse)} keinen Unterricht.</p></div>` : `
-    <div class="kbw-rahmen"><div class="kbw-raster" style="--tage:${tage.length};grid-template-columns:64px repeat(${tage.length}, minmax(150px, 1fr));grid-template-rows:44px repeat(${raster.length}, minmax(92px, auto))">
-      <div class="kbw-ecke"></div>
-      ${raster.map(r => `<div class="kbw-nr" style="grid-row:${zeileVon(r.nr)}"><b>${r.nr}</b><small>${e(r.beginn)}</small></div>`).join('')}
-      ${spalten}
-    </div></div>
-    <div class="kbw-legende"><span><span class="kbw-fehlt">Lehrstoff fehlt</span></span><span><i class="kbw-punkt"></i> Abwesenheiten nicht kontrolliert</span>
-      <span><i class="bi bi-person-x"></i> fehlt</span><span><i class="bi bi-clock"></i> verspätet</span><span><i class="bi bi-journal-text"></i> Einträge</span><span><i class="bi bi-house"></i> Hausaufgabe</span></div>`}
-    <section class="kbw-vermerke"><h2>Klassenbucheinträge der Woche</h2>
-      ${vermerke.length ? `<ul>${vermerke.map(v => `<li><span class="kbw-v-datum">${WT_KURZ[datumVon(v.datum).getDay()]} ${tt(v.datum)}${v.zeit ? ` · ${e(v.zeit)}` : ''}</span>
-          <span class="kbw-v-art">${e(v.art)}</span><span class="kbw-v-text">${v.schueler ? `<b>${e(v.schueler)}:</b> ` : ''}${e(v.text)}</span><span class="kbw-v-lehrer">${e(v.lehrer)}</span></li>`).join('')}</ul>`
-        : '<p class="kbw-v-leer">Keine Einträge in dieser Woche.</p>'}
-    </section></div>`;
-  inhalt.querySelectorAll('[data-k]').forEach(b => b.onclick = () => karteDialog(karten[Number(b.dataset.k)], { ...k2, liste: karten }));
-  inhalt.querySelectorAll('[data-vermerk]').forEach(b => b.onclick = () => vermerkDialog(klasse, b.dataset.vermerk, neuLaden));
 }

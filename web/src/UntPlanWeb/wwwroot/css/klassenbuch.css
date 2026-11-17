@@ -658,3 +658,16 @@ body .sp-overlay { animation: kbd-ein .16s ease; background: rgba(36, 50, 61, .4
 /* Verspätung / früher gegangen an der Schülerkarte: eigene Zeile unter dem Namen mit Abstand zu Name und Umschalter */
 .sd-kachel.spaet, .sd-kachel.frueh { min-height: 112px; }
 .sd-kachel.spaet .sd-umschalten, .sd-kachel.frueh .sd-umschalten { margin-top: 2px; }
+
+/* Abwesenheiten: Status als Knopf (blaues Fragezeichen für [offen], sonst „entsch.“ / „nicht entsch.“ / Statusname) – öffnet die Entschuldigung */
+.abw-status-knopf { border: 0; background: none; padding: 0; cursor: pointer; line-height: 1; }
+.abw-status-knopf:focus-visible { outline: 2px solid var(--u-blau); outline-offset: 2px; border-radius: 6px; }
+.abw-frage { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: color-mix(in srgb, var(--u-blau) 14%, transparent);
+  color: var(--u-blau); font-weight: 700; font-size: .9rem; }
+.abw-status-knopf:hover .abw-frage { background: var(--u-blau); color: #fff; }
+/* Berichte: Einstellungen je Bericht (Auswahl und Haken wie „pro Stunde“, „Fehltage und -zeiten trennen“) */
+.br-optionen { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.br-optionen select { max-width: 220px; }
+.br-optionen .form-check { margin: 0; }
+.br-abschluss { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.br-abschluss ol { margin: 0; padding-left: 1.2rem; font-size: .875rem; }

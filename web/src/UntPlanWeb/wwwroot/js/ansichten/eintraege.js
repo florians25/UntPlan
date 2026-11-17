@@ -1,6 +1,6 @@
 // Klassenbucheinträge: Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) über alle oder eine Klasse, mit Filter und neuem Eintrag.
 // Klick auf einen Eintrag öffnet den Detaildialog (gemeinsame kbDialog-Komponente) mit allen Angaben und – je nach Recht – Bearbeiten/Löschen.
-import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
+import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, herunterladen } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'orange', 'Hausaufgabe fehlt': 'gelb', 'Material vergessen': 'gelb' };
@@ -8,23 +8,35 @@ const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'or
 const verfasser = (k, el) => { const l = el?.lehrer?.find(x => x.kurz === k); return l ? `${l.name} (${l.kurz})` : (k || '–'); };
 const zeitstempel = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(s ?? ''); return m ? `${m[3]}.${m[2]}.${m[1]}, ${m[4]} Uhr` : (s || '–'); };
 
-export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, artParam]) {
+/** Kategoriegruppen (Eintragungskategorien je Gruppe), z. B. „Maßnahme“: Erzieherische Maßnahme, Ordnungsmaßnahme, Trainingsraum, Konsequenzmodell. */
+const KATEGORIEGRUPPEN = { 'Maßnahme': ['Erzieherische Maßnahme', 'Ordnungsmaßnahme', 'Trainingsraum', 'Konsequenzmodell'] };
+
+export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, artParam, schuelerParam, gruppeParam]) {
   const el = await kontext.elemente();
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
   const bis = iso.test(bisParam ?? '') ? bisParam : heuteIso();
   const klasse = klasseParam && klasseParam !== '-' ? klasseParam : '';
   const art = artParam && artParam !== '-' ? artParam : '';
-  kontext.titel('Klassenbucheinträge', `<button class="btn btn-primary" data-neu>${icon('plus')}Neuer Eintrag</button>`);
-  const ziel = (v, b, k, a) => `#/eintraege/${v}/${b}/${encodeURIComponent(k || '-')}/${encodeURIComponent(a || '-')}`;
+  const schueler = klasse && schuelerParam && schuelerParam !== '-' ? schuelerParam : '';
+  const gruppe = KATEGORIEGRUPPEN[gruppeParam] ? gruppeParam : '';
+  // „Bericht“: PDF der Einträge (z. B. einer Schülerin bzw. eines Schülers mit Kategorie „Trainingsraum“) zur Dokumentation oder Beratung
+  kontext.titel('Klassenbucheinträge', `<button class="btn btn-outline-secondary" data-bericht ${klasse ? '' : 'disabled title="Bitte eine Klasse wählen"'}><i class="bi bi-file-earmark-pdf"></i>Bericht</button>
+    <button class="btn btn-primary" data-neu>${icon('plus')}Neuer Eintrag</button>`);
+  const ziel = (v, b, k, a, sc = '', g = '') => `#/eintraege/${v}/${b}/${encodeURIComponent(k || '-')}/${encodeURIComponent(a || '-')}${sc || g ? `/${sc || '-'}/${encodeURIComponent(g || '-')}` : ''}`;
   const q = `von=${von}&bis=${bis}${klasse ? `&klasse=${encodeURIComponent(klasse)}` : ''}${art ? `&art=${encodeURIComponent(art)}` : ''}`;
-  const daten = await holen(`/api/app/klassenbucheintraege?${q}`);
+  const [daten, kinder] = await Promise.all([holen(`/api/app/klassenbucheintraege?${q}`),
+    klasse ? holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(klasse)}`).catch(() => []) : Promise.resolve([])]);
+  // Schüler*in und Kategoriegruppe filtern die geladenen Einträge
+  daten.eintraege = daten.eintraege.filter(x => (!schueler || String(x.schuelerId) === schueler) && (!gruppe || KATEGORIEGRUPPEN[gruppe].includes(x.art)));
   const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? ` · ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
   seite.innerHTML = `
     <div class="u-sf-leiste u-kopfteil">
       ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Text oder Lehrkraft suchen', label: 'Einträge durchsuchen', filter: [
         { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
+        ...(klasse ? [{ name: 'schueler', label: 'Schüler*innen', alle: 'Alle Schüler*innen', wert: schueler, optionen: kinder.map(k => [String(k.id), `${k.name} ${k.vorname}`]) }] : []),
         { name: 'art', label: 'Art', alle: 'Alle Arten', wert: art, optionen: daten.arten.map(a => [a, a]) },
+        { name: 'gruppe', label: 'Kategoriegruppe', alle: 'Alle Kategoriegruppen', wert: gruppe, optionen: Object.keys(KATEGORIEGRUPPEN).map(g => [g, g]) },
       ] })}
       ${zeitraumPillen(von, bis)}
     </div>
@@ -40,7 +52,18 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
     beiSuche: t => zeilenFiltern(seite.querySelectorAll('tr[data-eintrag]'), t),
     beiFilter: () => filterNeu(),
   });
-  const filterNeu = () => kontext.navigieren(ziel(f('von') || von, f('bis') || bis, sf.wert('klasse'), sf.wert('art')));
+  const filterNeu = () => { const k = sf.wert('klasse'); kontext.navigieren(ziel(f('von') || von, f('bis') || bis, k, sf.wert('art'), k === klasse ? (sf.wert('schueler') || '') : '', sf.wert('gruppe'))); };
+  document.querySelector('[data-bericht]')?.addEventListener('click', async ev => {
+    const knopf = ev.currentTarget;
+    const kat = art || (gruppe ? `gruppe:${gruppe}` : '');
+    const p = new URLSearchParams({ klasse, von, bis, format: 'pdf', ...(schueler ? { schueler } : {}), ...(kat ? { kategorie: kat } : {}) });
+    knopf.disabled = true;
+    try {
+      const r = await fetch(`/api/app/berichte/erstellen/klassenbucheintraege_schueler?${p}`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.fehler ?? `Fehler ${r.status}`);
+      herunterladen(`klassenbucheintraege-${klasse}${schueler ? `-${schueler}` : ''}-${von}-${bis}.pdf`, await r.blob());
+    } catch (err) { toast(err.message, true); } finally { knopf.disabled = false; }
+  });
   seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = filterNeu);
   // nach dem Speichern: liegt der Eintrag außerhalb von Zeitraum bzw. Filter (z. B. Datum in der Zukunft, andere Klasse oder Art),
   // Zeitraum erweitern bzw. Filter lösen – sonst wäre der gespeicherte Eintrag in der Liste nicht zu sehen
