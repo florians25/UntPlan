@@ -178,6 +178,21 @@ public static class SondereinsatzDialog
         Steuerelemente.SuchKombi.Aktivieren(g, (zelle, text) => (zelle.OwningColumn.Name == "F"
                 ? (Element?)d.Faecher.FirstOrDefault(x => x.Kurzname == text) : d.Raeume.FirstOrDefault(x => x.Kurzname == text)) is { } el
             ? new Steuerelemente.ListenStil(Color.White, Color.Black, el.Langname) : null);
+        // Schülergruppe: bekannte Schülergruppen (Unterrichte der eingetragenen Klassen zuerst) zur Auswahl, eine neue wird eingetippt
+        g.EditingControlShowing += (_, e) =>
+        {
+            if (e.Control is not TextBox tb) return;
+            if (g.CurrentCell?.OwningColumn.Name != "G") { tb.AutoCompleteMode = AutoCompleteMode.None; return; }
+            var zeile = g.CurrentCell.OwningRow;
+            var klassen = (zeile.Cells["K"].Value?.ToString() ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(k => d.Klassen.FirstOrDefault(x => x.Kurzname.Equals(k, StringComparison.OrdinalIgnoreCase))?.Id).OfType<int>().ToList();
+            var fach = d.Faecher.FirstOrDefault(x => x.Kurzname == zeile.Cells["F"].Value?.ToString())?.Id;
+            var quelle = new AutoCompleteStringCollection();
+            quelle.AddRange(Schuelergruppen.Auswahl(d, klassen, fach).ToArray());
+            tb.AutoCompleteCustomSource = quelle;
+            tb.AutoCompleteSource = AutoCompleteSource.CustomSource;
+            tb.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+        };
         f.Controls.Add(g);
 
         // Wie Vorbild: Die erste Zeile eines Sondereinsatzes gilt für den ganzen Stundenbereich; darunter stehen die Stunden

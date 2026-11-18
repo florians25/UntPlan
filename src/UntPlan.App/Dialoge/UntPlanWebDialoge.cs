@@ -413,6 +413,7 @@ public sealed class UntPlanWebDialog : Dialog
 
     private async Task Exportieren(string teil)
     {
+        if (teil.Length == 0 || teil == WebTeile.Unterricht) SchuelergruppenPruefen();
         // Unterricht und Vertretungen beziehen sich auf die Stammdaten: diese immer mitsenden
         var teile = teil.Length == 0 ? Array.Empty<string>() : new[] { WebTeile.Stammdaten, teil }.Distinct().ToArray();
         Fortschritt(10, $"{TeilName(teil)}: Daten werden zusammengestellt …");
@@ -439,6 +440,35 @@ public sealed class UntPlanWebDialog : Dialog
             p.LetzteSynchronisation = jetzt;
             foreach (var t in teile.Length == 0 ? WebTeile.Felder.Keys.ToArray() : teile) p.LetzteUebertragung[t] = jetzt;
         });
+    }
+
+    /// <summary>
+    /// Prüfung vor der Übertragung des Unterrichts (wie im Vorbild): Unterrichte mit gleichem Fach und gleichen Klassen lassen sich in
+    /// UntPlanWeb nur über die Schülergruppe unterscheiden – höchstens einer darf ohne sein. Fehlen Schülergruppen, bietet UntPlan an,
+    /// sie automatisch anzulegen; sonst wird nichts übertragen. Unterschiedliche Schülergruppen eines Unterrichts in mehreren Perioden
+    /// werden gemeldet (Fenster „Unterrichte mit inkonsistenten Schülergruppen“), die Übertragung läuft weiter.
+    /// </summary>
+    private void SchuelergruppenPruefen()
+    {
+        static string Liste(List<FehlendeSchuelergruppen> f) =>
+            string.Join("\n", f.Take(12).Select(x => $"{x.Fach} {x.Klassen}: U-Nr. {string.Join(", ", x.UnterrichtIds)}")) + (f.Count > 12 ? $"\n… und {f.Count - 12} weitere" : "");
+        const string Text = "Es gibt eine oder mehrere Gruppen von Unterrichten mit gleichem Fach und gleichen Klassen, wobei zwei oder mehr Unterrichte keine " +
+                            "Schülergruppe eingetragen haben. Es darf maximal einer dieser Unterrichte keine Schülergruppe haben.";
+        if (Schuelergruppen.Fehlende(D) is { Count: > 0 } fehlend)
+        {
+            if (Ui.Frage($"{Text}\n\n{Liste(fehlend)}\n\nSollen die fehlenden Schülergruppen jetzt automatisch angelegt werden (Fach_Klassen_Lehrkraft)?", "UntPlan - Hinweis", this))
+            {
+                try { AppZustand.Doc.Aendern("Schülergruppen anlegen", AenderungsArt.Unterricht, d => Schuelergruppen.Ergaenzen(d, true, true)); }
+                catch (InvalidOperationException) { /* fixierte Periode: bleibt als Fehler unten stehen */ }
+            }
+            if (Schuelergruppen.Fehlende(D) is { Count: > 0 } rest)
+                throw new InvalidOperationException($"{Text} Bitte tragen Sie die entsprechenden Schülergruppen ein (Unterrichtsfenster, Spalte „Schülergruppe“).\n\n{Liste(rest)}\n\nES WURDEN KEINE DATEN ÜBERTRAGEN!");
+        }
+        if (Schuelergruppen.Inkonsistente(D).Count > 0)
+        {
+            Ui.Warnung("Unterricht hat über mehrere Perioden hinweg unterschiedliche Schülergruppen.\nBitte prüfen Sie die Korrektheit der Schülergruppen in diesem Unterricht.", "UntPlan - Frage", this);
+            SchuelergruppenDialog.Zeigen(this, false);
+        }
     }
 
     /// <summary>Absenzen*: Krankmeldungen und Nachrichten über die Rückmeldungen übernehmen.</summary>

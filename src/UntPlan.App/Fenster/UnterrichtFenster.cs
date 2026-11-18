@@ -1330,6 +1330,18 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         cm.Items.Add("Erweitertes Entkoppeln…", Symbole.Get("minus"), (_, _) => ErweitertesEntkoppeln());
         cm.Items.Add("Unterricht als Kurs übernehmen", null, (_, _) => AlsKursUebernehmen());
         cm.Items.Add("Unterrichtsfolgen…", null, (_, _) => HauptFenster.Oeffnen<UnterrichtsfolgenFenster>("ufolgen", () => new UnterrichtsfolgenFenster()));
+        cm.Items.Add(new ToolStripSeparator());
+        // Schülergruppen: automatisch „Fach_Klassen_Lehrkraft“, nachträglich für alle anlegen, Perioden prüfen
+        var auto = new ToolStripMenuItem("Schülergruppen automatisch anlegen") { Checked = D.Einstellungen.SchuelergruppenAutomatisch, CheckOnClick = true };
+        auto.Click += (_, _) =>
+        {
+            var an = auto.Checked;
+            if (Aendern("Schülergruppen automatisch anlegen", AenderungsArt.Alles, d => d.Einstellungen.SchuelergruppenAutomatisch = an))
+                Hinweis(an ? "Neue und geänderte Unterrichte erhalten automatisch eine Schülergruppe (Fach_Klassen_Lehrkraft)." : "Schülergruppen werden nicht mehr automatisch angelegt.", HinweisArt.Ok, true);
+        };
+        cm.Items.Add(auto);
+        cm.Items.Add("Schülergruppen für alle Unterrichte anlegen", null, (_, _) => SchuelergruppenAnlegen());
+        cm.Items.Add("Unterrichte mit inkonsistenten Schülergruppen…", null, (_, _) => SchuelergruppenDialog.Zeigen(this, true));
         cm.Show(_grid, _grid.PointToClient(Cursor.Position));
     }
 
@@ -1417,6 +1429,13 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (!ziele.Contains(tag)) ziele.Insert(0, tag);
         // unverändert: nichts speichern (keine leere Rückgängig-Stufe)
         if (ziele.Count == 1 && s.Get(tag.U, tag.U.Zeilen.ElementAtOrDefault(tag.Index) ?? new Kopplungszeile()) == text) return;
+        // Schülergruppe: Platzhalter ($, %, #, TEXT_#), Umbenennen in allen Perioden, Änderung in mehreren Perioden
+        if (s.Key == "Gruppe")
+        {
+            SchuelergruppeEingeben(ziele.Select(z => z.U.Id).Distinct().ToList(), text);
+            NachZellwechsel(Neuaufbau);
+            return;
+        }
         // „Soll behindernder Unterricht entplant werden?“: zusätzliche Klasse bzw. Lehrkraft kollidiert mit den verplanten Stunden
         var weg = new List<int>();
         if (s.Key is "Klassen" or "Lehrer")
@@ -1457,6 +1476,93 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             Hinweis($"Gespeichert: {s.Titel} = „{text}“ (U-Nr. {string.Join(", ", ziele.Select(z => z.U.Id).Distinct())})" +
                     (weg.Count > 0 ? $", {weg.Count} behindernde Stunde(n) entplant" : "") + " – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, tag.U.Id);
         NachZellwechsel(Neuaufbau);
+    }
+
+    /// <summary>
+    /// Eingabe in der Spalte „Schülergruppe“ für einen oder mehrere markierte Unterrichte. Platzhalter: „$“ = Fach_Klassen_Lehrkraft,
+    /// „%“ = Fach_Klassen_Raum, „#“ = laufende Nummer, „TEXT_#“ = Text mit laufender Nummer. Wird eine Schülergruppe umbenannt, die noch
+    /// in anderen Perioden bzw. bei anderen Unterrichten vorkommt, fragt UntPlan wie im Vorbild, ob sie überall umbenannt werden soll
+    /// (Ja) oder die neue nur beim aktiven Unterricht eingetragen wird (Nein). Gibt es den Unterricht in mehreren Perioden, gilt die
+    /// Änderung entweder in allen Perioden oder es entsteht ein neuer Unterricht (die Schülergruppe muss über die Perioden gleich sein).
+    /// </summary>
+    private void SchuelergruppeEingeben(List<int> ids, string text)
+    {
+        var eingabe = text.Trim();
+        var ziele = ids.Select(id => D.Unterrichte.FirstOrDefault(u => u.Id == id)).OfType<Unterricht>().ToList();
+        if (ziele.Count == 0) return;
+        if (Schuelergruppen.IstPlatzhalter(eingabe) || ziele.Count > 1)
+        {
+            var namen = new List<string>();
+            if (Aendern("Unterricht: Schülergruppe", AenderungsArt.Unterricht, d =>
+            {
+                var nr = 0;
+                foreach (var id in ids)
+                {
+                    if (d.Unterrichte.FirstOrDefault(x => x.Id == id) is not { } u) continue;
+                    var name = Schuelergruppen.Platzhalter(d, u, eingabe, ++nr);
+                    // die Schülergruppe ist über alle Perioden gleich
+                    if (Schuelergruppen.InMehrerenPerioden(d, id)) Schuelergruppen.InAllenPerioden(d, id, name);
+                    else u.Schuelergruppe = name;
+                    namen.Add(name);
+                }
+            }))
+                Hinweis($"Schülergruppen eingetragen: {string.Join(", ", namen.Where(n => n.Length > 0).Distinct())} (U-Nr. {string.Join(", ", ids)}) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, ids[0]);
+            return;
+        }
+        var un = ziele[0];
+        var alt = un.Schuelergruppe;
+        if (alt == eingabe) return;
+        if (alt.Length > 0 && eingabe.Length > 0 && Schuelergruppen.AnderweitigVerwendet(D, un, alt))
+        {
+            var antwort = Ui.JaNeinAbbrechen("Wollen Sie die Schülergruppe (in allen Perioden) umbenennen?\nFalls nicht, wird die eingegebene Schülergruppe eingetragen (und ggfs. neu angelegt).\n\n" +
+                "(Ja = die Schülergruppe wird in allen Perioden und bei allen Unterrichten, denen sie zugewiesen ist, umbenannt,\nNein = die (neue) Schülergruppe wird nur beim aktiven Unterricht eingetragen)\n\n" +
+                $"{alt} -> {eingabe}", "UntPlan - Frage", vorgabe: 1, owner: this);
+            if (antwort == DialogResult.Cancel) return;
+            if (antwort == DialogResult.Yes)
+            {
+                var n = 0;
+                if (Aendern("Schülergruppe umbenennen", AenderungsArt.Unterricht, d => n = Schuelergruppen.Umbenennen(d, alt, eingabe)))
+                    Hinweis($"Schülergruppe „{alt}“ in „{eingabe}“ umbenannt ({n} Einträge in allen Perioden, Vertretungen und Veranstaltungen).", HinweisArt.Ok, true, un.Id);
+                return;
+            }
+        }
+        if (Schuelergruppen.InMehrerenPerioden(D, un.Id))
+        {
+            var wahl = Ui.Auswahl("Die Felder Klasse, Fach und Schülergruppe sind wesentliche Unterscheidungsmerkmale eines Unterrichtes und dürfen in verschiedenen Perioden nicht unterschiedlich sein.\n\n" +
+                "Sie können nun,\n\n• die Änderung in allen Perioden (auch in Mutterperioden) durchführen.\n\n" +
+                $"• einen neuen Unterricht für {Ix.KKlassen(un.KlassenIds)}, {Ix.KFach(un.HauptfachId)} anlegen. Alle Eigenschaften des ursprünglichen Unterrichts werden dabei kopiert, der ursprüngliche Unterricht aus der aktiven Periode entfernt.",
+                "Frage", new[] { "In allen Perioden", "Neuer Unterricht", "Abbrechen" }, 0, owner: this);
+            if (wahl is null or 2) { Hinweis($"Abgebrochen – die Schülergruppe von U-Nr. {un.Id} bleibt unverändert.", HinweisArt.Info, true); return; }
+            if (wahl == 1)
+            {
+                var neu = 0;
+                if (Aendern("Schülergruppe: neuer Unterricht", AenderungsArt.Unterricht, d => neu = Schuelergruppen.AlsNeuenUnterricht(d, un.Id, eingabe)))
+                    Hinweis($"Neuer Unterricht U-Nr. {neu} mit Schülergruppe „{eingabe}“ angelegt (Stundenplan und Vertretungen übernommen); U-Nr. {un.Id} bleibt in den übrigen Perioden.", HinweisArt.Ok, true, neu);
+                return;
+            }
+            if (Aendern("Unterricht: Schülergruppe (alle Perioden)", AenderungsArt.Unterricht, d => Schuelergruppen.InAllenPerioden(d, un.Id, eingabe)))
+                Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}, alle Perioden) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
+            return;
+        }
+        if (Aendern("Unterricht: Schülergruppe", AenderungsArt.Unterricht, d => { if (d.Unterrichte.FirstOrDefault(x => x.Id == un.Id) is { } u) u.Schuelergruppe = eingabe; }))
+        {
+            // geleert, aber „Schülergruppen automatisch anlegen“ ist eingeschaltet: der Unterricht hat wieder den automatischen Namen
+            if (eingabe.Length == 0 && D.Unterrichte.FirstOrDefault(x => x.Id == un.Id)?.Schuelergruppe is { Length: > 0 } auto)
+                Hinweis($"U-Nr. {un.Id} erhält automatisch die Schülergruppe „{auto}“ – zum Leeren „Schülergruppen automatisch anlegen“ im Kontextmenü ausschalten.", HinweisArt.Info, true, un.Id);
+            else Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
+        }
+    }
+
+    /// <summary>Fehlende Schülergruppen aller Unterrichte jetzt anlegen („Fach_Klassen_Lehrkraft“, vorhandene bleiben unverändert).</summary>
+    private void SchuelergruppenAnlegen()
+    {
+        var n = 0;
+        if (Aendern("Schülergruppen anlegen", AenderungsArt.Unterricht, d => n = Schuelergruppen.Ergaenzen(d, true)))
+        {
+            Neuaufbau();
+            Hinweis(n > 0 ? $"{n} Schülergruppe(n) nach dem Muster Fach_Klassen_Lehrkraft angelegt – vorhandene Schülergruppen blieben unverändert."
+                : "Alle Unterrichte mit Fach, Klasse und Lehrkraft haben bereits eine Schülergruppe.", HinweisArt.Ok, true);
+        }
     }
 
     private void NeuMitWert(Spalte s, string text)

@@ -145,7 +145,7 @@ public static class Raumvertretungen
         {
             Id = d.NeueId(), Datum = tp.Datum, Stunde = e.Stunde, UnterrichtId = r.Unterricht.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, VertreterId = r.LehrerId,
             FachId = r.FachId, KlassenIds = Vertretungen.KlassenDerZeile(r), RaumId = r.RaumId, Art = VertretungsArt.Raumvertretung, Quelle = VertretungsQuelle.Manuell,
-            Schuelergruppe = r.Unterricht.Schuelergruppe, Bearbeitet = true, Benutzer = benutzer,
+            Schuelergruppe = VeranstaltungsLogik.Schuelergruppe(r), Bearbeitet = true, Benutzer = benutzer,
         };
         d.Vertretungen.Add(v);
         return v;

@@ -249,7 +249,7 @@ public sealed record Tageszeile(string Kurz, string Name, List<Karte> Karten);
 /// <summary>Rohdaten einer Stunde (aus dem tagesaktuellen Plan, dem Regelplan oder einer Vormerkung).</summary>
 public sealed record Rohstunde(int Stunde, int? Unterricht, string Fach, IReadOnlyList<string> Klassen, IReadOnlyList<string> Lehrer, IReadOnlyList<string> Raeume,
     string Status, int? Vertretung, string Text, string Art = "", IReadOnlyList<string>? LehrerAlt = null, bool Bereitschaft = false, int? Klausur = null,
-    int? Veranstaltung = null, bool Unbestaetigt = false);
+    int? Veranstaltung = null, bool Unbestaetigt = false, string Schuelergruppe = "");
 
 public static class Elementtyp
 {
@@ -367,7 +367,7 @@ public sealed class Plandienst
 
     public List<Rohstunde> Rohstunden(Stand s, DateOnly d)
     {
-        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur, x.Veranstaltung);
+        Rohstunde Aus(WebStunde x) => new(x.Stunde, x.Unterricht, x.Fach, KlassenOderKopplung(s, x.Unterricht, x.Klassen), x.Lehrer, x.Raeume, x.Status, x.Vertretung, x.Text, "", x.LehrerAlt, x.Bereitschaft, x.Klausur, x.Veranstaltung, Schuelergruppe: x.Schuelergruppe ?? "");
         if (s.Tage.TryGetValue(Iso(d), out var tag) && !tag.NurAenderungen)
             return tag.Unterrichtstag ? tag.Stunden.Select(Aus).ToList() : new List<Rohstunde>();
         if (tag is { NurAenderungen: true })
@@ -591,6 +591,9 @@ public sealed class Plandienst
                 // nur von Hand eingegebener Vertretungstext), daneben die ursprüngliche Stunde als Entfall
                 var alt = Fachwechsel(s, k, typ, kurz);
                 if (alt is not null) k = k with { Zusaetzlich = true, Lehrer = ZusatzLehrer(k.Lehrer.Where(w => w.K.Length > 0).Select(w => new Wert(w.K))), Text = ZusatzText(k.Text, k.Art) };
+                // Fach und Schülergruppe gehören zu einem anderen Unterricht der Klasse: zusätzliche Stunde dieses Unterrichts
+                if (alt is not null && r.Schuelergruppe.Length > 0 && UnterrichtZuGruppe(s, k.Fach, r.Schuelergruppe, k.Klassen.Select(w => w.K), k.Unterricht) is int anderer)
+                    k = k with { Unterricht = anderer };
                 einzel.Add(k);
                 if (alt is not null) einzel.Add(alt);
             }
@@ -1214,6 +1217,8 @@ public sealed class Plandienst
             Lehrer = lehrer, Raeume = raeume,
             Klassen = k.Klassen.Select(w => new Wert(w.Alt is { Length: > 0 } a ? a : w.K)).Where(w => w.K.Length > 0).ToList(),
             Art = "Entfall", Text = "", Unterricht = null, VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null,
+            // die ursprüngliche Stunde trägt die Schülergruppe ihres Unterrichts (nicht die der neuen Stunde)
+            Gruppe = k.Unterricht is int fu && GruppeDesUnterrichts(s, fu, k.FachAlt!, lehrer.Select(w => w.K)) is { Length: > 0 } ug ? ug : k.Gruppe,
             Zusaetzlich = false, VertretungOffen = false, LehrerAbwesend = false, Mitklassen = new(), NotizSchueler = "", NotizLehrer = "", HausaufgabeFaellig = false,
             Online = false, OnlineLink = "",
         };
@@ -1637,13 +1642,33 @@ public sealed class Plandienst
         string.Join(" · ", text.Split(" · ").Select(t => t.Trim())
             .Where(t => t.Length > 0 && !ZusatzStandardtext.IsMatch(t) && !string.Equals(t, art.Trim(), StringComparison.OrdinalIgnoreCase)));
 
-    /// <summary>Schülergruppe des Unterrichts (Kopplungszeile mit gleichem Fach bzw. gleicher Lehrkraft), sonst leer.</summary>
-    private static string Gruppe(Stand s, Rohstunde r)
+    /// <summary>
+    /// Schülergruppe der Stunde: die von UntPlan je Stunde übertragene (Vertretung bzw. Sondereinsatz vor Unterricht), sonst die des
+    /// Unterrichts (Kopplungszeile mit gleichem Fach bzw. gleicher Lehrkraft), sonst leer.
+    /// </summary>
+    private static string Gruppe(Stand s, Rohstunde r) =>
+        r.Schuelergruppe is { Length: > 0 } g ? g : r.Unterricht is int u ? GruppeDesUnterrichts(s, u, r.Fach, r.Lehrer) : "";
+
+    /// <summary>Schülergruppe eines Unterrichts laut Paket: Zeile mit gleichem Fach und gleicher Lehrkraft, sonst gleichem Fach, sonst die einzige Zeile.</summary>
+    internal static string GruppeDesUnterrichts(Stand s, int unterricht, string fach, IEnumerable<string> lehrer)
     {
-        if (r.Unterricht is not int u || !s.Unterricht.TryGetValue(u, out var un)) return "";
-        var zeile = un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, r.Fach) && r.Lehrer.Any(l => Ci.Equals(l, z.Lehrer)))
-                    ?? un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, r.Fach)) ?? (un.Zeilen.Count == 1 ? un.Zeilen[0] : null);
+        if (!s.Unterricht.TryGetValue(unterricht, out var un)) return "";
+        var zeile = un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, fach) && lehrer.Any(l => Ci.Equals(l, z.Lehrer)))
+                    ?? un.Zeilen.FirstOrDefault(z => Ci.Equals(z.Fach, fach)) ?? (un.Zeilen.Count == 1 ? un.Zeilen[0] : null);
         return zeile?.Gruppe ?? "";
+    }
+
+    /// <summary>
+    /// Kombination Fach–Schülergruppe (wie im Desktop): eine Stunde mit neuem Fach, deren Schülergruppe zu einem anderen Unterricht mit
+    /// genau diesem Fach gehört, ist eine zusätzliche Stunde dieses Unterrichts (Klassenbuch dort); sonst null.
+    /// </summary>
+    internal static int? UnterrichtZuGruppe(Stand s, string fach, string gruppe, IEnumerable<string> klassen, int? ausser)
+    {
+        if (fach.Length == 0 || gruppe.Length == 0) return null;
+        var kl = klassen.Where(k => k.Length > 0).ToList();
+        return s.Unterricht.Values.Where(u => u.Id != ausser && u.Zeilen.Any(z => Ci.Equals(z.Fach, fach) && Ci.Equals(z.Gruppe, gruppe))
+                && (kl.Count == 0 || u.Zeilen.Any(z => z.Klassen.Any(k => Enthaelt(kl, k)))))
+            .Select(u => (int?)u.Id).FirstOrDefault();
     }
 
     private static string Schluessel(Karte k) =>

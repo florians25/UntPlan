@@ -66,7 +66,7 @@ public static class Stundenaenderung
             v = new Vertretung
             {
                 Id = d.NeueId(), Datum = datum, Stunde = stunde, UnterrichtId = r.Unterricht.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, FachId = r.FachId,
-                KlassenIds = Vertretungen.KlassenDerZeile(r), RaumId = r.RaumId, Quelle = VertretungsQuelle.Sondereinsatz, Schuelergruppe = r.Unterricht.Schuelergruppe,
+                KlassenIds = Vertretungen.KlassenDerZeile(r), RaumId = r.RaumId, Quelle = VertretungsQuelle.Sondereinsatz, Schuelergruppe = VeranstaltungsLogik.Schuelergruppe(r),
             };
             d.Vertretungen.Add(v);
         }
@@ -113,7 +113,7 @@ public static class Stundenaenderung
             var lehrer = lehrerNeu ? neu.LehrerId : lehrerAlt;
             if (!klassenNeu && !fachNeu && !raumNeu && !lehrerNeu)
             {
-                if (neu.Text.Length == 0 && neu.Schuelergruppe == (e.Vertretung?.Schuelergruppe ?? e.Unterricht?.Schuelergruppe ?? "")) continue;
+                if (neu.Text.Length == 0 && neu.Schuelergruppe == (e.Vertretung?.Schuelergruppe is { Length: > 0 } vg ? vg : e.Regel is { } er ? VeranstaltungsLogik.Schuelergruppe(er) : e.Unterricht?.Schuelergruppe ?? "")) continue;
                 var t = Raumvertretungen.ZeileFuer(d, tp, e, benutzer);
                 if (t.Art == VertretungsArt.Raumvertretung && t.VertretungsraumId is null && t.Quelle == VertretungsQuelle.Manuell) { t.Art = VertretungsArt.UnterrichtGeaendert; t.VertretungsraumId = raumAlt; }
                 t.Text = neu.Text;

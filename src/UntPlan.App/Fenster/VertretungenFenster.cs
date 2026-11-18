@@ -1430,7 +1430,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, (weg ?? v).RaumId, "Raum"), raumNeu,
-            Pos(v.VonDatum, v.VonStunde), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : Pos(v.NachDatum, v.NachStunde), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik, v.Schuelergruppe,
+            Pos(v.VonDatum, v.VonStunde), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : Pos(v.NachDatum, v.NachStunde), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik,
+            // Schülergruppe: eingetragene der Vertretung, sonst die des ursprünglichen Unterrichts (dann kursiv grau, siehe Formatieren)
+            v.Schuelergruppe.Length > 0 ? v.Schuelergruppe : u != null ? Schuelergruppen.VonZeile(u, v.ZeilenIndex) : "",
             Langname("Grund") && D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == v.GrundId) is { } gl ? gl.Langname : v.Grund,
             u?.Text ?? "", u != null && v.ZeilenIndex < u.Zeilen.Count ? u.Zeilen[v.ZeilenIndex].Zeilentext : "", v.Beschreibung,
             v.IstEntfall ? "X" : "", v.Mitbetreuung ? "X" : "", v.Kopplung > 0 ? v.Kopplung.ToString() : "", Vertretungen.IstNeu(v, Doc.Sitzungsbeginn) ? "Neu" : "",
@@ -1478,6 +1480,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             ? "Vtr. ohne Lehrer"
             : Vertretungsplan.ArtText(d, a);
 
+    private Font? _kursiv;
+
+    /// <summary>Stammt die angezeigte Schülergruppe aus dem ursprünglichen Unterricht (Kopplungszeile vor Unterricht)?</summary>
+    private bool SchuelergruppeAusUnterricht(Vertretung v, string gruppe) =>
+        v.UnterrichtId is int uid && Plan(v.Datum).Unterrichte.GetValueOrDefault(uid) is { } u
+        && string.Equals(Schuelergruppen.VonZeile(u, v.ZeilenIndex), gruppe, StringComparison.Ordinal);
+
     /// <summary>Geänderte Felder bei Tausch/Verlegung (Vorbild: magenta, in der markierten Zeile lila).</summary>
     internal static readonly Color VerlegungsFarbe = Color.FromArgb(255, 128, 255);
     internal static readonly Color VerlegungsFarbeMarkiert = Color.FromArgb(212, 166, 223);
@@ -1502,6 +1511,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if (ve.Farben.ContainsKey(schl) && VertretungsartFarben.Hintergrund(ve, schl) is int hg) e.CellStyle.BackColor = Ui.Farbe(hg, Color.White);
         }
         if (name == "Vertreter" && v.Art == VertretungsArt.Pausenaufsicht) e.CellStyle.BackColor = PausenFarbe;
+        // Schülergruppe wie im Vorbild: aus dem ursprünglichen Unterricht übernommen kursiv grau, von Hand eingesetzt schwarz
+        if (name == "SG" && e.Value is string sg && sg.Length > 0 && SchuelergruppeAusUnterricht(v, sg))
+        {
+            e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.Gray;
+            e.CellStyle.Font = _kursiv ??= new Font(_g.Font, FontStyle.Italic);
+        }
         // Betreuung wie in der Vorlage: Vertreter, Klasse(n) und Raum in grüner Schrift
         if (v.Art == VertretungsArt.Betreuung && name is "Vertreter" or "Klassen" or "NRaum") e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = BetreuungSchrift;
         // (Fach) und Fach in der Farbe des Faches (Stammdaten), z. B. WP2IF rosa wie in der Vorlage

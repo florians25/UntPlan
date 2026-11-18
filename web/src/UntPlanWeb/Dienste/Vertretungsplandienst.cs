@@ -4,7 +4,7 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 public sealed record Vertretungszeile(string Klassen, string Stunde, int StundeVon, string Fach, string? FachAlt, string Lehrer, string? LehrerAlt,
-    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status, bool OhneLehrer = false);
+    string Raum, string? RaumAlt, string Art, string Text, string VertrVon, string Nach, string Status, bool OhneLehrer = false, string Schuelergruppe = "");
 
 public sealed record Vertretungstag(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, List<string> Nachrichten,
     List<string> AbwesendeKlassen, List<string> AbwesendeLehrer, List<string> BlockierteRaeume, List<string> Veranstaltungen, List<Vertretungszeile> Zeilen);
@@ -166,7 +166,7 @@ public sealed class Vertretungsplandienst
             if (zusatz && neuLehrer == Plandienst.OhneLehrkraftZusatz) lehrerAlt = null;
             if (status == "abwesend") { neuLehrer = ""; lehrerAlt = v.Lehrer; }
             return new Vertretungszeile(string.Join(", ", v.Klassen), v.Stunde.ToString(), v.Stunde, v.NeuesFach.Length > 0 ? v.NeuesFach : v.Fach, fachAlt,
-                neuLehrer, lehrerAlt, neuRaum, raumAlt, status == "abwesend" ? "Abwesenheit" : v.Art, Plandienst.TextNormal(v.Text ?? ""), v.VertrVon, v.Nach, status, ohneLehrer);
+                neuLehrer, lehrerAlt, neuRaum, raumAlt, status == "abwesend" ? "Abwesenheit" : v.Art, Plandienst.TextNormal(v.Text ?? ""), v.VertrVon, v.Nach, status, ohneLehrer, v.Schuelergruppe ?? "");
         }).ToList();
 
         // gleiche Zeilen in aufeinanderfolgenden Stunden zusammenfassen (z. B. „3–4“)

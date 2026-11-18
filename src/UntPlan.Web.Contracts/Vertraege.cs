@@ -159,6 +159,10 @@ public sealed record WebPeriode
 }
 
 public sealed record WebUnterricht(int Id, int Wochenstunden, List<WebZeile> Zeilen, string Wochen, string Kurs, string Text);
+/// <summary>
+/// Kopplungszeile eines Unterrichts. <paramref name="Gruppe"/> = Schülergruppe der Zeile (eigene Gruppe der Kopplungszeile, sonst die des
+/// Unterrichts, z. B. „FU1_FIS4A_LN“). Ältere Pakete: der Zeilentext.
+/// </summary>
 public sealed record WebZeile(string Fach, string Lehrer, List<string> Klassen, string Gruppe);
 public sealed record WebPlanstunde(int Unterricht, int Tag, int Stunde, List<string> Raeume);
 
@@ -209,6 +213,11 @@ public sealed record WebStunde
     /// Veranstaltung entfallene Unterricht. Ältere Pakete: null (und je teilnehmender Lehrkraft eine eigene Stunde).
     /// </summary>
     public int? Veranstaltung { get; init; }
+    /// <summary>
+    /// Schülergruppe der Stunde: die der Vertretung bzw. des Sondereinsatzes, sonst die des Unterrichts (Kopplungszeile vor Unterricht).
+    /// UntPlanWeb zeigt sie im Kopf der Stundendetails („Klasse | Schülergruppe | Fach“). Ältere Pakete: leer.
+    /// </summary>
+    public string Schuelergruppe { get; init; } = "";
 }
 
 public sealed record WebVertretung
@@ -239,6 +248,8 @@ public sealed record WebVertretung
     public bool AlleKlassen { get; init; }
     /// <summary>Veranstaltung mit allen Lehrkräften: Anzeige „Alle Lehrkräfte“. Ältere Pakete: false.</summary>
     public bool AlleLehrer { get; init; }
+    /// <summary>Schülergruppe der Vertretungszeile (Spalte „Schülergruppe“ im Vertretungsfenster). Ältere Pakete: leer.</summary>
+    public string Schuelergruppe { get; init; } = "";
 }
 
 public sealed record WebAbsenz

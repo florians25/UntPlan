@@ -124,6 +124,12 @@ public sealed class Einstellungen
     public string EntfallAbJahrgang { get; set; } = "EF";
     /// <summary>Unterrichtsänderungen automatisch in Tochterperioden übernehmen (sofern dort unverändert).</summary>
     public bool UnterrichtInFolgeperioden { get; set; } = true;
+    /// <summary>
+    /// Schülergruppen automatisch anlegen: jeder Unterricht mit Fach, Klasse und Lehrkraft ohne Schülergruppe erhält beim Anlegen bzw.
+    /// Ändern (und einmalig beim Öffnen der Datei) eine Schülergruppe nach dem Muster „Fach_Klassen_Lehrkraft“ (z. B. „FU1_FIS4A_LN“).
+    /// Vorhandene Schülergruppen werden nie überschrieben.
+    /// </summary>
+    public bool SchuelergruppenAutomatisch { get; set; } = true;
     /// <summary>Automatische Bereitschaftsplanung: Bereitschaften nur als Doppelstunden verplanen.</summary>
     public bool BereitschaftNurDoppelstunden { get; set; }
     public string Vertretungsplantitel { get; set; } = "Vertretungsplan";
