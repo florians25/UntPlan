@@ -15,8 +15,9 @@ import SwiftUI
 ///   zeigen die Details); entfallene Aufsicht wie eine entfallene Stunde (rosa, roter Rahmen, Ort durchgestrichen).
 /// - Erste Zeile Semibold (auch in Plaketten), weitere Zeilen Regular; Info-Zeichen (info.svg), 4 pt vom Rand unten rechts.
 /// Maße wie im Original (nachgemessen an den Vorlagen, Woche und Tag gleich): Balken 4 pt breit, oben, links und unten je
-/// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 12,8 pt von der Kante) und 4 pt unter der Oberkante; Schrift
-/// 12 pt bei 14 pt Zeilenabstand (iPad 12,4/14,3). Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
+/// 4 pt vom Kartenrand; Text 4 pt rechts vom Balken (Glyphe ≈ 13,05 pt von der Kante) und 4 pt unter der Oberkante; Schrift
+/// 12 pt bei 14,33 pt Zeilenabstand (iPad 12,4/14,3). Nachgemessen (Vorlagen dunkel 567a139b/6d696e75, 1206 px = 402 pt,
+/// 3 px/pt, Farben aus Display P3 nach sRGB): Ecken 4 pt kontinuierlich, Rahmen 2 pt, Kartenabstand waagrecht 2,33 pt. Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
 /// innerhalb grüner Plaketten; Zeilen auf Höhe der Zeichen unten rechts (Info, Hausaufgabe) lassen dafür Platz.
 /// In der Tagesansicht (gross) dieselbe Karte ohne zusätzliche Angaben, nur breiter.
 struct KachelView: View {
@@ -29,15 +30,19 @@ struct KachelView: View {
     @Environment(\.horizontalSizeClass) private var groessenklasse
 
     private var dunkel: Bool { schema == .dark }
-    /// iPhone: Schrift 12,3 pt bei 14,33 pt Zeilenabstand wie im Original (Vorlage in voller Auflösung, 3 px/pt: Versalhöhe
-    /// 26 px, Zeilenabstand 43 px); iPad 12,4/14,3 (Woche wie Tag).
+    /// iPhone: Schrift 12 pt bei 14,33 pt Zeilenabstand wie im Original – nachgemessen (3 px/pt, Kantenglättung
+    /// ausgewertet): Versalhöhe 25,36 px = 8,45 pt = 0,704 em bei 12 pt (vorher 12,3 pt, Versalhöhe 8,67 pt zu groß),
+    /// Grundlinie 46 px = 15,33 pt unter der Kartenoberkante, Zeilenabstand 43 px; Stammbreite oben 1,50 pt (Semibold),
+    /// darunter 1,05 pt (Regular). iPad 12,4/14,3 (Woche wie Tag).
     private var kompakt: Bool { groessenklasse == .compact }
-    private var schrift: CGFloat { kompakt ? 12.3 : 12.4 }
+    private var schrift: CGFloat { kompakt ? 12 : 12.4 }
     /// Zeilenabstand wie im Original nachgemessen (iPhone 33 px bei 2,34 px/pt ≈ 14 pt, iPad 14,3 pt) – die Labels darin
     /// 13,7 pt hoch (etwas größer als in Sprint 26, dort 12,7 pt bei 13,5 pt Zeilenabstand).
     private var zeilenHoehe: CGFloat { kompakt ? 14.33 : 14.3 }
 
-    // Balken und Textbeginn (Vorlage nachgemessen: Balken 4 pt breit, 4 pt vom Rand; Text 4 pt rechts vom Balken)
+    // Balken und Textbeginn (nachgemessen an 567a139b/6d696e75, 3 px/pt: Balken 12 px = 4 pt breit, voll gerundet,
+    // #bec8cf auf allen Karten, oben/links/unten je 12 px = 4 pt vom Kartenrand – auch bei 2-pt-Rahmen; Text 4 pt rechts
+    // vom Balken)
     static let balkenRand: CGFloat = 4
     static let balkenBreite: CGFloat = 4
     /// Abgeglichen mit Bildschirmfotos der App (175/176) gegen das Original (173, gleicher Maßstab 2,289 px/pt): mit 4 pt
@@ -80,8 +85,8 @@ struct KachelView: View {
             inhalt(a)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .circular))
-        .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .circular))
+        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .continuous))
         // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
@@ -129,10 +134,10 @@ struct KachelView: View {
                 .padding(0.35)
         } else if let rand = a.rand {
             if a.gestrichelt {
-                RoundedRectangle(cornerRadius: a.radius, style: .circular)
+                RoundedRectangle(cornerRadius: a.radius, style: .continuous)
                     .strokeBorder(rand, style: StrokeStyle(lineWidth: a.randBreite, dash: [5, 3]))
             } else {
-                RoundedRectangle(cornerRadius: a.radius, style: .circular)
+                RoundedRectangle(cornerRadius: a.radius, style: .continuous)
                     .strokeBorder(rand, lineWidth: a.randBreite)
             }
         }
@@ -220,12 +225,12 @@ struct KachelView: View {
 
     /// Kantenlänge der Zeichen unten rechts (Hausaufgabe, Kürzung).
     static let zeichenGroesse: CGFloat = 14
-    /// Kantenlänge des Info-Zeichens (Vorlage nachgemessen: abgerundetes Feld in Kartengrau ≈ 14,5 pt, darin die graue
+    /// Kantenlänge des Info-Zeichens (nachgemessen an 6d696e75, 3 px/pt: Feld 42 × 42 px = 14 pt, darin die graue
     /// Scheibe mit ausgespartem „i“).
     static let infoGroesse: CGFloat = 14
     /// Kantenlänge des Online-Zeichens (online_lesson.svg, flach, ohne Feld).
     static let onlineGroesse: CGFloat = 15
-    /// Abstand der Zeichen zum unteren und rechten Kartenrand (Vorlage in voller Auflösung: Feld 14 pt, 4 pt vom Rand).
+    /// Abstand der Zeichen zum unteren und rechten Kartenrand (nachgemessen: rechts 12 px, unten 12,25 px = 4 pt).
     static let zeichenRand: CGFloat = 4
 
     /// Zeichen unten rechts.
@@ -537,9 +542,10 @@ struct Kachelaussehen {
     var rand: Color? = nil
     var randBreite: CGFloat = 2
     var gestrichelt = false
-    /// Ecken der Stundenkarten: an der Vorlage (hell, 3 px/pt) nachgemessen – kreisförmige Rundung mit 3,5 pt (die weich
-    /// auslaufende iOS-Ecke lief mit 4,5 pt zu lang aus, mit 3 pt war sie zu flach)
-    var radius: CGFloat = 3.5
+    /// Ecken der Stundenkarten: nachgemessen an den Vorlagen dunkel (3 px/pt, Kantenglättung von 14 Ecken grauer und
+    /// grüner Karten gegen gerechnete Ecken verglichen): kontinuierliche iOS-Rundung mit 4,0 pt passt am besten
+    /// (Fehler 0,10 gegen 0,35 bei kreisförmiger Rundung); vorher kreisförmig 3,5 pt
+    var radius: CGFloat = 4
     var schatten: Schatten = .voll
     var ecken = false
     var text: Color = Farben.karteText
@@ -727,7 +733,7 @@ struct Kartenschatten: View {
     let voll: Bool
 
     var body: some View {
-        let form = RoundedRectangle(cornerRadius: radius, style: .circular)
+        let form = RoundedRectangle(cornerRadius: radius, style: .continuous)
         ZStack {
             if voll {
                 form.fill(Color.white)
@@ -839,51 +845,51 @@ struct Kuerzungszeichen: View {
     }
 }
 
-/// Hinterlegter Wert (.badge), am Original nachgemessen (iPhone, 2,34 px/pt): „LN“ 47 × 32 px = 20,1 × 13,7 pt,
-/// „A103“ 72 × 32 px = 30,8 × 13,7 pt bei 12 pt Schrift und 14,1 pt Zeilenabstand; Innenabstand links/rechts 2,2 pt,
-/// Versalhöhe mittig; Radius ≈ 2 pt (Ecke 3 px). iPad (161: „ASL“ 20 px bei 1,46 px/pt) ebenso 13,7 pt.
-/// Untereinander stehende Labels bleiben durch den Zeilenabstand 0,3 pt (iPad 0,6 pt) getrennt.
+/// Hinterlegter Wert (.badge), nachgemessen an den Vorlagen dunkel 567a139b/6d696e75 (3 px/pt): „C103“, „KM“, „LN“,
+/// „Online“ – Fläche so hoch wie die Zeile (43 px = 14,33 pt, deckt den Zeilenstreifen genau ab), Fläche #1fc0a0 mit
+/// Schrift #10161d, gleiche Schriftgröße und -stärke wie die Zeile, Schrift auf derselben Grundlinie wie ungerahmter Text
+/// (kein Versatz); Innenabstand links und rechts je 2 pt (gemessen vom Schriftursprung bzw. Ende der Durchstreichung);
+/// die Fläche beginnt 2 pt vor dem Textanfang der übrigen Zeilen (10 pt von der Kartenkante, 2 pt hinter dem Balken);
+/// Ecken 2 pt kontinuierlich.
 struct Plakettenwert: View {
-    /// Innenabstand links und rechts der Schrift in der Fläche
-    static let innen: CGFloat = 1.9
-    static let innenRechts: CGFloat = 2.2
-    /// Steht das Label vorn, beginnt die Fläche so weit vor dem Textanfang der übrigen Zeilen (Original 173 gegen App
-    /// 176: Fläche 9,8 pt von der Kartenkante, Label-Schrift 0,5 pt vor der normalen Schrift)
-    static let vorsprung: CGFloat = 1.85
-    /// Ecken: an vier Labels der 3-px/pt-Vorlagen (LN, A103, GIL, WE) nachgemessen – Verlauf der Kantenglättung passt
-    /// zu einer kontinuierlichen Rundung (gemessen ≈ 2,85 pt, auf Wunsch leicht zurückgenommen auf 2,4 pt)
-    static let radius: CGFloat = 2.4
+    /// Innenabstand links und rechts der Schrift in der Fläche (nachgemessen: je 6 px = 2 pt)
+    static let innen: CGFloat = 2
+    static let innenRechts: CGFloat = 2
+    /// Steht das Label vorn, beginnt die Fläche so weit vor dem Textanfang der übrigen Zeilen (nachgemessen: Fläche ab
+    /// 30 px = 10 pt von der Kartenkante, Schrift im Label bündig mit den übrigen Zeilen)
+    static let vorsprung: CGFloat = 2
+    /// Ecken: nachgemessen an „C103“ (alle vier Ecken) und „Online“ – kontinuierliche Rundung 2,0 pt (vorher 2,4 pt)
+    static let radius: CGFloat = 2
     let text: String
     var farbe: Color = Farben.gruen
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
-    /// Zeilenabstand der Karte: die Plakette bleibt mindestens 0,3 pt darunter (höchstens 13,7 pt wie im Original)
+    /// Zeilenabstand der Karte: die Plakette ist genau so hoch (nachgemessen 14,25–14,33 pt bei 14,33 pt Zeilenabstand)
     var zeilenHoehe: CGFloat = 14
 
     var body: some View {
-        // Schriftstärke wie die Zeile (oben Semibold, sonst Regular)
-        // Vorlagen in voller Auflösung (4cc11c37 „LN“/„A103“, 171 „GIL“, dc1bcf55 „WE“; 3 px/pt): Fläche 14 pt hoch
-        // (13,67–14,33), Ecken 1,33–1,5 pt, gleiche Schriftgröße wie der Text (Versalhöhe 8,67 pt), Schrift mittig
-        // (0,15 pt höher). Die Schrift bleibt bündig mit den anderen Zeilen; die Fläche beginnt 2,15 pt vor dem
-        // Schrift-Ursprung und endet 2,45 pt hinter der Schrift (Glyphenabstand links 2,3–3, rechts 3–3,3 pt).
+        // Schriftstärke wie die Zeile (oben Semibold, sonst Regular). Nachgemessen: „C“ in „C103“ (Label) und in „C007“
+        // (ohne Label, gleiche Zeile) liegen auf den Bildpunkt gleich hoch – daher kein senkrechter Versatz mehr (vorher
+        // −0,15 pt); Fläche zeilenhoch (vorher 14 pt).
         Text(text)
             .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
             .foregroundStyle(Farben.gruenSchrift)
             .lineLimit(1)
             .truncationMode(.tail)
-            .offset(y: -0.15)
             .padding(.leading, Self.innen)
             .padding(.trailing, Self.innenRechts)
-            .frame(height: min(14, zeilenHoehe - 0.33))
+            .frame(height: zeilenHoehe)
             .background(farbe, in: RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
             .fixedSize(horizontal: !kuerzbar, vertical: true)
     }
 }
 
 /// Info-Zeichen (.card__info) wie im Original nachgemessen: abgerundetes Feld in Kartengrau (hell #f3f5f7, dunkel
-/// #313d44, auch auf grünen, roten und gelben Karten), darin eine gefüllte graue Scheibe (#818e9c) mit ausgespartem
-/// Serifen-„i“; flach, ohne Schatten. Immer als Originalbild – keine Einfärbung und keine Umkehr durch „Farben umkehren“.
+/// #323c45, auch auf grünen, roten und gelben Karten), darin eine gefüllte graue Scheibe (dunkel #808e9b) mit ausgespartem
+/// Serifen-„i“; flach, ohne Schatten. Nachgemessen (Vorlage dunkel 6d696e75, 3 px/pt): Feld 14 × 14 pt, Ecken 2 pt,
+/// 4 pt vom rechten und unteren Kartenrand (außen), Scheibe Ø 10 pt mittig, „i“: Punkt Ø 1,34 pt 2,7 pt über der Mitte,
+/// Stamm 0,93 pt breit, Fuß 2,53 × 0,97 pt; Abstand zur „Online“-Plakette links 1 pt. Immer als Originalbild – keine Einfärbung und keine Umkehr durch „Farben umkehren“.
 struct Infozeichen: View {
     var groesse: CGFloat = KachelView.infoGroesse
 
