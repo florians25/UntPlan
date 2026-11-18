@@ -411,7 +411,7 @@ enum Startsteuerung {
     static var server: String? { wert("uiServer") }
     static var login: String? { wert("uiLogin") }
     static var passwort: String? { wert("uiPasswort") }
-    /// woche (Standard), tag, details, termine, abwesenheiten
+    /// woche (Standard), tag, details, aufsicht, termine, abwesenheiten
     static var ansicht: String? { wert("uiAnsicht")?.lowercased() }
     /// Angezeigter Tag (yyyy-MM-dd)
     static var datum: Date? { wert("uiDatum").flatMap { Datumsformat.datum($0) } }
@@ -422,6 +422,9 @@ enum Startsteuerung {
         guard teile.count == 2 else { return nil }
         return PlanAuswahl(typ: teile[0].lowercased(), element: teile[1], name: teile[1])
     }
+
+    /// Stundendetails: Karte in dieser Stunde (Nummer) statt der ersten geänderten
+    static var stunde: Int? { wert("uiStunde").flatMap { Int($0) } }
 
     static var aktiv: Bool { server != nil }
 

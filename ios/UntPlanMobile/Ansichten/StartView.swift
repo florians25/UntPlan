@@ -785,7 +785,8 @@ struct MeineTermineView: View {
                 }
             }
             .padding(.horizontal, rand)
-            .padding(.top, 4)
+            // Vorlage 33da91d4: erste Datumsgruppe (Versalhöhe) 151,7 pt unter dem oberen Rand
+            .padding(.top, 28.7)
             .padding(.bottom, 28)
             .zentriert(maxBreite: 736)
         }
@@ -800,40 +801,50 @@ struct MeineTermineView: View {
                 Listentitel(titel: "Meine Termine",
                             untertitel: (liste?.bis ?? "").isEmpty ? nil : "bis \(Datumsformat.anzeige(liste?.bis ?? "", "dd.MM.yyyy"))")
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Art", selection: $art) {
-                        ForEach(Self.arten, id: \.wert) { a in
-                            Text(a.titel).tag(a.wert)
-                        }
-                    }
-                } label: {
-                    Glasknopf {
-                        Image(systemName: art.isEmpty ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
-                            .font(.system(size: 17, weight: .regular))
-                    }
-                }
-                .accessibilityLabel("Filter")
-                Button {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        sucheOffen.toggle()
-                        if !sucheOffen { suche = "" }
-                    }
-                } label: {
-                    Glasknopf {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 17, weight: .regular))
-                    }
-                }
-                .accessibilityLabel(sucheOffen ? "Suche schließen" : "Termine durchsuchen")
-            }
         }
+        // Wie in der Vorlage zwei getrennte runde Knöpfe: Filter (Trichter, grau) und Suche
+        .zweiKnoepfe(links: filterKnopf, rechts: suchKnopf)
         .task {
             if liste == nil {
                 await laden()
                 await stammdatenLaden()
             }
         }
+    }
+
+    private var filterKnopf: some View {
+        Menu {
+            Picker("Art", selection: $art) {
+                ForEach(Self.arten, id: \.wert) { a in
+                    Text(a.titel).tag(a.wert)
+                }
+            }
+        } label: {
+            // Ein Menü bekommt in der Leiste 8 pt mehr Rand als ein Knopf: 24 pt Inhalt → Kreis 44 pt wie die Lupe
+            Glasknopf(breite: 24) {
+                // Vorlage 33da91d4: Trichter (Umriss, 64 × 64 px) in #8997a4; gewählter Filter gefüllt
+                Trichter(gefuellt: !art.isEmpty)
+                    .foregroundStyle(Color(hexWert: 0x8997A4))
+            }
+        }
+        .accessibilityLabel("Filter")
+    }
+
+    private var suchKnopf: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                sucheOffen.toggle()
+                if !sucheOffen { suche = "" }
+            }
+        } label: {
+            // Vorlage: Lupe 63 × 63 px, kräftiger Strich, #f3f3f3
+            Glasknopf(breite: 32) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 17.5, weight: .medium))
+                    .foregroundStyle(Color(hexWert: 0xF3F3F3))
+            }
+        }
+        .accessibilityLabel(sucheOffen ? "Suche schließen" : "Termine durchsuchen")
     }
 
     private var leertext: String {

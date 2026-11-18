@@ -790,13 +790,14 @@ struct Listentitel: View {
     var untertitel: String? = nil
 
     var body: some View {
+        // Vorlage 33da91d4 (3 px/pt): Titel 15 pt Semibold (Versalhöhe 32 px), darunter 12 pt
         VStack(spacing: 1) {
             Text(titel)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Farben.tinte2)
             if let untertitel, !untertitel.isEmpty {
                 Text(untertitel)
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundStyle(Farben.tinte2)
             }
         }
@@ -810,13 +811,15 @@ struct Datumsgruppenkopf: View {
     let text: String
 
     var body: some View {
+        // Vorlage 33da91d4: 13 pt (Versalhöhe 27 px); Versalhöhe 19 pt unter der Karte davor, nächste Karte 19,3 pt
+        // unter der Grundlinie (bei 12 pt Abstand in der Liste)
         Text(text)
-            .font(.system(size: 15))
+            .font(.system(size: 13))
             .foregroundStyle(Farben.tinte2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, 1)
-            .padding(.top, 14)
-            .padding(.bottom, 6)
+            .padding(.top, 3.8)
+            .padding(.bottom, 4.2)
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -842,27 +845,30 @@ struct Listenkarte: View {
     var zeilen: [Listenkartenzeile] = []
 
     var body: some View {
+        // Vorlage 33da91d4 (3 px/pt): Überschrift 17 pt (Versalhöhe 36 px), Zeilen 15 pt (32 px) im Grundlinienabstand
+        // 22,67 pt, Versalhöhe der Überschrift 20,33 pt unter der Kartenoberkante, letzte Grundlinie 22 pt über der
+        // Unterkante; Text ab 74,3 pt, Symbol mittig bei 44,5 pt; Ecken 8 pt
         HStack(alignment: .center, spacing: 0) {
             Image(systemName: symbol)
                 .font(.system(size: 25, weight: .light))
                 .foregroundStyle(symbolFarbe)
                 .frame(width: 56)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 4.75) {
                 Text(titel)
-                    .font(.system(size: 20))
+                    .font(.system(size: 17))
                     .foregroundStyle(Farben.tinte)
-                    .padding(.bottom, 1)
+                    .padding(.bottom, -1.9)
                 ForEach(Array(zeilen.enumerated()), id: \.offset) { eintrag in
                     let z = eintrag.element
                     HStack(alignment: .firstTextBaseline, spacing: 5) {
                         if let s = z.symbol {
                             Image(systemName: s)
-                                .font(.system(size: 14))
+                                .font(.system(size: 13))
                                 .foregroundStyle(z.farbe ?? Farben.gedaempft)
                         }
                         Text(z.text)
-                            .font(.system(size: 17))
+                            .font(.system(size: 15))
                             .foregroundStyle(z.symbol == nil ? (z.farbe ?? Farben.tinte) : Farben.tinte)
                             .lineLimit(4)
                     }
@@ -872,9 +878,10 @@ struct Listenkarte: View {
             .padding(.leading, 1)
         }
         .padding(.trailing, 14)
-        .padding(.vertical, 15)
+        .padding(.top, 16.2)
+        .padding(.bottom, 18.4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 }
@@ -897,5 +904,51 @@ struct Datumsgruppe<Eintrag>: Identifiable {
             }
         }
         return ergebnis
+    }
+}
+
+extension View {
+    /// Zwei Knöpfe rechts in der Leiste: ab iOS 26 als getrennte runde Glasknöpfe (wie in den Vorlagen), davor zusammen.
+    @ViewBuilder
+    func zweiKnoepfe<A: View, B: View>(links: A, rechts: B) -> some View {
+        if #available(iOS 26.0, *) {
+            self.toolbar {
+                ToolbarItem(placement: .topBarTrailing) { links }
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                ToolbarItem(placement: .topBarTrailing) { rechts }
+            }
+        } else {
+            self.toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    links
+                    rechts
+                }
+            }
+        }
+    }
+}
+
+/// Trichter (Filter) wie in der Vorlage 33da91d4 (3 px/pt): 24-pt-Feld, Umriss 1,67 pt mit runden Ecken oben, schräge
+/// Seiten bis zum Hals bei 12,33 pt, links der Hals bis 22 pt, rechts kürzer und schräg zurück zur linken Seite.
+struct Trichter: View {
+    var gefuellt = false
+
+    var body: some View {
+        let form = Path { p in
+            p.move(to: CGPoint(x: 9.5, y: 22))
+            p.addLine(to: CGPoint(x: 9.5, y: 12.33))
+            p.addLine(to: CGPoint(x: 2.5, y: 4.4))
+            p.addQuadCurve(to: CGPoint(x: 4.6, y: 1.85), control: CGPoint(x: 1.2, y: 1.85))
+            p.addLine(to: CGPoint(x: 19.4, y: 1.85))
+            p.addQuadCurve(to: CGPoint(x: 21.5, y: 4.4), control: CGPoint(x: 22.8, y: 1.85))
+            p.addLine(to: CGPoint(x: 14.5, y: 12.33))
+            p.addLine(to: CGPoint(x: 14.5, y: 16.9))
+            p.addLine(to: CGPoint(x: 9.5, y: 20.8))
+        }
+        ZStack {
+            if gefuellt { form.fill() }
+            form.stroke(style: StrokeStyle(lineWidth: 1.67, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: 24, height: 24)
     }
 }

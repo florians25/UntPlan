@@ -339,11 +339,17 @@ struct StundenplanView: View {
     /// Nur mit Startargumenten „-uiAnsicht details“: nach dem Laden die Stundendetails einer Vertretung (bzw. einer anderen
     /// geänderten Stunde) am angegebenen Tag öffnen.
     private func startdetailOeffnen() async {
-        guard Startsteuerung.aktiv, Startsteuerung.ansicht == "details" else { return }
+        guard Startsteuerung.aktiv, ["details", "aufsicht"].contains(Startsteuerung.ansicht ?? "") else { return }
         for _ in 0..<60 {
             if let plan = aktuellerPlan, !plan.karten.isEmpty {
                 let tag = Startsteuerung.datum.map { Datumsformat.iso($0) }
+                if Startsteuerung.ansicht == "aufsicht" {
+                    gewaehlteAufsicht = plan.aufsichten.first { tag == nil || $0.datum == tag }
+                    return
+                }
+                // „-uiStunde n“: die Karte, die in dieser Stunde liegt
                 let amTag = plan.karten.filter { tag == nil || $0.datum == tag }
+                    .filter { k in Startsteuerung.stunde.map { k.von <= $0 && $0 <= k.bis } ?? true }
                 let geaendert = amTag.filter { $0.unterricht != nil && $0.status != "regulaer" }
                 if let k = geaendert.first(where: { $0.vertretung != nil && ["vertretung", "vertreten"].contains($0.status) })
                     ?? geaendert.first(where: { $0.vertretung != nil }) ?? geaendert.first ?? amTag.first {
@@ -1498,6 +1504,10 @@ struct Rasterrahmen: Equatable {
     /// Höhe je Minute ohne bekannte Sichthöhe (hell 45 min = 166 px = 55,33 pt) bzw. auf dem iPad (wie die PWA).
     static let proMinuteStandard: CGFloat = 1.2296
     static let proMinuteBreit: CGFloat = 1.2704
+    /// iPhone (Woche und Tag) ohne bekannte Sichthöhe: 45 min = 176 px bei 3 px/pt
+    static let proMinuteIphone: CGFloat = 176.0 / 3 / 45
+    /// iPhone: dichtestes Raster (45 min = 171 px bei 3 px/pt)
+    static let proMinuteMindest: CGFloat = 171.0 / 3 / 45
     static let abstandUnten: CGFloat = 28
     /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
     /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
@@ -1545,18 +1555,21 @@ struct Rasterrahmen: Equatable {
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
         let pille = Self.pillenHoehe(tage: seiten.contains { $0.nurTage != nil })
         let oben: CGFloat = vorErster ? max(Self.obenAbstand, pille + Self.pillenLuft) : Self.obenAbstand
-        // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
-        // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
-        let spanne = CGFloat(Self.sichtEnde - start)
         let proMinute: CGFloat
-        if kompakt && sichtHoehe > 200 && spanne >= 240 {
-            proMinute = min(1.6, max(1.0, (sichtHoehe - oben) / spanne))
+        if kompakt && sichtHoehe > 200 && ende - start >= 240 {
+            // iPhone wie in den Vorlagen (dunkel, 3 px/pt): der Tag von der ersten Linie bis zum Ende der letzten Stunde
+            // des Zeitrasters füllt die Sichthöhe bis zum unteren Bildschirmrand – das Ende liegt damit unter der Leiste
+            // (6a2e7724: 08:00–16:30 → 176 px je 45 min, 567a139b: 182 px); längere Tage höchstens so dicht wie
+            // 6d696e75/929543d3/e23ea538 (171 px je 45 min = 1,2667 pt/min), danach läuft das Raster weiter
+            proMinute = min(1.6, max(Self.proMinuteMindest, (sichtHoehe - oben) / CGFloat(ende - start)))
+        } else if kompakt {
+            proMinute = Self.proMinuteIphone
         } else {
-            proMinute = kompakt ? Self.proMinuteStandard : Self.proMinuteBreit
+            proMinute = Self.proMinuteBreit
         }
         let mass = Rastermass(oben: oben, start: start, proMinute: proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
-                                                              mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 24))
+                                                              mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 19))
         self.zeiten = zeiten
         self.start = start
         self.ende = ende
@@ -1962,8 +1975,9 @@ struct RasterSeite: View, Equatable {
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
             // Direkt auf der Linie der 1. Stunde (Unterkante an der Oberkante der Linie), wie im Original
-            h = rahmen.pillenHoehe
-            y = bildpunkt(max(0, mass.y(mass.start) - h))
+            // Aufsicht vor der 1. Stunde wie in der Vorlage (eedec6e2): 11 pt hoch, 0,67 pt über der Linie
+            h = k.art == .aufsicht && nurTage == nil ? 11 : rahmen.pillenHoehe
+            y = bildpunkt(max(0, mass.y(mass.start) - h - (k.art == .aufsicht && nurTage == nil ? 0.67 : 0)))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
             (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
@@ -1983,9 +1997,10 @@ struct RasterSeite: View, Equatable {
         let oben = mass.yEnde(beginn) + 1
         let unten = mass.y(ende)
         let luecke = max(0, unten - oben)
-        // Vorlage 179: in einer 15-Minuten-Pause 15,3 pt hoch (Lücke − 2 pt)
-        let h = max(12, min(nurTage == nil ? 22 : 26, luecke - 2))
-        return (bildpunkt(oben + (luecke - h) / 2), h)
+        // Vorlagen 6a2e7724/da72165b (15-Minuten-Pause, 3 px/pt): Pille 17,5 pt hoch bei 18,67 pt Lücke, 0,83 pt unter der
+        // Linie davor – höchstens 17,5 pt, sonst Lücke − 1,17 pt, leicht nach unten versetzt
+        let h = max(12, min(nurTage == nil ? 17.5 : 26, luecke - 1.17))
+        return (bildpunkt(oben + (luecke - h) / 2 + 0.25), h)
     }
 
     /// Auf ganze Bildpunkte runden (3x: Drittel-Punkte).

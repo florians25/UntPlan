@@ -779,15 +779,16 @@ struct Detailzeile<Rechts: View>: View {
     }
 
     var body: some View {
-        // Vorlage (3 px/pt): Symbol 24 pt ab 18 pt, Text ab 61,3 pt, Titel 18,5 pt (Versalhöhe 13 pt), Untertitel 15,5 pt
+        // Vorlage (3 px/pt): Symbol 24 pt ab 18 pt, Text ab 61,3 pt, Titel 17 pt (Versalhöhe 36 px = 12 pt, f29923a9 und
+        // 099514eb nachgemessen; vorher 18,5 pt), Untertitel 15,5 pt
         // (Grundlinien 22 pt auseinander), Zahl Ø 32 pt 16,7 pt vor dem Pfeil, Pfeil 10,7 × 20 pt 24,7 pt vom Rand;
         // einzeilige Zeilen 56 pt, zweizeilige ≈ 58,5 pt
         HStack(spacing: 18) {
             Listensymbol(name: symbol, groesse: 24, einpassen: true)
                 .foregroundStyle(Farben.detailSymbol)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4.5) {
                 Text(titel)
-                    .font(.system(size: 18.5, weight: .regular))
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
@@ -806,8 +807,9 @@ struct Detailzeile<Rechts: View>: View {
                     .padding(.trailing, 4.5)
             }
             if pfeil {
+                // Pfeil 62 × 32 px wie in der Vorlage (vorher 53 px hoch)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 23, weight: .thin))
+                    .font(.system(size: 26.5, weight: .thin))
                     .foregroundStyle(Farben.detailSymbol)
             }
         }
@@ -1118,11 +1120,14 @@ struct Listensymbol: View {
 
 // MARK: - Schüler*innen-Plakette
 
-/// Zahl der Abwesenden wie in der Vorlage: dunkelrote Scheibe (grau bei 0), oben rechts ein kleines Häkchen,
-/// wenn die Abwesenheiten der Stunde kontrolliert wurden.
+/// Schüler*innen der Stunde: ohne Abwesende die Zahl der Schüler*innen (graue Scheibe), sonst die Zahl der Abwesenden
+/// (dunkelrote Scheibe); oben rechts ein kleines Häkchen, wenn die Abwesenheiten der Stunde kontrolliert wurden.
 struct SchuelerPlakette: View {
-    let zahl: Int
+    let abwesend: Int
+    let gesamt: Int
     let kontrolliert: Bool
+
+    private var zahl: Int { abwesend > 0 ? abwesend : gesamt }
 
     var body: some View {
         // Vorlage: Kreis 32 pt, Ziffer 15 pt; Abwesende hell blassrot (#fff3f3) mit roter Ziffer (#df0046), dunkel
@@ -1131,10 +1136,10 @@ struct SchuelerPlakette: View {
         Text("\(zahl)")
             .font(.system(size: 15))
             .monospacedDigit()
-            .foregroundStyle(zahl > 0 ? Farben.abwesendZiffer : Farben.plakettenZiffer)
+            .foregroundStyle(abwesend > 0 ? Farben.abwesendZiffer : Farben.plakettenZiffer)
             .padding(.horizontal, 8)
             .frame(minWidth: 32, minHeight: 32)
-            .background(zahl > 0 ? Farben.abwesendPlaketteFlaeche : Farben.detailSymbol, in: Capsule())
+            .background(abwesend > 0 ? Farben.abwesendPlaketteFlaeche : Farben.detailSymbol, in: Capsule())
             .overlay(alignment: .topTrailing) {
                 if kontrolliert {
                     Image(systemName: "checkmark")
@@ -1147,7 +1152,7 @@ struct SchuelerPlakette: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(kontrolliert ? "\(zahl) abwesend, kontrolliert" : "\(zahl) abwesend")
+            .accessibilityLabel((abwesend > 0 ? "\(abwesend) abwesend" : "\(gesamt) Schüler*innen") + (kontrolliert ? ", kontrolliert" : ""))
     }
 }
 

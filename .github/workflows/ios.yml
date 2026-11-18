@@ -3,7 +3,7 @@ name: iOS (Simulator)
 # Baut die iOS-App (ios/UntPlanMobile) auf macOS, startet sie im iOS-Simulator gegen den UntPlanWeb-Demo-Server und
 # macht Bildschirmfotos der wichtigsten Ansichten. Die App wird dabei über Startargumente gesteuert (nur Debug-Builds,
 # siehe Startsteuerung in Dienste/AppZustand.swift): Anmeldung, Plan, Tag und Ansicht.
-# Die Fotos liegen als Artefakt vor und stehen zusätzlich verkleinert als Base64 im Protokoll
+# Die Fotos liegen als Artefakt vor und stehen zusätzlich in voller Auflösung (PNG) als Base64 im Protokoll
 # (Zeilen „BILD-ANFANG name“, „B64 …“ je 4000 Zeichen, „BILD-ENDE name“).
 on:
   push:
@@ -36,6 +36,50 @@ jobs:
           sudo xcode-select -s "$XC"
           xcodebuild -version
           xcrun simctl list runtimes
+
+      - name: Beispielwoche ergänzen (nur in diesem Lauf)
+        run: |
+          cat > $RUNNER_TEMP/demo.py <<'PY'
+          # Beispielwoche der Klasse 6a wie die Vorlagen: Entfall (rot), Raumänderung (grüne Raum-Plakette), Vertretung mit Text
+          import json, sys
+          p = sys.argv[1]
+          d = json.load(open(p))
+          tage = {t["datum"]: t for t in d["tage"]}
+          erste = sorted(tage)[0]
+          import datetime as dt
+          mo = dt.date.fromisoformat(erste)
+          mo -= dt.timedelta(days=mo.weekday())
+          iso = lambda n: (mo + dt.timedelta(days=n)).isoformat()
+          nid = max(v["id"] for v in d["vertretungen"]) + 1
+          def stunde(tag, nr, fach):
+              return next(s for s in tage[iso(tag)]["stunden"] if s["stunde"] == nr and "6a" in s["klassen"] and s["fach"] == fach)
+          def vertretung(**k):
+              global nid
+              v = {"id": nid, "klassen": ["6a"], "vertreter": "", "fach": "", "neuesFach": "", "raum": "", "neuerRaum": "",
+                   "vertrVon": "", "nach": "", "text": "", "nurLehrer": False}
+              v.update(k); d["vertretungen"].append(v); nid += 1
+              return v["id"]
+          # Donnerstag 1. Stunde (F, SWA) entfällt
+          s = stunde(3, 1, "F")
+          s["status"] = "entfall"
+          s["vertretung"] = vertretung(datum=iso(3), stunde=1, art="Entfall", lehrer="SWA", vertreter="---", fach="F", neuesFach="F", raum="R103")
+          # Freitag 6. Stunde (F, SWA): Raumänderung R103 → R105
+          s = stunde(4, 6, "F")
+          s["status"] = "vertreten"; s["raeume"] = ["R105"]
+          s["vertretung"] = vertretung(datum=iso(4), stunde=6, art="Raum-Vtr.", lehrer="SWA", vertreter="SWA", fach="F", neuesFach="F", raum="R103", neuerRaum="R105")
+          # Donnerstag 5. Stunde (GE, MUE): Vertretung durch WAG mit Vertretungstext (Info-Zeichen)
+          s = stunde(3, 5, "GE")
+          s["status"] = "vertreten"; s["lehrer"] = ["WAG"]; s["text"] = "Aufgaben im Buch S. 42"
+          s["vertretung"] = vertretung(datum=iso(3), stunde=5, art="Vertretung", lehrer="MUE", vertreter="WAG", fach="GE", neuesFach="GE", raum="R103", neuerRaum="R103", text="Aufgaben im Buch S. 42")
+          json.dump(d, open(p, "w"), ensure_ascii=False)
+          print("Demo-Woche 6a ergänzt")
+          # Pausenaufsichten der Lehrkraft BEC: Do. nach der 2. Stunde abgegeben (RIC vertritt), Mo. nach der 4. Stunde vertritt BEC (Halle, WEB)
+          vertretung(datum=iso(3), stunde=2, art="Pausenaufsicht", klassen=[], lehrer="BEC", vertreter="RIC", raum="Hof", neuerRaum="Hof", nurLehrer=True)
+          vertretung(datum=iso(0), stunde=4, art="Pausenaufsicht", klassen=[], lehrer="WEB", vertreter="BEC", raum="Halle", neuerRaum="Halle", nurLehrer=True)
+          json.dump(d, open(p, "w"), ensure_ascii=False)
+          print("Aufsichten ergänzt")
+          PY
+          python3 $RUNNER_TEMP/demo.py web/demo/beispiel-paket.json
 
       - name: Demo-Server starten
         run: |
@@ -112,14 +156,24 @@ jobs:
           MO=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday()))')
           DI=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday())+d.timedelta(days=1))')
           MI=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday())+d.timedelta(days=2))')
+          DO=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday())+d.timedelta(days=3))')
           echo "MI=$MI" >> $GITHUB_ENV
           echo "MO=$MO" >> $GITHUB_ENV
+          echo "DI=$DI" >> $GITHUB_ENV
+          echo "DO=$DO" >> $GITHUB_ENV
           for z in "$MO|07:00|21:00|entschuldigt|K|Grippe" "$DI|07:00|21:00|offen|K|Attest folgt" "$MI|07:55|08:10|offen||Bus verpasst"; do
             IFS='|' read -r tag von bis status grund text <<< "$z"
             curl -s -c $J -b $J -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
               -d "{\"schuelerIds\":[$KIND],\"von\":\"${tag}T${von}\",\"bis\":\"${tag}T${bis}\",\"grund\":\"$grund\",\"status\":\"$status\",\"text\":\"$text\"}" \
               $S/klassenbuch/abwesenheit; echo
           done
+          # Wie in den Vorlagen: Online-Stunde (Do. 2./3. Stunde 6a, BEC) und Notiz für Schüler*innen (Info-Zeichen, Di. 2. Stunde)
+          B=$RUNNER_TEMP/bec.cookies
+          curl -s -c $B -b $B -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' -d '{"login":"bec","passwort":"Lehrer1234!x"}' $S/anmelden > /dev/null
+          curl -s -b $B -X PUT -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
+            -d "{\"datum\":\"$DO\",\"stunde\":2,\"unterricht\":127,\"online\":true}" $S/klassenbuch/online; echo
+          curl -s -b $B -X PUT -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
+            -d "{\"datum\":\"$DI\",\"stunde\":2,\"unterricht\":127,\"notizSchueler\":\"Bitte Lektüre mitbringen\"}" $S/klassenbuch/stunde > /dev/null; echo
 
       - name: Simulator starten (Dunkelmodus, Statusleiste 9:41)
         run: |
@@ -146,7 +200,7 @@ jobs:
             xcrun simctl install $U "$APP"
             xcrun simctl launch $U de.untplan.mobile -AppleLanguages '(de)' -AppleLocale de_DE \
               -uiServer http://127.0.0.1:5077 "$@"
-            sleep 10
+            sleep 16
             xcrun simctl io $U screenshot "fotos/$name.png"
             echo "Foto: $name"
           }
@@ -159,20 +213,37 @@ jobs:
           foto 05_Meine_Termine $L -uiAnsicht termine
           foto 06_Start_Lehrkraft $L -uiAnsicht start
           foto 07_Meine_Abwesenheiten_Eltern -uiLogin eltern1 -uiPasswort 'Eltern1234!x' -uiDatum $MI -uiAnsicht abwesenheiten
+          # Klassenplan: Kopplung (Di.) als Tag, Vertretung mit Text (Do. 5.), Online-Stunde (Do. 2.)
+          foto 08_Tag_Klasse $L -uiAnsicht tag -uiPlan klasse:6a -uiDatum $DI
+          foto 09_Stundendetails_Klasse -uiLogin bec -uiPasswort Lehrer1234!x -uiPlan klasse:6a -uiDatum $DO -uiStunde 5 -uiAnsicht details
+          foto 10_Stundendetails_Online -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiStunde 2 -uiAnsicht details
+          # Pausenaufsichten: Tag mit abgegebener Aufsicht (Do.) und Details einer Aufsicht
+          foto 11_Tag_Lehrkraft_Aufsicht -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiAnsicht tag
+          foto 12_Aufsicht_Details -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiAnsicht aufsicht
+          foto 13_Woche_Lehrkraft_Vorwoche -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MO -uiAnsicht woche
           ls -la fotos
 
-      - name: Bilder ins Protokoll
+      # Volle Auflösung (1206 × 2622, PNG wie aufgenommen) – für den Abgleich mit den Vorlagen im Maßstab 3 px/pt
+      - name: Bilder ins Protokoll (1)
         if: always()
         run: |
-          mkdir -p klein
-          for f in fotos/*.png; do
-            [ -f "$f" ] || continue
-            n=$(basename "$f" .png)
-            sips -Z 900 -s format jpeg -s formatOptions 55 "$f" --out "klein/$n.jpg" > /dev/null
-            echo "BILD-ANFANG $n.jpg"
-            base64 -i "klein/$n.jpg" | tr -d '\n' | fold -w 4000 | sed 's/^/B64 /'
+          for f in $(ls fotos/*.png | head -7); do
+            n=$(basename "$f")
+            echo "BILD-ANFANG $n"
+            base64 -i "$f" | tr -d '\n' | fold -w 4000 | sed 's/^/B64 /'
             echo
-            echo "BILD-ENDE $n.jpg"
+            echo "BILD-ENDE $n"
+          done
+
+      - name: Bilder ins Protokoll (2)
+        if: always()
+        run: |
+          for f in $(ls fotos/*.png | tail -n +8); do
+            n=$(basename "$f")
+            echo "BILD-ANFANG $n"
+            base64 -i "$f" | tr -d '\n' | fold -w 4000 | sed 's/^/B64 /'
+            echo
+            echo "BILD-ENDE $n"
           done
 
       - name: Server-Protokoll

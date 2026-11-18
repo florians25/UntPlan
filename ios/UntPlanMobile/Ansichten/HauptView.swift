@@ -146,8 +146,11 @@ struct AppTabView: View {
                 .tint(Farben.akzent)
                 .tabItem {
                     // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
-                    Label(AppReiter.start.titel, systemImage: AppReiter.start.symbol)
-                        .environment(\.symbolVariants, .none)
+                    Label {
+                        Text(AppReiter.start.titel)
+                    } icon: {
+                        Leistensymbole.schule
+                    }
                 }
                 .tag(AppReiter.start)
             StundenplanView()
@@ -164,8 +167,11 @@ struct AppTabView: View {
                 .tint(Farben.akzent)
                 .tabItem {
                     // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
-                    Label(AppReiter.mitteilungen.titel, systemImage: AppReiter.mitteilungen.symbol)
-                        .environment(\.symbolVariants, .none)
+                    Label {
+                        Text(AppReiter.mitteilungen.titel)
+                    } icon: {
+                        Leistensymbole.umschlag
+                    }
                 }
                 .badge(zustand.ungelesen)
                 .tag(AppReiter.mitteilungen)
@@ -173,8 +179,11 @@ struct AppTabView: View {
                 .tint(Farben.akzent)
                 .tabItem {
                     // Umrisse wie im Original (die Systemleiste füllt Symbole sonst)
-                    Label(AppReiter.profil.titel, systemImage: AppReiter.profil.symbol)
-                        .environment(\.symbolVariants, .none)
+                    Label {
+                        Text(AppReiter.profil.titel)
+                    } icon: {
+                        Leistensymbole.person
+                    }
                 }
                 .tag(AppReiter.profil)
         }
