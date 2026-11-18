@@ -311,7 +311,7 @@ struct KachelView: View {
     /// Abgegebene Aufsicht: durchsichtig mit Eckklammern, Balken halb deckend, grünes „⋮“-Feld (14 pt) unten rechts
     /// (1 pt vom unteren, 2,33 pt vom rechten Rand). Aufsicht vor der 1. Stunde („STD-früh“): 11 pt hoch, Ort 8 pt.
     private func pille(_ a: Kachelaussehen) -> some View {
-        let klein = kachel.vorErsterStunde && kachel.art == .aufsicht && !gross
+        let klein = kachel.vorErsterStunde && kachel.art == .aufsicht
         let mitFeld = kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben)
         return HStack(spacing: klein ? 4.33 : 4.0) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -321,7 +321,8 @@ struct KachelView: View {
                 .padding(.vertical, 1)   // Balken 1 pt kürzer als die Pille (oben und unten)
             // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
-                .font(.system(size: gross ? 13.5 : (klein ? 8 : 12), weight: .semibold))
+                // Aufsicht in Woche und Tag gleich (Tageskarten haben dieselbe Schrift wie die Woche, e23ea538)
+                .font(.system(size: klein ? 8 : (gross && kachel.art != .aufsicht ? 13.5 : 12), weight: .semibold))
                 .strikethrough(a.durchgestrichen, color: a.text)
                 .foregroundStyle(a.text)
                 .lineLimit(1)

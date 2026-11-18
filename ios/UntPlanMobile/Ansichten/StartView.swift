@@ -163,8 +163,9 @@ struct StartView: View {
             .foregroundStyle(Farben.titelGrau)
             .lineLimit(2)
             .minimumScaleFactor(0.7)
-            .padding(.top, 2)
-            .padding(.bottom, 24)
+            // Vorlage 21cf6d43 (3 px/pt): Versalhöhe ab 378 px – 1,67 pt tiefer als zuvor, Abstand darunter unverändert
+            .padding(.top, 3.67)
+            .padding(.bottom, 22.33)
             .accessibilityAddTraits(.isHeader)
     }
 

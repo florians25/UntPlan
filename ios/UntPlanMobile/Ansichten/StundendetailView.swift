@@ -100,13 +100,6 @@ struct StundendetailInhalt: View {
     private var karte: Karte { karten[index] }
     private var daten: Stundendaten { datenListe[index] }
 
-    /// Hinterlegte Fachfarbe einer Stunde (leer bzw. Weiß = keine; nicht bei Entfall – dort steht der rote Balken).
-    static func fachfarbe(_ karte: Karte) -> Color? {
-        let hex = karte.farbe.trimmingCharacters(in: .whitespaces)
-        guard !karte.istEntfall, !hex.isEmpty, !["#FFFFFF", "FFFFFF", "#FFF"].contains(hex.uppercased()) else { return nil }
-        return Color(hex: hex)
-    }
-
     /// Ladebild statt Inhalt: bis die Daten der beim Öffnen gewählten Stunde da sind und während das Blatt ein- oder
     /// ausfährt (wie im Original – die Seiten werden erst danach aufgebaut, Öffnen und Schließen laufen dadurch flüssiger).
     private var zeigtSkelett: Bool {
@@ -128,14 +121,7 @@ struct StundendetailInhalt: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
             }
-            // Vorlage: Balken in der Fachfarbe direkt unter dem Kopf (4 pt) – nur wenn für das Fach eine Farbe hinterlegt ist
-            // Mehrere Stunden: die Fachfarbe steht stattdessen als Strich unter dem jeweiligen Reiter
-            if karten.count <= 1, !zeigtSkelett, let farbe = Self.fachfarbe(karte) {
-                Rectangle()
-                    .fill(farbe)
-                    .frame(height: 4)
-                    .accessibilityHidden(true)
-            }
+            // Kein Farbbalken unter dem Kopf: in keiner Vorlage (f29923a9, f08b8239, 099514eb) vorhanden
             if zeigtSkelett {
                 Detailskelett()
                     .transition(.identity)
@@ -297,10 +283,10 @@ struct StundendetailInhalt: View {
                             .padding(.horizontal, 13.83)
                             .frame(height: 50)
                             .overlay(alignment: .bottom) {
-                                // Strich unter dem gewählten Reiter in dessen Fachfarbe (ohne Fachfarbe wie bisher)
+                                // Strich unter dem gewählten Reiter immer hell wie in der Vorlage 099514eb
                                 if gewaehlt {
                                     Rectangle()
-                                        .fill(Self.fachfarbe(eintrag.element) ?? Farben.reiterStrich)
+                                        .fill(Farben.reiterStrich)
                                         .frame(height: 4)
                                         .padding(.horizontal, 5.5)
                                         .matchedGeometryEffect(id: "aktiverDetailReiter", in: reiterRaum)
@@ -846,7 +832,7 @@ private struct StundendetailSeite: View {
                     if let liste = daten.anwesenheit {
                         SchuelerPlakette(abwesend: daten.abwesendAnzahl, gesamt: liste.schueler.count,
                                          kontrolliert: liste.kontrolliert)
-                            .padding(.trailing, 4)
+                            .padding(.trailing, -1.33)
                     }
                 })
             }
