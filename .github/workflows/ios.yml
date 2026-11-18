@@ -200,7 +200,7 @@ jobs:
             xcrun simctl install $U "$APP"
             xcrun simctl launch $U de.untplan.mobile -AppleLanguages '(de)' -AppleLocale de_DE \
               -uiServer http://127.0.0.1:5077 "$@"
-            sleep 10
+            sleep 16
             xcrun simctl io $U screenshot "fotos/$name.png"
             echo "Foto: $name"
           }

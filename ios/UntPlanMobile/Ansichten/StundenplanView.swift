@@ -1504,8 +1504,10 @@ struct Rasterrahmen: Equatable {
     /// Höhe je Minute ohne bekannte Sichthöhe (hell 45 min = 166 px = 55,33 pt) bzw. auf dem iPad (wie die PWA).
     static let proMinuteStandard: CGFloat = 1.2296
     static let proMinuteBreit: CGFloat = 1.2704
-    /// iPhone (Woche und Tag): 45 min = 182 px bei 3 px/pt
-    static let proMinuteIphone: CGFloat = 182.0 / 3 / 45
+    /// iPhone (Woche und Tag) ohne bekannte Sichthöhe: 45 min = 176 px bei 3 px/pt
+    static let proMinuteIphone: CGFloat = 176.0 / 3 / 45
+    /// iPhone: dichtestes Raster (45 min = 171 px bei 3 px/pt)
+    static let proMinuteMindest: CGFloat = 171.0 / 3 / 45
     static let abstandUnten: CGFloat = 28
     /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
     /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
@@ -1554,9 +1556,13 @@ struct Rasterrahmen: Equatable {
         let pille = Self.pillenHoehe(tage: seiten.contains { $0.nurTage != nil })
         let oben: CGFloat = vorErster ? max(Self.obenAbstand, pille + Self.pillenLuft) : Self.obenAbstand
         let proMinute: CGFloat
-        if kompakt {
-            // Vorlagen dunkel 567a139b, 6a2e7724, 3beee594, da72165b, eedec6e2 (3 px/pt): 45 Minuten = 182 px = 60,64 pt –
-            // das Raster ist länger als der Bildschirm und läuft unter der Leiste weiter (wie im Original)
+        if kompakt && sichtHoehe > 200 && ende - start >= 240 {
+            // iPhone wie in den Vorlagen (dunkel, 3 px/pt): der Tag von der ersten Linie bis zum Ende der letzten Stunde
+            // des Zeitrasters füllt die Sichthöhe bis zum unteren Bildschirmrand – das Ende liegt damit unter der Leiste
+            // (6a2e7724: 08:00–16:30 → 176 px je 45 min, 567a139b: 182 px); längere Tage höchstens so dicht wie
+            // 6d696e75/929543d3/e23ea538 (171 px je 45 min = 1,2667 pt/min), danach läuft das Raster weiter
+            proMinute = min(1.6, max(Self.proMinuteMindest, (sichtHoehe - oben) / CGFloat(ende - start)))
+        } else if kompakt {
             proMinute = Self.proMinuteIphone
         } else {
             proMinute = Self.proMinuteBreit

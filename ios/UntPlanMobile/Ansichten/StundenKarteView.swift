@@ -313,7 +313,7 @@ struct KachelView: View {
     private func pille(_ a: Kachelaussehen) -> some View {
         let klein = kachel.vorErsterStunde && kachel.art == .aufsicht && !gross
         let mitFeld = kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben)
-        return HStack(spacing: klein ? 4.33 : 4.67) {
+        return HStack(spacing: klein ? 4.33 : 4.0) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(a.balken ?? Farben.aufsichtBalken)
                 .opacity(kachel.aufsichtsstand == .abgegeben ? 0.5 : a.balkenDeckkraft)
@@ -834,10 +834,21 @@ struct Kuerzungszeichen: View {
 
     var body: some View {
         Group {
-            if schema == .dark {
+            if schema == .dark && !gruen {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 8, weight: .medium))
                     .rotationEffect(.degrees(waagrecht ? 0 : 90))
+            } else if schema == .dark {
+                // Vorlage da72165b (3 px/pt): Punkte Ø 6 px, 9 px von Mitte zu Mitte, #323c45 auf Grün
+                let punkt = Circle().frame(width: 1.9, height: 1.9)
+                Group {
+                    if waagrecht {
+                        HStack(spacing: 1.1) { punkt; punkt; punkt }
+                    } else {
+                        VStack(spacing: 1.1) { punkt; punkt; punkt }
+                    }
+                }
+                .foregroundStyle(Color(hexWert: 0x323C45))
             } else {
                 // Hell wie in der Vorlage: drei Punkte (Ø 1,67 pt, Abstand 3 pt von Mitte zu Mitte) in #808e9b
                 let punkt = Circle().frame(width: 1.67, height: 1.67)

@@ -820,19 +820,13 @@ struct MeineTermineView: View {
                 }
             }
         } label: {
-            Glasknopf {
-                // Vorlage: Trichter (Umriss) in Grau, gewählter Filter gefüllt
-                Image(systemName: Self.trichter(gefuellt: !art.isEmpty))
-                    .font(.system(size: 19, weight: .light))
-                    .foregroundStyle(Farben.knopfSymbol)
+            Glasknopf(breite: 32) {
+                // Vorlage 33da91d4: Trichter (Umriss, 64 × 64 px) in #8997a4; gewählter Filter gefüllt
+                Trichter(gefuellt: !art.isEmpty)
+                    .foregroundStyle(Color(hexWert: 0x8997A4))
             }
         }
         .accessibilityLabel("Filter")
-    }
-
-    private static func trichter(gefuellt: Bool) -> String {
-        if #available(iOS 18.0, *) { return gefuellt ? "funnel.fill" : "funnel" }
-        return gefuellt ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease"
     }
 
     private var suchKnopf: some View {
@@ -842,9 +836,11 @@ struct MeineTermineView: View {
                 if !sucheOffen { suche = "" }
             }
         } label: {
-            Glasknopf {
+            // Vorlage: Lupe 63 × 63 px, kräftiger Strich, #f3f3f3
+            Glasknopf(breite: 32) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.system(size: 17.5, weight: .medium))
+                    .foregroundStyle(Color(hexWert: 0xF3F3F3))
             }
         }
         .accessibilityLabel(sucheOffen ? "Suche schließen" : "Termine durchsuchen")

@@ -927,3 +927,28 @@ extension View {
         }
     }
 }
+
+/// Trichter (Filter) wie in der Vorlage 33da91d4 (3 px/pt): 24-pt-Feld, Umriss 1,67 pt mit runden Ecken oben, schräge
+/// Seiten bis zum Hals bei 12,33 pt, links der Hals bis 22 pt, rechts kürzer und schräg zurück zur linken Seite.
+struct Trichter: View {
+    var gefuellt = false
+
+    var body: some View {
+        let form = Path { p in
+            p.move(to: CGPoint(x: 9.5, y: 22))
+            p.addLine(to: CGPoint(x: 9.5, y: 12.33))
+            p.addLine(to: CGPoint(x: 2.5, y: 4.4))
+            p.addQuadCurve(to: CGPoint(x: 4.6, y: 1.85), control: CGPoint(x: 1.2, y: 1.85))
+            p.addLine(to: CGPoint(x: 19.4, y: 1.85))
+            p.addQuadCurve(to: CGPoint(x: 21.5, y: 4.4), control: CGPoint(x: 22.8, y: 1.85))
+            p.addLine(to: CGPoint(x: 14.5, y: 12.33))
+            p.addLine(to: CGPoint(x: 14.5, y: 16.9))
+            p.addLine(to: CGPoint(x: 9.5, y: 20.8))
+        }
+        ZStack {
+            if gefuellt { form.fill() }
+            form.stroke(style: StrokeStyle(lineWidth: 1.67, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: 24, height: 24)
+    }
+}
