@@ -201,12 +201,45 @@
 .st-ekarte a { color: var(--u-akzent); }
 
 /* ------------------------------------------------------------------ Startseite */
-.st-start { display: flex; align-items: center; gap: 10px; }
-.st-start-sym { flex: none; color: var(--u-akzent); }
-.st-start-titel { font-weight: 500; color: var(--u-titel); text-decoration: none; }
-.st-start-datum { color: var(--u-grau); font-size: .875rem; }
-.st-start-text { color: var(--u-text); font-size: .875rem; }
-.st-start-link { color: var(--u-akzent); text-decoration: none; white-space: nowrap; }
+/* Startseite: kompakte Karte wie die übrigen Startseiten-Karten (Kopf mit Titel, Zeile mit Tag/Zeit und Status, Knopf, ggf. Termine) */
+.st-start > header { gap: 8px; }
+.st-s-sym { display: inline-flex; flex: none; color: var(--u-akzent); }
+.st-s-sym svg, .st-s-sym img { width: 18px; height: 18px; }
+.heute-karte > header a.st-s-titel { margin-left: 0; font-size: .88rem; font-weight: 500; color: var(--u-akzent); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-s-rumpf { display: flex; align-items: center; gap: 12px 16px; padding: 12px 16px; }
+.st-s-info { min-width: 0; flex: 1; }
+.st-s-meta { font-size: .8125rem; color: #67747e; }
+.st-s-status { display: flex; align-items: baseline; gap: 7px; margin-top: 3px; font-size: .875rem; font-weight: 500; color: var(--u-titel); }
+.st-s-punkt { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #a9b3bb; transform: translateY(-1px); }
+.st-s-status.orange .st-s-punkt { background: var(--u-akzent); }
+.st-s-status.gruen .st-s-punkt { background: #1f9d60; }
+.st-s-knopf { flex: none; white-space: nowrap; }
+.st-s-liste { width: calc(100% - 32px); margin: -2px 16px 12px; border-collapse: collapse; font-size: .8125rem; color: var(--u-titel); }
+.st-s-liste td { padding: 7px 12px 7px 0; border-top: 1px solid #eef1f3; vertical-align: baseline; }
+.st-s-liste td:last-child { padding-right: 0; }
+.st-s-zeit { width: 1%; white-space: nowrap; font-weight: 500; font-variant-numeric: tabular-nums; }
+.st-s-bis { color: #67747e; font-weight: 400; }
+.st-s-tag { display: block; font-size: .75rem; font-weight: 400; color: #67747e; }
+.st-s-unter { margin-left: 6px; color: #67747e; }
+.st-s-raum { text-align: right; white-space: nowrap; color: #4c5963; }
+.st-s-raum .bi { margin-right: 4px; color: #8995a0; }
+.st-s-naechster .st-s-zeit { color: #16794a; }
+.st-s-raum .st-pille { margin-right: 6px; }
+.st-s-offen .st-s-zeit, .st-s-offen .st-s-wer { color: #67747e; }
+.st-s-mehr { display: block; margin: -6px 16px 12px; font-size: .8125rem; color: var(--u-akzent); text-decoration: none; }
+@media (max-width: 575.98px) {
+  /* Handy: Info, Termine, Knopf untereinander (Knopf über die volle Breite) */
+  .st-start { display: flex; flex-direction: column; }
+  .st-s-rumpf { display: contents; }
+  .st-s-info { order: 1; padding: 12px 16px; }
+  .st-s-liste { order: 2; }
+  .st-s-mehr { order: 3; }
+  .st-s-knopf { order: 4; margin: 0 16px 14px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; }
+  .st-s-wer { overflow-wrap: anywhere; }
+  .st-s-unter { display: block; margin-left: 0; }
+  .st-s-raum { vertical-align: top; }
+  .st-s-raum .st-pille { display: flex; width: max-content; margin: 0 0 4px auto; }
+}
 
 @media (max-width: 900px) {
   .st-innen, .st-konfig { padding-left: 12px; padding-right: 12px; }

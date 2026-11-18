@@ -104,6 +104,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Startseite: Sprechtag als kompakte Karte mit Name, Tag und Zeit, kurzer Statuszeile (z. B. „Anmeldung bis 02.12. 18:00 · 3 Termine gebucht“, Lehrkräfte „4 gebucht · 23 frei“, am Tag selbst der nächste Termin), den eigenen Terminen (Eltern mit Lehrkraft und Raum, Lehrkräfte die nächsten drei) und einem Knopf „Termine wählen“ bzw. „Termine verwalten“; die Phase wird nicht mehr doppelt genannt.
 - Stundendetails zeigen im Kopf „Klasse | Schülergruppe | Fach“ mit der Schülergruppe aus dem Desktop; ein Sondereinsatz mit der Schülergruppe eines anderen Unterrichts der Klasse zählt als zusätzliche Stunde dieses Unterrichts.
 - Stundenplan und Tagesplan: „Heute“ ist in der aktuellen Woche bzw. am heutigen Tag dunkelgrau mit weißer Schrift, sonst weiß.
 - Sondereinsatz trägt im Stundenplan immer das „+“ (auch anstelle einer regulären Stunde, nicht bei Entfall, Verlegung oder Vormerkung); auf Zusatzkarten stehen die Lehrkräfte schlicht ohne „+“ wie in der Vorlage – auch in der App.
@@ -206,6 +207,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Startseite: Sprechtag als eigene Karte unter „Sprechtag“ im Stil von „Meine Termine“ mit Tag und Zeit, Statuszeile, eigenen Terminen und Knopf „Termine wählen“ bzw. „Termine verwalten“ (statt einer Listenzeile).
 - Stundenplan mit zwei Fingern zoombar (0,8–2, wird gespeichert); Lehrerplan beginnt wie im Original 30 Minuten vor der ersten Stunde (Platz für die Frühaufsicht).
 - Stundendetails ohne Fachfarben-Balken unter dem Kopf; Pfeil und Schüler*innen-Plakette an der Stelle des Originals; Pausenaufsicht in der Tagesansicht wie in der Woche.
 - 1:1-Abgleich mit Originalbildern in voller Auflösung: Raster 178 px je 45 min (Tag füllt die Sichthöhe, läuft unter der Leiste weiter), Pausenaufsicht 17,5 pt hoch mit 4-pt-Ecken und lila Balken #D47AEB, abgegebene Aufsicht mit halbem Balken und „⋮“ unten rechts, Eckklammern #808E9B, Zählersäule „1“ 12 pt breit, Frühaufsicht 11 pt.

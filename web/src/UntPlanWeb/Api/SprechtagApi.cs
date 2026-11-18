@@ -168,67 +168,148 @@ public static class SprechtagApi
 
     /// <summary>
     /// Hinweiskarten „Sprechtag“ für Startseite und Übersicht: Lehrkräfte ab der Veröffentlichung, Erziehungsberechtigte, sobald sie den
-    /// Sprechtag sehen (bis zum Abschluss). Felder kompatibel zu den Apps (id, name, datum, datumText, phase, status, text, …).
+    /// Sprechtag sehen (bis zum Abschluss). Felder kompatibel zu den Apps (id, name, datum, datumText, phase, status, text, …); dazu für die
+    /// kompakte Karte: <c>tagText</c> („Fr 04.12.2026“), <c>zeitText</c> („14:00–19:00“), <c>rolle</c>, <c>gebucht</c>, <c>frei</c>
+    /// (Lehrkraft), <c>offen</c> (Erziehungsberechtigte: unbeantwortete Einladungen und Anfragen), <c>heute</c>, <c>naechster</c>,
+    /// <c>eintraege</c> (Eltern: gebuchte Termine; Lehrkraft: die nächsten Termine) und <c>knopf</c>. <c>text</c> ist die kurze Statuszeile
+    /// (ohne die Phase zu wiederholen), z. B. „Anmeldung bis 02.12. 18:00 · 3 Termine gebucht“.
     /// </summary>
-    public static List<object> StartKarten(Sprechtagdienst d, Benutzer b)
+    public static List<object> StartKarten(Sprechtagdienst d, Benutzer b, Stand? s = null)
     {
         var karten = new List<object>();
         if (!b.Kollegium && b.Rolle != Rollen.Eltern) return karten;
+        var jetzt = d.JetztZeit;
+        var heuteIso = jetzt.ToString("yyyy-MM-dd", Inv);
+        var uhrzeit = jetzt.ToString("HH:mm", Inv);
         foreach (var t in d.Alle().Where(t => t.IstVeroeffentlicht))
         {
             var phase = d.Phase(t);
             if (phase == Sprechtagdienst.Abgeschlossen) continue;
             if (b.Rolle == Rollen.Eltern && !d.SichtbarFuerEltern(t, b)) continue;
             var termine = d.Termine(t.Id);
-            var erster = t.K.Abschnitte.Where(a => DateOnly.TryParse(a.Datum, Inv, out _)).OrderBy(a => a.Datum, StringComparer.Ordinal).ThenBy(a => a.Von).FirstOrDefault();
-            int eigene, einladungen;
-            string text;
-            if (b.Kollegium)
+            var raeume = d.Raeume(t.Id);
+            var abschnitte = t.K.Abschnitte.Select((a, i) => (A: a, I: i)).Where(x => DateOnly.TryParse(x.A.Datum, Inv, out _))
+                .OrderBy(x => x.A.Datum, StringComparer.Ordinal).ThenBy(x => x.A.Von, StringComparer.Ordinal).ToList();
+            var erster = abschnitte.Select(x => x.A).FirstOrDefault();
+            var ersterTag = abschnitte.Where(x => x.A.Datum == erster?.Datum).Select(x => x.A).ToList();
+            var eltern = b.Rolle == Rollen.Eltern;
+            var lehrkraft = !eltern && !string.IsNullOrEmpty(b.LehrerKuerzel);
+            var rolle = eltern ? "eltern" : lehrkraft ? "lehrer" : "admin";
+            string AbschnittDatum(StTermin x) => x.Abschnitt >= 0 && x.Abschnitt < t.K.Abschnitte.Count ? t.K.Abschnitte[x.Abschnitt].Datum : "";
+
+            // eigene Termine: Eltern bestätigte, Lehrkraft aktive (angefragt oder bestätigt), Administration alle aktiven
+            var familie = eltern ? termine.Where(x => b.SchuelerIds.Contains(x.SchuelerId)).ToList() : new List<StTermin>();
+            var mein = lehrkraft ? termine.Where(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)).ToList() : new List<StTermin>();
+            var relevant = (eltern ? familie.Where(x => x.Status == "bestaetigt") : lehrkraft ? mein.Where(x => x.Aktiv) : termine.Where(x => x.Aktiv))
+                .Where(x => x.HatZeit).OrderBy(AbschnittDatum, StringComparer.Ordinal).ThenBy(x => x.Beginn, StringComparer.Ordinal).ToList();
+            var eigene = eltern ? familie.Count(x => x.Status == "bestaetigt") : lehrkraft ? mein.Count(x => x.Aktiv) : relevant.Count;
+            var einladungen = eltern ? familie.Count(x => x.Status is "einladung" or "angefragt") : mein.Count(x => x.Status == "einladung");
+            var frei = lehrkraft ? FreieBloecke(d, t, b.LehrerKuerzel!, mein) : (int?)null;
+            var kommend = relevant.Where(x => string.CompareOrdinal(AbschnittDatum(x), heuteIso) > 0
+                || AbschnittDatum(x) == heuteIso && string.CompareOrdinal(x.Ende, uhrzeit) > 0).ToList();
+            var heute = abschnitte.Any(x => x.A.Datum == heuteIso) && Sprechtagdienst.Rang(phase) >= Sprechtagdienst.Rang(Sprechtagdienst.Geschlossen);
+            var naechster = heute ? kommend.FirstOrDefault(x => AbschnittDatum(x) == heuteIso) : null;
+
+            string Anzahl(int n) => eltern || !lehrkraft
+                ? (n == 0 ? "Noch keine Termine gebucht" : $"{Termine(n)} gebucht")
+                : $"{n} gebucht · {frei} frei";
+            var teile = new List<string>();
+            if (heute)
             {
-                var mein = termine.Where(x => Ci.Equals(x.Lehrer, b.LehrerKuerzel)).ToList();
-                eigene = mein.Count(x => x.Aktiv);
-                einladungen = mein.Count(x => x.Status == "einladung");
-                text = phase switch
-                {
-                    Sprechtagdienst.Verwaltung => $"Verwaltung LK: Raum wählen, Abwesenheiten eintragen und Erziehungsberechtigte einladen (1. Anmeldephase ab {Zeit(t.K.Phase1Von)}).",
-                    Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet or Sprechtagdienst.Phase2 => $"{Sprechtagdienst.PhasenText[phase]} · {Termine(eigene)}.",
-                    _ => $"{Sprechtagdienst.PhasenText[phase]} · {Termine(eigene)}.",
-                };
+                teile.Add(naechster is null ? "Heute · keine weiteren Termine" : $"Heute · nächster Termin {naechster.Beginn}" + (eltern
+                    ? $" bei {Sprechtagdienst.LehrerName(s, naechster.Lehrer)}"
+                    : s?.Schueler.FirstOrDefault(y => y.Id == naechster.SchuelerId) is { } nks && lehrkraft ? $" mit {nks.Vorname} {nks.Name}" : ""));
+                if (naechster is null && eigene > 0) teile.Add(Anzahl(eigene));
+            }
+            else if (phase == Sprechtagdienst.Verwaltung)
+            {
+                teile.Add($"Anmeldung ab {Kurz(t.K.Phase1Von)}");
+                if (lehrkraft && !t.K.Online && Enumerable.Range(0, t.K.Abschnitte.Count).Any(i => d.Raum(raeume, b.LehrerKuerzel!, i).Length == 0)) teile.Add("Raum noch nicht gewählt");
+                if (lehrkraft && eigene > 0) teile.Add(Anzahl(eigene));
+            }
+            else if (phase is Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet or Sprechtagdienst.Phase2)
+            {
+                teile.Add($"Anmeldung bis {Kurz(t.K.Phase2Bis)}");
+                if (eltern && einladungen > 0) teile.Add(einladungen == 1 ? "1 Einladung offen" : $"{einladungen} Einladungen offen");
+                if (!eltern || eigene > 0 || einladungen == 0) teile.Add(Anzahl(eigene));
             }
             else
             {
-                var familie = termine.Where(x => b.SchuelerIds.Contains(x.SchuelerId)).ToList();
-                eigene = familie.Count(x => x.Status == "bestaetigt");
-                einladungen = familie.Count(x => x.Status is "einladung" or "angefragt");
-                text = phase switch
-                {
-                    Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet => einladungen > 0
-                        ? $"Sie haben {einladungen} {(einladungen == 1 ? "Einladung bzw. Terminanfrage" : "Einladungen bzw. Terminanfragen")} erhalten."
-                        : $"{Termine(eigene)} gebucht.",
-                    Sprechtagdienst.Phase2 => $"Hier können Sie bis {Zeit(t.K.Phase2Bis)} Gesprächstermine buchen" + (eigene > 0 ? $" · {Termine(eigene)} gebucht." : "."),
-                    _ => $"{Termine(eigene)} gebucht.",
-                };
+                teile.Add("Anmeldung geschlossen");
+                teile.Add(Anzahl(eigene));
             }
+            var text = string.Join(" · ", teile);
+
+            // Liste: Eltern alle gebuchten (kommenden) Termine, Lehrkraft die nächsten drei; Administration keine
+            var liste = eltern ? kommend : lehrkraft ? kommend.Take(3).ToList() : new List<StTermin>();
+            var eintraege = liste.Select(x =>
+            {
+                var k = s?.Schueler.FirstOrDefault(y => y.Id == x.SchuelerId);
+                var datum = AbschnittDatum(x);
+                return new
+                {
+                    x.Id, datum, tagText = TagKurz(datum), x.Beginn, x.Ende, x.Status, x.Lehrer,
+                    lehrerName = Sprechtagdienst.LehrerName(s, x.Lehrer), lehrerTitel = Sprechtagdienst.LehrerTitel(s, x.Lehrer),
+                    raum = t.K.Online ? "online" : d.Raum(raeume, x.Lehrer, x.Abschnitt),
+                    schueler = k is null ? "" : $"{k.Vorname} {k.Name}".Trim(), vorname = k?.Vorname ?? "", klasse = k?.Klasse ?? "",
+                };
+            }).ToList();
+
             var status = phase switch
             {
                 Sprechtagdienst.Verwaltung => "angekuendigt",
                 Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet or Sprechtagdienst.Phase2 => "anmeldung",
                 _ => "geschlossen",
             };
+            var buchbar = eltern && (phase == Sprechtagdienst.Phase2 || (phase is Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet && einladungen > 0));
             karten.Add(new
             {
                 t.Id, name = t.K.Name, datum = erster?.Datum ?? "", datumText = Sprechtagdienst.DatumText(t), beginn = erster?.Von ?? "", ende = erster?.Bis ?? "", ort = "",
                 phase, phaseText = Sprechtagdienst.PhasenText[phase], status, text, termine = eigene, einladungen,
                 anmeldungVon = t.K.Phase1Von, anmeldungVonText = Zeit(t.K.Phase1Von), anmeldungBis = t.K.Phase2Bis, anmeldungBisText = Zeit(t.K.Phase2Bis),
-                buchbar = b.Rolle == Rollen.Eltern && (phase == Sprechtagdienst.Phase2 || (phase is Sprechtagdienst.Phase1 or Sprechtagdienst.Phase1Beendet && einladungen > 0)),
-                online = t.K.Online,
+                buchbar, online = t.K.Online,
+                rolle, tagText = TagKurz(erster?.Datum ?? "") + (abschnitte.Select(x => x.A.Datum).Distinct().Count() > 1 ? $" – {TagKurz(abschnitte[^1].A.Datum)}" : ""),
+                zeitText = ersterTag.Count == 0 ? "" : $"{ersterTag.Min(a => a.Von)}–{ersterTag.Max(a => a.Bis)}",
+                gebucht = eigene, frei, offen = eltern ? einladungen : 0, heute,
+                naechster = naechster is null ? null : new
+                {
+                    naechster.Beginn, naechster.Ende, lehrerName = Sprechtagdienst.LehrerName(s, naechster.Lehrer),
+                    raum = t.K.Online ? "online" : d.Raum(raeume, naechster.Lehrer, naechster.Abschnitt),
+                    schueler = s?.Schueler.FirstOrDefault(y => y.Id == naechster.SchuelerId) is { } nk ? $"{nk.Vorname} {nk.Name}" : "",
+                },
+                eintraege, weitere = eltern || lehrkraft ? Math.Max(0, kommend.Count - eintraege.Count) : 0,
+                knopf = eltern ? (buchbar ? "Termine wählen" : "Termine ansehen") : "Termine verwalten",
             });
         }
         return karten;
     }
 
+    /// <summary>Freie Zeitblöcke der Lehrkraft (ohne aktive Termine und Abwesenheiten des Sprechtags).</summary>
+    private static int FreieBloecke(Sprechtagdienst d, Sprechtag t, string lehrer, List<StTermin> mein)
+    {
+        var abw = d.Abwesenheiten(t.Id).Where(x => Ci.Equals(x.Lehrer, lehrer)).ToList();
+        var frei = 0;
+        for (var i = 0; i < t.K.Abschnitte.Count; i++)
+        {
+            var belegt = mein.Where(x => x.Aktiv && x.HatZeit && x.Abschnitt == i).Select(x => (x.Beginn, x.Ende))
+                .Concat(abw.Where(x => x.Abschnitt == i).Select(x => (x.Beginn, x.Ende)))
+                .Where(x => x.Beginn.Length == 5 && x.Ende.Length == 5)
+                .Select(x => (Von: Sprechtagdienst.Minuten(x.Beginn), Bis: Sprechtagdienst.Minuten(x.Ende))).ToList();
+            frei += Sprechtagdienst.Bloecke(t, t.K.Abschnitte[i]).Count(z =>
+            {
+                int von = Sprechtagdienst.Minuten(z.Von), bis = Sprechtagdienst.Minuten(z.Bis);
+                return !belegt.Any(x => x.Von < bis && von < x.Bis);
+            });
+        }
+        return frei;
+    }
+
     private static string Termine(int n) => $"{n} {(n == 1 ? "Termin" : "Termine")}";
     private static string Zeit(string iso) => DateTime.TryParse(iso, Inv, DateTimeStyles.None, out var d) ? d.ToString("dd.MM.yyyy HH:mm", Inv) : "";
+    /// <summary>„02.12. 18:00“ (kurz für die Statuszeile).</summary>
+    private static string Kurz(string iso) => DateTime.TryParse(iso, Inv, DateTimeStyles.None, out var d) ? d.ToString("dd.MM. HH:mm", Inv) : "";
+    /// <summary>„Fr 04.12.2026“.</summary>
+    private static string TagKurz(string iso) => DateOnly.TryParse(iso, Inv, out var d) ? $"{Plandienst.Wochentage[Plandienst.TagIndex(d)][..2]} {d:dd.MM.yyyy}" : "";
 
     // ------------------------------------------------------------------------------------------ Endpunkte
 
@@ -236,7 +317,7 @@ public static class SprechtagApi
     {
         var api = app.MapGroup("/api/app/sprechtag");
 
-        api.MapGet("/start", (HttpContext c, Sprechtagdienst d) => Results.Json(StartKarten(d, c.Ich() ?? throw new NichtAngemeldetException())));
+        api.MapGet("/start", (HttpContext c, Sprechtagdienst d, Paketdienst p) => Results.Json(StartKarten(d, c.Ich() ?? throw new NichtAngemeldetException(), p.Aktuell)));
 
         api.MapGet("/", (HttpContext c, Sprechtagdienst d, Paketdienst p, Uhr uhr) =>
         {

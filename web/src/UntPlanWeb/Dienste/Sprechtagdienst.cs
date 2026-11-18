@@ -133,6 +133,9 @@ public sealed class Sprechtagdienst
 
     // ------------------------------------------------------------------------------------------ Phase
 
+    /// <summary>Aktuelle Zeit der Schule (Startkarten: nächster Termin).</summary>
+    public DateTime JetztZeit => _uhr.Jetzt;
+
     public string Phase(Sprechtag t) => Phase(t, _uhr.Jetzt);
 
     public static string Phase(Sprechtag t, DateTime jetzt)

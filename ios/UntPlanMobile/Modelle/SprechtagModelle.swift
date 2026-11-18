@@ -43,10 +43,27 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
     var online: Bool
     var termine: Int
     var einladungen: Int
+    /// Kompakte Karte (neuere Server): eltern, lehrer bzw. admin
+    var rolle: String
+    /// „Fr 04.12.2026“ und „14:00–19:00“
+    var tagText: String
+    var zeitText: String
+    /// Gebuchte Termine, freie Zeitblöcke (nur Lehrkraft) und offene Einladungen bzw. Anfragen (Erziehungsberechtigte)
+    var gebucht: Int
+    var frei: Int?
+    var offen: Int
+    /// Der Sprechtag findet heute statt.
+    var heute: Bool
+    /// Eltern: gebuchte Termine; Lehrkraft: die nächsten Termine
+    var eintraege: [SprechtagStartTermin]
+    var weitere: Int
+    /// Beschriftung des Knopfs („Termine wählen“, „Termine verwalten“ …)
+    var knopf: String
 
     enum CodingKeys: String, CodingKey {
         case id, name, datum, datumText, beginn, ende, ort, phase, phaseText, status, text, termine, einladungen
         case anmeldungVon, anmeldungVonText, anmeldungBis, anmeldungBisText, buchbar, online
+        case rolle, tagText, zeitText, gebucht, frei, offen, heute, eintraege, weitere, knopf
     }
 
     init(from decoder: Decoder) throws {
@@ -68,6 +85,38 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
         online = c.wahr(.online)
         termine = c.zahl(.termine) ?? 0
         einladungen = c.zahl(.einladungen) ?? 0
+        rolle = c.text(.rolle)
+        tagText = c.text(.tagText)
+        zeitText = c.text(.zeitText)
+        gebucht = c.zahl(.gebucht) ?? termine
+        frei = c.zahl(.frei)
+        offen = c.zahl(.offen) ?? 0
+        heute = c.wahr(.heute)
+        eintraege = c.liste(.eintraege)
+        weitere = c.zahl(.weitere) ?? 0
+        knopf = c.text(.knopf)
+    }
+
+    /// Zeile unter dem Titel: „Fr 04.12.2026 · 14:00–19:00 Uhr“.
+    var tagUndZeit: String {
+        let tag = !tagText.isEmpty ? tagText : (!datumText.isEmpty ? datumText : Datumsformat.anzeige(datum, "EE dd.MM.yyyy"))
+        let zeit = !zeitText.isEmpty ? zeitText : (beginn.isEmpty ? "" : (ende.isEmpty ? beginn : "\(beginn)–\(ende)"))
+        return [tag, zeit.isEmpty ? "" : "\(zeit) Uhr", online ? "online" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Statuszeile ohne Wiederholung der Phase; heute mit Liste: der nächste Termin steht markiert in der Liste.
+    var statuszeile: String {
+        if heute, let erster = eintraege.first, erster.id > 0, text.contains("nächster") {
+            return "Heute · \(gebucht) \(gebucht == 1 ? "Termin" : "Termine")"
+        }
+        if !text.isEmpty { return text }
+        return angekuendigt && !anmeldungVonText.isEmpty ? "Anmeldung ab \(anmeldungVonText)" : phaseText
+    }
+
+    /// Beschriftung des Knopfs (ältere Server liefern keine).
+    var knopfText: String {
+        if !knopf.isEmpty { return knopf }
+        return rolle == "eltern" || buchbar ? (buchbar ? "Termine wählen" : "Termine ansehen") : "Termine verwalten"
     }
 
     /// Titel der Zeile auf der Startseite.
@@ -89,6 +138,40 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
             return teile.joined(separator: " · ")
         }
         return [tag, text].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+}
+
+/// Termin auf der Startkarte (Eltern: Lehrkraft und Raum; Lehrkraft: Schüler*in und Klasse).
+struct SprechtagStartTermin: Decodable, Identifiable, Hashable, Sendable {
+    var id: Int
+    var datum: String
+    var tagText: String
+    var beginn: String
+    var ende: String
+    var status: String
+    var lehrerName: String
+    var raum: String
+    var schueler: String
+    var vorname: String
+    var klasse: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, datum, tagText, beginn, ende, status, lehrerName, raum, schueler, vorname, klasse
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.zahl(.id) ?? 0
+        datum = String(c.text(.datum).prefix(10))
+        tagText = c.text(.tagText)
+        beginn = c.text(.beginn)
+        ende = c.text(.ende)
+        status = c.text(.status)
+        lehrerName = c.text(.lehrerName)
+        raum = c.text(.raum)
+        schueler = c.text(.schueler)
+        vorname = c.text(.vorname)
+        klasse = c.text(.klasse)
     }
 }
 

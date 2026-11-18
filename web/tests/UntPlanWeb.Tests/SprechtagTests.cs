@@ -345,6 +345,57 @@ public class SprechtagTests
     }
 
     [Fact]
+    public async Task Startkarte_kompakt_mit_Status_Terminen_und_Knopf()
+    {
+        await using var s = await Testserver.StartenAsync();
+        var uhr = s.Dienst<Uhr>();
+        var admin = await s.AlsAsync("admin");
+        var lan = await s.AlsAsync("lan", "lehrer", "LAN");
+        var id = await VeroeffentlichtAsync(admin);
+        string Url(string pfad = "") => $"/api/app/sprechtag/{id}{pfad}";
+        var kinder = (await Testserver.HolenAsync(lan, Url("/schueler"))).AsArray().Select(x => x!["id"]!.GetValue<int>()).ToList();
+        await Testserver.JsonAsync(await lan.PostAsJsonAsync(Url("/termin"), new { abschnitt = 0, beginn = "15:00", ende = "15:10", schuelerId = kinder[0] }));
+
+        // Verwaltung LK: Anmeldebeginn, fehlender Raum, gebucht und frei (6 + 5 Blöcke, einer belegt); Phase nicht wiederholt
+        var k = (await Testserver.HolenAsync(lan, "/api/app/sprechtag/start")).AsArray().Single()!;
+        Assert.Equal("lehrer", k["rolle"]!.GetValue<string>());
+        Assert.Equal("Fr 30.10.2026", k["tagText"]!.GetValue<string>());
+        Assert.Equal("15:00–17:00", k["zeitText"]!.GetValue<string>());
+        Assert.Equal("Anmeldung ab 15.10. 08:00 · Raum noch nicht gewählt · 1 gebucht · 10 frei", k["text"]!.GetValue<string>());
+        Assert.Equal(10, k["frei"]!.GetValue<int>());
+        Assert.Equal("Termine verwalten", k["knopf"]!.GetValue<string>());
+        Assert.Equal("15:00", k["eintraege"]!.AsArray().Single()!["beginn"]!.GetValue<string>());
+
+        // 2. Anmeldephase: Eltern buchen; ihre Karte zeigt den Termin mit Lehrkraft
+        uhr.Fest = new DateTime(2026, 10, 22, 10, 0, 0);
+        var (eltern, _) = await ElternAsync(s, admin, "eltern-a", kinder[1]);
+        await Testserver.JsonAsync(await eltern.PostAsJsonAsync(Url("/buchen"), new { lehrer = "LAN", abschnitt = 0, beginn = "15:10", schuelerId = kinder[1] }));
+        var ek = (await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray().Single()!;
+        Assert.Equal("eltern", ek["rolle"]!.GetValue<string>());
+        Assert.Equal("Anmeldung bis 28.10. 18:00 · 1 Termin gebucht", ek["text"]!.GetValue<string>());
+        Assert.Equal("Termine wählen", ek["knopf"]!.GetValue<string>());
+        var et = ek["eintraege"]!.AsArray().Single()!;
+        Assert.Equal("15:10", et["beginn"]!.GetValue<string>());
+        Assert.False(string.IsNullOrEmpty(et["lehrerName"]!.GetValue<string>()));
+        // Administration ohne eigene Lehrkraft: Gesamtzahl, keine Liste
+        var ak = (await Testserver.HolenAsync(admin, "/api/app/sprechtag/start")).AsArray().Single()!;
+        Assert.Equal("admin", ak["rolle"]!.GetValue<string>());
+        Assert.Equal("Anmeldung bis 28.10. 18:00 · 2 Termine gebucht", ak["text"]!.GetValue<string>());
+        Assert.Empty(ak["eintraege"]!.AsArray());
+        Assert.Equal(0, ak["weitere"]!.GetValue<int>());
+
+        // Am Sprechtag: nächster Termin (der 15:00-Termin ist um 15:12 vorbei)
+        uhr.Fest = new DateTime(2026, 10, 30, 15, 12, 0);
+        ek = (await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray().Single()!;
+        Assert.True(ek["heute"]!.GetValue<bool>());
+        Assert.StartsWith("Heute · nächster Termin 15:10 bei ", ek["text"]!.GetValue<string>());
+        Assert.Equal("Termine ansehen", ek["knopf"]!.GetValue<string>());
+        k = (await Testserver.HolenAsync(lan, "/api/app/sprechtag/start")).AsArray().Single()!;
+        Assert.Equal("15:10", k["naechster"]!["beginn"]!.GetValue<string>());
+        Assert.Single(k["eintraege"]!.AsArray());
+    }
+
+    [Fact]
     public async Task Terminplaene_als_Pdf()
     {
         await using var s = await Testserver.StartenAsync();
