@@ -803,18 +803,18 @@ struct Detailzeile<Rechts: View>: View {
             Spacer(minLength: 6)
             rechts
             if let zahl {
+                // Vorlage f29923a9: Zahl 50 px (16,67 pt) vor dem Pfeil
                 GrauePlakette(zahl: zahl)
-                    .padding(.trailing, 4.5)
+                    .padding(.trailing, -1.33)
             }
             if pfeil {
-                // Pfeil 62 × 32 px wie in der Vorlage (vorher 53 px hoch)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 26.5, weight: .thin))
+                Listenpfeil()
                     .foregroundStyle(Farben.detailSymbol)
             }
         }
         .padding(.leading, Detailmass.zeilenRand)
-        .padding(.trailing, 23.5)
+        // Pfeil endet wie in der Vorlage 74 px vor dem rechten Rand
+        .padding(.trailing, 24.67)
         .padding(.vertical, 7.5)
         .frame(minHeight: 56)
         .contentShape(Rectangle())
@@ -1276,5 +1276,19 @@ struct RaumZeile: View {
         } catch {
             fehler = zustand.fehlertext(error)
         }
+    }
+}
+
+/// Pfeil rechts in den Detailzeilen wie in der Vorlage f29923a9 (3 px/pt): 32 × 62 px, Strich 1,2 pt mit runden Enden.
+struct Listenpfeil: View {
+    var body: some View {
+        Path { p in
+            p.move(to: CGPoint(x: 0.6, y: 0.6))
+            p.addLine(to: CGPoint(x: 10.07, y: 10.33))
+            p.addLine(to: CGPoint(x: 0.6, y: 20.07))
+        }
+        .stroke(style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+        .frame(width: 10.67, height: 20.67)
+        .accessibilityHidden(true)
     }
 }

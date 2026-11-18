@@ -198,6 +198,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Stundenplan mit zwei Fingern zoombar (0,8–2, wird gespeichert); Lehrerplan beginnt wie im Original 30 Minuten vor der ersten Stunde (Platz für die Frühaufsicht).
+- Stundendetails ohne Fachfarben-Balken unter dem Kopf; Pfeil und Schüler*innen-Plakette an der Stelle des Originals; Pausenaufsicht in der Tagesansicht wie in der Woche.
 - 1:1-Abgleich mit Originalbildern in voller Auflösung: Raster 178 px je 45 min (Tag füllt die Sichthöhe, läuft unter der Leiste weiter), Pausenaufsicht 17,5 pt hoch mit 4-pt-Ecken und lila Balken #D47AEB, abgegebene Aufsicht mit halbem Balken und „⋮“ unten rechts, Eckklammern #808E9B, Zählersäule „1“ 12 pt breit, Frühaufsicht 11 pt.
 - Stundendetails: Zeilentitel 17 pt, Plakette „Schüler*innen“ zeigt die Zahl der Schüler*innen (rot: Zahl der Abwesenden) und erscheint erst nach dem Laden.
 - Meine Termine: Titel 15 pt mittig, Datumsgruppe 13 pt, Karten 17/15 pt mit 8-pt-Ecken, Trichter und Lupe als getrennte 44-pt-Kreise; Leistensymbole in Originalgröße.

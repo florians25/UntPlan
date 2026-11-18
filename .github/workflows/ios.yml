@@ -76,8 +76,11 @@ jobs:
           # Pausenaufsichten der Lehrkraft BEC: Do. nach der 2. Stunde abgegeben (RIC vertritt), Mo. nach der 4. Stunde vertritt BEC (Halle, WEB)
           vertretung(datum=iso(3), stunde=2, art="Pausenaufsicht", klassen=[], lehrer="BEC", vertreter="RIC", raum="Hof", neuerRaum="Hof", nurLehrer=True)
           vertretung(datum=iso(0), stunde=4, art="Pausenaufsicht", klassen=[], lehrer="WEB", vertreter="BEC", raum="Halle", neuerRaum="Halle", nurLehrer=True)
+          # Fachfarben leeren: die Schulen der Vorlagen haben keine (alle Balken grau #bec8cf) – fairer Vergleich
+          for f in d["elemente"]["faecher"]:
+              f["farbe"] = ""
           json.dump(d, open(p, "w"), ensure_ascii=False)
-          print("Aufsichten ergänzt")
+          print("Aufsichten ergänzt, Fachfarben geleert")
           PY
           python3 $RUNNER_TEMP/demo.py web/demo/beispiel-paket.json
 
@@ -205,22 +208,23 @@ jobs:
             echo "Foto: $name"
           }
           L="-uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MI"
-          foto 01_Woche_Lehrkraft $L -uiAnsicht woche
-          foto 02_Woche_Klasse $L -uiAnsicht woche -uiPlan klasse:6a
-          foto 03_Tag_Lehrkraft $L -uiAnsicht tag
+          # Zoom 1,0626 wie die Vorlagen 567a139b/6a2e7724 (sonst 1 wie 6d696e75/00e27251)
+          foto 01_Woche_Lehrkraft $L -uiAnsicht woche -uiZoom 1.0626
+          foto 02_Woche_Klasse $L -uiAnsicht woche -uiPlan klasse:6a -uiZoom 1.0626
+          foto 03_Tag_Lehrkraft $L -uiAnsicht tag -uiZoom 1
           # Vertretung von BEC am Montag (Kunst 5a)
           foto 04_Stundendetails_Vertretung -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MO -uiAnsicht details
           foto 05_Meine_Termine $L -uiAnsicht termine
           foto 06_Start_Lehrkraft $L -uiAnsicht start
           foto 07_Meine_Abwesenheiten_Eltern -uiLogin eltern1 -uiPasswort 'Eltern1234!x' -uiDatum $MI -uiAnsicht abwesenheiten
           # Klassenplan: Kopplung (Di.) als Tag, Vertretung mit Text (Do. 5.), Online-Stunde (Do. 2.)
-          foto 08_Tag_Klasse $L -uiAnsicht tag -uiPlan klasse:6a -uiDatum $DI
+          foto 08_Tag_Klasse $L -uiAnsicht tag -uiPlan klasse:6a -uiDatum $DI -uiZoom 1
           foto 09_Stundendetails_Klasse -uiLogin bec -uiPasswort Lehrer1234!x -uiPlan klasse:6a -uiDatum $DO -uiStunde 5 -uiAnsicht details
           foto 10_Stundendetails_Online -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiStunde 2 -uiAnsicht details
           # Pausenaufsichten: Tag mit abgegebener Aufsicht (Do.) und Details einer Aufsicht
-          foto 11_Tag_Lehrkraft_Aufsicht -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiAnsicht tag
+          foto 11_Tag_Lehrkraft_Aufsicht -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiAnsicht tag -uiZoom 1
           foto 12_Aufsicht_Details -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $DO -uiAnsicht aufsicht
-          foto 13_Woche_Lehrkraft_Vorwoche -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MO -uiAnsicht woche
+          foto 13_Woche_Lehrkraft_Vorwoche -uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MO -uiAnsicht woche -uiZoom 1
           ls -la fotos
 
       # Volle Auflösung (1206 × 2622, PNG wie aufgenommen) – für den Abgleich mit den Vorlagen im Maßstab 3 px/pt
