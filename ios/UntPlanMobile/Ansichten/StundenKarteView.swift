@@ -305,19 +305,23 @@ struct KachelView: View {
 
     // MARK: - Pille (Aufsicht, ganztägiger Termin)
 
-    /// Pille (Aufsicht, ganztägiger Termin) nach Vorlage 178/179 (2,289 px/pt): Balken 3,5 pt breit, 4,4 pt vom Rand,
-    /// oben und unten 2,2 pt Luft; Ort 11,5 pt Semibold 4,7 pt hinter dem Balken; Vertretung: grünes „⋮“-Feld 3,9 pt vom
-    /// rechten Rand. Vor der 1. Stunde (auf Wunsch) genau wie die Aufsichten in den Pausen.
+    /// Pille (Aufsicht, ganztägiger Termin), nachgemessen an den Vorlagen dunkel 6a2e7724/da72165b/eedec6e2 (3 px/pt):
+    /// Fläche wie eine Karte (künftig #5e7382, vergangen #323c45), Ecken 4 pt; lila Balken 4 pt breit, 4 pt vom linken Rand,
+    /// oben und unten 1 pt Luft; Ort 12 pt Semibold wie die erste Kartenzeile, Textbeginn 12,67 pt von der Kante.
+    /// Abgegebene Aufsicht: durchsichtig mit Eckklammern, Balken halb deckend, grünes „⋮“-Feld (14 pt) unten rechts
+    /// (1 pt vom unteren, 2,33 pt vom rechten Rand). Aufsicht vor der 1. Stunde („STD-früh“): 11 pt hoch, Ort 8 pt.
     private func pille(_ a: Kachelaussehen) -> some View {
-        HStack(spacing: 4.7) {
-            RoundedRectangle(cornerRadius: 1.75, style: .continuous)
+        let klein = kachel.vorErsterStunde && kachel.art == .aufsicht && !gross
+        let mitFeld = kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben)
+        return HStack(spacing: klein ? 4.33 : 4.67) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
                 .fill(a.balken ?? Farben.aufsichtBalken)
-                .opacity(a.balkenDeckkraft)
-                .frame(width: 3.5)
-                .padding(.vertical, 2.2)   // Balken in der Pause etwas kürzer als die Pille
+                .opacity(kachel.aufsichtsstand == .abgegeben ? 0.5 : a.balkenDeckkraft)
+                .frame(width: 4)
+                .padding(.vertical, 1)   // Balken 1 pt kürzer als die Pille (oben und unten)
             // Immer nur der Ortsname (keine Kürzel, keine Plaketten); entfallene Aufsicht durchgestrichen
             Text(kachel.titel)
-                .font(.system(size: gross ? 13.5 : 11.5, weight: .semibold))
+                .font(.system(size: gross ? 13.5 : (klein ? 8 : 12), weight: .semibold))
                 .strikethrough(a.durchgestrichen, color: a.text)
                 .foregroundStyle(a.text)
                 .lineLimit(1)
@@ -330,17 +334,19 @@ struct KachelView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
-            // Vertretung (übernommen oder abgegeben): ganz rechts das grüne „⋮“ – Details beim Antippen
-            if kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben) {
-                Kuerzungszeichen(gruen: true, breite: 14, hoehe: 14)
+            // Vertretung (übernommen oder abgegeben): unten rechts das grüne „⋮“ – Details beim Antippen
+            if mitFeld {
+                Kuerzungszeichen(gruen: true, breite: klein ? 11 : 14, hoehe: klein ? 9 : 14)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, klein ? 1 : 1)
                     .layoutPriority(1)
             }
         }
-        .padding(.leading, 4.4)
-        .padding(.trailing, 3.9)
+        .padding(.leading, 4)
+        .padding(.trailing, mitFeld ? 2.33 : 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: 3, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: klein ? 3 : 4, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: klein ? 3 : 4, style: .continuous))
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
         .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
@@ -770,8 +776,9 @@ struct ZaehlstreifenView: View {
     var body: some View {
         let farben = farbe
         let form = RoundedRectangle(cornerRadius: Self.eckenRadius, style: .continuous)
+        // Ziffer 12 pt (Versalhöhe 25 px = 8,33 pt), mittig
         Text("\(streifen.kacheln.count)")
-            .font(.system(size: 11, weight: .regular))
+            .font(.system(size: 12, weight: .regular))
             .foregroundStyle(farben.text)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(farben.flaeche, in: form)
@@ -793,6 +800,8 @@ struct ZaehlstreifenView: View {
         if streifen.aenderung { return (Farben.aenderungRand, ziffer) }
         if streifen.klausur { return (Farben.pruefungRand, ziffer) }
         if streifen.entfall { return (Farben.entfallRand, ziffer) }
+        // Dunkel (Vorlagen 6a2e7724/3beee594, 3 px/pt): immer #323c45 mit Ziffer #f3f5f7 – auch an künftigen Tagen
+        if schema == .dark { return (Farben.zaehlerFlaeche, Color(hexWert: 0xF3F5F7)) }
         return (v ? Farben.karteVergangen : Farben.karte, v ? Farben.karteTextVergangen : Farben.karteText)
     }
 }

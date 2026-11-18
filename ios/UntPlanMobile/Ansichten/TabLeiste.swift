@@ -58,15 +58,109 @@ enum Leistensymbole {
 
     @MainActor
     private static func kalenderZeichnen(tag: Int) -> Image {
-        let renderer = ImageRenderer(content:
-            KalenderSymbol(inhalt: .tag(tag), groesse: 26, strich: 1.7)
-                .foregroundStyle(Color.black)
-        )
+        // Vorlage 6a2e7724 (3 px/pt): Kalenderblatt 72 × 72 px (vorher 68 px)
+        vorlage(KalenderSymbol(inhalt: .tag(tag), groesse: 27.6, strich: 1.75), ersatz: "calendar")
+    }
+
+    /// Schulgebäude mit Fahne, Briefumschlag und Person wie in der Vorlage (6a2e7724, 3 px/pt): Umrisse 1,67 pt, Größe wie
+    /// gemessen (Schule 24 × 24 pt, Umschlag 22,67 × 16,33 pt, Person 17,33 × 19,33 pt).
+    @MainActor static let schule: Image = vorlage(Leistenschule(), ersatz: "building.columns")
+    @MainActor static let umschlag: Image = vorlage(Leistenumschlag(), ersatz: "envelope")
+    @MainActor static let person: Image = vorlage(Leistenperson(), ersatz: "person")
+
+    @MainActor
+    private static func vorlage<V: View>(_ ansicht: V, ersatz: String) -> Image {
+        let renderer = ImageRenderer(content: ansicht.foregroundStyle(Color.black))
         renderer.scale = 3
         if let bild = renderer.cgImage {
             return Image(decorative: bild, scale: 3).renderingMode(.template)
         }
-        return Image(systemName: "calendar")
+        return Image(systemName: ersatz)
+    }
+}
+
+/// Strichstärke der Leistensymbole (Vorlage: 5 px bei 3 px/pt)
+private let leistenStrich: CGFloat = 1.67
+
+/// Schulgebäude mit Fahne (24 × 24 pt): Mittelbau mit rundem Giebel und Rundfenster, Seitenflügel mit Fenstern, Tür.
+struct Leistenschule: View {
+    var body: some View {
+        ZStack {
+            Path { p in
+                // Fahnenmast und Fahne
+                p.move(to: CGPoint(x: 12, y: 6.4))
+                p.addLine(to: CGPoint(x: 12, y: 0.6))
+                p.addLine(to: CGPoint(x: 16.3, y: 0.6))
+                p.addLine(to: CGPoint(x: 16.3, y: 3.8))
+                p.addLine(to: CGPoint(x: 12, y: 3.8))
+                // Mittelbau mit rundem Giebel
+                p.move(to: CGPoint(x: 7.5, y: 23.2))
+                p.addLine(to: CGPoint(x: 7.5, y: 11))
+                p.addArc(center: CGPoint(x: 12, y: 11), radius: 4.5, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+                p.addLine(to: CGPoint(x: 16.5, y: 23.2))
+                // Seitenflügel
+                p.move(to: CGPoint(x: 7.5, y: 13.35))
+                p.addLine(to: CGPoint(x: 2, y: 13.35))
+                p.addQuadCurve(to: CGPoint(x: 0.8, y: 14.6), control: CGPoint(x: 0.8, y: 13.35))
+                p.addLine(to: CGPoint(x: 0.8, y: 23.2))
+                p.addLine(to: CGPoint(x: 23.2, y: 23.2))
+                p.addLine(to: CGPoint(x: 23.2, y: 14.6))
+                p.addQuadCurve(to: CGPoint(x: 22, y: 13.35), control: CGPoint(x: 23.2, y: 13.35))
+                p.addLine(to: CGPoint(x: 16.5, y: 13.35))
+                // Tür
+                p.move(to: CGPoint(x: 10.5, y: 23.2))
+                p.addLine(to: CGPoint(x: 10.5, y: 19.5))
+                p.addArc(center: CGPoint(x: 12, y: 19.5), radius: 1.5, startAngle: .degrees(180), endAngle: .degrees(0), clockwise: false)
+                p.addLine(to: CGPoint(x: 13.5, y: 23.2))
+                // Rundfenster
+                p.addEllipse(in: CGRect(x: 10.85, y: 9.65, width: 2.3, height: 2.3))
+            }
+            .stroke(style: StrokeStyle(lineWidth: leistenStrich, lineCap: .round, lineJoin: .round))
+            // Fenster der Seitenflügel
+            Path { p in
+                for x in [3.0, 19.0] {
+                    p.addRoundedRect(in: CGRect(x: x, y: 16, width: 2, height: 1.15), cornerSize: CGSize(width: 0.3, height: 0.3))
+                    p.addRoundedRect(in: CGRect(x: x, y: 19.35, width: 2.1, height: 1.6), cornerSize: CGSize(width: 0.5, height: 0.5))
+                }
+            }
+            .fill()
+        }
+        .frame(width: 24, height: 24)
+    }
+}
+
+/// Briefumschlag (22,67 × 16,33 pt): Rahmen mit Ecken 2 pt, Lasche bis 8,3 pt unter die Oberkante.
+struct Leistenumschlag: View {
+    var body: some View {
+        let s = leistenStrich
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.2, style: .continuous)
+                .inset(by: s / 2)
+                .stroke(lineWidth: s)
+            Path { p in
+                p.move(to: CGPoint(x: 1.9, y: 1.6))
+                p.addLine(to: CGPoint(x: 11.33, y: 8.4))
+                p.addLine(to: CGPoint(x: 20.77, y: 1.6))
+            }
+            .stroke(style: StrokeStyle(lineWidth: s, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: 22.67, height: 16.33)
+    }
+}
+
+/// Person (17,33 × 19,33 pt): Kopf (Ring, Radius 4,17 pt) und Schultern als offener Bogen.
+struct Leistenperson: View {
+    var body: some View {
+        let s = leistenStrich
+        Path { p in
+            p.addEllipse(in: CGRect(x: 8.67 - 4.17, y: s / 2, width: 8.33, height: 8.33))
+            // Schultern: obere Hälfte einer Ellipse (Mitte unten), Enden senkrecht
+            p.move(to: CGPoint(x: s / 2, y: 19.33))
+            p.addCurve(to: CGPoint(x: 8.67, y: 11.9), control1: CGPoint(x: s / 2, y: 15.2), control2: CGPoint(x: 4.3, y: 11.9))
+            p.addCurve(to: CGPoint(x: 17.33 - s / 2, y: 19.33), control1: CGPoint(x: 13.0, y: 11.9), control2: CGPoint(x: 17.33 - s / 2, y: 15.2))
+        }
+        .stroke(style: StrokeStyle(lineWidth: s, lineCap: .butt, lineJoin: .round))
+        .frame(width: 17.33, height: 19.33)
     }
 }
 

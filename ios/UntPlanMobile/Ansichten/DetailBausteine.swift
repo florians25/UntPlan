@@ -779,15 +779,16 @@ struct Detailzeile<Rechts: View>: View {
     }
 
     var body: some View {
-        // Vorlage (3 px/pt): Symbol 24 pt ab 18 pt, Text ab 61,3 pt, Titel 18,5 pt (Versalhöhe 13 pt), Untertitel 15,5 pt
+        // Vorlage (3 px/pt): Symbol 24 pt ab 18 pt, Text ab 61,3 pt, Titel 17 pt (Versalhöhe 36 px = 12 pt, f29923a9 und
+        // 099514eb nachgemessen; vorher 18,5 pt), Untertitel 15,5 pt
         // (Grundlinien 22 pt auseinander), Zahl Ø 32 pt 16,7 pt vor dem Pfeil, Pfeil 10,7 × 20 pt 24,7 pt vom Rand;
         // einzeilige Zeilen 56 pt, zweizeilige ≈ 58,5 pt
         HStack(spacing: 18) {
             Listensymbol(name: symbol, groesse: 24, einpassen: true)
                 .foregroundStyle(Farben.detailSymbol)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4.5) {
                 Text(titel)
-                    .font(.system(size: 18.5, weight: .regular))
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Farben.detailText)
                     .lineLimit(1)
                 if let untertitel, !untertitel.isEmpty {
@@ -806,8 +807,9 @@ struct Detailzeile<Rechts: View>: View {
                     .padding(.trailing, 4.5)
             }
             if pfeil {
+                // Pfeil 62 × 32 px wie in der Vorlage (vorher 53 px hoch)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 23, weight: .thin))
+                    .font(.system(size: 26.5, weight: .thin))
                     .foregroundStyle(Farben.detailSymbol)
             }
         }

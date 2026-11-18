@@ -1504,6 +1504,8 @@ struct Rasterrahmen: Equatable {
     /// Höhe je Minute ohne bekannte Sichthöhe (hell 45 min = 166 px = 55,33 pt) bzw. auf dem iPad (wie die PWA).
     static let proMinuteStandard: CGFloat = 1.2296
     static let proMinuteBreit: CGFloat = 1.2704
+    /// iPhone (Woche und Tag): 45 min = 182 px bei 3 px/pt
+    static let proMinuteIphone: CGFloat = 182.0 / 3 / 45
     static let abstandUnten: CGFloat = 28
     /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
     /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
@@ -1551,18 +1553,17 @@ struct Rasterrahmen: Equatable {
         // Pillen vor der 1. Stunde (Aufsicht, ganztägiger Termin) brauchen über der Linie der 1. Stunde Platz
         let pille = Self.pillenHoehe(tage: seiten.contains { $0.nurTage != nil })
         let oben: CGFloat = vorErster ? max(Self.obenAbstand, pille + Self.pillenLuft) : Self.obenAbstand
-        // iPhone wie im Original: Höhe je Minute so, dass das Raster von der 1. Stunde bis 17:00 genau die Sichthöhe
-        // füllt (Vorlagen: dunkel 07:45–17:00 → 1,2667 pt/min, hell 08:00–17:00 → 1,2296 pt/min); sonst fester Wert
-        let spanne = CGFloat(Self.sichtEnde - start)
         let proMinute: CGFloat
-        if kompakt && sichtHoehe > 200 && spanne >= 240 {
-            proMinute = min(1.6, max(1.0, (sichtHoehe - oben) / spanne))
+        if kompakt {
+            // Vorlagen dunkel 567a139b, 6a2e7724, 3beee594, da72165b, eedec6e2 (3 px/pt): 45 Minuten = 182 px = 60,64 pt –
+            // das Raster ist länger als der Bildschirm und läuft unter der Leiste weiter (wie im Original)
+            proMinute = Self.proMinuteIphone
         } else {
-            proMinute = kompakt ? Self.proMinuteStandard : Self.proMinuteBreit
+            proMinute = Self.proMinuteBreit
         }
         let mass = Rastermass(oben: oben, start: start, proMinute: proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
-                                                              mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 24))
+                                                              mindestens: seiten.contains { $0.nurTage != nil } ? 30 : 19))
         self.zeiten = zeiten
         self.start = start
         self.ende = ende
@@ -1968,8 +1969,9 @@ struct RasterSeite: View, Equatable {
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
             // Direkt auf der Linie der 1. Stunde (Unterkante an der Oberkante der Linie), wie im Original
-            h = rahmen.pillenHoehe
-            y = bildpunkt(max(0, mass.y(mass.start) - h))
+            // Aufsicht vor der 1. Stunde wie in der Vorlage (eedec6e2): 11 pt hoch, 0,67 pt über der Linie
+            h = k.art == .aufsicht && nurTage == nil ? 11 : rahmen.pillenHoehe
+            y = bildpunkt(max(0, mass.y(mass.start) - h - (k.art == .aufsicht && nurTage == nil ? 0.67 : 0)))
         } else if k.inPause {
             // Aufsicht: mittig in der (bei Bedarf gedehnten) Pause, vollständig sichtbar; Breite und Spur wie jede Stunde
             (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
@@ -1989,9 +1991,10 @@ struct RasterSeite: View, Equatable {
         let oben = mass.yEnde(beginn) + 1
         let unten = mass.y(ende)
         let luecke = max(0, unten - oben)
-        // Vorlage 179: in einer 15-Minuten-Pause 15,3 pt hoch (Lücke − 2 pt)
-        let h = max(12, min(nurTage == nil ? 22 : 26, luecke - 2))
-        return (bildpunkt(oben + (luecke - h) / 2), h)
+        // Vorlagen 6a2e7724/da72165b (15-Minuten-Pause, 3 px/pt): Pille 17,5 pt hoch bei 18,67 pt Lücke, 0,83 pt unter der
+        // Linie davor – höchstens 17,5 pt, sonst Lücke − 1,17 pt, leicht nach unten versetzt
+        let h = max(12, min(nurTage == nil ? 17.5 : 26, luecke - 1.17))
+        return (bildpunkt(oben + (luecke - h) / 2 + 0.25), h)
     }
 
     /// Auf ganze Bildpunkte runden (3x: Drittel-Punkte).
