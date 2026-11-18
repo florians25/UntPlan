@@ -18,8 +18,8 @@ export function statusText(k) {
 }
 
 /**
- * Zusätzliche Stunde (Marker „+“): nur echte Zusatzstunden laut Server (zusaetzlich – zusätzlicher Unterricht bzw. Sondereinsatz ohne
- * reguläre Stunde zur selben Zeit), nie wegen der Vertretungsart, nie bei Verlegungen oder Veranstaltungen.
+ * Zusätzliche Stunde (Marker „+“): laut Server (zusaetzlich – zusätzlicher Unterricht ohne reguläre Stunde zur selben Zeit, jede Stunde
+ * mit der Vertretungsart Sondereinsatz), nie bei Verlegungen oder Veranstaltungen. Fach und Lehrkräfte stehen schlicht da (ohne „+“).
  */
 const istZusatz = k => k.status === 'geaendert' && !istVerlegung(k) && !!k.zusaetzlich;
 /**
