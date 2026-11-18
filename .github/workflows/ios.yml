@@ -101,12 +101,12 @@ jobs:
           echo
           S=http://127.0.0.1:5077/api/app
           J=$RUNNER_TEMP/admin.cookies
-          curl -s -c $J -b $J -H 'Content-Type: application/json' -d '{"login":"admin","passwort":"Test1234!"}' $S/anmelden; echo
-          curl -s -c $J -b $J -H 'Content-Type: application/json' \
+          curl -s -c $J -b $J -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' -d '{"login":"admin","passwort":"Test1234!"}' $S/anmelden; echo
+          curl -s -c $J -b $J -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
             -d '{"login":"bec","passwort":"Lehrer1234!x","rolle":"lehrer","element":"BEC","anzeigename":"BEC","gesperrt":false}' $S/admin/benutzer; echo
           KIND=$(python3 -c 'import json; d=json.load(open("web/demo/beispiel-paket.json")); print(next(s["id"] for s in d["elemente"]["schueler"] if s["klasse"]=="6a"))')
           echo "Kind: $KIND"
-          curl -s -c $J -b $J -H 'Content-Type: application/json' \
+          curl -s -c $J -b $J -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
             -d "{\"login\":\"eltern1\",\"passwort\":\"Eltern1234!x\",\"rolle\":\"eltern\",\"anzeigename\":\"Familie Muster\",\"gesperrt\":false,\"schuelerIds\":[$KIND]}" $S/admin/benutzer; echo
           # Abwesenheiten des Kindes in der aktuellen Woche (Montag entschuldigt, Dienstag offen, Mittwoch Verspätung)
           MO=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday()))')
@@ -115,7 +115,7 @@ jobs:
           echo "MI=$MI" >> $GITHUB_ENV
           for z in "$MO|07:00|21:00|entschuldigt|K|Grippe" "$DI|07:00|21:00|offen|K|Attest folgt" "$MI|07:55|08:10|offen||Bus verpasst"; do
             IFS='|' read -r tag von bis status grund text <<< "$z"
-            curl -s -c $J -b $J -H 'Content-Type: application/json' \
+            curl -s -c $J -b $J -H 'X-UntPlanWeb: 1' -H 'Content-Type: application/json' \
               -d "{\"schuelerIds\":[$KIND],\"von\":\"${tag}T${von}\",\"bis\":\"${tag}T${bis}\",\"grund\":\"$grund\",\"status\":\"$status\",\"text\":\"$text\"}" \
               $S/klassenbuch/abwesenheit; echo
           done
