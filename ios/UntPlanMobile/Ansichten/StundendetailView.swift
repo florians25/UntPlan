@@ -842,8 +842,10 @@ private struct StundendetailSeite: View {
             }
             if kollegium && mitUnterricht {
                 link(.schueler, Detailzeile(symbol: "SymbolSchueler", titel: "Schüler*innen") {
-                    if daten.anwesenheit != nil || daten.geladen {
-                        SchuelerPlakette(zahl: daten.abwesendAnzahl, kontrolliert: daten.anwesenheit?.kontrolliert == true)
+                    // Erst mit geladener Schülerliste (sonst stünde vor dem Laden bzw. nach einem Fehler eine falsche „0“)
+                    if let liste = daten.anwesenheit {
+                        SchuelerPlakette(abwesend: daten.abwesendAnzahl, gesamt: liste.schueler.count,
+                                         kontrolliert: liste.kontrolliert)
                             .padding(.trailing, 4)
                     }
                 })

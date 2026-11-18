@@ -339,11 +339,17 @@ struct StundenplanView: View {
     /// Nur mit Startargumenten „-uiAnsicht details“: nach dem Laden die Stundendetails einer Vertretung (bzw. einer anderen
     /// geänderten Stunde) am angegebenen Tag öffnen.
     private func startdetailOeffnen() async {
-        guard Startsteuerung.aktiv, Startsteuerung.ansicht == "details" else { return }
+        guard Startsteuerung.aktiv, ["details", "aufsicht"].contains(Startsteuerung.ansicht ?? "") else { return }
         for _ in 0..<60 {
             if let plan = aktuellerPlan, !plan.karten.isEmpty {
                 let tag = Startsteuerung.datum.map { Datumsformat.iso($0) }
+                if Startsteuerung.ansicht == "aufsicht" {
+                    gewaehlteAufsicht = plan.aufsichten.first { tag == nil || $0.datum == tag }
+                    return
+                }
+                // „-uiStunde n“: die Karte, die in dieser Stunde liegt
                 let amTag = plan.karten.filter { tag == nil || $0.datum == tag }
+                    .filter { k in Startsteuerung.stunde.map { k.von <= $0 && $0 <= k.bis } ?? true }
                 let geaendert = amTag.filter { $0.unterricht != nil && $0.status != "regulaer" }
                 if let k = geaendert.first(where: { $0.vertretung != nil && ["vertretung", "vertreten"].contains($0.status) })
                     ?? geaendert.first(where: { $0.vertretung != nil }) ?? geaendert.first ?? amTag.first {

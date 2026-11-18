@@ -1118,11 +1118,14 @@ struct Listensymbol: View {
 
 // MARK: - Schüler*innen-Plakette
 
-/// Zahl der Abwesenden wie in der Vorlage: dunkelrote Scheibe (grau bei 0), oben rechts ein kleines Häkchen,
-/// wenn die Abwesenheiten der Stunde kontrolliert wurden.
+/// Schüler*innen der Stunde: ohne Abwesende die Zahl der Schüler*innen (graue Scheibe), sonst die Zahl der Abwesenden
+/// (dunkelrote Scheibe); oben rechts ein kleines Häkchen, wenn die Abwesenheiten der Stunde kontrolliert wurden.
 struct SchuelerPlakette: View {
-    let zahl: Int
+    let abwesend: Int
+    let gesamt: Int
     let kontrolliert: Bool
+
+    private var zahl: Int { abwesend > 0 ? abwesend : gesamt }
 
     var body: some View {
         // Vorlage: Kreis 32 pt, Ziffer 15 pt; Abwesende hell blassrot (#fff3f3) mit roter Ziffer (#df0046), dunkel
@@ -1131,10 +1134,10 @@ struct SchuelerPlakette: View {
         Text("\(zahl)")
             .font(.system(size: 15))
             .monospacedDigit()
-            .foregroundStyle(zahl > 0 ? Farben.abwesendZiffer : Farben.plakettenZiffer)
+            .foregroundStyle(abwesend > 0 ? Farben.abwesendZiffer : Farben.plakettenZiffer)
             .padding(.horizontal, 8)
             .frame(minWidth: 32, minHeight: 32)
-            .background(zahl > 0 ? Farben.abwesendPlaketteFlaeche : Farben.detailSymbol, in: Capsule())
+            .background(abwesend > 0 ? Farben.abwesendPlaketteFlaeche : Farben.detailSymbol, in: Capsule())
             .overlay(alignment: .topTrailing) {
                 if kontrolliert {
                     Image(systemName: "checkmark")
@@ -1147,7 +1150,7 @@ struct SchuelerPlakette: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(kontrolliert ? "\(zahl) abwesend, kontrolliert" : "\(zahl) abwesend")
+            .accessibilityLabel((abwesend > 0 ? "\(abwesend) abwesend" : "\(gesamt) Schüler*innen") + (kontrolliert ? ", kontrolliert" : ""))
     }
 }
 
