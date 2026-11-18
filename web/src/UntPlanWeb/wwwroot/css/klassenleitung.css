@@ -170,3 +170,10 @@
 .br-reihe-text b { white-space: nowrap; }
 .ke-liste th, .ke-liste td { padding-left: 7px !important; padding-right: 7px !important; }
 .ke-liste .ke-text { max-width: 260px; white-space: normal; }
+
+/* Auswahlspalte: „Auswahl“ mit Kreis darunter genau über den Kreisen der Zeilen (gleiche Mitte), Bearbeiten/Löschen direkt daneben ohne Lücke */
+.nl-tabelle th.nl-wahl:has(.sg-kopfwahl), .nl-tabelle th.nl-wahl:has(.sg-kopfwahl) ~ td.nl-wahl,
+.nl-tabelle table:has(.sg-kopfwahl) .nl-wahl { width: 64px; min-width: 64px; padding-left: 8px !important; padding-right: 8px !important; text-align: center; }
+.nl-tabelle table:has(.sg-kopfwahl) .nl-wahl .nl-rund { margin: 0 auto; display: block; }
+.nl-tabelle table:has(.sg-kopfwahl) th.nl-wahl + th, .nl-tabelle table:has(.sg-kopfwahl) td.nl-wahl + td.text-nowrap { width: 1%; white-space: nowrap; padding-left: 0 !important; }
+.sg-kopfwahl { vertical-align: middle; }
