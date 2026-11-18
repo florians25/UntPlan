@@ -2,7 +2,8 @@
 // Tabelle (Bearbeiten | Art | Aktivitätsart | Klasse | Schülergruppe | Fach | Lehrkraft | Wst | Von | Bis | Termine | zusätzliche Stunden |
 // Schüler | Schülergruppen | Berichte), darunter „Abwesenheiten“ und die Knöpfe „Abwesenheit melden“, „Bericht“, „Neuer Unterricht“.
 // Unterricht → Klasse zeigt dieselbe Liste für eine gewählte Klasse.
-import { e, holen, leer, herunterladen, heuteIso, plusTage, montag } from '../ui.js';
+import { e, holen, leer, herunterladen, heuteIso, plusTage, montag, karteKopf } from '../ui.js';
+import { zeitraumPfeil, pfeileBinden } from '../zeitbereich.js';
 import { elementWahl } from '../elementwahl.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
@@ -33,28 +34,31 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   kontext.titel(titel);
   const eigenerPlan = art === 'lehrer' && !!ich.element && element === ich.element;
   const pille = (inhalt, aktiv = false) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}">${inhalt}</label>`;
+  // Filterleiste im neuen Design (modulseiten.css): Klasse, Aktivitätsart, Zeitraum ‹ Von Bis › mit Auswahl; Aktionen rechts
   seite.innerHTML = `
-    <div class="nl-leiste">
-      ${art === 'klasse' ? '<span data-wahl></span>' : ''}
-      ${pille(`<select data-akt aria-label="Aktivitätsart"><option value="">Aktivitätsart</option>${['Unterricht', 'Vertretung', 'Prüfung'].map(a => `<option ${a === aktivitaet ? 'selected' : ''}>${a}</option>`).join('')}</select>`, !!aktivitaet)}
-      ${pille(`<span class="me-1 text-body-secondary">Zeitraum</span><input type="date" data-von value="${von}" aria-label="Zeitraum von">`)}
-      ${pille(`<input type="date" data-bis value="${bis}" aria-label="Zeitraum bis">`)}
-      ${pille(`<select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich && !vonParam ? 'selected' : ''}>${t}</option>`).join('')}${vonParam ? '<option selected>Benutzerdefiniert</option>' : ''}</select>`)}
+    <div class="nl-leiste u-kopfteil">
+      ${art === 'klasse' ? '<span class="sg-feld"><span>Klasse</span><span data-wahl></span></span>' : ''}
+      <label class="sg-feld"><span>Aktivitätsart</span><select class="form-select" data-akt aria-label="Aktivitätsart"><option value="">- Alle -</option>${['Unterricht', 'Vertretung', 'Prüfung'].map(a => `<option ${a === aktivitaet ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+      <span class="sg-feld zb-feld"><span>Zeitraum</span><span class="zb-steuer">${zeitraumPfeil(-1)}
+        ${pille(`<input type="date" data-von value="${von}" aria-label="Zeitraum von">`)}
+        ${pille(`<input type="date" data-bis value="${bis}" aria-label="Zeitraum bis">`)}${zeitraumPfeil(1)}
+        <select class="form-select" data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich && !vonParam ? 'selected' : ''}>${t}</option>`).join('')}${vonParam ? '<option selected>Benutzerdefiniert</option>' : ''}</select></span></span>
       <button type="button" class="d-none" data-filtern></button>
+      <div class="u-fl-aktionen mu-fuss">
+        ${eigenerPlan ? '<a class="nl-knopf" href="#/melden/abwesenheit">Abwesenheit melden</a>' : ''}
+        <button type="button" class="nl-knopf" data-bericht>Bericht</button>
+        ${ich.kollegium ? '<a class="nl-knopf nw-primaer" href="#/buchen/unterricht/neu"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neuer Unterricht</a>' : ''}
+      </div>
     </div>
     <div class="nl-tabelle" data-inhalt></div>
-    ${eigenerPlan ? '<section class="mu-abwesenheiten"><h3>Abwesenheiten</h3><div data-abwesenheiten class="nl-unter">Nichts anzuzeigen</div></section>' : ''}
-    <div class="mu-fuss">
-      ${eigenerPlan ? '<a class="nl-knopf" href="#/melden/abwesenheit">Abwesenheit melden</a>' : ''}
-      <button type="button" class="nl-knopf" data-bericht>Bericht</button>
-      ${ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht/neu">Neuer Unterricht</a>' : ''}
-    </div>`;
+    ${eigenerPlan ? `<section class="mu-abwesenheiten">${karteKopf('Abwesenheiten')}<div data-abwesenheiten class="nl-unter">Nichts anzuzeigen</div></section>` : ''}`;
   const wahl = seite.querySelector('[data-wahl]');
   if (wahl) wahl.replaceWith(elementWahl({ eintraege: el.klassen, wert: element, platzhalter: 'Klasse wählen', beiWahl: x => kontext.navigieren(ziel(art, x)) }));
   const f = n => seite.querySelector(`[data-${n}]`).value;
   seite.querySelector('[data-bereich]').onchange = ev => BEREICHE[ev.target.value] && kontext.navigieren(`#/unterricht/${art}/${encodeURIComponent(element || '-')}/${ev.target.value}`);
   seite.querySelector('[data-filtern]').onclick = () => kontext.navigieren(ziel(art, element, bereich, f('von'), f('bis'), f('akt')));
   seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = () => kontext.navigieren(ziel(art, element, bereich, f('von'), f('bis'), f('akt'))));
+  pfeileBinden(seite, () => [f('von'), f('bis')], (v, b) => kontext.navigieren(ziel(art, element, bereich, v, b, f('akt'))));
   seite.querySelector('[data-akt]').onchange = () => kontext.navigieren(ziel(art, element, bereich, f('von'), f('bis'), f('akt')));
   const inhalt = seite.querySelector('[data-inhalt]');
   if (!element) { inhalt.innerHTML = `<div class="p-3">${leer('Bitte eine Klasse wählen.', 'meineunterrichte')}</div>`; return; }
@@ -71,7 +75,7 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   const zeilen = liste.map(u => ({ ...u, aktivitaet: geaendert.has(u.id) ? 'Vertretung' : 'Unterricht' })).filter(u => !aktivitaet || u.aktivitaet === aktivitaet || (aktivitaet === 'Prüfung' && /klausur|prüfung/i.test(u.text)));
   const knopf = (href, icon, titel) => `<a class="nl-icon sichtbar" href="${href}" title="${titel}" aria-label="${titel}"><i class="bi bi-${icon}"></i></a>`;
   const sg = u => u.kurs || (u.klassen[0] ? `SG_${u.klassen.join('_')}` : '');
-  inhalt.innerHTML = zeilen.length || neue.length ? `<table class="mu-tabelle"><thead><tr><th></th><th>Art</th><th>Aktivitätsart</th><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th>
+  inhalt.innerHTML = zeilen.length || neue.length ? `${karteKopf('Unterricht', zeilen.length + neue.length)}<table class="mu-tabelle"><thead><tr><th></th><th>Art</th><th>Aktivitätsart</th><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th>
       <th class="text-end">Wst</th><th class="mu-sortiert">Von</th><th class="mu-sortiert">Bis</th><th>Termine</th><th></th><th>Schüler</th><th>Schülergruppen</th><th>Berichte</th></tr></thead><tbody>
     ${zeilen.map(u => { const k = u.klassen[0] ?? ''; return `<tr class="${u.aktivitaet === 'Vertretung' ? 'mu-geaendert' : ''}">
       <td>${knopf(`#/klassenbuch/${encodeURIComponent(k)}/verlauf`, 'pencil', 'Bearbeiten (Lehrstoff)')}</td>

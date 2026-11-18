@@ -125,6 +125,25 @@ public class SeitenlayoutTests
         Assert.DoesNotContain("max-width:1100px", Datei("js", "ansichten", "profil.js"));
     }
 
+    /// <summary>Modulseiten im neuen Design: eine Filterleiste (gleiche Feldhöhe, Beschriftung darüber, Aktionen rechts) und eine Karte.</summary>
+    [Fact]
+    public void Modulseiten_einheitliche_Filterleiste_und_Karten()
+    {
+        var index = Datei("index.html");
+        Assert.True(index.IndexOf("css/modulseiten.css", StringComparison.Ordinal) > index.IndexOf("css/seitenlayout.css", StringComparison.Ordinal));
+        var css = Datei("css", "modulseiten.css");
+        foreach (var k in new[] { "--fl-h", "--kt-radius", ".u-fl-aktionen", ".u-karte-kopf", ".u-zaehler", ".zb-steuer", ".u-fl-pfeil", "#seite .u-leer" }) Assert.Contains(k, css);
+        var ui = Datei("js", "ui.js");
+        Assert.Contains("export const karteKopf", ui);
+        Assert.Contains("export const leistenAktionen", ui);
+        var zb = Datei("js", "zeitbereich.js");
+        Assert.Contains("export function zeitraumSchieben", zb);
+        Assert.Contains("zeitraumPfeil(-1)", zb);
+        // Aktionsknöpfe stehen rechts in der Filterleiste
+        foreach (var datei in new[] { "abwesenheiten.js", "eintraege.js", "dienste.js", "unterricht.js", "unterrichtklassen.js" })
+            Assert.Contains("u-fl-aktionen", Datei("js", "ansichten", datei));
+    }
+
     [Fact]
     public void Suchfeld_und_Segment_als_gemeinsame_Komponenten()
     {

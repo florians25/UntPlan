@@ -77,7 +77,9 @@ public class MaskenWieVorlageTests
         var js = Datei("js", "ansichten", "unterricht.js");
         Reihenfolge(js, "inhalt.innerHTML = zeilen.length", "<th></th><th>Art</th><th>Aktivitätsart</th><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th>",
             "<th class=\"text-end\">Wst</th><th class=\"mu-sortiert\">Von</th><th class=\"mu-sortiert\">Bis</th><th>Termine</th><th></th><th>Schüler</th><th>Schülergruppen</th><th>Berichte</th>");
-        Reihenfolge(js, "seite.innerHTML = `", "Zeitraum", "<h3>Abwesenheiten</h3>", "Nichts anzuzeigen", ">Abwesenheit melden</a>", "data-bericht>Bericht</button>", ">Neuer Unterricht</a>");
+        // Knöpfe im neuen Design rechts in der Filterleiste, darunter die Karten „Unterricht“ und „Abwesenheiten“
+        Reihenfolge(js, "seite.innerHTML = `", "Zeitraum", "u-fl-aktionen", ">Abwesenheit melden</a>", "data-bericht>Bericht</button>", ">Neuer Unterricht</a>",
+            "karteKopf('Abwesenheiten')", "Nichts anzuzeigen");
         Assert.DoesNotContain("data-suche", js);
         // „Neuer Unterricht“ ist wie in der Vorlage kein eigener Menüpunkt mehr
         Assert.Contains("text: 'Neuer Unterricht', icon: 'meineunterrichte', verborgen: true }", Datei("js", "app.js"));

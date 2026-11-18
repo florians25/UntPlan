@@ -92,6 +92,12 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
         <label class="sg-feld"><span>Klasse</span><select class="form-select" data-klasse><option value="alle">- Alle -</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
         <label class="sg-feld"><span>Art</span><select class="form-select" data-art><option value="alle">- Alle -</option>${d.arten.map(a => `<option value="${a.id}" ${!alleDienste && a.id === dienst?.id ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
         ${zeitbereichFeld(von, bis, sj)}
+        <div class="u-fl-aktionen kl-knoepfe">
+          ${d.verwalten ? `<button type="button" class="nl-knopf" data-neu>Neu</button>` : ''}
+          ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen disabled>Löschen</button>' : ''}
+          <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
+            <div class="kl-menue-liste"><a href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassendienste</a></div></details>
+        </div>
       </div>
       <div class="nl-tabelle kd-liste-tabelle">${zeilen.length ? `<table><thead><tr>${darf ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th><th></th>' : ''}
           <th>Art</th><th>Dienst</th><th>Name</th><th>Klasse</th><th>Zeit</th><th>Text</th></tr></thead><tbody>
@@ -100,14 +106,8 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
           <td class="text-nowrap"><button type="button" class="nl-icon sichtbar" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button><button type="button" class="nl-icon sichtbar rot" data-weg="${i}" title="Löschen" aria-label="Löschen"><i class="bi bi-x-lg"></i></button></td>` : ''}
           <td title="${e(z.dienst)}">${icon('klassendienste')}</td><td>${e(z.dienstKurz || z.dienst)}</td><td>${e(z.schueler)}</td><td>${e(z.klasse)}</td>
           <td class="text-nowrap">${z.von === z.bis ? kurz(z.von) : `${kurz(z.von)}-${kurz(z.bis)}`}</td><td>${e(z.text)}</td></tr>`).join('')}
-        </tbody></table>` : '<div class="kl-nichts">Nichts anzuzeigen</div>'}
+        </tbody></table>` : leer('Nichts anzuzeigen')}
         ${zeilen.length ? `<div class="sg-fuss"><span>${zeilen.length === 1 ? 'Ein Element gefunden.' : `${zeilen.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>` : ''}
-      </div>
-      <div class="kl-knoepfe">
-        ${d.verwalten ? `<button type="button" class="nl-knopf" data-neu>Neu</button>` : ''}
-        ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen disabled>Löschen</button>' : ''}
-        <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
-          <div class="kl-menue-liste"><a href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassendienste</a></div></details>
       </div>
       ${!d.verwalten && klasse ? '<p class="nl-hinweis mt-3"><i class="bi bi-info-circle"></i>Einteilen kann die Klassenleitung bzw. die Schulleitung.</p>' : ''}
     </div>`;

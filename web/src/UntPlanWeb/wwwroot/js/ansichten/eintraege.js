@@ -45,6 +45,14 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
       <label class="sg-feld"><span>Eintragskategoriegruppe</span><select class="form-select" data-gruppe><option value="">- Alle -</option>${Object.keys(KATEGORIEGRUPPEN).map(g => `<option ${g === gruppe ? 'selected' : ''}>${e(g)}</option>`).join('')}</select></label>
       ${zeitbereichFeld(von, bis, sj)}
       <span class="sg-feld"><span>Suche</span>${suchfeldMitFilter({ platzhalter: 'Suchen', label: 'Einträge durchsuchen', klasse: 'abw-suche' })}</span>
+      <div class="u-fl-aktionen kl-knoepfe">
+        <button type="button" class="nl-knopf" data-neu>Neu</button>
+        ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen>Löschen</button>' : ''}
+        <button type="button" class="nl-knopf" data-bericht ${klasse ? '' : 'disabled title="Bitte eine Klasse wählen"'}>Bericht</button>
+        <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
+          <div class="kl-menue-liste"><a href="#/berichte/klassenbucheintraege/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Klasse</a>
+            <a href="#/berichte/klassenbucheintraege_schueler/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Schüler*in</a></div></details>
+      </div>
     </div>
     <div class="nl-tabelle ke-liste">${daten.eintraege.length ? `<table><thead><tr>${darf ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th>' : ''}<th></th>
         <th>Art</th><th>Name</th><th>Klasse</th><th>Tag</th><th>Datum</th><th>Zeit</th><th>Fach</th><th>Benutzer</th><th>Eintragskategorie</th><th>Kategoriegruppe</th><th>Text</th></tr></thead><tbody>
@@ -56,15 +64,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
         <td>${e(x.zeit || '')}</td><td>${e(x.fach || '')}</td><td>${e(x.lehrer)}</td><td>${e(x.art)}</td><td>${e(gruppeVon(x.art))}</td>
         <td><div class="ke-text" title="${e(x.text)}">${e(x.text)}</div></td></tr>`).join('')}
       </tbody></table>
-      <div class="sg-fuss"><span>${daten.eintraege.length === 1 ? 'Ein Element gefunden.' : `${daten.eintraege.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>` : '<div class="kl-nichts">Nichts anzuzeigen</div>'}</div>
-    <div class="kl-knoepfe">
-      <button type="button" class="nl-knopf" data-neu>Neu</button>
-      ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen>Löschen</button>' : ''}
-      <button type="button" class="nl-knopf" data-bericht ${klasse ? '' : 'disabled title="Bitte eine Klasse wählen"'}>Bericht</button>
-      <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
-        <div class="kl-menue-liste"><a href="#/berichte/klassenbucheintraege/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Klasse</a>
-          <a href="#/berichte/klassenbucheintraege_schueler/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Schüler*in</a></div></details>
-    </div>`;
+      <div class="sg-fuss"><span>${daten.eintraege.length === 1 ? 'Ein Element gefunden.' : `${daten.eintraege.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>` : leer('Nichts anzuzeigen')}</div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
   suchfeldMitFilterBinden(seite, { beiSuche: t => zeilenFiltern(seite.querySelectorAll('tr[data-eintrag]'), t) });
   const filterNeu = (v = f('von') || von, b = f('bis') || bis) => { const k = f('klasse'); kontext.navigieren(ziel(v, b, k, f('art'), k === klasse ? (f('schueler') || '') : '', f('gruppe'))); };

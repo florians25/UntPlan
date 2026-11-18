@@ -40,10 +40,9 @@ const ANSICHTEN = {
   hinweise: () => import('./ansichten/hinweise.js'),
   kbeinstellungen: () => import('./ansichten/kbeinstellungen.js'),
   planeinstellungen: () => import('./ansichten/planeinstellungen.js'),
-  // Leitfaden Klassenleitung: Schülergruppen und Schüler-Gruppen-Zuordnung, Kontaktdaten, Offene Stunden pro Klasse
+  // Leitfaden Klassenleitung: Schülergruppen und Schüler-Gruppen-Zuordnung, Kontaktdaten
   schuelergruppen: () => import('./ansichten/schuelergruppen.js'),
   kontaktdaten: () => import('./ansichten/kontaktdaten.js'),
-  offenklasse: () => import('./ansichten/offenklasse.js'),
 };
 
 const app = document.getElementById('app');
@@ -381,7 +380,6 @@ function menue() {
     m.push({ id: 'klassenbuch', text: 'Klassenbuch', icon: 'klassenbuchnav', unter: [
       { nav: 'klassenbuch', href: '#/klassenbuch', text: 'Übersicht', icon: 'uebersicht' },
       { nav: 'offen', href: '#/offen', text: 'Offene Stunden', icon: 'offen' },
-      ...(b.fehlzeiten || b.admin ? [{ nav: 'offenklasse', href: '#/offenklasse', text: 'Offene Stunden pro Klasse', icon: 'offen' }] : []),
       { nav: 'eintraege', href: '#/eintraege', text: 'Klassenbucheinträge', icon: 'eintraege' },
       { nav: 'hausaufgaben', href: '#/hausaufgaben', text: 'Hausaufgaben', icon: 'hausaufgaben' },
       { nav: 'dienste', href: '#/dienste', text: 'Klassendienste', icon: 'klassendienste' },
@@ -801,6 +799,8 @@ async function route() {
   // offene Dialoge schließen (z. B. Zurück-Taste im Browser)
   document.querySelectorAll('.modal.show').forEach(m => bootstrap.Modal.getInstance(m)?.hide());
   kontomenueZu();
+  // frühere Seite „Offene Stunden pro Klasse“ (#/offenklasse…) gibt es nicht mehr: weiter zu „Offene Stunden“
+  if (/^#\/?offenklasse(\/|$)/.test(location.hash)) { history.replaceState(null, '', '#/offen'); }
   const teile = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   let name = teile[0] || (kontext.ansicht.startseite === 'stundenplan' && sitzung.benutzer.element ? 'plan' : 'heute');
   let nav = navAus([name, ...teile.slice(1)]);
@@ -854,6 +854,7 @@ const WEISSER_KOPF = {
   abwesenheiten: { suche: true, h: [60, 110, 174] }, fehlzeiten: { suche: true, h: [112, 112, 314] }, eintraege: { suche: true, h: [60, 60, 142] },
   dienste: { suche: true, h: [60, 60, 192] }, befreiungen: { suche: true, titel: 'Befreiungen vom Unterricht', h: [60, 60, 142] },
   berichte: { suche: true, h: [80, 134, 200] }, entschuldigen: { suche: true, titel: 'Fehlzeiten', h: [60, 110, 174] },
+  unterricht: { suche: true, h: [86, 86, 230] }, 'unterricht-klasse': { suche: true, h: [86, 86, 230] }, unterrichtklassen: { suche: true, h: [86, 86, 230] },
   kbeinstellungen: { suche: false, titel: 'Klassenbuch-Einstellungen' }, planeinstellungen: { suche: false, titel: 'Stundenplaneinstellungen' }, 'kbeinstellungen-unterricht': { suche: false, titel: 'Unterricht-Einstellungen' },
 };
 const kopfStufe = () => innerWidth >= 1300 ? 0 : innerWidth >= 768 ? 1 : 2;

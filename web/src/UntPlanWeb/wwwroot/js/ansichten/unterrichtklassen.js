@@ -2,8 +2,9 @@
 // Termine, Schüler*innen, Schülergruppen, Berichte). Schülergruppen eines Unterrichts mit den Schüler*innen und ihrem Zeitraum
 // (Abmeldung vom Unterricht ab einem Datum) und der befristete Unterrichtswechsel als Assistent (Zeitraum → Schüler*innen →
 // Zielklasse → Unterrichte). Klassenwechsel ab Datum (Dialog für die Schülerverwaltung) wird von schueler.js aufgerufen.
-import { e, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen, heuteIso, plusTage, montag, initialen } from '../ui.js';
+import { e, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen, heuteIso, plusTage, montag, initialen, karteKopf } from '../ui.js';
 import { elementWahl } from '../elementwahl.js';
+import { zeitraumPfeil, pfeileBinden } from '../zeitbereich.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 const iso = /^\d{4}-\d{2}-\d{2}$/;
@@ -27,14 +28,16 @@ export async function zeigen(seite, kontext, [klasseParam, bereichParam, vonPara
   const ziel = (k = klasse, b = bereich, v = von, bi = bis) => `#/unterrichtklassen/${encodeURIComponent(k || '-')}/${b}/${v}/${bi}`;
   const pille = inhalt => `<label class="nl-pille">${inhalt}</label>`;
   kontext.titel(`Unterricht Klasse ${klasse}`);
+  // Filterleiste im neuen Design (modulseiten.css): Klasse, Zeitraum ‹ Von Bis › mit Auswahl, Suche; Aktionen rechts
   seite.innerHTML = `
-    <div class="nl-leiste">
-      <span data-wahl></span>
-      ${pille(`<span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}">`)}
-      ${pille(`<span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${bis}">`)}
-      ${pille(`<select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich && !vonParam ? 'selected' : ''}>${t}</option>`).join('')}${vonParam ? '<option selected>Benutzerdefiniert</option>' : ''}</select>`)}
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Unterricht suchen"></label>
-      <span class="ms-auto d-flex flex-wrap gap-2" data-knoepfe></span>
+    <div class="nl-leiste u-kopfteil">
+      <span class="sg-feld"><span>Klasse</span><span data-wahl></span></span>
+      <span class="sg-feld zb-feld"><span>Zeitraum</span><span class="zb-steuer">${zeitraumPfeil(-1)}
+        ${pille(`<input type="date" data-von value="${von}" aria-label="Von">`)}
+        ${pille(`<input type="date" data-bis value="${bis}" aria-label="Bis">`)}${zeitraumPfeil(1)}
+        <select class="form-select" data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich && !vonParam ? 'selected' : ''}>${t}</option>`).join('')}${vonParam ? '<option selected>Benutzerdefiniert</option>' : ''}</select></span></span>
+      <span class="sg-feld"><span>Suche</span><label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Unterricht suchen"></label></span>
+      <div class="u-fl-aktionen" data-knoepfe></div>
     </div>
     <div class="nl-tabelle" data-inhalt></div>`;
   seite.querySelector('[data-wahl]').replaceWith(elementWahl({ eintraege: el.klassen, wert: klasse, platzhalter: 'Klasse wählen', beiWahl: x => kontext.navigieren(ziel(x)) }));
@@ -43,6 +46,7 @@ export async function zeigen(seite, kontext, [klasseParam, bereichParam, vonPara
     const v = seite.querySelector('[data-von]').value, b = seite.querySelector('[data-bis]').value;
     if (iso.test(v) && iso.test(b)) kontext.navigieren(ziel(klasse, bereich, v, b));
   });
+  pfeileBinden(seite, () => [seite.querySelector('[data-von]').value, seite.querySelector('[data-bis]').value], (v, b) => kontext.navigieren(ziel(klasse, bereich, v, b)));
   const inhalt = seite.querySelector('[data-inhalt]');
   if (!klasse) { inhalt.innerHTML = `<div class="p-3">${leer('Bitte eine Klasse wählen.', 'meineunterrichte')}</div>`; return; }
 
@@ -55,7 +59,7 @@ export async function zeigen(seite, kontext, [klasseParam, bereichParam, vonPara
     <button type="button" class="nl-knopf" data-bericht><i class="bi bi-filetype-csv"></i>Bericht</button>`;
   const zahlknopf = (attr, symbol, zahl, titel, markiert = false, extra = '') =>
     `<button type="button" class="ug-zahlknopf ${markiert ? 'markiert' : ''}" ${attr} title="${e(titel)}" aria-label="${e(titel)}"><i class="bi bi-${symbol}" aria-hidden="true"></i>${zahl}${extra}</button>`;
-  inhalt.innerHTML = d.unterricht.length ? `<table><thead><tr><th>U-Nr</th><th>Klasse(n)</th><th>Schülergruppe</th><th>Lehrkraft</th><th>Fach</th><th class="text-end">Std.</th>
+  inhalt.innerHTML = d.unterricht.length ? `${karteKopf('Unterricht', d.unterricht.length)}<table><thead><tr><th>U-Nr</th><th>Klasse(n)</th><th>Schülergruppe</th><th>Lehrkraft</th><th>Fach</th><th class="text-end">Std.</th>
       <th>Termine</th><th>Schüler*innen</th><th>Schülergruppen</th><th class="text-end">Berichte</th></tr></thead><tbody>
     ${d.unterricht.map(u => `<tr data-name="${e([u.id, u.klassen.join(' '), u.gruppe, u.fach, u.fachName, u.lehrer.join(' ')].join(' ').toLowerCase())}">
       <td class="ug-nr">${u.id}</td>

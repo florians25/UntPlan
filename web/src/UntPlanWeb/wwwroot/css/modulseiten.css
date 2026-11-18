@@ -1,0 +1,250 @@
+/* UntPlanWeb – Modulseiten im neuen Design: eine Filterleiste und eine Karte für alle Listen- und Verwaltungsseiten
+   (Klassenbuch, Unterricht, Abwesenheiten, Offene Stunden, Klassenbucheinträge, Hausaufgaben, Prüfungen, Berichte, Buchen,
+   Stammdaten, Kontaktdaten, Schülergruppen …). Geladen nach seitenlayout.css; gilt nur im Inhalt (#seite) – Dialoge, Startseite und
+   Stundenplan bleiben unberührt.
+
+   Bausteine
+   • Filterleiste: jede Leiste der Seite (.u-filterleiste, bisherige .u-sf-leiste, .nl-leiste, .u-kopfteil) – Felder gleich hoch (--fl-h),
+     gleiche Abstände und Rundungen, kleine Beschriftung über dem Feld (.sg-feld, .u-feld), unten bündig, sauber umbrechend.
+   • Zeitraum (zeitbereich.js): ‹ Von Bis › und Auswahl in einer Gruppe; Datumsfelder mit Kalendersymbol.
+   • Aktionen (.u-fl-aktionen): Knöpfe rechts in der Leiste, Hauptknopf gefüllt (.nl-hinzu, .nw-primaer, .btn-primary), sonst Umriss.
+   • Karte (.nl-tabelle, .u-panel, .u-karte): weiß, 1 px heller Rand, Radius --kt-radius, dezenter Schatten; Kopf .u-karte-kopf
+     (ui.js karteKopf) mit Titel und Zähler; Tabellen mit ruhigem Kopf, gleicher Zeilenhöhe und leichtem Hover; Leerzustand .u-leer. */
+
+:root {
+  --fl-h: 36px;
+  --fl-radius: 18px;
+  --fl-rand: #d3d9de;
+  --fl-rand-hover: #a9b3bb;
+  --fl-schrift: .875rem;
+  --fl-label: #67747e;
+  --fl-luecke: 12px;
+  --kt-radius: 8px;
+  --kt-rand: #e3e7eb;
+  --kt-linie: #eef1f3;
+  --kt-schatten: 0 1px 2px rgba(0, 5, 10, .04), 0 2px 6px -2px rgba(0, 5, 10, .05);
+  --kt-hover: #f7f9fa;
+}
+
+/* ------------------------------------------------------------------ Filterleiste */
+
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil:not(.u-kopfreiter):not(.u-kopfskelett):not(.br-kopf)) {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px var(--fl-luecke); row-gap: 10px;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste) { margin-bottom: 16px; }
+#seite .br-kopf { align-items: flex-end; gap: 10px var(--fl-luecke); }
+#seite .br-kopf > .u-sf-leiste { margin-bottom: 0; }
+#seite .br-kopf > .kd-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px var(--fl-luecke); }
+/* verschachtelte Leisten (z. B. Berichte, Buchen) ohne eigenen Abstand nach unten */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste) { margin-bottom: 0; }
+
+/* Feld mit Beschriftung darüber (sg-feld, u-feld) */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld) {
+  display: inline-flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; min-width: 0; color: var(--fl-label); font-size: .75rem;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld) > span:first-child {
+  display: block; padding-left: 2px; font-size: .75rem; font-weight: 500; line-height: 16px; color: var(--fl-label); letter-spacing: 0; text-transform: none; white-space: nowrap;
+}
+
+/* Auswahl (native Selects bzw. die einheitliche Auswahl darüber) als runde Pille */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld, .u-sf-rechts, .zb-steuer) > .form-select,
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .form-select {
+  height: var(--fl-h); min-width: 140px; padding: 0 34px 0 14px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius); background-color: #fff;
+  font-size: var(--fl-schrift); color: #24323d; background-position: right 12px center;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld, .u-sf-rechts, .zb-steuer) > .au,
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .au { display: inline-block; width: auto; min-width: 140px; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld, .u-sf-rechts, .zb-steuer) > .au > .au-knopf,
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .au > .au-knopf {
+  min-height: 0; height: var(--fl-h); padding: 0 12px 0 14px; gap: 8px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius); background: #fff;
+  font-size: var(--fl-schrift); font-weight: 500; color: #24323d;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld, .u-sf-rechts, .zb-steuer) > .au > .au-knopf:hover:not(:disabled),
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .au > .au-knopf:hover:not(:disabled) { border-color: var(--fl-rand-hover); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld, .u-sf-rechts, .zb-steuer) > .au > .au-knopf:disabled { background: #f5f7f8; color: #8a96a1; border-color: #e3e7eb; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.sg-feld, .u-feld) > .au > .au-knopf.leer .au-wert-text { color: #414d55; }
+
+/* Pillen (Datum, eingebettete Auswahl) und Elementwahl (Klasse wählen) */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille {
+  height: var(--fl-h); padding: 0 14px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius); background: #fff; font-size: var(--fl-schrift); color: #24323d;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille:hover { border-color: var(--fl-rand-hover); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille.aktiv { border-color: var(--u-akzent); background: #fff6f1; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille:focus-within { border-color: var(--u-akzent); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille .au-knopf { font-size: var(--fl-schrift); font-weight: 500; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille > .text-body-secondary { color: var(--fl-label) !important; font-size: .8rem; }
+/* Datumsfelder mit Kalendersymbol rechts */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille:has(> input.kal-eingabe, > input[type=date])::after {
+  content: "\f214"; font-family: "bootstrap-icons"; margin-left: 8px; font-size: .85rem; line-height: 1; color: #8a96a1; pointer-events: none;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .nl-pille > input.kal-eingabe { width: 86px; font-variant-numeric: tabular-nums; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .wahl-knopf {
+  height: var(--fl-h); min-height: 0; padding: 0 14px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius); font-size: var(--fl-schrift); font-weight: 500;
+}
+
+/* Zeitraum: ‹ Von Bis › und Auswahl als eine Gruppe */
+#seite .zb-steuer { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+#seite .zb-steuer > .au, #seite .zb-steuer > .form-select { min-width: 150px; }
+#seite .zb-feld .nl-pille { height: var(--fl-h); }
+.u-fl-pfeil {
+  display: inline-grid; place-content: center; flex: none; width: var(--fl-h); height: var(--fl-h); padding: 0; border: 1px solid var(--fl-rand); border-radius: 50%;
+  background: #fff; color: #414d55; font-size: .85rem; line-height: 1; cursor: pointer; transition: border-color .12s, background-color .12s;
+}
+.u-fl-pfeil:hover { border-color: var(--fl-rand-hover); background: #f7f9fa; color: #24323d; }
+.u-fl-pfeil:focus-visible { outline: 2px solid rgba(var(--u-akzent-rgb), .55); outline-offset: 1px; }
+
+/* Suchfeld (mit Lupe, ggf. mit Filtern im Feld) in derselben Höhe */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-suchfilter { min-height: var(--fl-h); padding: 2px 4px 2px 14px; border-radius: var(--fl-radius); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-suchfilter > input { height: 30px; font-size: var(--fl-schrift); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-suchfilter .u-sf-filter,
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-suchfilter .u-sf-filter .au-knopf { height: 30px; font-size: var(--fl-schrift); }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-suchfilter .u-sf-chip { height: 28px; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.u-suchfeld, .nl-suche) { height: var(--fl-h); border-radius: var(--fl-radius); }
+/* Suche als Feld mit Beschriftung: gleiche Breite wie die übrigen Felder */
+#seite :is(.sg-feld, .u-feld) > .u-suchfilter { flex: none; width: 240px; max-width: 100%; height: var(--fl-h); min-height: 0; }
+#seite :is(.sg-feld, .u-feld) > :is(.nl-suche, .u-suchfeld).nl-suche, #seite :is(.sg-feld, .u-feld) > :is(.nl-suche, .u-suchfeld).u-suchfeld { flex: none; width: 240px; max-width: 100%; height: var(--fl-h); }
+
+/* Segment-Umschalter in derselben Höhe */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-segment { padding: 3px; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .u-segment > button { height: calc(var(--fl-h) - 6px); padding: 0 14px; font-size: var(--fl-schrift); }
+
+/* rechte Gruppe (Zeitraum-Text, Bereich) und Kontrollkästchen in der Leiste */
+#seite .u-sf-leiste > .u-sf-rechts { align-items: center; gap: 8px var(--fl-luecke); }
+#seite .u-sf-zeit { display: inline-flex; align-items: center; gap: 8px; height: var(--fl-h); font-size: var(--fl-schrift); color: #414d55; }
+#seite .u-sf-zeit::before { content: "\f214"; font-family: "bootstrap-icons"; font-size: .85rem; color: #8a96a1; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste) > :is(.form-check, label:not(.sg-feld):not(.u-feld):not(.nl-pille):not(.u-suchfeld):not(.nl-suche)) { min-height: var(--fl-h); display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fl-schrift); }
+
+/* ------------------------------------------------------------------ Knöpfe: Leiste, Aktionen rechts, Seitenkopf */
+
+.u-fl-aktionen { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+#seite .u-fl-aktionen { margin-top: 0; }
+#seite .u-fl-aktionen .kl-menue-liste { left: auto; right: 0; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .mu-fuss, .kl-knoepfe) :is(.nl-knopf, .nl-hinzu),
+.u-app:not([data-ansicht="heute"]):not([data-ansicht="plan"]) #seitenkopf .u-aktionen :is(.nl-knopf, .nl-hinzu, .btn) {
+  height: var(--fl-h); min-height: 0; padding: 0 16px; gap: 6px; border-radius: var(--fl-radius); font-size: var(--fl-schrift); font-weight: 500; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+}
+/* Umriss (Standard) */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .mu-fuss, .kl-knoepfe) .nl-knopf:not(.nw-primaer),
+.u-app:not([data-ansicht="heute"]):not([data-ansicht="plan"]) #seitenkopf .u-aktionen :is(.nl-knopf:not(.nw-primaer), .btn:not(.btn-primary)) {
+  border: 1px solid var(--fl-rand); background: #fff; color: #24323d;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .mu-fuss, .kl-knoepfe) .nl-knopf:not(.nw-primaer):hover:not(:disabled),
+.u-app:not([data-ansicht="heute"]):not([data-ansicht="plan"]) #seitenkopf .u-aktionen :is(.nl-knopf:not(.nw-primaer), .btn:not(.btn-primary)):hover { border-color: var(--fl-rand-hover); background: #f7f9fa; }
+/* Hauptknopf gefüllt in der Akzentfarbe des Designs */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .mu-fuss, .kl-knoepfe) :is(.nl-hinzu, .nl-knopf.nw-primaer),
+.u-app:not([data-ansicht="heute"]):not([data-ansicht="plan"]) #seitenkopf .u-aktionen :is(.nl-hinzu, .nl-knopf.nw-primaer, .btn-primary) {
+  border: 1px solid var(--u-akzent); background: var(--u-akzent); color: #fff;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .mu-fuss, .kl-knoepfe) :is(.nl-hinzu, .nl-knopf.nw-primaer):hover:not(:disabled),
+.u-app:not([data-ansicht="heute"]):not([data-ansicht="plan"]) #seitenkopf .u-aktionen :is(.nl-hinzu, .nl-knopf.nw-primaer, .btn-primary):hover { background: var(--u-akzent-dunkel); border-color: var(--u-akzent-dunkel); filter: none; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil, .u-fl-aktionen, .kl-knoepfe) :is(.nl-knopf, .nl-hinzu):disabled { opacity: .5; cursor: default; }
+#seite :is(.u-fl-aktionen, .mu-fuss, .kl-knoepfe) :is(.nl-knopf, .nl-hinzu) .bi { font-size: .95em; }
+#seite :is(.u-fl-aktionen, .kl-knoepfe) .kl-menue > summary.nl-knopf .bi { font-size: .65rem; margin-left: 2px; }
+
+/* ------------------------------------------------------------------ Karten */
+
+#seite :is(.nl-tabelle, .u-panel, .u-karte, .u-tabelle-karte, .mu-abwesenheiten, .kt-karte) {
+  background: #fff; border: 1px solid var(--kt-rand); border-radius: var(--kt-radius); box-shadow: var(--kt-schatten);
+}
+#seite .nl-tabelle { overflow: hidden; }
+#seite .nl-tabelle + :is(.nl-tabelle, .u-karte, .mu-abwesenheiten, .u-panel) { margin-top: 16px; }
+/* Kopf: Titel und Zähler, rechts optionale Knöpfe */
+.u-karte-kopf { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 16px; border-bottom: 1px solid var(--kt-linie); }
+.u-karte-kopf > h2 { margin: 0; font-size: .95rem; font-weight: 600; color: #24323d; line-height: 1.3; }
+.u-zaehler { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 7px; border-radius: 10px; background: #eef1f4;
+  color: #57626b; font-size: .75rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.u-karte-kopf > .u-karte-rechts { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+/* Tabellen in Karten: ruhiger Kopf, gleiche Zeilenhöhe, leichter Hover */
+#seite .nl-tabelle > table, #seite .nl-tabelle > .u-karte-kopf + table { width: 100%; }
+#seite .nl-tabelle th { height: 44px; font-size: .8rem; font-weight: 500; color: #67747e; background: #fff; border-bottom: 1px solid var(--kt-rand); vertical-align: middle; }
+:where(#seite) .nl-tabelle th { padding-top: 0; padding-bottom: 0; }
+#seite .nl-tabelle td { height: 48px; border-bottom: 1px solid var(--kt-linie); font-size: .875rem; color: #24323d; }
+:where(#seite) .nl-tabelle td { padding-top: 8px; padding-bottom: 8px; }
+#seite .nl-tabelle tbody tr:last-child > td { border-bottom: 0; }
+#seite .nl-tabelle tbody tr:hover > td { background: var(--kt-hover); }
+#seite .nl-tabelle tbody tr.nl-gewaehlt > td { background: #fff6f1; }
+#seite .nl-tabelle .sg-fuss { padding: 10px 16px; border-top: 1px solid var(--kt-linie); color: #67747e; font-size: .8rem; }
+/* Abschnitt „Abwesenheiten“ in Mein Unterricht als Karte */
+#seite .mu-abwesenheiten { margin-top: 16px; padding: 0; }
+#seite .mu-abwesenheiten > [data-abwesenheiten] { padding: 14px 16px; }
+
+/* Leerzustand einheitlich: Symbol im runden Feld, Text darunter */
+#seite .u-leer { padding: 40px 16px; color: #67747e; font-size: .875rem; text-align: center; }
+#seite .u-leer > .bi, #seite .u-leer > .u-sym { display: grid; place-content: center; width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%; background: #f2f4f6;
+  color: #8a96a1; font-size: 1.3rem; }
+#seite :is(.nl-tabelle, .u-panel, .u-karte, .card) > .p-3:has(> .u-leer:only-child) { padding: 0 !important; }
+
+/* ------------------------------------------------------------------ Schmale Bildschirme: sauber umbrechen */
+
+@media (max-width: 767.98px) {
+  #seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil:not(.u-kopfreiter):not(.u-kopfskelett)) { gap: 10px; }
+  #seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > :is(.sg-feld, .u-feld) { flex: 1 1 calc(50% - 6px); }
+  #seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > :is(.sg-feld, .u-feld) > :is(.au, .form-select) { width: 100%; min-width: 0; }
+  #seite :is(.sg-feld, .u-feld) > .u-suchfilter, #seite :is(.sg-feld, .u-feld) > :is(.nl-suche, .u-suchfeld).nl-suche { width: 100%; }
+  #seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .sg-feld:has(> :is(.u-suchfilter, .nl-suche)) { flex-basis: 100%; }
+  #seite .zb-feld { flex: 1 1 100% !important; }
+  #seite .zb-steuer { flex-wrap: wrap; }
+  #seite .zb-steuer > .nl-pille { flex: 1 1 0; min-width: 0; }
+  #seite .zb-steuer > :is(.au, .form-select) { flex: 1 1 100%; width: 100%; }
+  #seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) > .nl-pille { flex: 1 1 calc(50% - 6px); min-width: 0; }
+  #seite .u-fl-aktionen { flex: 1 1 100%; justify-content: flex-start; margin-left: 0; }
+  #seite .u-sf-leiste > .u-sf-rechts { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  #seite .u-sf-leiste > .u-sf-rechts > * { min-width: 0; max-width: 100%; }
+  #seite .br-kopf > .kd-filter { width: 100%; }
+  #seite .br-kopf > .kd-filter > .sg-feld:not(.zb-feld) { flex: 1 1 calc(50% - 6px); }
+  #seite .br-kopf > .kd-filter > .sg-feld > :is(.au, .form-select) { width: 100%; min-width: 0; }
+  #seite .u-fl-aktionen .kl-menue-liste { left: 0; right: auto; }
+}
+
+/* Bootstrap-Knöpfe in Filterleisten (z. B. Klassendienste) wie die übrigen Knöpfe */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--fl-h); min-height: 0; padding: 0 16px; border-radius: var(--fl-radius);
+  font-size: var(--fl-schrift); font-weight: 500; white-space: nowrap;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .btn-outline-secondary { border-color: var(--fl-rand); background: #fff; color: #24323d; }
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) .btn-outline-secondary:hover { border-color: var(--fl-rand-hover); background: #f7f9fa; color: #24323d; }
+
+/* Auswahl in der rechten Gruppe bzw. in eigenen Beschriftungen (z. B. „Beginn der Woche“ bei Offene Stunden) als Pille */
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.u-sf-rechts, .os-bereich) .au:not(.nl-pille .au):not(.u-sf-filter .au) > .au-knopf {
+  min-height: 0; height: var(--fl-h); padding: 0 12px 0 14px; gap: 8px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius); background: #fff;
+  font-size: var(--fl-schrift); font-weight: 500; color: #24323d;
+}
+#seite :is(.u-filterleiste, .u-filter, .u-sf-leiste, .nl-leiste, .u-kopfteil) :is(.u-sf-rechts, .os-bereich) .au:not(.nl-pille .au):not(.u-sf-filter .au) > .au-knopf:hover { border-color: var(--fl-rand-hover); }
+/* Zeitraum als Datums-Pille mit Kalendersymbol (Offene Stunden: öffnet die Zeitraumwahl; Hausaufgaben, Prüfungen: Anzeige) */
+#seite .os-zeitraum { height: var(--fl-h); padding: 0 14px; gap: 8px; border: 1px solid var(--fl-rand); background: #fff; color: #24323d; font-size: var(--fl-schrift); font-weight: 500; }
+#seite .os-zeitraum::before { content: "\f214"; font-family: "bootstrap-icons"; font-size: .85rem; color: #8a96a1; }
+#seite .os-zeitraum:hover, #seite .os-zeitraum[aria-expanded="true"] { border-color: var(--fl-rand-hover); background: #f7f9fa; }
+
+/* Klassenwahl in einer Pille (Fehlzeiten): kein zweiter Rahmen */
+#seite .nl-pille .elementwahl .wahl-knopf { height: auto; min-height: 0; padding: 0 2px 0 4px; border: 0; background: transparent !important; box-shadow: none; }
+
+/* Buchen → Meine Buchungen: Woche ‹ › als Datums-Pille, Suche und Knöpfe in Leistenhöhe, Liste als Karte */
+#seite .bu-mb-karte { border: 1px solid var(--kt-rand); border-radius: var(--kt-radius); box-shadow: var(--kt-schatten); }
+#seite .bu-mb-woche { gap: 8px; }
+#seite .bu-mb-woche > .nl-icon { display: inline-grid; place-content: center; width: var(--fl-h); height: var(--fl-h); border: 1px solid var(--fl-rand); border-radius: 50%; background: #fff; opacity: 1; }
+#seite .bu-mb-woche > .nl-icon:hover { border-color: var(--fl-rand-hover); background: #f7f9fa; }
+#seite .bu-mb-woche > span { display: inline-flex; align-items: center; gap: 8px; height: var(--fl-h); padding: 0 14px; border: 1px solid var(--fl-rand); border-radius: var(--fl-radius);
+  font-size: var(--fl-schrift); font-weight: 500; font-variant-numeric: tabular-nums; }
+#seite .bu-mb-woche > span::before { content: "\f214"; font-family: "bootstrap-icons"; font-size: .85rem; color: #8a96a1; }
+#seite .bu-mb-suche label { font-size: var(--fl-schrift); color: var(--fl-label); }
+#seite .bu-mb-suche input { width: 220px; height: var(--fl-h); border-radius: var(--fl-radius); }
+#seite :is(.bu-mb, .bu-mb-suche, .bu-mb-fuss) .pe-knopf { height: var(--fl-h); padding: 0 16px; border-color: var(--fl-rand); font-size: var(--fl-schrift); font-weight: 500; }
+#seite :is(.bu-mb, .bu-mb-suche, .bu-mb-fuss) .pe-knopf:hover { border-color: var(--fl-rand-hover); background: #f7f9fa; }
+#seite .bu-mb-fuss { margin-top: 16px; gap: 8px; }
+
+/* Sprechtag: Kopf, Knöpfe, Karten und Leerzustand wie auf den übrigen Modulseiten */
+#seite .st-seitenkopf { min-height: 82px; padding: 0 var(--u-rand); }
+#seite .st-seitenkopf h1 { font-size: 1.3rem; font-weight: 500; color: var(--u-titel); }
+#seite .st-innen { padding: 24px var(--u-rand) 30px; }
+#seite .st-kopf { padding-left: var(--u-rand); padding-right: var(--u-rand); }
+#seite :is(.st-seitenkopf, .st-kopf) .nl-hinzu { height: var(--fl-h); padding: 0 16px; gap: 6px; font-size: var(--fl-schrift); font-weight: 500; }
+#seite .st-knopf { height: var(--fl-h); padding: 0 16px; border-color: var(--fl-rand); font-size: var(--fl-schrift); font-weight: 500; }
+#seite .st-knopf:hover { border-color: var(--fl-rand-hover); }
+#seite .st-knopf.primaer { border-color: var(--u-akzent); }
+#seite .st-knopf.klein { height: 30px; padding: 0 12px; font-size: .8125rem; }
+#seite .st-karte { border: 1px solid var(--kt-rand); border-radius: var(--kt-radius); box-shadow: var(--kt-schatten); }
+#seite .st-karte:hover { border-color: #d3d9de; box-shadow: 0 2px 4px rgba(0, 5, 10, .06), 0 6px 16px rgba(0, 5, 10, .08); }
+#seite .st-leer { padding: 40px 16px; border: 1px solid var(--kt-rand); border-radius: var(--kt-radius); box-shadow: var(--kt-schatten); color: #67747e; font-size: .875rem; }
+#seite .st-leer::before { content: "\f1e8"; font-family: "bootstrap-icons"; display: grid; place-content: center; width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%;
+  background: #f2f4f6; color: #8a96a1; font-size: 1.3rem; }
