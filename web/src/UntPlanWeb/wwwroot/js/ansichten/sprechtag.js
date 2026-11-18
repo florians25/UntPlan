@@ -780,12 +780,42 @@ export async function startkarte(wurzel) {
   try { karten = await holen(`${BASIS}/start`); } catch { return; }
   if (!karten.length || !wurzel.isConnected) return;
   stileLaden();
-  const html = karten.map(k => `<section class="heute-karte st-start">
-      <span class="st-start-sym">${icon('aktive')}</span>
-      <div><a href="#/sprechtag/${k.id}" class="st-start-titel">${e(k.name)}</a> <span class="st-start-datum">${e(k.datumText)}</span> ${pille(k.phase, k.phaseText)}
-        <div class="st-start-text">${e(k.text)}</div></div>
-      <a class="ms-auto st-start-link" href="#/sprechtag/${k.id}">Zum Sprechtag</a></section>`).join('');
+  const html = karten.map(startkarteHtml).join('');
   const anmeldung = wurzel.querySelector('.heute-anmeldung');
   if (anmeldung) anmeldung.insertAdjacentHTML('afterend', html);
   else wurzel.insertAdjacentHTML('afterbegin', html);
+}
+
+/**
+ * Kompakte Karte „Sprechtag“ (Startseite): Name, Tag und Zeit, eine Statuszeile (z. B. „Anmeldung bis 02.12. 18:00 · 3 Termine gebucht“),
+ * Eltern ihre gebuchten Termine (Zeit, Lehrkraft, Raum), Lehrkräfte die nächsten Termine (Zeit, Schüler*in, Klasse) und ein Knopf.
+ */
+export function startkarteHtml(k) {
+  const eintraege = k.eintraege ?? [];
+  const tage = new Set(eintraege.map(x => x.datum)).size > 1;
+  const kinder = new Set(eintraege.map(x => x.schueler)).size > 1;
+  // heute: der nächste Termin steht markiert in der Liste – die Statuszeile wiederholt ihn dann nicht
+  const naechsterId = k.heute && k.naechster ? eintraege[0]?.id : null;
+  const statusText = naechsterId ? `Heute · ${k.gebucht} ${k.gebucht === 1 ? 'Termin' : 'Termine'}` : k.text;
+  const zeitTd = x => `<td class="st-s-zeit">${tage ? `<span class="st-s-tag">${e(x.tagText)}</span>` : ''}${e(x.beginn)}<span class="st-s-bis">–${e(x.ende)}</span></td>`;
+  const zeile = x => k.rolle === 'eltern'
+    ? `<tr${x.id === naechsterId ? ' class="st-s-naechster"' : ''}>${zeitTd(x)}<td class="st-s-wer">${e(x.lehrerName)}${kinder && x.vorname ? `<span class="st-s-unter">${e(x.vorname)}</span>` : ''}</td>
+        <td class="st-s-raum">${x.id === naechsterId ? '<span class="st-pille gruen">Als Nächstes</span> ' : ''}${x.raum ? `${bi('geo-alt')}${e(x.raum)}` : ''}</td></tr>`
+    : `<tr class="${x.id === naechsterId ? 'st-s-naechster' : x.status === 'angefragt' ? 'st-s-offen' : ''}">${zeitTd(x)}<td class="st-s-wer">${e(x.schueler)}${x.klasse ? `<span class="st-s-unter">${e(x.klasse)}</span>` : ''}</td>
+        <td class="st-s-raum">${x.id === naechsterId ? '<span class="st-pille gruen">Als Nächstes</span>' : x.status === 'angefragt' ? '<span class="st-pille">Angefragt</span>' : ''}</td></tr>`;
+  const ton = k.heute ? 'gruen' : k.offen > 0 ? 'orange' : k.status === 'anmeldung' ? 'orange' : 'grau';
+  const meta = [k.tagText || k.datumText, k.zeitText ? `${k.zeitText} Uhr` : '', k.online ? 'online' : ''].filter(Boolean).join(' · ');
+  const knopfText = k.knopf || (k.buchbar ? 'Termine wählen' : 'Zum Sprechtag');
+  return `<section class="heute-karte st-start" data-sprechtag-start="${k.id}">
+      <header><span class="st-s-sym">${icon('aktive')}</span><a href="#/sprechtag/${k.id}" class="st-s-titel">${e(k.name || 'Sprechtag')}</a></header>
+      <div class="st-s-rumpf">
+        <div class="st-s-info">
+          <div class="st-s-meta">${e(meta)}</div>
+          <div class="st-s-status ${ton}"><span class="st-s-punkt" aria-hidden="true"></span>${e(statusText)}</div>
+        </div>
+        <a class="btn btn-sm ${k.buchbar || k.rolle !== 'eltern' ? 'btn-primary' : 'btn-outline-secondary'} st-s-knopf" href="#/sprechtag/${k.id}">${e(knopfText)}</a>
+      </div>
+      ${eintraege.length ? `<table class="st-s-liste"><tbody>${eintraege.map(zeile).join('')}</tbody></table>` : ''}
+      ${k.weitere > 0 ? `<a class="st-s-mehr" href="#/sprechtag/${k.id}">+ ${k.weitere} weitere${k.weitere === 1 ? 'r Termin' : ' Termine'}</a>` : ''}
+    </section>`;
 }

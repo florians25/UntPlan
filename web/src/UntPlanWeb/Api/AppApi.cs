@@ -317,7 +317,7 @@ public static class AppApi
             var b = Ich(c);
             var s = p.Aktuell;
             // Sprechtag-Karten (angekündigt, Anmeldung, eigene Termine) wie /api/app/sprechtag/start
-            var sprechtage = SprechtagApi.StartKarten(st, b);
+            var sprechtage = SprechtagApi.StartKarten(st, b, s);
             if (s is null) return Results.Json(new { paket = false, ungelesen = m.Ungelesen(b.Id), sprechtage });
             var heute = uhr.Heute;
             var tag = vp.NaechsteTage(s, heute, 1).FirstOrDefault(heute);

@@ -80,6 +80,7 @@ struct StartView: View {
                             tageskarte(heute)
                                 .padding(.bottom, 20)
                             startliste(heute)
+                            sprechtagKarten
                         } else {
                             Fehlerhinweis(text: "Es wurden noch keine Daten aus UntPlan übertragen.")
                         }
@@ -440,12 +441,7 @@ struct StartView: View {
         if !h.hausaufgaben.isEmpty || h.typ == "klasse" {
             liste.append(Listeneintrag(ziel: .hausaufgaben, titel: "Hausaufgaben", symbol: "book.closed", zahl: h.hausaufgaben.count))
         }
-        // Sprechtag statt Pausenaufsichten (die Aufsichten stehen im Stundenplan)
-        // Auch angekündigte Sprechtage (noch keine Buchung möglich) erscheinen mit Datum, Ort und Anmeldebeginn
-        for t in (mitSprechtag ? sprechtage : []) {
-            liste.append(Listeneintrag(ziel: .sprechtag(t.id), titel: t.titel, symbol: t.angekuendigt ? "megaphone" : "person.2",
-                                       zahl: t.termine, untertitel: t.untertitel))
-        }
+        // Sprechtage stehen als eigene Karten unter der Liste (sprechtagKarten)
         if h.aenderungen > 0 {
             liste.append(Listeneintrag(ziel: .aenderungen, titel: "Änderungen heute", symbol: "arrow.triangle.2.circlepath", zahl: h.aenderungen))
         }
@@ -474,6 +470,24 @@ struct StartView: View {
                     Zeilentrenner()
                 }
             }
+        }
+    }
+
+    /// Sprechtage als kompakte Karten im Stil von „Meine Termine“ (Kopf „Sprechtag“ wie die Datumsgruppen): Tag und Zeit,
+    /// Status, eigene Termine und ein Knopf; auch angekündigte Sprechtage (noch keine Buchung möglich).
+    @ViewBuilder
+    private var sprechtagKarten: some View {
+        let liste = mitSprechtag ? sprechtage : []
+        if !liste.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Datumsgruppenkopf(text: "Sprechtag")
+                ForEach(liste) { t in
+                    SprechtagStartkarte(karte: t) {
+                        sprechtagWahl = SprechtagWahl(id: t.id, titel: t.titel)
+                    }
+                }
+            }
+            .padding(.top, 20)
         }
     }
 

@@ -2347,3 +2347,163 @@ struct Fliesslayout: Layout {
         return (punkte, CGSize(width: weiteste, height: y + zeile))
     }
 }
+
+// MARK: - Startseite
+
+/// Karte „Sprechtag“ der Startseite im Stil der `Listenkarte` („Meine Termine“): Symbol, Name, Tag und Zeit, eine Statuszeile
+/// (z. B. „Anmeldung bis 02.12. 18:00 · 3 Termine gebucht“), die eigenen Termine (Eltern: Lehrkraft und Raum; Lehrkraft:
+/// Schüler*in und Klasse; heute der nächste markiert) und ein Knopf („Termine wählen“ bzw. „Termine verwalten“).
+struct SprechtagStartkarte: View {
+    let karte: SprechtagKarte
+    let oeffnen: () -> Void
+
+    private var eltern: Bool { karte.rolle == "eltern" }
+    /// Heute steht der nächste Termin markiert oben in der Liste (die Statuszeile nennt ihn dann nicht).
+    private var naechsterMarkiert: Bool { karte.heute && karte.statuszeile != karte.text }
+    private var mehrereTage: Bool { Set(karte.eintraege.map(\.datum)).count > 1 }
+    private var mehrereKinder: Bool { Set(karte.eintraege.map(\.schueler)).count > 1 }
+    /// Gefüllter Knopf, außer Eltern können (noch) nichts buchen.
+    private var hauptknopf: Bool { !eltern || karte.buchbar }
+
+    private var punktFarbe: Color {
+        if karte.heute { return Farben.gruen }
+        if karte.offen > 0 || karte.status == "anmeldung" { return Farben.akzent }
+        return Farben.gedaempft
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button(action: oeffnen) {
+                HStack(alignment: .center, spacing: 0) {
+                    Image(systemName: karte.angekuendigt ? "megaphone" : "person.2")
+                        .font(.system(size: 25, weight: .light))
+                        .foregroundStyle(Farben.tinte2)
+                        .frame(width: 56)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4.75) {
+                        Text(karte.titel)
+                            .font(.system(size: 17))
+                            .foregroundStyle(Farben.tinte)
+                            .lineLimit(2)
+                            .padding(.bottom, -1.9)
+                        Text(karte.tagUndZeit)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.tinte2)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Circle()
+                                .fill(punktFarbe)
+                                .frame(width: 7, height: 7)
+                                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] + 1 }
+                                .accessibilityHidden(true)
+                            Text(karte.statuszeile)
+                                .font(.system(size: 15))
+                                .foregroundStyle(Farben.tinte)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 1)
+                }
+                .padding(.trailing, 14)
+                .padding(.top, 16.2)
+                .padding(.bottom, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+
+            if !karte.eintraege.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(karte.eintraege.enumerated()), id: \.element.id) { eintrag in
+                        Rectangle()
+                            .fill(Farben.trennlinie)
+                            .frame(height: 0.5)
+                        zeile(eintrag.element, naechster: naechsterMarkiert && eintrag.offset == 0)
+                    }
+                    if karte.weitere > 0 {
+                        Rectangle()
+                            .fill(Farben.trennlinie)
+                            .frame(height: 0.5)
+                        Text(karte.weitere == 1 ? "+ 1 weiterer Termin" : "+ \(karte.weitere) weitere Termine")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.tinte2)
+                            .padding(.vertical, 9)
+                    }
+                }
+                .padding(.leading, 57)
+                .padding(.trailing, 14)
+            }
+
+            Button(action: oeffnen) {
+                Text(karte.knopfText)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(hauptknopf ? Color.white : Farben.akzent)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(hauptknopf ? Farben.akzent : Farben.akzentSanft, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
+            .padding(.bottom, 14)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// Termin: Uhrzeit, Lehrkraft (Eltern) bzw. Schüler*in (Lehrkraft), rechts Raum bzw. Hinweis.
+    private func zeile(_ t: SprechtagStartTermin, naechster: Bool) -> some View {
+        let wer = eltern ? t.lehrerName : t.schueler
+        let unter = eltern ? (mehrereKinder ? t.vorname : "") : t.klasse
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                if mehrereTage {
+                    Text(t.tagText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Farben.gedaempft)
+                }
+                Text(t.beginn)
+                    .font(.system(size: 15, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(naechster ? Farben.gruen : Farben.tinte)
+            }
+            .frame(width: mehrereTage ? 86 : 48, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(wer.isEmpty ? "–" : wer)
+                    .font(.system(size: 15))
+                    .foregroundStyle(t.status == "angefragt" ? Farben.tinte2 : Farben.tinte)
+                    .lineLimit(1)
+                if !unter.isEmpty {
+                    Text(unter)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.gedaempft)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 3) {
+                if naechster {
+                    Text("Als Nächstes")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Farben.gruen)
+                } else if !eltern && t.status == "angefragt" {
+                    Text("Angefragt")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Farben.gedaempft)
+                }
+                if eltern && !t.raum.isEmpty {
+                    Label(t.raum, systemImage: "mappin.and.ellipse")
+                        .labelStyle(.titleAndIcon)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.tinte2)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 9)
+        .accessibilityElement(children: .combine)
+    }
+}
