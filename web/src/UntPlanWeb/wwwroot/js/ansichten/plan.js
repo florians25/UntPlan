@@ -202,7 +202,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <span class="position-relative"><button type="button" class="zeitraum" data-kalender title="Datum wählen" aria-haspopup="dialog">${wochenText(mo)}</button></span>
         <button type="button" class="rundknopf" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${icon('rechts')}</button>
       </div>
-      <div class="rechts"><button type="button" class="heute-pill" data-woche="0">Heute</button></div>
+      <div class="rechts"><button type="button" class="heute-pill${mo === montag(heuteIso()) ? ' aktuell' : ''}" data-woche="0">Heute</button></div>
     </div>
     <div data-inhalt>${lade()}</div>`;
 
