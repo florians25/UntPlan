@@ -7,6 +7,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Schülergruppen automatisch für jeden Unterricht als „Fach_Klassen_Lehrkraft“ (z. B. „FU1_FIS4A_LN“) – beim Ändern und nachträglich beim Öffnen; vorhandene bzw. von Hand vergebene Schülergruppen bleiben unverändert (abschaltbar im Kontextmenü des Unterrichtsfensters). Platzhalter $, %, # bei der Eingabe für mehrere Unterrichte, Umbenennen in allen Perioden, Fenster „Unterrichte mit inkonsistenten Schülergruppen“, Prüfung auf fehlende Schülergruppen vor der Übertragung ins Web.
+- Sondereinsatz und Vertretungen übernehmen die Schülergruppe des Unterrichts (kursiv grau, von Hand eingetragene schwarz); Auswahl der bekannten Schülergruppen beim Tippen.
 - Drag & Drop im Stundenplan nach dem Handbuch: freie Felder in Grünschattierungen (je dunkler, desto besser), Ziel unter der Maus kräftig grün, rot = Sperrung, violett = Raum belegt (auch im Vertretungsmodus), grün hinterlegte Stunden = 2-er-Tausch, blauer Pfeil = Tauschkette mit roten Pfeilen; Farblegende neben dem Plan während des Ziehens.
 - Ablegen auf ein belegtes Feld fragt wie im Handbuch-Bild „Block speichern - Unterricht: …“ (Block speichern / Kollision erzeugen / 2-er-Tausch / Tauschkette, „Speichern mit Raum-Kollision“) – im Stundenplan und im Planungsdialog.
 - Vorschläge für Hohlstunden: Maustaste auf einer freien Position 2 Sekunden halten – verschiebbare Stunden werden grün hinterlegt; Strg+Klick zieht Doppelstunden einzeln bzw. markiert alle parallelen Unterrichte („DragDrop: mehrere Unterrichte“ wirkt beim Ziehen); Ziehen in die Lupe zeigt ein schwarzes X.
@@ -102,6 +104,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Stundendetails zeigen im Kopf „Klasse | Schülergruppe | Fach“ mit der Schülergruppe aus dem Desktop; ein Sondereinsatz mit der Schülergruppe eines anderen Unterrichts der Klasse zählt als zusätzliche Stunde dieses Unterrichts.
 - Stundenplan und Tagesplan: „Heute“ ist in der aktuellen Woche bzw. am heutigen Tag dunkelgrau mit weißer Schrift, sonst weiß.
 - Sondereinsatz trägt im Stundenplan immer das „+“ (auch anstelle einer regulären Stunde, nicht bei Entfall, Verlegung oder Vormerkung); auf Zusatzkarten stehen die Lehrkräfte schlicht ohne „+“ wie in der Vorlage – auch in der App.
 - Modulseiten im neuen Design einheitlich: eine Filterleiste auf allen Listen- und Verwaltungsseiten (Klassenbuch, Unterricht, Abwesenheiten, Offene Stunden, Klassenbucheinträge, Hausaufgaben, Prüfungen, Berichte, Buchen, Sprechtag, Stammdaten) mit gleich hohen Feldern, Beschriftung über dem Feld, Zeitraum mit ‹ › und Kalender, Suche mit Lupe und Aktionsknöpfen rechts; Listen als weiße Karten mit Titel und Zähler, einheitliche Leerzustände.

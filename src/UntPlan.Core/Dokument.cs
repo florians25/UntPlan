@@ -123,6 +123,9 @@ public sealed class Dokument
                          && (v.VertreterId is null || v.VertreterId == l) && Vertretungsplanung.Absenzen.LehrerAbwesend(daten, l, v.Datum, v.Stunde))
                      .Select(v => v.Datum).Distinct().ToList())
             Vertretungsplanung.Vertretungen.Aktualisieren(daten, t);
+        // einmalig nachträglich: bestehende Unterrichte ohne Schülergruppe erhalten „Fach_Klassen_Lehrkraft“ (Einstellung
+        // „Schülergruppen automatisch anlegen“); von Hand vergebene Schülergruppen bleiben unverändert
+        Schuelergruppen.Ergaenzen(daten);
         return new Dokument(daten, pfad);
     }
 
@@ -182,6 +185,8 @@ public sealed class Dokument
         {
             using (Messung.Start("Aendern: Aktion")) aktion(Daten);
             if (unterrichtVorher != null) Module.Perioden.Weitergeben(Daten, unterrichtVorher);
+            // neuer bzw. geänderter Unterricht ohne Schülergruppe: „Fach_Klassen_Lehrkraft“ anlegen (vorhandene bleiben unverändert)
+            if (art is AenderungsArt.Unterricht or AenderungsArt.Alles) Schuelergruppen.Ergaenzen(Daten);
             // geänderter Unterricht/Stundenplan: bestehende Absenzen und Vertretungen auf den neuen Plan anwenden (gleiche Rückgängig-Stufe)
             if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && PlanaenderungenAbgleichen)
                 Vertretungsplanung.Vertretungen.NachPlanaenderung(Daten, DateOnly.FromDateTime(DateTime.Today));

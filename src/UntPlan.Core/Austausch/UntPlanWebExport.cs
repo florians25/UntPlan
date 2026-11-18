@@ -86,6 +86,9 @@ public static class UntPlanWebExport
 
         // Kopplung: eine Zeile ohne eigene Klassen (z. B. zweite Lehrkraft) gehört zu den Klassen der ganzen Kopplung –
         // so erscheint die Stunde auch im Plan dieser Klassen und die Klassen stehen auf Karte und in den Details
+        // Schülergruppe der Stunde: eingetragene der Vertretung bzw. des Sondereinsatzes, sonst die des Unterrichts (Zeile vor Unterricht)
+        static string Gruppe(TagesEintrag e) =>
+            e.Vertretung?.Schuelergruppe is { Length: > 0 } g ? g.Trim() : e.Regel is { } r ? VeranstaltungsLogik.Schuelergruppe(r).Trim() : e.Unterricht?.Schuelergruppe.Trim() ?? "";
         static IEnumerable<int> KlassenDerStunde(TagesEintrag e) =>
             e.KlassenIds.Count > 0 || e.Unterricht is null ? e.KlassenIds : e.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct();
         var tage = new List<WebTag>();
@@ -121,6 +124,7 @@ public static class UntPlanWebExport
                             Lehrer = gruppe.SelectMany(x => x.LehrerIds).Distinct().Select(ix.KLehrer).ToList(),
                             Raeume = gruppe.SelectMany(x => x.RaumIds).Distinct().Select(ix.KRaum).ToList(),
                             Status = "zusaetzlich", Vertretung = e.Vertretung.Id, Text = StundenplanAenderungen.ExportText(e.Vertretung.Text), Veranstaltung = gva,
+                            Schuelergruppe = e.Vertretung.Schuelergruppe.Trim(),
                         });
                         continue;
                     }
@@ -143,6 +147,7 @@ public static class UntPlanWebExport
                                 && ((kv.UnterrichtId.HasValue && kl.UnterrichtId == kv.UnterrichtId) || kl.KlassenIds.Intersect(kv.KlassenIds).Any()))) ? kid : null,
                         // Veranstaltungsstunde bzw. wegen der Veranstaltung entfallener/freigesetzter Unterricht
                         Veranstaltung = e.Vertretung is { VeranstaltungId: int vid } vv && (vv.Art == VertretungsArt.Veranstaltung || vv.Quelle == VertretungsQuelle.Veranstaltung) ? vid : null,
+                        Schuelergruppe = Gruppe(e),
                     };
                     // Prüfung ersetzt den Unterricht ihrer Aufsicht (eine Zeile im Desktop): im Paket wie gewohnt als entfallener
                     // Unterricht (mit Klausur-Id) und Prüfungsstunde – UntPlanWeb fasst beides zu einer Karte zusammen
@@ -154,7 +159,7 @@ public static class UntPlanWebExport
                             Stunde = e.Stunde, Unterricht = rg.Unterricht.Id, Fach = K(ElementTyp.Fach, rg.FachId), Klassen = Kl(rg.KlassenIds.Count > 0 ? rg.KlassenIds : rg.Unterricht.Zeilen.SelectMany(z => z.KlassenIds).Distinct()),
                             Lehrer = rg.LehrerId is int rl ? new List<string> { ix.KLehrer(rl) } : new(), Raeume = rg.RaumId is int rr ? new List<string> { ix.KRaum(rr) } : new(),
                             Status = "entfall", Text = "Klausur " + pkl.Name,
-                            Bereitschaft = Vertretungen.IstBereitschaftsfach(d, rg.FachId), Klausur = pk,
+                            Bereitschaft = Vertretungen.IstBereitschaftsfach(d, rg.FachId), Klausur = pk, Schuelergruppe = VeranstaltungsLogik.Schuelergruppe(rg),
                         });
                         tag.Stunden.Add(new WebStunde
                         {
@@ -183,7 +188,7 @@ public static class UntPlanWebExport
                         Id = z.Id, Datum = D(t), Stunde = z.Stunde, Art = z.Art, Klassen = Kl(z.KlassenIds), Lehrer = pr ? "" : z.Lehrer, Vertreter = z.Vertreter,
                         Fach = pr ? "" : z.Fach, NeuesFach = pr ? "" : z.NeuesFach, Raum = pr ? "" : z.Raum, NeuerRaum = neuerRaum, VertrVon = z.VertrVon, Nach = z.Nach, Text = StundenplanAenderungen.ExportText(z.Text),
                         NurLehrer = z.Art == Vertretungsplan.ArtText(d, VertretungsArt.Pausenaufsicht),
-                        Veranstaltung = z.VeranstaltungId, AlleKlassen = z.AlleKlassen, AlleLehrer = z.AlleLehrer,
+                        Veranstaltung = z.VeranstaltungId, AlleKlassen = z.AlleKlassen, AlleLehrer = z.AlleLehrer, Schuelergruppe = pr ? "" : z.Gruppe.Trim(),
                     });
                 }
             }
@@ -237,7 +242,7 @@ public static class UntPlanWebExport
             {
                 Id = p.Id, Name = p.Name, Von = D(p.Von), Bis = D(Module.Perioden.Ende(d, p)), MutterId = p.MutterId,
                 Unterricht = (p.Unterrichte ?? new()).Where(u => o.IgnoriertenUnterricht || !u.Ignorieren).Select(u => new WebUnterricht(u.Id, u.Wochenstunden,
-                    u.Zeilen.Select(z => new WebZeile(K(ElementTyp.Fach, z.FachId), K(ElementTyp.Lehrer, z.LehrerId), Kl(z.KlassenIds), z.Zeilentext)).ToList(),
+                    u.Zeilen.Select((z, i) => new WebZeile(K(ElementTyp.Fach, z.FachId), K(ElementTyp.Lehrer, z.LehrerId), Kl(z.KlassenIds), Schuelergruppen.VonZeile(u, i))).ToList(),
                     u.Periodizitaet switch { Periodizitaet.AWoche => "A", Periodizitaet.BWoche => "B", _ => u.UGruppeId is int g ? d.UGruppen.FirstOrDefault(x => x.Id == g)?.Wochen ?? "" : "" },
                     u.Kursname, u.Text)).ToList(),
                 Stundenplan = p.Plan.Select(s => new WebPlanstunde(s.UnterrichtId, s.Tag, s.Stunde, s.Raeume.Where(r => r.HasValue).Select(r => ix.KRaum(r)).ToList())).ToList(),

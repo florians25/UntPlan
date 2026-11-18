@@ -80,7 +80,7 @@ public sealed class StundeAendernDialog : Dialog
             {
                 UnterrichtId = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId, Zeile = e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex ?? 0, Klassen = e.KlassenIds.ToList(),
                 Lehrer = e.LehrerIds.Count > 0 ? e.LehrerIds[0] : null, Fach = e.FachId, Raum = e.RaumIds.Count > 0 ? e.RaumIds[0] : null,
-                Gruppe = e.Vertretung?.Schuelergruppe is { Length: > 0 } g ? g : e.Unterricht?.Schuelergruppe ?? "", Text = e.Vertretung?.Text ?? "",
+                Gruppe = e.Vertretung?.Schuelergruppe is { Length: > 0 } g ? g : e.Regel is { } rg ? VeranstaltungsLogik.Schuelergruppe(rg) : e.Unterricht?.Schuelergruppe ?? "", Text = e.Vertretung?.Text ?? "",
             };
             SeiteHinzufuegen(s);
         }
@@ -132,9 +132,18 @@ public sealed class StundeAendernDialog : Dialog
         s.FachCb = Feld("Fach", 191, "Nur Fächer des Lehrers", true, out s.NurFaecher);
         s.RaumCb = Feld("Raum", 236, "Nur freie Räume", true, out s.NurFrei);
         seite.Controls.Add(new Label { Text = "Schülergruppe", Left = 10, Top = 267, AutoSize = true });
-        s.GruppeCb = new ComboBox { Left = 10, Top = 285, Width = 142, Text = s.Gruppe };
-        s.GruppeCb.Items.AddRange(D.Unterrichte.Select(u => u.Schuelergruppe).Where(g => g.Length > 0).Distinct().OrderBy(g => g).Cast<object>().ToArray());
+        s.GruppeCb = new ComboBox { Left = 10, Top = 285, Width = 142, Text = s.Gruppe, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
+        // Auswahl: Schülergruppen der Unterrichte dieser Klasse(n) zuerst (passendes Fach vorn), dann alle übrigen; eine neue wird eingetippt.
+        // Fach + Schülergruppe eines anderen Unterrichts der Klasse = zusätzliche Stunde dieses Unterrichts, sonst Sondereinsatz
+        s.GruppeCb.Items.AddRange(Schuelergruppen.Auswahl(D, s.Klassen, s.Fach).Cast<object>().ToArray());
         s.GruppeCb.Text = s.Gruppe;
+        s.FachCb.SelectedIndexChanged += (_, _) =>
+        {
+            var text = s.GruppeCb.Text;
+            s.GruppeCb.Items.Clear();
+            s.GruppeCb.Items.AddRange(Schuelergruppen.Auswahl(D, s.Klassen, Wert(s.FachCb, D.Faecher)).Cast<object>().ToArray());
+            s.GruppeCb.Text = text;
+        };
         seite.Controls.Add(s.GruppeCb);
         seite.Controls.Add(new Label { Text = "Text", Left = 10, Top = 332, AutoSize = true });
         s.TextTb = new TextBox { Left = 10, Top = 351, Width = 328, Text = s.Text };

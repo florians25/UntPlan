@@ -162,7 +162,7 @@ public static class Vertretungen
             var basis = new Vertretung
             {
                 Datum = datum, Stunde = r.Stunde, UnterrichtId = u.Id, ZeilenIndex = r.ZeilenIndex, LehrerId = r.LehrerId, FachId = r.FachId,
-                KlassenIds = KlassenDerZeile(r), RaumId = r.RaumId, Schuelergruppe = u.Schuelergruppe,
+                KlassenIds = KlassenDerZeile(r), RaumId = r.RaumId, Schuelergruppe = VeranstaltungsLogik.Schuelergruppe(r),
             };
             // Klausur: Unterricht der Klasse entfällt, Aufsicht hat eigenen Unterricht → offen
             var klausur = klausuren.FirstOrDefault(k => r.Stunde >= k.StundeVon && r.Stunde <= Math.Max(k.StundeVon, k.StundeBis) &&
@@ -179,7 +179,7 @@ public static class Vertretungen
                     kz.LehrerId = kl;
                     kz.FachId = r.FachId;
                     kz.RaumId = r.RaumId;
-                    kz.Schuelergruppe = u.Schuelergruppe;
+                    kz.Schuelergruppe = VeranstaltungsLogik.Schuelergruppe(r);
                     continue;
                 }
                 basis.Art = VertretungsArt.Entfall;

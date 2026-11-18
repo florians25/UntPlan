@@ -208,6 +208,8 @@ struct Karte: Decodable, Identifiable, Sendable {
     var ohneLehrkraft: Bool = false
     var vertretung: Int?
     var unterricht: Int?
+    /// Schülergruppe der Stunde aus UntPlan (Desktop legt sie automatisch als „Fach_Klassen_Lehrkraft“ an, z. B. „FU1_FIS4A_LN“;
+    /// Vertretung bzw. Sondereinsatz mit eigener Gruppe vor Unterricht). Steht im Kopf der Stundendetails: „Klasse | Schülergruppe“.
     var gruppe: String
     var notizSchueler: String
     var notizLehrer: String
