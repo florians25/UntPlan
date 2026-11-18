@@ -136,7 +136,7 @@ public class BuchenUebersichtTests
         Assert.Contains("bu-symbolwahl", vw);
         Assert.Contains("/api/app/buchen/ressourcen/beispiele", vw);
         // gemeinsame Suchfeld-mit-Filter-Komponente statt eigener Suchfelder
-        Assert.Contains("<div class=\"u-sf-leiste bu-leiste\">", js);
+        Assert.Contains("<div class=\"bu-mb-suche\"><label>Suche <input type=\"search\"", js);
         Assert.Contains("<div class=\"u-sf-leiste bu-ru-leiste\">", js);
         Assert.Contains("suchfeldMitFilterBinden(", vw);
         Assert.DoesNotContain("nl-suche", js);

@@ -2,6 +2,7 @@
 // (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
 import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
+import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
 /** Berichte, die es im Original nur als PDF gibt. */
 const NUR_PDF = ['entschuldigungsschreiben', 'klassenbuch_deckblatt'];
@@ -67,9 +68,12 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   const arten = (await holen('/api/app/berichte/liste')).filter(a => !a.unterricht);
   const art = arten.find(a => a.id === (ALIAS[berichtParam] ?? berichtParam))?.id ?? null;
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
-  const bis = iso.test(bisParam ?? '') ? bisParam : heuteIso();
-  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : '';
+  // Vorbelegung wie im Original: Zeitraum „Aktuelles Schuljahr“, Klasse die eigene Klasse (Klassenleitung)
+  const sjK = kontext.sitzung?.schuljahr ?? kontext.schuljahr ?? {};
+  const von = iso.test(vonParam ?? '') ? vonParam : sjK.von || plusTage(heuteIso(), -30);
+  const bis = iso.test(bisParam ?? '') ? bisParam : sjK.bis || heuteIso();
+  const eigeneKlasse = el.klassen.find(k => kontext.ich?.element && (k.leitung ?? []).some(l => l.toLowerCase() === kontext.ich.element.toLowerCase()))?.kurz ?? '';
+  const klasse = klasseParam && klasseParam !== '-' ? klasseParam : klasseParam === '-' ? '' : eigeneKlasse;
   const schueler = schuelerParam && schuelerParam !== '-' ? schuelerParam : '';
   const n1 = Number(n1Param) || 0, n2 = Number(n2Param) || 0;
   const ziel = (a, k = klasse, v = von, b = bis, s = schueler, x1 = n1, x2 = n2) =>
@@ -92,11 +96,10 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       <div class="u-sf-leiste" data-gruppen>${suchfeldMitFilter({ platzhalter: 'Bericht suchen', label: 'Bericht suchen', filter: [
         { name: 'gruppe', label: 'Berichtsgruppe', alle: `Alle Berichte (${arten.length})`, standard: 'alle', wert: gruppe, optionen: gruppen.map(g => [g, `${g} (${arten.filter(a => a.gruppe === g).length})`]) },
       ] })}</div>
-      <div class="kd-filter nicht-drucken">
-        <label class="kd-feld"><span>Klasse</span><select data-klasse><option value="">Alle Klassen</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
-        <label class="kd-feld"><span>Schüler*in</span><select data-schueler ${klasse ? '' : 'disabled'}><option value="">Alle</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></label>
-        <label class="kd-feld"><span>Von</span><input type="date" data-von value="${von}"></label>
-        <label class="kd-feld"><span>Bis</span><input type="date" data-bis value="${bis}"></label>
+      <div class="kd-filter br-filter nicht-drucken">
+        <label class="sg-feld"><span>Klasse</span><select class="form-select" data-klasse><option value="">- Alle -</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
+        <label class="sg-feld"><span>Schüler*innen</span><select class="form-select" data-schueler ${klasse ? '' : 'disabled'}><option value="">- Alle -</option>${schuelerListe.map(s => `<option value="${s.id}" ${String(s.id) === schueler ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></label>
+        ${zeitbereichFeld(von, bis, sjK)}
       </div>
     </div>
     <div data-vorschau class="br-vorschau-bereich">${art ? lade() : ''}</div>
@@ -105,6 +108,18 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   </div>`;
 
   const raster = seite.querySelector('[data-raster]');
+  // Einstellungen wie im Original direkt in der Berichtszeile (z. B. „pro Stunde“, „- Alle -“, „ohne Seitenumbrüche“); die Haken Fehlzeiten,
+  // Verspätungen, Nur zählende Abwesenheiten und Alle Schüler*innen stehen einmal im Kopf des Abschnitts „Abwesenheiten“
+  const GEMEINSAM = ['fehlzeiten', 'verspaetungen', 'zaehlend', 'alle'];
+  const zeilenOptionen = a => (a.optionen ?? []).filter(o => !GEMEINSAM.includes(o.name)).map(o => o.typ === 'haken'
+    ? `<label class="br-zopt"><input type="checkbox" class="form-check-input" data-zopt="${e(a.id)}" data-name="${e(o.name)}" ${optWahl(a, o) === '1' ? 'checked' : ''}>${e(o.titel)}</label>`
+    : `<select class="form-select form-select-sm br-zwahl" data-zopt="${e(a.id)}" data-name="${e(o.name)}" aria-label="${e(o.titel)}">${o.werte.map(w => `<option value="${e(w.wert)}" ${w.wert === optWahl(a, o) ? 'selected' : ''}>${e(w.text)}</option>`).join('')}</select>`).join('');
+  const gemeinsamKopf = g => {
+    const mit = arten.filter(a => a.gruppe === g && (a.optionen ?? []).some(o => GEMEINSAM.includes(o.name)));
+    if (!mit.length) return '';
+    return `<span class="br-gemeinsam">${GEMEINSAM.map(n => { const a = mit.find(x => x.optionen.some(o => o.name === n)); const o = a?.optionen.find(x => x.name === n);
+      return o ? `<label class="br-zopt"><input type="checkbox" class="form-check-input" data-gopt="${e(n)}" data-gruppe="${e(g)}" ${optWahl(a, o) === '1' ? 'checked' : ''}>${e(o.titel)}</label>` : ''; }).join('')}</span>`;
+  };
   // je Bericht eine ruhige Zeile: Symbol, Titel und Beschreibung (öffnet die Parameter), Hinweise, rechts die Aktionen
   const karte = a => {
     const g = GRUPPEN[a.gruppe] ?? GRUPPEN.Weitere;
@@ -112,10 +127,10 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     return `<div class="br-reihe ${a.id === art ? 'aktiv' : ''}" data-karte="${a.id}" role="listitem">
       <span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}" aria-hidden="true"></i></span>
       <button type="button" class="br-reihe-text" data-panel="${a.id}" aria-label="${e(a.titel)}: Parameter und Export">
-        <b>${e(a.titel)}</b><span>${e(BESCHREIBUNG[a.id] ?? a.gruppe)}</span></button>
+        <b>${e(a.titel)}</b></button>
       <span class="br-reihe-tags">${a.klasseNoetig ? `<span class="s-label ${fehltKlasse ? 'orange' : ''}">${fehltKlasse ? 'Klasse wählen' : 'je Klasse'}</span>` : ''}
         ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}
-        ${optKurz(a).map(t => `<span class="s-label">${e(t)}</span>`).join('')}</span>
+        ${zeilenOptionen(a)}</span>
       <span class="br-reihe-aktionen">
         <button type="button" class="br-knopf" data-anzeigen="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Anzeigen"><i class="bi bi-eye"></i><span>Anzeigen</span></button>
         <button type="button" class="br-knopf" data-pdf="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Als PDF herunterladen"><i class="bi bi-file-earmark-pdf"></i><span>PDF</span></button>
@@ -126,7 +141,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     const q = suche.trim().toLowerCase();
     const sicht = arten.filter(a => (gruppe === 'alle' || a.gruppe === gruppe) && (!q || `${a.titel} ${BESCHREIBUNG[a.id] ?? ''}`.toLowerCase().includes(q)));
     raster.innerHTML = sicht.length ? (gruppe === 'alle' && !q
-      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}${g === 'Klassenbuch' ? abschlussZeile() : ''}</div></section>`).join('')
+      ? gruppen.map(g => `<section class="br-abschnitt"><h2>${e(g)}${gemeinsamKopf(g)}</h2><div class="br-liste" role="list">${arten.filter(a => a.gruppe === g).map(karte).join('')}${g === 'Klassenbuch' ? abschlussZeile() : ''}</div></section>`).join('')
       : `<div class="br-liste" role="list">${sicht.map(karte).join('')}</div>`)
       : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-search"></i></span><b>Kein Bericht gefunden</b><p>Für „${e(suche)}“ gibt es keinen passenden Bericht.</p></div>`;
     raster.querySelectorAll('[data-panel]').forEach(b => b.onclick = () => panel(arten.find(a => a.id === b.dataset.panel)));
@@ -134,6 +149,9 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     raster.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.pdf); exportieren(a, standard(a), 'pdf', b); });
     raster.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.csv); exportieren(a, standard(a), 'csv', b); });
     raster.querySelectorAll('[data-abschluss]').forEach(b => b.onclick = abschluss);
+    raster.querySelectorAll('[data-zopt]').forEach(x => x.onchange = () => optMerken(arten.find(a => a.id === x.dataset.zopt), { [x.dataset.name]: x.type === 'checkbox' ? (x.checked ? '1' : '0') : x.value }));
+    raster.querySelectorAll('[data-gopt]').forEach(x => x.onchange = () => arten.filter(a => a.gruppe === x.dataset.gruppe && (a.optionen ?? []).some(o => o.name === x.dataset.gopt))
+      .forEach(a => optMerken(a, { [x.dataset.gopt]: x.checked ? '1' : '0' })));
   };
   // Schuljahresende: Klassenbuch als PDF-Dateien (6 Dateien je Klasse bzw. Klassengruppe) – Zeitraum aktuelles Schuljahr bzw. bis zum letzten Schultag der Klasse
   function abschlussZeile() {
@@ -181,8 +199,9 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
   });
 
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  seite.querySelectorAll('.kd-filter select, .kd-filter input[type=date]').forEach(x => x.onchange = () =>
-    kontext.navigieren(ziel(art, f('klasse'), f('von') || von, f('bis') || bis, x.matches('[data-klasse]') ? '' : f('schueler'))));
+  seite.querySelectorAll('.kd-filter [data-klasse], .kd-filter [data-schueler]').forEach(x => x.onchange = () =>
+    kontext.navigieren(ziel(art, f('klasse') || '-', f('von') || von, f('bis') || bis, x.matches('[data-klasse]') ? '' : f('schueler'))));
+  zeitbereichBinden(seite.querySelector('.br-filter'), sjK, (v, b) => kontext.navigieren(ziel(art, f('klasse') || '-', v, b, f('schueler'))));
 
   function anzeigen(a, p) {
     if (a.klasseNoetig && !p.klasse) { kontext.fehler(new Error('Für diesen Bericht bitte eine Klasse wählen.')); return; }

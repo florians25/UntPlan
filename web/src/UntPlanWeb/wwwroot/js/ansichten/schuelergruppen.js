@@ -33,7 +33,9 @@ export async function zeigen(seite, kontext, teile) {
 
 async function liste(seite, kontext, [klasseParam, schuelerParam, fachParam]) {
   const el = await kontext.elemente();
-  const klasse = (klasseParam && klasseParam !== '-' ? klasseParam : '') || el.klassen[0]?.kurz || '';
+  // Vorbelegung: die eigene Klasse (Klassenleitung), sonst die erste
+  const eigene = el.klassen.find(k => kontext.ich?.element && (k.leitung ?? []).some(l => l.toLowerCase() === kontext.ich.element.toLowerCase()))?.kurz;
+  const klasse = (klasseParam && klasseParam !== '-' ? klasseParam : '') || eigene || el.klassen[0]?.kurz || '';
   const schueler = schuelerParam && schuelerParam !== '-' ? Number(schuelerParam) : null;
   const fach = fachParam && fachParam !== '-' ? fachParam : '';
   const ziel = (k = klasse, s = schueler, f = fach) => `#/schuelergruppen/${encodeURIComponent(k || '-')}/${s ?? '-'}/${encodeURIComponent(f || '-')}`;
@@ -74,7 +76,7 @@ async function liste(seite, kontext, [klasseParam, schuelerParam, fachParam]) {
         <td class="text-center"><button type="button" class="sg-person" data-schueler-knopf="${i}" title="Schüler*innen im Unterricht" aria-label="Schüler*innen im Unterricht"><i class="bi bi-person-fill"></i><small>${g.schueler}</small></button></td>
         <td class="text-end"><button type="button" class="sg-nummer" data-unterricht="${i}" title="Schülergruppen des Unterrichts ${g.unterricht}">${g.unterricht}</button></td></tr>`).join('')}
       </tbody></table>
-      <div class="sg-fuss"><span>${d.gruppen.length} ${d.gruppen.length === 1 ? 'Element' : 'Elemente'} gefunden</span>
+      <div class="sg-fuss"><span>${d.gruppen.length === 1 ? 'Ein Element gefunden.' : `${d.gruppen.length} Elemente gefunden, Anzeige aller Elemente.`}</span>
         <button type="button" class="nl-knopf rot" data-sammel ${gewaehlt.size ? '' : 'disabled'}><i class="bi bi-trash"></i>Löschen</button></div>`
       : `<div class="p-3">${leer(schueler || fach ? 'Keine Schülergruppen für diese Auswahl.' : 'Keine Unterrichte mit Schülergruppen in dieser Klasse.', 'people')}</div>`;
     inhalt.querySelectorAll('[data-wahl]').forEach(c => c.onchange = () => { const i = Number(c.dataset.wahl); if (c.checked) gewaehlt.add(i); else gewaehlt.delete(i); inhalt.querySelector('[data-sammel]').disabled = !gewaehlt.size; });

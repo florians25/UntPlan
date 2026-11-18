@@ -589,3 +589,43 @@ a.bu-strahl-tag:hover { color: var(--u-akzent-dunkel); }
 .bu-woche b { font-weight: 500; color: var(--u-titel); white-space: nowrap; }
 .bu-nr-link { flex: none; font-size: .8rem; color: var(--u-akzent); text-decoration: none; }
 .bu-nr-link:hover { color: var(--u-akzent-dunkel); }
+
+/* Meine Buchungen wie in der Vorlage: Woche, „Suche“ + „Suche ausführen“ + Filter, Tabelle mit allen Spalten, Anzahl, darunter Buchungsliste ▾ und Neu */
+.bu-mb { width: 100%; }
+.bu-mb-karte { padding: 18px 22px 16px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.bu-mb-woche { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: .9rem; color: var(--u-titel); }
+.bu-mb-suche { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 14px; }
+.bu-mb-suche label { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: .9rem; color: var(--u-titel); }
+.bu-mb-suche input { width: 160px; height: 34px; font-size: .88rem; }
+.bu-mb-suche .nl-icon.an { color: var(--u-akzent); }
+.bu-mb-filter { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; margin: 0 0 14px; }
+.bu-mb-filter[hidden] { display: none; }
+.bu-mb-tabelle { overflow-x: auto; }
+.bu-mb-tabelle table { width: 100%; font-size: .84rem; }
+.bu-mb-tabelle th { font-size: .78rem; font-weight: 500; color: var(--u-titel); white-space: nowrap; vertical-align: bottom; }
+.bu-mb-tabelle th.sortiert { color: var(--u-akzent); }
+.bu-mb-tabelle td { vertical-align: middle; }
+.bu-mb-tabelle tr.storniert td { color: var(--u-grau); }
+.bu-mb-tabelle tr.storniert td:nth-child(n + 5) { text-decoration: line-through; }
+.bu-mb-wahl { width: 56px; text-align: center; }
+.bu-mb-aktionen { white-space: nowrap; }
+.bu-mb-art { font-size: 1.05rem; color: #3b6fb6; }
+.bu-mb-status { font-size: 1.05rem; }
+.bu-mb-status.ok { color: #1f9d55; }
+.bu-mb-status.offen { color: #b08900; }
+.bu-mb-status.aus { color: var(--u-grau); }
+.bu-mb-text { max-width: 220px; }
+.bu-mb-anzahl { margin: 10px 0 0; font-size: .84rem; color: var(--u-titel); }
+.bu-mb-anzahl b { margin-left: 4px; font-weight: 500; }
+.bu-mb-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+.bu-mb-menue { position: relative; }
+.bu-mb-menue .bi-caret-down-fill { margin-left: 6px; font-size: .7rem; }
+.bu-mb-auswahl { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; min-width: 230px; padding: 6px 0; background: #fff;
+  border-radius: 8px; box-shadow: var(--u-schatten); }
+.bu-mb-auswahl[hidden] { display: none; }
+.bu-mb-auswahl button { padding: 8px 14px; border: 0; background: none; text-align: left; font: inherit; font-size: .88rem; color: var(--u-text); }
+.bu-mb-auswahl button:hover, .bu-mb-auswahl button:focus-visible { background: var(--u-hover); outline: none; }
+.bu-mb-tabelle .pe-tabelle th, .bu-mb-tabelle .pe-tabelle td { padding: 8px 8px; }
+.bu-mb-tabelle .pe-tabelle th, .bu-mb-tabelle .pe-tabelle td { padding: 7px 6px; font-size: .82rem; white-space: nowrap; }
+.bu-mb-tabelle .pe-tabelle td.bu-mb-text { min-width: 110px; white-space: normal; }
+.bu-mb-tabelle .nl-icon { width: 26px; height: 26px; }

@@ -550,152 +550,147 @@ function unterrichtKopf(u) {
 // ------------------------------------------------------------------ Meine Buchungen
 
 const ANSICHTEN = [['kommend', 'Kommend'], ['vergangen', 'Vergangen'], ['storniert', 'Storniert'], ['alle', 'Alle']];
+/** Symbol der Spalte „Art“ je Buchungsart. */
+const ART_SYMBOL = { raum: 'door-open', ressource: 'box-seam', aktivitaet: 'easel', unterricht: 'easel' };
+const zeitstempel = t => { const [d, z] = String(t ?? '').split(' '); return d ? `${datumDe(d)}${z ? ` ${z}` : ''}` : ''; };
 
+/**
+ * Meine Buchungen wie in der Vorlage: Zeitraum der gewählten Woche, „Suche“ mit „Suche ausführen“ und Filtersymbol, Tabelle
+ * (Auswahl | Bearbeiten, PDF, Stornieren | Art | Status | Art | Raum | Tag | Datum | Von | Bis | Periodizität | Bemerkung | Anmerkung |
+ * Schüler | Aufgegeben am | Buchung), Anzahl gefundener Elemente, darunter „Buchungsliste“ und „Neu“.
+ */
 async function meineBuchungen(seite, kontext, [vonParam, bisParam, alleParam]) {
+  cssLaden();
   const ich = kontext.ich;
   const iso = /^\d{4}-\d{2}-\d{2}$/;
-  // wie in der Vorlage: Buchungen der ausgewählten Woche (Blättern je Woche; über Von/Bis auch längere Zeiträume)
+  // wie in der Vorlage: Buchungen der ausgewählten Woche (Blättern je Woche)
   const von = iso.test(vonParam ?? '') ? vonParam : montag(heuteIso());
   const bis = iso.test(bisParam ?? '') ? bisParam : plusTage(montag(heuteIso()), 6);
   const alle = ich.admin && alleParam === 'alle';
   const woche = n => { const m = plusTage(montag(von), 7 * n); return ziel(m, plusTage(m, 6)); };
   const ziel = (v = von, b = bis, a = alle) => `#/buchen/meine/${v}/${b}${a ? '/alle' : ''}`;
-  kontext.titel(alle ? 'Alle Buchungen' : 'Meine Buchungen', '', '');
-  const liste = await holen(`/api/app/buchen/liste?von=${von}&bis=${bis}${alle ? '&alle=true' : ''}`);
+  kontext.titel(alle ? 'Buchungen' : 'Meine Buchungen');
+  const [liste, eigene] = await Promise.all([holen(`/api/app/buchen/liste?von=${von}&bis=${bis}${alle ? '&alle=true' : ''}`),
+    // Neuer Unterricht (ohne Termin angelegt) erscheint auch hier – zusätzliche Stunden über „Bearbeiten“
+    holen('/api/app/buchen/unterricht').catch(() => [])]);
   const heute = heuteIso();
   const filter = meineFilter;
   const serien = liste.reduce((m, b) => (b.serie ? m.set(b.serie, (m.get(b.serie) ?? 0) + 1) : m), new Map());
-  const offenSerien = new Set();
-  const anzahl = a => liste.filter(b => passtAnsicht(b, a, heute)).length;
-  kontext.titel(alle ? 'Alle Buchungen' : 'Meine Buchungen', `<a class="nl-knopf" href="#/buchen/raeume"><i class="bi bi-grid-3x3-gap"></i>Raumübersicht</a>`, `${anzahl('kommend')}`);
-  seite.innerHTML = `
-    <div class="u-sf-leiste bu-leiste">
-      ${suchfeldMitFilter({ platzhalter: 'Titel, Raum, Klasse …', wert: filter.suche, label: 'Buchungen durchsuchen', klasse: 'bu-meine-suche',
-        filter: [{ name: 'art', label: 'Art', optionen: Object.entries(ART_NAME), wert: filter.art, alle: 'Alle Arten' }] })}
-      ${zeitraumPillen(von, bis)}
-      <div class="u-sf-rechts"><button type="button" class="nl-knopf" data-csv title="Buchungsliste als CSV herunterladen"><i class="bi bi-filetype-csv"></i>Buchungsliste</button>
-        <a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Neu</a></div>
-    </div>
-    <div class="nl-leiste bu-leiste2">
-      <span class="bu-woche"><a class="nl-knopf klein" href="${woche(-1)}" title="Vorherige Woche" aria-label="Vorherige Woche"><i class="bi bi-chevron-left"></i></a>
-        <b>${e(datumDe(von))} - ${e(datumDe(bis))}</b><a class="nl-knopf klein" href="${woche(1)}" title="Nächste Woche" aria-label="Nächste Woche"><i class="bi bi-chevron-right"></i></a>
-        <a class="nl-knopf klein" href="${ziel(montag(heuteIso()), plusTage(montag(heuteIso()), 6))}">Aktuelle Woche</a></span>
-      <div class="bu-segment" role="radiogroup" aria-label="Ansicht">${ANSICHTEN.map(([w, t]) => `<button type="button" role="radio" aria-checked="${filter.ansicht === w}" class="${filter.ansicht === w ? 'an' : ''}" data-ansicht="${w}">${t}<span class="bu-anzahl">${anzahl(w)}</span></button>`).join('')}</div>
-      ${ich.admin ? `<label class="rw-schalter ms-auto"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
-    </div>
-    <div data-liste></div>
-    <div data-eigene></div>`;
-  // Neuer Unterricht (ohne Termin angelegt) erscheint auch hier – zusätzliche Stunden direkt verplanen
-  holen('/api/app/buchen/unterricht').then(eigene => {
-    const ziel = seite.querySelector('[data-eigene]');
-    if (!ziel || !eigene.length) return;
-    ziel.innerHTML = `<div class="bu-monat">Neuer Unterricht</div><div class="bu-liste">${eigene.map(u => `<div class="bu-eintrag-zeile">
-      <div class="bu-datum"><i class="bi bi-easel" aria-hidden="true"></i></div>
-      <div class="bu-haupt"><div class="bu-titelzeile"><span class="bu-titel">${e(u.fach)} ${e(u.klassen.join(', '))}</span><span class="nl-chip grau">Unterricht</span></div>
-        <div class="bu-meta"><span><i class="bi bi-person"></i>${e(u.lehrer)}</span>${u.gruppe ? `<span>${e(u.gruppe)}</span>` : ''}<span class="nl-unter">${u.gebuchteStunden} Stunden gebucht</span></div></div>
-      <div class="bu-status"></div><div class="bu-aktionen"><a class="nl-knopf klein" href="#/buchen/zusatz/e${u.id}"><i class="bi bi-calendar-plus"></i>Zusätzliche Stunden</a></div></div>`).join('')}</div>`;
-  }).catch(() => {});
-  const sichtbar = () => liste.filter(b => passtAnsicht(b, filter.ansicht, heute) && (!filter.art || b.art === filter.art)
-    && (!filter.suche || [b.titel, b.text, b.raum, b.klassen.join(' '), b.lehrer, b.fach, b.absender, b.artName, b.ressourcen.map(r => r.name).join(' '), datumDe(b.datum)].join(' ').toLowerCase().includes(filter.suche.toLowerCase())))
-    .sort((a, b) => (filter.ansicht === 'vergangen' ? -1 : 1) * (a.datum.localeCompare(b.datum) || a.stundeVon - b.stundeVon));
-  const darf = b => (ich.admin || b.benutzerId === ich.id) && b.status === 'aktiv' && (ich.admin || b.datum >= heute);
-  const zeile = (b, kind = false) => `<div class="bu-eintrag-zeile ${b.status === 'storniert' ? 'storniert' : ''} ${b.datum < heute ? 'vergangen' : ''} ${kind ? 'kind' : ''}">
-      <div class="bu-datum"><b>${e(new Date(b.datum + 'T12:00').getDate())}</b><span>${e(new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { month: 'short' }))}</span><small>${e(new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' }))}</small></div>
-      <div class="bu-haupt">
-        <div class="bu-titelzeile"><a class="bu-nr-link" href="#/buchen/buchung/${b.id}" title="Buchung ${b.id} bearbeiten">${b.id}</a><span class="bu-titel">${e(b.titel || b.artName)}</span><span class="nl-chip ${ART_CHIP[b.art] ?? 'grau'}">${e(b.artName)}</span>
-          ${b.status === 'aktiv' ? `<span class="nl-chip ${b.bestaetigt ? 'gruen' : 'gelb'}">${e(b.statusText ?? 'Bestätigt')}</span>` : ''}</div>
-        <div class="bu-meta"><span><i class="bi bi-clock"></i>${stdText(b.stundeVon, b.stundeBis)} · ${e(b.beginn)}–${e(b.ende)}</span>
-          ${b.raum ? `<span><i class="bi bi-door-open"></i><a href="#/plan/raum/${encodeURIComponent(b.raum)}/${b.datum}">${e(b.raum)}</a></span>` : ''}
-          ${b.ressourcen.length ? `<span><i class="bi bi-box-seam"></i>${e(b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}× ` : ''}${r.name}`).join(', '))}</span>` : ''}
-          ${b.klassen.length ? `<span><i class="bi bi-people"></i>${e(b.klassen.join(', '))}</span>` : ''}
-          ${b.lehrer ? `<span><i class="bi bi-person"></i>${e((b.alleLehrer ?? [b.lehrer]).join(', '))}${b.fach ? ` · ${e(b.fach)}` : ''}</span>` : ''}
-          ${b.weitereRaeume?.length ? `<span><i class="bi bi-door-open"></i>${e(b.weitereRaeume.join(', '))}</span>` : ''}
-          ${b.schueler ? `<span><i class="bi bi-person-check"></i>${b.schueler} Schüler*innen</span>` : ''}
-          <span class="nl-unter">${b.serie ? 'Serie' : 'einmalig'} · aufgegeben am ${e(b.erstellt)}</span>
-          ${alle || b.benutzerId !== ich.id ? `<span class="nl-unter">gebucht von ${e(b.absender)}</span>` : ''}</div>
-        ${b.text ? `<div class="bu-text">${e(b.text)}</div>` : ''}
+  const gewaehlt = new Set();
+  seite.innerHTML = `<div class="bu-mb">
+    <section class="bu-mb-karte">
+      <div class="bu-mb-woche"><a class="nl-icon sichtbar" href="${woche(-1)}" title="Vorherige Woche" aria-label="Vorherige Woche"><i class="bi bi-chevron-left"></i></a>
+        <span>${e(datumDe(von))} - ${e(datumDe(bis))}</span><a class="nl-icon sichtbar" href="${woche(1)}" title="Nächste Woche" aria-label="Nächste Woche"><i class="bi bi-chevron-right"></i></a></div>
+      <div class="bu-mb-suche"><label>Suche <input type="search" class="form-control" data-suche value="${e(filter.suche)}"></label>
+        <button type="button" class="pe-knopf" data-suche-los>Suche ausführen</button>
+        <button type="button" class="nl-icon sichtbar ${filter.offen ? 'an' : ''}" data-filter-auf title="Filter" aria-label="Filter" aria-expanded="${!!filter.offen}"><i class="bi bi-funnel"></i></button></div>
+      <div class="bu-mb-filter" ${filter.offen ? '' : 'hidden'}>
+        <label class="pe-feld rb-feld"><span class="pe-feld-label">Art</span><select class="form-select" data-art>${optionen(Object.entries(ART_NAME), filter.art, 'Alle Arten')}</select></label>
+        <label class="pe-feld rb-feld"><span class="pe-feld-label">Anzeige</span><select class="form-select" data-ansicht>${optionen(ANSICHTEN, filter.ansicht)}</select></label>
+        ${ich.admin ? `<label class="rw-schalter"><input type="checkbox" data-alle ${alle ? 'checked' : ''}><span class="rw-spur" aria-hidden="true"></span>Buchungen aller Lehrkräfte</label>` : ''}
       </div>
-      <div class="bu-status">${b.status === 'storniert' ? '<span class="rw-status belegt">storniert</span>' : b.uebertragen ? '<span class="rw-status frei" title="von UntPlan übernommen">übernommen</span>' : b.datum < heute ? '<span class="rw-status">vergangen</span>' : '<span class="rw-status teil">gebucht</span>'}</div>
-      <div class="bu-aktionen"><a class="nl-knopf klein" href="#/buchen/buchung/${b.id}"><i class="bi bi-pencil"></i>Bearbeiten</a>
-        <button type="button" class="nl-icon sichtbar" data-bericht="${b.id}" title="Bericht (PDF)" aria-label="Bericht (PDF)"><i class="bi bi-filetype-pdf"></i></button>
-        ${ich.admin && b.status === 'aktiv' && !b.bestaetigt ? `<button type="button" class="nl-knopf klein" data-bestaetigen="${b.id}"><i class="bi bi-check2-circle"></i>Bestätigen</button>` : ''}
-        ${darf(b) ? `<button type="button" class="nl-knopf klein" data-storno="${b.id}"><i class="bi bi-x-circle"></i>Stornieren</button>` : ''}</div></div>`;
+      <div data-liste></div>
+    </section>
+    <div class="bu-mb-fuss">
+      <div class="bu-mb-menue"><button type="button" class="pe-knopf" data-liste-menue aria-haspopup="menu" aria-expanded="false">Buchungsliste <i class="bi bi-caret-down-fill"></i></button>
+        <div class="bu-mb-auswahl" role="menu" hidden><button type="button" role="menuitem" data-csv>CSV-Datei</button><button type="button" role="menuitem" data-pdfs>PDF (ausgewählte Buchungen)</button></div></div>
+      <a class="pe-knopf" href="#/buchen/raum">Neu</a>
+    </div></div>`;
+  const sichtbar = () => liste.filter(b => passtAnsicht(b, filter.ansicht, heute) && (!filter.art || b.art === filter.art)
+    && (!filter.suche || [b.titel, b.text, b.raum, b.klassen.join(' '), b.lehrer, b.fach, b.absender, b.artName, b.zusatz?.aktivitaetsart, b.zusatz?.anmerkung, b.ressourcen.map(r => r.name).join(' '), datumDe(b.datum), String(b.id)].join(' ').toLowerCase().includes(filter.suche.toLowerCase())))
+    .sort((a, b) => a.datum.localeCompare(b.datum) || a.stundeVon - b.stundeVon);
+  const neueSichtbar = () => (alle || filter.art === 'raum' || filter.art === 'ressource' || filter.ansicht === 'storniert' ? [] : eigene)
+    .filter(u => !filter.suche || [u.fach, u.klassen.join(' '), u.lehrer, u.gruppe, u.text].join(' ').toLowerCase().includes(filter.suche.toLowerCase()));
+  const darf = b => (ich.admin || b.benutzerId === ich.id) && b.status === 'aktiv' && (ich.admin || b.datum >= heute);
+  const status = b => b.status === 'storniert' ? '<i class="bi bi-x-lg bu-mb-status aus" title="Storniert" aria-label="Storniert"></i>'
+    : b.bestaetigt ? `<i class="bi bi-check-lg bu-mb-status ok" title="${e(b.statusText ?? 'Bestätigt')}" aria-label="${e(b.statusText ?? 'Bestätigt')}"></i>`
+    : `<i class="bi bi-hourglass-split bu-mb-status offen" title="${e(b.statusText ?? 'Nicht bestätigt')}" aria-label="${e(b.statusText ?? 'Nicht bestätigt')}"></i>`;
+  const zeile = b => `<tr class="${b.status === 'storniert' ? 'storniert' : ''}">
+      <td class="bu-mb-wahl"><input type="checkbox" class="form-check-input" data-wahl="${b.id}" aria-label="Buchung ${b.id} auswählen" ${gewaehlt.has(b.id) ? 'checked' : ''}></td>
+      <td class="bu-mb-aktionen"><a class="nl-icon sichtbar" href="#/buchen/buchung/${b.id}" title="Bearbeiten" aria-label="Bearbeiten"><i class="bi bi-pencil"></i></a>
+        <button type="button" class="nl-icon sichtbar rot" data-bericht="${b.id}" title="Bericht (PDF)" aria-label="Bericht (PDF)"><i class="bi bi-filetype-pdf"></i></button>
+        ${darf(b) ? `<button type="button" class="nl-icon sichtbar rot" data-storno="${b.id}" title="Stornieren" aria-label="Stornieren"><i class="bi bi-x-lg"></i></button>` : ''}
+        ${ich.admin && b.status === 'aktiv' && !b.bestaetigt ? `<button type="button" class="nl-icon sichtbar" data-bestaetigen="${b.id}" title="Bestätigen" aria-label="Bestätigen"><i class="bi bi-check2-circle"></i></button>` : ''}</td>
+      <td class="text-center"><i class="bi bi-${ART_SYMBOL[b.art] ?? 'calendar-event'} bu-mb-art" title="${e(b.artName)}" aria-label="${e(b.artName)}"></i></td>
+      <td class="text-center">${status(b)}</td>
+      <td>${e(b.zusatz?.aktivitaetsart || b.artName)}</td>
+      <td>${e((b.alleRaeume?.length ? b.alleRaeume : [b.raum].filter(Boolean)).join(', ') || b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}× ` : ''}${r.name}`).join(', '))}</td>
+      <td>${e(new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace(/\.?$/, '.'))}</td>
+      <td class="text-nowrap">${e(datumDe(b.datum))}</td><td>${e(b.beginn)}</td><td>${e(b.ende)}</td>
+      <td>${b.serie ? 'periodisch' : 'einmalig'}</td>
+      <td class="bu-mb-text">${e(b.text)}</td><td class="bu-mb-text">${e(b.zusatz?.anmerkung ?? '')}</td>
+      <td class="text-nowrap">${b.art === 'ressource' ? '' : `<a class="nl-icon sichtbar" href="#/buchen/buchung/${b.id}" title="Schülergruppe" aria-label="Schülergruppe"><i class="bi bi-people"></i></a>
+        <a class="nl-icon sichtbar" href="#/buchen/buchung/${b.id}" title="Schüler*innen${b.schueler ? ` (${b.schueler})` : ''}" aria-label="Schüler*innen"><i class="bi bi-person"></i></a>`}</td>
+      <td class="text-nowrap">${e(zeitstempel(b.erstellt))}${alle && b.benutzerId !== ich.id ? `<small class="d-block nl-unter">${e(b.absender)}</small>` : ''}</td>
+      <td><a class="bu-nr-link" href="#/buchen/buchung/${b.id}">${b.id}</a></td></tr>`;
+  const neuZeile = u => `<tr class="bu-mb-neu">
+      <td class="bu-mb-wahl"></td>
+      <td class="bu-mb-aktionen"><a class="nl-icon sichtbar" href="#/buchen/zusatz/e${u.id}" title="Bearbeiten (zusätzliche Stunden)" aria-label="Bearbeiten"><i class="bi bi-pencil"></i></a></td>
+      <td class="text-center"><i class="bi bi-easel bu-mb-art" title="Neuer Unterricht" aria-label="Neuer Unterricht"></i></td><td></td>
+      <td>${e(u.zusatz?.aktivitaetsart || 'Unterricht')}</td><td></td><td></td>
+      <td class="text-nowrap">${e(datumDe(u.zusatz?.von))}</td><td></td><td></td><td></td>
+      <td class="bu-mb-text">${e(u.text || [u.fach, u.klassen.join(', ')].filter(Boolean).join(' '))}</td><td class="bu-mb-text">${e(u.zusatz?.anmerkung ?? '')}</td>
+      <td></td><td></td><td></td></tr>`;
   const zeichnen = () => {
     const l = sichtbar();
+    const n = neueSichtbar();
+    const anzahl = l.length + n.length;
     const box = seite.querySelector('[data-liste]');
-    if (!l.length) {
-      const nichts = !liste.length;
-      box.innerHTML = `<div class="bu-leer"><i class="bi bi-calendar-x" aria-hidden="true"></i><b>${nichts ? 'Keine Buchungen im Zeitraum' : 'Keine Buchungen für diesen Filter'}</b>
-        <span>${nichts ? `Zeitraum ${datumDe(von)} – ${datumDe(bis)}` : 'Ändern Sie Ansicht, Art oder Suche.'}</span>
-        <div class="d-flex gap-2 mt-2">${nichts ? '' : '<button type="button" class="nl-knopf" data-reset>Filter zurücksetzen</button>'}<a class="nl-hinzu" href="#/buchen/raum"><i class="bi bi-plus-lg"></i>Raum buchen</a></div></div>`;
-      box.querySelector('[data-reset]')?.addEventListener('click', () => { Object.assign(filter, { ansicht: 'alle', art: '', suche: '' }); kontext.navigieren(ziel(), true); });
-      return;
-    }
-    // Serien zusammenfassen: erste sichtbare Buchung der Serie als Kopf, weitere aufklappbar
-    const gesehen = new Map();
-    l.forEach(b => { if (b.serie) gesehen.set(b.serie, [...(gesehen.get(b.serie) ?? []), b]); });
-    const html = [];
-    const fertig = new Set();
-    let monat = '';
-    for (const b of l) {
-      if (b.serie && fertig.has(b.serie)) continue;
-      const m = new Date(b.datum + 'T12:00').toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
-      if (m !== monat) { monat = m; html.push(`<div class="bu-monat">${e(m)}</div>`); }
-      const gruppe = b.serie ? gesehen.get(b.serie) : null;
-      if (gruppe && gruppe.length > 1) {
-        fertig.add(b.serie);
-        const auf = offenSerien.has(b.serie);
-        const kommend = gruppe.filter(x => x.status === 'aktiv' && x.datum >= heute);
-        html.push(`<div class="bu-serie ${auf ? 'auf' : ''}">${zeile(b)}
-          <div class="bu-serienkopf"><button type="button" class="bu-serie-knopf" data-serie-auf="${e(b.serie)}" aria-expanded="${auf}"><i class="bi bi-arrow-repeat"></i>Serie · ${gruppe.length === serien.get(b.serie) ? `${gruppe.length} Termine` : `${gruppe.length} von ${serien.get(b.serie)} Terminen`}
-            · bis ${e(tagKurz(gruppe[gruppe.length - 1].datum))} · ${auf ? 'zuklappen' : 'alle zeigen'}<i class="bi bi-chevron-down bu-chevron"></i></button>
-            ${kommend.length && darf(kommend[0]) ? `<button type="button" class="nl-knopf klein rot" data-serie-storno="${kommend[0].id}"><i class="bi bi-trash"></i>Serie stornieren</button>` : ''}</div>
-          ${auf ? `<div class="bu-kinder">${gruppe.slice(1).map(x => zeile(x, true)).join('')}</div>` : ''}</div>`);
-      } else html.push(zeile(b));
-    }
-    box.innerHTML = `<div class="bu-liste">${html.join('')}</div>`;
+    box.innerHTML = `<div class="bu-mb-tabelle"><table class="pe-tabelle"><thead><tr>
+        <th class="bu-mb-wahl">Auswahl<br><input type="checkbox" class="form-check-input" data-alle-wahl aria-label="Alle auswählen"></th><th></th>
+        <th>Art</th><th>Status</th><th>Art</th><th class="sortiert">Raum</th><th>Tag</th><th class="sortiert">Datum</th><th>Von</th><th>Bis</th><th>Periodizität</th>
+        <th>Bemerkung</th><th>Anmerkung</th><th>Schüler</th><th class="sortiert">Aufgegeben am</th><th class="sortiert">Buchung</th></tr></thead>
+      <tbody>${l.map(zeile).join('')}${n.map(neuZeile).join('')}</tbody></table></div>
+      <p class="bu-mb-anzahl">${anzahl === 0 ? 'Kein Element gefunden.' : anzahl === 1 ? 'Ein Element gefunden.' : `${anzahl} Elemente gefunden, Anzeige aller Elemente.`}<b>1</b></p>`;
+    box.querySelector('[data-alle-wahl]').onchange = ev => { l.forEach(b => ev.target.checked ? gewaehlt.add(b.id) : gewaehlt.delete(b.id)); box.querySelectorAll('[data-wahl]').forEach(c => { c.checked = ev.target.checked; }); };
+    box.querySelectorAll('[data-wahl]').forEach(c => c.onchange = () => { const id = Number(c.dataset.wahl); if (c.checked) gewaehlt.add(id); else gewaehlt.delete(id); });
     box.querySelectorAll('[data-bestaetigen]').forEach(k => k.onclick = async () => {
       try { const r = await senden(`/api/app/buchen/${k.dataset.bestaetigen}/bestaetigen?serie=true`, {}); toast(`${r.bestaetigt} ${r.bestaetigt === 1 ? 'Termin' : 'Termine'} bestätigt.`); kontext.navigieren(ziel(), true); }
       catch (err) { kontext.fehler(err); }
     });
-    box.querySelectorAll('[data-bericht]').forEach(k => k.onclick = async () => {
-      try {
-        const r = await fetch(`/api/app/buchen/${k.dataset.bericht}/beleg.pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
-        if (!r.ok) throw new Error('PDF konnte nicht erstellt werden.');
-        herunterladen(`buchung-${k.dataset.bericht}.pdf`, await r.blob(), 'application/pdf');
-      } catch (err) { kontext.fehler(err); }
-    });
-    box.querySelectorAll('[data-serie-auf]').forEach(k => k.onclick = () => { const s = k.dataset.serieAuf; if (offenSerien.has(s)) offenSerien.delete(s); else offenSerien.add(s); zeichnen(); });
-    box.querySelectorAll('[data-storno], [data-serie-storno]').forEach(k => k.onclick = async () => {
-      const b = liste.find(x => String(x.id) === (k.dataset.storno ?? k.dataset.serieStorno));
-      const n = k.dataset.serieStorno ? await serieStornieren(b) : await stornoDialog(b, b.serie ? serien.get(b.serie) : 0);
-      if (n) kontext.navigieren(ziel(), true);
+    box.querySelectorAll('[data-bericht]').forEach(k => k.onclick = () => belegLaden(k.dataset.bericht).catch(err => kontext.fehler(err)));
+    box.querySelectorAll('[data-storno]').forEach(k => k.onclick = async () => {
+      const b = liste.find(x => String(x.id) === k.dataset.storno);
+      if (await stornoDialog(b, b.serie ? serien.get(b.serie) : 0)) kontext.navigieren(ziel(), true);
     });
   };
-  const serieStornieren = async b => {
-    if (!await bestaetigen('Serie stornieren', `Alle kommenden Termine der Serie „${b.titel || b.artName}“ stornieren?`, 'Stornieren')) return 0;
-    try { const r = await api(`/api/app/buchen/${b.id}?serie=true`, { methode: 'DELETE' }); toast(`${r.storniert} Termine storniert.`); return r.storniert || 1; }
-    catch (err) { kontext.fehler(err); return 0; }
+  const belegLaden = async id => {
+    const r = await fetch(`/api/app/buchen/${id}/beleg.pdf`, { credentials: 'same-origin', headers: { 'X-UntPlanWeb': '1' } });
+    if (!r.ok) throw new Error('PDF konnte nicht erstellt werden.');
+    herunterladen(`buchung-${id}.pdf`, await r.blob(), 'application/pdf');
   };
-  seite.querySelectorAll('[data-ansicht]').forEach(b => b.onclick = () => {
-    filter.ansicht = b.dataset.ansicht;
-    seite.querySelectorAll('[data-ansicht]').forEach(x => { x.classList.toggle('an', x === b); x.setAttribute('aria-checked', String(x === b)); });
-    zeichnen();
-  });
-  suchfeldMitFilterBinden(seite.querySelector('.bu-leiste'), {
-    beiSuche: t => { filter.suche = t; zeichnen(); },
-    beiFilter: (n, w) => { if (n === 'art') { filter.art = w; zeichnen(); } },
-  });
-  seite.querySelectorAll('[data-von], [data-bis]').forEach(f => f.onchange = () => kontext.navigieren(ziel(seite.querySelector('[data-von]').value || von, seite.querySelector('[data-bis]').value || bis)));
+  const suchen = () => { filter.suche = seite.querySelector('[data-suche]').value.trim(); zeichnen(); };
+  seite.querySelector('[data-suche-los]').onclick = suchen;
+  seite.querySelector('[data-suche]').onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); suchen(); } };
+  seite.querySelector('[data-filter-auf]').onclick = ev => {
+    filter.offen = !filter.offen;
+    ev.currentTarget.classList.toggle('an', filter.offen); ev.currentTarget.setAttribute('aria-expanded', String(filter.offen));
+    seite.querySelector('.bu-mb-filter').hidden = !filter.offen;
+  };
+  seite.querySelector('[data-art]').onchange = ev => { filter.art = ev.target.value; zeichnen(); };
+  seite.querySelector('[data-ansicht]').onchange = ev => { filter.ansicht = ev.target.value; zeichnen(); };
   seite.querySelector('[data-alle]')?.addEventListener('change', ev => kontext.navigieren(ziel(von, bis, ev.target.checked)));
-  seite.querySelector('[data-csv]').onclick = () => herunterladen(`buchungen-${von}-${bis}.csv`, csv([
+  // „Buchungsliste ▾“: Liste als CSV bzw. Buchungsbelege der ausgewählten Buchungen als PDF
+  const menue = seite.querySelector('.bu-mb-auswahl'), menueKnopf = seite.querySelector('[data-liste-menue]');
+  const menueZu = () => { menue.hidden = true; menueKnopf.setAttribute('aria-expanded', 'false'); };
+  menueKnopf.onclick = ev => {
+    ev.stopPropagation();
+    menue.hidden = !menue.hidden; menueKnopf.setAttribute('aria-expanded', String(!menue.hidden));
+    if (!menue.hidden) setTimeout(() => document.addEventListener('click', menueZu, { once: true }));
+  };
+  seite.querySelector('[data-csv]').onclick = () => { menueZu(); herunterladen(`buchungen-${von}-${bis}.csv`, csv([
     ['Buchung', 'Datum', 'Wochentag', 'Stunde von', 'Stunde bis', 'Beginn', 'Ende', 'Art', 'Raum', 'Ressourcen', 'Klassen', 'Lehrkraft', 'Fach', 'Titel', 'Bemerkung', 'Anmerkung', 'Status', 'Periodizität', 'Serie', 'Schüler', 'Gebucht von', 'Aufgegeben am'],
-    ...sichtbar().map(b => [b.id, datumDe(b.datum), b.wochentag, b.stundeVon, b.stundeBis, b.beginn, b.ende, b.artName, (b.alleRaeume ?? [b.raum]).join(', '), b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}x ` : ''}${r.name}`).join(', '),
-      b.klassen.join(', '), (b.alleLehrer ?? [b.lehrer]).join(', '), b.fach, b.titel, b.text, b.zusatz?.anmerkung ?? '', b.status === 'aktiv' ? b.statusText ?? b.status : b.status, b.serie ? 'Serie' : 'einmalig', b.serie, b.schueler ?? 0, b.absender, b.erstellt])]));
+    ...sichtbar().filter(b => !gewaehlt.size || gewaehlt.has(b.id)).map(b => [b.id, datumDe(b.datum), b.wochentag, b.stundeVon, b.stundeBis, b.beginn, b.ende, b.zusatz?.aktivitaetsart || b.artName, (b.alleRaeume ?? [b.raum]).join(', '), b.ressourcen.map(r => `${r.menge > 1 ? `${r.menge}x ` : ''}${r.name}`).join(', '),
+      b.klassen.join(', '), (b.alleLehrer ?? [b.lehrer]).join(', '), b.fach, b.titel, b.text, b.zusatz?.anmerkung ?? '', b.status === 'aktiv' ? b.statusText ?? b.status : b.status, b.serie ? 'periodisch' : 'einmalig', b.serie, b.schueler ?? 0, b.absender, zeitstempel(b.erstellt)])])); };
+  seite.querySelector('[data-pdfs]').onclick = async () => {
+    menueZu();
+    if (!gewaehlt.size) { kontext.fehler(new Error('Bitte zuerst Buchungen in der Spalte „Auswahl“ ankreuzen.')); return; }
+    for (const id of gewaehlt) await belegLaden(id).catch(err => kontext.fehler(err));
+  };
   zeichnen();
 }
 /** Filter von „Meine Buchungen“ (bleibt während der Sitzung erhalten). */
-const meineFilter = { ansicht: 'kommend', art: '', suche: '' };
+const meineFilter = { ansicht: 'alle', art: '', suche: '', offen: false };
 function passtAnsicht(b, a, heute) {
   if (a === 'kommend') return b.status === 'aktiv' && b.datum >= heute;
   if (a === 'vergangen') return b.status === 'aktiv' && b.datum < heute;

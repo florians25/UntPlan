@@ -362,7 +362,8 @@ function menue() {
     // Unterricht wie in der Vorlage: Mein Unterricht, Klasse, Schüler*in, Prüfungen, Prüfungskalender, Aufgaben, Lehrkraft - Tag, Klasse - Tag
     m.push({ id: 'unterricht', text: 'Unterricht', icon: 'unterricht', unter: [
       { nav: 'unterricht', href: '#/unterricht', text: b.element ? 'Mein Unterricht' : 'Unterricht', icon: 'meineunterrichte' },
-      { nav: 'buchen-unterricht', href: '#/buchen/unterricht', text: 'Neuer Unterricht', icon: 'meineunterrichte' },
+      // wie in der Vorlage kein eigener Menüpunkt: „Neuer Unterricht“ ist ein Knopf unter Mein Unterricht
+      { nav: 'buchen-unterricht', href: '#/buchen/unterricht', text: 'Neuer Unterricht', icon: 'meineunterrichte', verborgen: true },
       { nav: 'unterricht-klasse', href: '#/unterricht/klasse', text: 'Klasse', icon: 'klasse' },
       // Schülergruppen (schuelergruppen.js): Zuordnung der Schüler*innen, Schüler-Gruppen-Zuordnung (Matrix)
       { nav: 'schuelergruppen', href: '#/schuelergruppen', text: 'Schülergruppen', icon: 'benutzer' },
@@ -516,7 +517,7 @@ function navAus(teile) {
     // keine Wochenübersicht mehr: frühere Adressen …/woche (und Vermerke, Lehrstoffverlauf) gehören zur Übersicht
     case 'klassenbuch': return c === 'fehlzeiten' ? 'fehlzeiten' : 'klassenbuch';
     case 'melden': return 'melden-' + (a || 'uebersicht');
-    case 'buchen': return a === 'stunden' || a === 'zusatz' ? 'buchen-unterricht' : a === 'buchung' || (a === 'meine' && teile[4] !== 'alle') ? 'buchen-meine' : a === 'meine' ? 'buchen-liste' : 'buchen-' + (a || 'raum');
+    case 'buchen': return a === 'zusatz' && c?.startsWith('b') ? 'buchen-meine' : a === 'stunden' || a === 'zusatz' || a === 'unterricht' ? 'unterricht' : a === 'buchung' || (a === 'meine' && teile[4] !== 'alle') ? 'buchen-meine' : a === 'meine' ? 'buchen-liste' : 'buchen-' + (a || 'raum');
     case 'stammdaten': return 'stammdaten-' + (a || 'klassen');
     case 'kbeinstellungen': return a === 'unterricht' ? 'kbeinstellungen-unterricht' : 'kbeinstellungen';
     case 'admin': return 'admin-' + (a || (b.admin ? 'sync' : 'nachrichten'));

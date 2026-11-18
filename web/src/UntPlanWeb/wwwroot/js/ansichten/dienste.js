@@ -2,6 +2,7 @@
 // Ankreuzen) oder Listenansicht; automatische Schülereinteilung reihum; Bericht.
 import { e, icon, holen, senden, api, toast, heuteIso, plusTage, montag, leer, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
+import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 const kurz = iso => { const [, m, d] = iso.split('-'); return `${Number(d)}.${Number(m)}.`; };
@@ -16,15 +17,15 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const sj = kontext.sitzung.schuljahr;
   // Listenansicht: Datumsbereich automatisch das ganze Schuljahr (Leitfaden Klassenleitung, Klassensprecher eintragen)
-  const von = iso.test(vonParam ?? '') ? vonParam : liste && sj?.von ? sj.von : montag(heuteIso());
-  const bis = iso.test(bisParam ?? '') ? bisParam : liste && sj?.bis ? sj.bis : (sj?.bis && sj.bis > von ? (plusTage(von, 7 * 10) < sj.bis ? plusTage(von, 7 * 10 - 1) : sj.bis) : plusTage(von, 69));
+  const von = iso.test(vonParam ?? '') ? vonParam : liste && sj?.von ? sj.von : sj?.bis ? heuteIso() : montag(heuteIso());
+  const bis = iso.test(bisParam ?? '') ? bisParam : sj?.bis ? sj.bis : (sj?.bis && sj.bis > von ? (plusTage(von, 7 * 10) < sj.bis ? plusTage(von, 7 * 10 - 1) : sj.bis) : plusTage(von, 69));
   const d = await holen(`/api/app/klassendienste?klasse=${encodeURIComponent(klasse)}&von=${von}&bis=${bis}`);
   const alleDienste = liste && (!dienstParam || dienstParam === '-' || dienstParam === 'alle');
   const dienst = d.arten.find(a => String(a.id) === dienstParam) ?? d.arten.find(a => a.name === 'Klassenordner') ?? d.arten[0];
   const ziel = (k = alleKlassen ? 'alle' : klasse, di = alleDienste ? 'alle' : dienst?.id, a = liste ? 'liste' : 'zeit', v = von, b = bis) => `#/dienste/${encodeURIComponent(k || '-')}/${di ?? '-'}/${a}/${v}/${b}`;
   const zuordnungen = d.zuordnungen.filter(z => alleDienste || !dienst || z.dienstId === dienst.id);
   kontext.titel(liste ? '' : klasse && dienst ? `Klassendienste: ${klasse} | ${dienst.name}` : 'Klassendienste',
-    liste ? '' : `<a class="btn btn-outline-secondary" href="${ziel(klasse, dienst?.id, 'liste')}">Zur Listenansicht wechseln</a>`);
+    liste ? '' : `<a class="kl-link" href="${ziel(klasse, dienst?.id, 'liste')}">Zur Listenansicht wechseln</a>`);
   if (liste) return altListe();
 
   seite.innerHTML = `
@@ -33,7 +34,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
         { name: 'klasse', label: 'Klasse', alle: null, standard: klasse, wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
         { name: 'dienst', label: 'Dienst', alle: null, standard: String(dienst?.id ?? ''), wert: String(dienst?.id ?? ''), optionen: d.arten.length ? d.arten.map(a => [String(a.id), a.name]) : [['', 'Keine Dienste angelegt']] },
       ] })}
-      ${zeitraumPillen(von, bis)}
+      ${zeitbereichFeld(von, bis, sj)}
       <div class="u-sf-rechts">
         ${d.verwalten && !liste ? '<button class="btn btn-outline-secondary" data-auto>Automatische Schülereinteilung</button>' : ''}
         ${d.verwalten && liste ? `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}
@@ -47,7 +48,7 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
     beiFilter: () => zeitNeu(),
   });
   const zeitNeu = () => kontext.navigieren(ziel(sf.wert('klasse'), sf.wert('dienst'), liste ? 'liste' : 'zeit', f('von') || von, f('bis') || bis));
-  seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = zeitNeu);
+  zeitbereichBinden(seite, sj, zeitNeu);
   const inhalt = seite.querySelector('[data-inhalt]');
   const neu = () => kontext.navigieren(location.hash);
   if (!klasse) { inhalt.innerHTML = leer('Keine Klassen vorhanden.'); return; }
@@ -80,68 +81,56 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
   // Klassendienste als Liste im nl-design: Filterleiste (Klasse, Dienst als Pillen, Zeitraum), Tabelle Dienst | Schüler*innen | Zeitraum
   // (gleicher Dienst und Zeitraum in einer Zeile), Anlegen und Bearbeiten in einem Dialog mit Mehrfachauswahl der Schüler*innen.
   function altListe() {
-    const heute = heuteIso();
-    const jahr = iso => iso.slice(0, 4);
-    const zeitText = (v, b) => v === b ? `${kurz(v)}${jahr(v)}` : `${kurz(v)} – ${kurz(b)}${jahr(b)}`;
-    const ini = n => n.split(/[\s,]+/).filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase();
-    const gruppen = [];
-    for (const z of zuordnungen) {
-      const g = gruppen.find(x => x.dienstId === z.dienstId && x.von === z.von && x.bis === z.bis && x.klasse === z.klasse && x.text === z.text);
-      if (g) g.eintraege.push(z); else gruppen.push({ dienstId: z.dienstId, dienst: z.dienst, dienstKurz: z.dienstKurz, von: z.von, bis: z.bis, klasse: z.klasse, text: z.text, eintraege: [z] });
-    }
-    gruppen.sort((a, b) => a.von.localeCompare(b.von) || a.dienst.localeCompare(b.dienst, 'de'));
-    const phase = g => g.bis < heute ? ['vorbei', 'grau'] : g.von > heute ? ['geplant', 'blau'] : ['aktuell', 'gruen'];
+    // Listenansicht wie im Original: Klasse | Art | Zeitraum (Datumsbereich automatisch das ganze Schuljahr), Tabelle Auswahl | Stift/X | Art |
+    // Dienst | Name | Klasse | Zeit | Text, darunter „… Elemente gefunden, Anzeige aller Elemente.“ und Neu | Löschen | Berichte.
     const darf = d.verwalten || ich.admin;
-    kontext.titel('Klassendienste', `<a class="btn btn-outline-secondary" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">${icon('woche')}Zur Zeitansicht wechseln</a>
-      ${d.verwalten ? `<button type="button" class="btn btn-primary" data-neu>${icon('plus')}Neu</button>` : ''}`, klasse || 'alle Klassen');
+    const zeilen = [...zuordnungen].sort((a, b) => a.von.localeCompare(b.von) || a.dienst.localeCompare(b.dienst, 'de') || a.schueler.localeCompare(b.schueler, 'de'));
+    const gruppeVon = z => ({ dienstId: z.dienstId, dienst: z.dienst, von: z.von, bis: z.bis, klasse: z.klasse, text: z.text, eintraege: [z] });
+    kontext.titel('Klassendienste', `<a class="kl-link" href="${ziel(klasse || el.klassen[0]?.kurz, dienst?.id, 'zeit')}">Zur Zeitansicht wechseln</a>`);
     seite.innerHTML = `<div class="kd-seite">
-      <div class="u-sf-leiste u-kopfteil kd-filter">
-        ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Dienst oder Text suchen', label: 'Einteilungen durchsuchen', filter: [
-          { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', standard: 'alle', wert: klasse || 'alle', optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
-          { name: 'dienst', label: 'Dienst', alle: 'Alle Dienste', standard: 'alle', wert: alleDienste ? 'alle' : String(dienst?.id ?? 'alle'), optionen: d.arten.map(a => [String(a.id), a.name]) },
-        ] })}
-        ${zeitraumPillen(von, bis)}
-        <div class="u-sf-rechts"><a class="kd-bericht" href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">${icon('berichte')}Bericht</a></div>
+      <div class="nl-leiste sg-leiste u-kopfteil kd-leiste">
+        <label class="sg-feld"><span>Klasse</span><select class="form-select" data-klasse><option value="alle">- Alle -</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
+        <label class="sg-feld"><span>Art</span><select class="form-select" data-art><option value="alle">- Alle -</option>${d.arten.map(a => `<option value="${a.id}" ${!alleDienste && a.id === dienst?.id ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
+        ${zeitbereichFeld(von, bis, sj)}
       </div>
-      ${!d.arten.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-person-gear"></i></span><b>Noch keine Dienste angelegt</b><p>Die Administration legt Dienste wie Tafeldienst oder Klassenordner unter Stammdaten → Dienste an.</p></div>`
-        : !gruppen.length ? `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-people"></i></span><b>Niemand eingeteilt</b><p>Im Zeitraum ${datumDe(von)} – ${datumDe(bis)} ist ${alleDienste ? 'für keinen Dienst' : `für „${e(dienst?.name ?? '')}“`} jemand eingeteilt.${d.verwalten ? ' Über „Dienst einteilen“ legen Sie eine Einteilung an.' : !klasse ? ' Zum Einteilen bitte eine Klasse wählen.' : ''}</p></div>`
-        : `<div class="s-karte kd-tabelle" role="table">
-          <div class="kd-kopf" role="row">${darf ? '<span class="kd-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span>' : '<span></span>'}<span role="columnheader">Dienst</span><span role="columnheader">Schüler*innen</span><span role="columnheader">Zeitraum</span><span role="columnheader">Text</span><span></span></div>
-          ${gruppen.map((g, i) => { const [ph, farbe] = phase(g); return `<div class="kd-zeile ${ph}" role="row">
-            ${darf ? `<span class="kd-wahl"><input type="checkbox" class="nl-rund" data-gruppe="${i}" aria-label="auswählen"></span>` : '<span></span>'}
-            <span class="kd-dienst" role="cell"><span class="kd-symbol"><i class="bi bi-person-gear"></i></span><span><b>${e(g.dienst)}</b>${!klasse ? `<small>Klasse ${e(g.klasse)}</small>` : ''}</span></span>
-            <span class="kd-schueler" role="cell">${g.eintraege.map(z => `<span class="kd-person"><span class="kd-avatar">${e(ini(z.schueler))}</span>${e(z.schueler)}</span>`).join('')}</span>
-            <span class="kd-zeit" role="cell"><span>${zeitText(g.von, g.bis)}</span><span class="s-label ${farbe}">${ph}</span></span>
-            <span class="kd-text" role="cell">${e(g.text) || '<span class="kbu-still">–</span>'}</span>
-            <span class="kd-aktionen">${darf ? `<button type="button" class="nl-icon sichtbar" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>` : ''}</span></div>`; }).join('')}
-          ${darf ? `<div class="kd-fuss"><span data-anzahl>${gruppen.length} ${gruppen.length === 1 ? 'Einteilung' : 'Einteilungen'}</span><button type="button" class="btn btn-outline-danger s-knopf" data-sammel-loeschen disabled>${icon('loeschen')}Auswahl löschen</button></div>` : ''}
-        </div>`}
+      <div class="nl-tabelle kd-liste-tabelle">${zeilen.length ? `<table><thead><tr>${darf ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th><th></th>' : ''}
+          <th>Art</th><th>Dienst</th><th>Name</th><th>Klasse</th><th>Zeit</th><th>Text</th></tr></thead><tbody>
+        ${zeilen.map((z, i) => `<tr data-text="${e(`${z.dienst} ${z.schueler} ${z.klasse} ${z.text}`.toLowerCase())}">
+          ${darf ? `<td class="nl-wahl"><input type="checkbox" class="nl-rund" data-gruppe="${i}" aria-label="${e(z.schueler)} auswählen"></td>
+          <td class="text-nowrap"><button type="button" class="nl-icon sichtbar" data-bearbeiten="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button><button type="button" class="nl-icon sichtbar rot" data-weg="${i}" title="Löschen" aria-label="Löschen"><i class="bi bi-x-lg"></i></button></td>` : ''}
+          <td title="${e(z.dienst)}">${icon('klassendienste')}</td><td>${e(z.dienstKurz || z.dienst)}</td><td>${e(z.schueler)}</td><td>${e(z.klasse)}</td>
+          <td class="text-nowrap">${z.von === z.bis ? kurz(z.von) : `${kurz(z.von)}-${kurz(z.bis)}`}</td><td>${e(z.text)}</td></tr>`).join('')}
+        </tbody></table>` : '<div class="kl-nichts">Nichts anzuzeigen</div>'}
+        ${zeilen.length ? `<div class="sg-fuss"><span>${zeilen.length === 1 ? 'Ein Element gefunden.' : `${zeilen.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>` : ''}
+      </div>
+      <div class="kl-knoepfe">
+        ${d.verwalten ? `<button type="button" class="nl-knopf" data-neu>Neu</button>` : ''}
+        ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen disabled>Löschen</button>' : ''}
+        <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
+          <div class="kl-menue-liste"><a href="#/berichte/klassendienste/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassendienste</a></div></details>
+      </div>
       ${!d.verwalten && klasse ? '<p class="nl-hinweis mt-3"><i class="bi bi-info-circle"></i>Einteilen kann die Klassenleitung bzw. die Schulleitung.</p>' : ''}
     </div>`;
     const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-    const hin = (k, a) => kontext.navigieren(`#/dienste/${encodeURIComponent(k)}/${a}/liste/${f('von') || von}/${f('bis') || bis}`);
-    const sf = suchfeldMitFilterBinden(seite, {
-      beiSuche: t => zeilenFiltern(seite.querySelectorAll('.kd-zeile'), t),
-      beiFilter: () => hin(sf.wert('klasse') || 'alle', sf.wert('dienst') || 'alle'),
-    });
-    seite.querySelectorAll('.kd-filter [data-von], .kd-filter [data-bis]').forEach(x => x.onchange = () => hin(sf.wert('klasse') || 'alle', sf.wert('dienst') || 'alle'));
-    const auswahl = () => [...seite.querySelectorAll('[data-gruppe]:checked')].flatMap(c => gruppen[Number(c.dataset.gruppe)].eintraege.map(z => z.id));
+    const hin = (k, a, v = f('von') || von, b = f('bis') || bis) => kontext.navigieren(`#/dienste/${encodeURIComponent(k)}/${a}/liste/${v}/${b}`);
+    seite.querySelector('[data-klasse]').onchange = () => hin(f('klasse') || 'alle', f('art') || 'alle');
+    seite.querySelector('[data-art]').onchange = () => hin(f('klasse') || 'alle', f('art') || 'alle');
+    zeitbereichBinden(seite, sj, (v, b) => hin(f('klasse') || 'alle', f('art') || 'alle', v, b));
     const knopf = seite.querySelector('[data-sammel-loeschen]');
-    const aktualisieren = () => { const n = seite.querySelectorAll('[data-gruppe]:checked').length; if (knopf) knopf.disabled = !n; };
-    seite.querySelectorAll('[data-gruppe]').forEach(c => c.onchange = () => { c.closest('.kd-zeile').classList.toggle('gewaehlt', c.checked); aktualisieren(); });
-    seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-gruppe]').forEach(c => { c.checked = ev.target.checked; c.closest('.kd-zeile').classList.toggle('gewaehlt', c.checked); aktualisieren(); }));
+    const aktualisieren = () => { if (knopf) knopf.disabled = !seite.querySelectorAll('[data-gruppe]:checked').length; };
+    seite.querySelectorAll('[data-gruppe]').forEach(c => c.onchange = aktualisieren);
+    seite.querySelector('[data-alle]')?.addEventListener('change', ev => { seite.querySelectorAll('[data-gruppe]').forEach(c => { c.checked = ev.target.checked; }); aktualisieren(); });
     const neu = () => kontext.navigieren(location.hash);
     seite.querySelector('[data-neu]')?.addEventListener('click', () => einteilenDialog());
-    document.querySelector('#aktionen [data-neu]')?.addEventListener('click', () => einteilenDialog());
-    seite.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => einteilenDialog(gruppen[Number(b.dataset.bearbeiten)]));
-    knopf?.addEventListener('click', async () => {
-      const ids = auswahl();
+    seite.querySelectorAll('[data-bearbeiten]').forEach(b => b.onclick = () => einteilenDialog(gruppeVon(zeilen[Number(b.dataset.bearbeiten)])));
+    const loeschen = async ids => {
       if (!ids.length) return;
-      if (!await bestaetigen('Einteilungen löschen', `${ids.length} ${ids.length === 1 ? 'Einteilung' : 'Einteilungen'} löschen?`)) return;
+      if (!await bestaetigen('Klassendienste', `${ids.length === 1 ? 'Diesen Eintrag' : `${ids.length} Einträge`} löschen?`)) return;
       try { for (const id of ids) await api(`/api/app/klassendienste/${id}`, { methode: 'DELETE' }); toast('Gelöscht.'); } catch (err) { kontext.fehler(err); }
       neu();
-    });
-
+    };
+    seite.querySelectorAll('[data-weg]').forEach(b => b.onclick = () => loeschen([zeilen[Number(b.dataset.weg)].id]));
+    knopf?.addEventListener('click', () => loeschen([...seite.querySelectorAll('[data-gruppe]:checked')].map(c => zeilen[Number(c.dataset.gruppe)].id)));
     /** Ein Dialog für Anlegen und Bearbeiten: Dienst, Zeitraum, Schüler*innen (Mehrfachauswahl mit Suche), Text. */
     async function einteilenDialog(g = null) {
       let schueler = d.schueler;
@@ -154,33 +143,19 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
         titel: g ? `Klassendienste ${g.klasse || kl}` : `Klassendienste ${kl}`,
         breit: true,
         inhalt: `<div class="kd-dialog">
-          <div class="kd-dialog-reihe">
-            <label class="kd-dfeld"><span>Dienst</span><select class="form-select" name="dienstId">${g ? '' : '<option value="">- Auswahl -</option>'}${d.arten.map(a => `<option value="${a.id}" ${a.id === (g?.dienstId ?? (alleDienste ? d.arten[0]?.id : dienst?.id)) ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
-            <label class="kd-dfeld"><span>Von</span><input type="date" class="form-control" name="von" value="${vonV}"></label>
-            <label class="kd-dfeld"><span>Bis</span><input type="date" class="form-control" name="bis" value="${bisV}"></label>
-          </div>
-          <div class="kd-schnell"><span>Zeitraum:</span>
-            <button type="button" class="s-pille" data-woche="0">diese Woche</button><button type="button" class="s-pille" data-woche="1">nächste Woche</button><button type="button" class="s-pille" data-woche="2">2 Wochen</button></div>
-          <div class="kd-dfeld"><span>Schüler*innen <small data-zahl>${gewaehlt.size ? `· ${gewaehlt.size} gewählt` : ''}</small></span>
+          <label class="kd-dfeld"><span>Dienst</span><select class="form-select" name="dienstId">${g ? '' : '<option value="">- Auswahl -</option>'}${d.arten.map(a => `<option value="${a.id}" ${g && a.id === g.dienstId ? 'selected' : ''}>${e(a.name)}</option>`).join('')}</select></label>
+          <div class="kd-dialog-zwei">
             <div class="kd-auswahl"><input type="search" class="form-control" data-suche placeholder="Name suchen …" aria-label="Schüler*in suchen">
-              <div class="kd-liste">${schueler.map(x => `<label class="kd-option" data-name="${e(`${x.name} ${x.vorname}`.toLowerCase())}"><input type="checkbox" value="${x.id}" ${gewaehlt.has(x.id) ? 'checked' : ''}><span class="kd-avatar">${e(ini(`${x.name} ${x.vorname}`))}</span>${e(x.name)} ${e(x.vorname)}</label>`).join('') || '<div class="small text-body-secondary p-2">Keine Schülerliste übertragen.</div>'}</div></div></div>
+              <div class="kd-liste">${schueler.map(x => `<label class="kd-option" data-name="${e(`${x.name} ${x.vorname}`.toLowerCase())}"><input type="checkbox" value="${x.id}" ${gewaehlt.has(x.id) ? 'checked' : ''}>${e(x.name)} ${e(x.vorname)}</label>`).join('') || '<div class="small text-body-secondary p-2">Keine Schülerliste übertragen.</div>'}</div></div>
+            <div><label class="kd-dfeld"><span>Von</span><input type="date" class="form-control" name="von" value="${vonV}"></label>
+              <label class="kd-dfeld"><span>Bis</span><input type="date" class="form-control" name="bis" value="${bisV}"></label></div>
+          </div>
           <label class="kd-dfeld"><span>Anmerkung</span><input class="form-control" name="text" maxlength="200" value="${e(g?.text ?? '')}"></label>
         </div>`,
         beimOeffnen: box => {
-          const zahl = () => { const n = box.querySelectorAll('.kd-liste input:checked').length; box.querySelector('[data-zahl]').textContent = n ? `· ${n} gewählt` : ''; };
-          box.querySelectorAll('.kd-liste input').forEach(c => c.onchange = zahl);
           box.querySelector('[data-suche]').oninput = ev => { const q = ev.target.value.trim().toLowerCase(); box.querySelectorAll('.kd-option').forEach(o => { o.hidden = q && !o.dataset.name.includes(q); }); };
-          box.querySelectorAll('[data-woche]').forEach(b => b.onclick = () => {
-            const n = Number(b.dataset.woche), m = montag(heuteIso());
-            box.querySelector('[name=von]').value = n === 1 ? plusTage(m, 7) : m;
-            box.querySelector('[name=bis]').value = n === 0 ? plusTage(m, 4) : n === 1 ? plusTage(m, 11) : plusTage(m, 11);
-          });
         },
         knoepfe: [
-          ...(g ? [{ text: 'Löschen', art: 'gefahr', aktion: async () => {
-            for (const z of g.eintraege) await api(`/api/app/klassendienste/${z.id}`, { methode: 'DELETE' });
-            toast('Einteilung gelöscht.'); neu();
-          } }] : []),
           { text: 'Speichern', art: 'haupt', aktion: async box => {
             const q = n => box.querySelector(`[name=${n}]`).value;
             if (!q('dienstId')) { toast('Bitte einen Dienst auswählen (z. B. „Klassensprecher*in“ oder „Klassensprecher*in Stv.“).', true); return false; }
@@ -195,6 +170,10 @@ export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtP
             for (const sid of ids.filter(x => !gewaehlt.has(x))) await senden('/api/app/klassendienste', daten(sid));
             toast('Gespeichert.'); neu();
           } },
+          ...(g ? [{ text: 'Löschen', art: 'gefahr', aktion: async () => {
+            for (const z of g.eintraege) await api(`/api/app/klassendienste/${z.id}`, { methode: 'DELETE' });
+            toast('Einteilung gelöscht.'); neu();
+          } }] : []),
           { text: 'Schließen' },
         ],
       });

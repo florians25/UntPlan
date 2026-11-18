@@ -175,8 +175,9 @@ public class BuchenMeldenOberflaecheTests
         Assert.Contains("function schnellbuchung(kontext, opt, klassen, raum, datum, stunde, raster, belegungVon)", js);
         Assert.Contains("data-buchung=\"${b.buchung}|", js);
         Assert.Contains("const ANSICHTEN = [['kommend', 'Kommend'], ['vergangen', 'Vergangen'], ['storniert', 'Storniert'], ['alle', 'Alle']];", js);
-        Assert.Contains("data-serie-auf", js);
-        Assert.Contains("Keine Buchungen für diesen Filter", js);
+        // Meine Buchungen als Tabelle wie in der Vorlage (Anzeige-Filter hinter dem Filtersymbol)
+        Assert.Contains("<th>Periodizität</th>", js);
+        Assert.Contains("'Ein Element gefunden.'", js);
     }
 
     [Fact]

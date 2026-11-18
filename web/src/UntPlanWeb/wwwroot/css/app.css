@@ -2058,3 +2058,14 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 }
 /* Leiste am aktiven Menüpunkt: abgerundete Enden */
 .u-leiste .u-nav-punkt.aktiv::before, .u-nav-punkt.aktiv::before { border-radius: 0 4px 4px 0; }
+
+/* Unterricht → Mein Unterricht (unterricht.js) wie in der Vorlage: Abwesenheiten und Knöpfe unter der Tabelle */
+.mu-tabelle th.mu-sortiert { color: var(--u-akzent); }
+.mu-tabelle tr.mu-geaendert td { background: #f4f8e6; }
+.mu-art { color: #3b6fb6; }
+.mu-abwesenheiten { margin-top: 18px; padding: 16px 20px; background: #fff; border-radius: 8px; box-shadow: var(--u-schatten); }
+.mu-abwesenheiten h3 { margin: 0 0 8px; font-size: .95rem; font-weight: 500; color: var(--u-akzent); }
+.mu-liste { margin: 0; padding-left: 18px; color: var(--u-titel); }
+.mu-fuss { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.nl-tabelle .mu-tabelle th, .nl-tabelle .mu-tabelle td { padding: 8px 7px; white-space: nowrap; font-size: .84rem; }
+.nl-tabelle .mu-tabelle .nl-icon { width: 26px; height: 26px; }

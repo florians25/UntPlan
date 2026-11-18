@@ -90,3 +90,24 @@
   .tm-kacheln { grid-template-columns: 1fr; }
 }
 .tm .rb-feld.breit { width: 440px; max-width: 100%; }
+
+/* Masken wie in der Vorlage (zweite Runde): Knöpfe links unter der Karte, zweispaltige Felder (links | rechts), „Von - Bis“ mit Kalendersymbol */
+.rb.tm .tm-fuss { justify-content: flex-start; }
+.tm-maske { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 300px); gap: 16px 48px; align-items: start; max-width: 660px; }
+.tm-maske .tm-l { grid-column: 1; }
+.tm-maske .tm-r { grid-column: 2; }
+.tm-maske .tm-voll { grid-column: 1 / -1; }
+.tm-maske .rb-feld { width: 100%; }
+.tm-maske .rb-feld.breit { width: 440px; max-width: 100%; }
+.tm-maske .tm-legende { margin: 0; }
+.tm-vonbis { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.tm-vonbis .rb-feld { width: 170px; }
+.tm-vonbis .nl-icon { margin-bottom: 6px; }
+.tm-vonbis .nl-icon.an { color: var(--u-akzent); }
+.tm-ohne-label > .pe-feld-label:empty { display: none; }
+.tm-dialog .kbd-fuss { justify-content: flex-start; }
+.tm-dialog .tm-maske { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 20px; }
+@media (max-width: 600px) {
+  .tm-maske { grid-template-columns: minmax(0, 1fr); }
+  .tm-maske .tm-r { grid-column: 1; }
+}

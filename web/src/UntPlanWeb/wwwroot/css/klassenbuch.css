@@ -389,7 +389,6 @@ button.kbu-kachel:hover { background: #fafbfc; }
 .kbl-datum .bi { margin-left: 8px; font-size: .72rem; color: #67747e; }
 .kbl-datum .kbl-trennstrich { margin: 0 7px; color: #ccd3d9; }
 .kbl-heute { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--s-orange-hell); color: #c2470f; font-size: .72rem; }
-.kbl-tagblock.ist-heute .kbl-datum { border-color: var(--s-orange); }
 
 /* Tabelle wie im Original: h | Fach | (Lehrkräfte) | Klassen | Lehrstoff | Abwesenheiten | Hausaufgaben */
 .kbl-tabelle { --kbl-spalten: minmax(34px, .55fr) minmax(60px, 1.5fr) minmax(110px, 1.5fr) minmax(70px, 1.5fr) minmax(120px, 1.5fr) minmax(180px, 1.9fr) minmax(110px, 1.4fr);
