@@ -202,8 +202,10 @@ public class PlanSymboleTests
     // ------------------------------------------------------------------ Zusatzstunde („+“)
 
     [Fact]
-    public void Sondereinsatz_anstelle_einer_Stunde_ist_keine_Zusatzstunde_nur_fuer_freie_Lehrkraefte()
+    public void Sondereinsatz_anstelle_einer_Stunde_ist_in_allen_Plaenen_Zusatzstunde()
     {
+        // Neue Regel: jede Stunde mit der Vertretungsart Sondereinsatz trägt „+“ – auch anstelle einer regulären Stunde und nach dem
+        // Zusammenfassen der Zeilen beider Lehrkräfte (je Lehrkraft eine Zeile). Die ersetzte reguläre Stunde selbst bekommt kein „+“.
         var d = Schule();
         var r = Normale(d, Do);
         var frei = d.Lehrer.First(l => !Tagesplan.Berechnen(d, Do).Stunde(r.Stunde).Any(e => e.Findetstatt && e.LehrerIds.Contains(l.Id)));
@@ -211,18 +213,23 @@ public class PlanSymboleTests
         var s = new Stand(Paket(d), "");
         var ix = new DatenIndex(d);
         Karte Einsatz(string typ, string el) => Assert.Single(Karten(s, typ, el, Do, r.Stunde), k => k.Unterricht is null && k.Status == "geaendert");
-        // Klasse, Lehrkraft der entfallenen Stunde und Raum: die reguläre Stunde entfällt dafür – Änderung, kein „+“
-        foreach (var (typ, el) in new[] { ("klasse", ix.K(ElementTyp.Klasse, r.KlassenIds[0])), ("lehrer", ix.KLehrer(r.LehrerId)), ("raum", ix.KRaum(r.RaumId)) })
+        var alle = new[] { ix.KLehrer(frei.Id), ix.KLehrer(r.LehrerId) }.OrderBy(x => x).ToList();
+        foreach (var (typ, el) in new[] { ("klasse", ix.K(ElementTyp.Klasse, r.KlassenIds[0])), ("lehrer", ix.KLehrer(r.LehrerId)), ("raum", ix.KRaum(r.RaumId)), ("lehrer", ix.KLehrer(frei.Id)) })
         {
             var k = Einsatz(typ, el);
-            Assert.DoesNotContain("plus", k.Marker);
-            Assert.Contains("aenderung", k.Marker);
-            Assert.False(k.Zusaetzlich);
+            Assert.True(k.Zusaetzlich, $"{typ} {el}");
+            Assert.Equal("plus", k.Marker[0]);
+            Assert.Equal("Sondereinsatz", k.Art);
+            Assert.Null(k.Verlegung);
+            // zusammengefasst: beide Lehrkräfte auf einer Karte
+            Assert.Equal(alle, k.Lehrer.Select(w => w.K).OrderBy(x => x).ToList());
+            // die ersetzte reguläre Stunde (entfallen bzw. abgegeben): kein „+“
+            foreach (var x in Karten(s, typ, el, Do, r.Stunde).Where(x => x.Status is "entfall" or "abwesend"))
+            {
+                Assert.DoesNotContain("plus", x.Marker);
+                Assert.False(x.Zusaetzlich);
+            }
         }
-        // freie Lehrkraft: echte Zusatzstunde
-        var z = Einsatz("lehrer", ix.KLehrer(frei.Id));
-        Assert.Equal("plus", z.Marker[0]);
-        Assert.True(z.Zusaetzlich);
     }
 
     [Fact]
@@ -246,9 +253,10 @@ public class PlanSymboleTests
     }
 
     [Fact]
-    public void Sondereinsatz_zu_einer_regulaeren_Stunde_in_der_Kopplung_ist_keine_Zusatzstunde()
+    public void Sondereinsatz_zu_einer_regulaeren_Stunde_in_der_Kopplung_ist_Zusatzstunde()
     {
-        // zweite Lehrkraft per Sondereinsatz in derselben Stunde (gleicher Unterricht, Fach und Raum): eine gemeinsame Karte, Änderung statt „+“
+        // zweite Lehrkraft per Sondereinsatz in derselben Stunde (gleicher Unterricht, Fach und Raum): eine gemeinsame Karte – mit
+        // Sondereinsatz trägt sie „+“ (Vertretungsart Sondereinsatz), auch nach dem Zusammenfassen mit der regulären Zeile
         var paket = Testserver.Beispielpaket();
         var tag = paket["tage"]!.AsArray().First(t => t!["datum"]!.GetValue<string>() == "2026-10-12")!;
         var stunden = tag["stunden"]!.AsArray();
@@ -270,9 +278,9 @@ public class PlanSymboleTests
         var k = Assert.Single(Karten(s, "klasse", kl, new DateOnly(2026, 10, 12), basis["stunde"]!.GetValue<int>()), x => x.Unterricht == basis["unterricht"]!.GetValue<int>());
         Assert.Contains(k.Lehrer, w => w.K == "ZZZ");
         Assert.Contains(k.Lehrer, w => w.K == basis["lehrer"]![0]!.GetValue<string>());
-        Assert.False(k.Zusaetzlich);
-        Assert.DoesNotContain("plus", k.Marker);
-        Assert.Contains("aenderung", k.Marker);
+        Assert.True(k.Zusaetzlich);
+        Assert.Equal("plus", k.Marker[0]);
+        Assert.Equal("Sondereinsatz", k.Art);
         Assert.Null(k.Verlegung);
     }
 

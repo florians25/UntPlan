@@ -374,7 +374,16 @@ enum Kachelbau {
 
     private static let zusatzArten = ["sondereinsatz", "zusatz", "verlegung", "statt", "mitbetreuung"]
 
+    /// Vertretungsart Sondereinsatz („Sondereinsatz“, „Sondereins.“) – nicht „Sondereins. zu Vormerkung“.
+    static func istSondereinsatz(_ art: String) -> Bool {
+        let a = art.trimmingCharacters(in: .whitespaces).lowercased()
+        return a.hasPrefix("sondereins") && !a.contains("vormerk")
+    }
+
     static func istZusatzstunde(_ k: Karte) -> Bool {
+        // Sondereinsatz: immer zusätzliche Unterrichtsstunde (auch anstelle einer regulären Stunde, auch ohne Fach) – nur nicht als
+        // Entfall bzw. abgegebene Stunde und nicht als Verlegung
+        if istSondereinsatz(k.art) { return k.status == "geaendert" && k.verlegung == nil }
         if k.zusaetzlich { return true }
         guard k.status == "geaendert", !k.fach.isEmpty else { return false }
         let a = k.art.lowercased()
@@ -466,7 +475,7 @@ enum Kachelbau {
         return (k, ichAbwesend)
     }
 
-    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal als hinzugekommener Wert (grünes Label ohne „+“) – auch ein als
+    /// Lehrkräfte einer Zusatzstunde: alle Beteiligten je einmal schlicht (ohne Plakette, ohne „+“ – wie im Original) – auch ein als
     /// ersetzt gemeldeter alter Wert; nie durchgestrichen, nie „alt | neu“. „---“ und „???“ zählen nicht.
     static func zusatzLehrer(_ lehrer: [Wert]) -> [Wert] {
         var namen: [String] = []
@@ -477,10 +486,11 @@ enum Kachelbau {
                 namen.append(t)
             }
         }
-        return namen.map { Wert(k: $0, alt: nil, neu: true, plus: true) }
+        return namen.map { Wert(k: $0) }
     }
 
-    /// Zusatzstunde: alle beteiligten Lehrkräfte mit grünem Label ohne „+“ (keine Durchstreichung, kein „alt | neu“) – nicht bei einer
+    /// Zusatzstunde (Sondereinsatz, zusätzlicher Unterricht, Fachänderung): alle beteiligten Lehrkräfte schlicht ohne Plakette (keine
+    /// Durchstreichung, kein „alt | neu“); nur ein geänderter Raum steht als grüne Plakette – nicht bei einer
     /// Veranstaltung und nicht bei einer Vertretung ohne bzw. noch ohne Lehrkraft (dort bleibt die bisherige durchgestrichen).
     static func zusatzNormalisiert(_ original: Karte) -> Karte {
         var k = original

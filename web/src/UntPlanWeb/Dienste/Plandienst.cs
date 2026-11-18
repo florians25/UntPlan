@@ -71,9 +71,9 @@ public sealed record Karte(
     public Verlegungszeit? VerlegungNach { get; init; }
 
     /// <summary>
-    /// Zusätzliche Stunde (Marker „+“): nur echte Zusatzstunden (zusätzlicher Unterricht, Sondereinsatz ohne reguläre Stunde zur selben Zeit,
-    /// siehe <see cref="Plandienst.ZusatzPruefen"/>) – nie bei Verlegungen, Veranstaltungen, Vertretungen im regulären Unterricht oder allein
-    /// wegen der Vertretungsart.
+    /// Zusätzliche Stunde (Marker „+“): echte Zusatzstunden (zusätzlicher Unterricht ohne reguläre Stunde zur selben Zeit, siehe
+    /// <see cref="Plandienst.ZusatzPruefen"/>) und jede Stunde mit der Vertretungsart Sondereinsatz (auch anstelle einer regulären Stunde) –
+    /// nie bei Verlegungen, Veranstaltungen, Vertretungen im regulären Unterricht, Entfall bzw. abgegebenen Stunden oder Sondereinsatz zu Vormerkung.
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore] public bool IstZusatz => Status == "geaendert" && Verlegung is null && Zusaetzlich;
 
@@ -119,6 +119,9 @@ public sealed record Karte(
     /// Vertretungsart einer Verlegung (Verlegung, Wegverlegung, „verlegt“). Nicht: „Statt-Vertretung“ (eine freigesetzte Lehrkraft vertritt –
     /// keine verlegte Stunde) und „Raumverlegung“ (Raumänderung).
     /// </summary>
+    /// <summary>Vertretungsart Sondereinsatz („Sondereinsatz“, „Sondereins.“) – nicht „Sondereins. zu Vormerkung“.</summary>
+    public static bool IstSondereinsatzArt(string? art) => !string.IsNullOrWhiteSpace(art) &&
+        art.TrimStart().StartsWith("Sondereins", StringComparison.OrdinalIgnoreCase) && !art.Contains("Vormerk", StringComparison.OrdinalIgnoreCase);
     public static bool IstVerlegungsArt(string? art) => !string.IsNullOrEmpty(art) &&
         art.Contains("verleg", StringComparison.OrdinalIgnoreCase) && !art.Contains("raum", StringComparison.OrdinalIgnoreCase);
     /// <summary>
@@ -769,7 +772,8 @@ public sealed class Plandienst
     /// Symbole bereinigen (letzter Schritt der Karten eines Elements):
     /// <list type="bullet">
     /// <item>Zusatzstunde („+“) nur, wenn das Element zur selben Zeit keine reguläre Stunde hat (auch nicht entfallen bzw. abgegeben): ein
-    ///   Sondereinsatz bzw. zusätzlicher Unterricht anstelle einer Stunde ist eine Änderung, keine zusätzliche Stunde.</item>
+    ///   zusätzlicher Unterricht anstelle einer Stunde ist eine Änderung, keine zusätzliche Stunde. Ausnahme Sondereinsatz: er trägt immer
+    ///   „+“ (auch anstelle einer Stunde) – nur nicht als Entfall bzw. abgegebene Stunde.</item>
     /// <item>Ohne Verlegung keine Angaben zu Ursprung und Ziel.</item>
     /// </list>
     /// </summary>
@@ -778,7 +782,9 @@ public sealed class Plandienst
         static bool Regulaer(Karte x) => x.Unterricht.HasValue && !x.Zusaetzlich && x.Verlegung != "nach" && x.Status is not ("vorgemerkt" or "veranstaltung" or "buchung");
         return karten.Select(k =>
         {
-            if (k.Zusaetzlich && karten.Any(x => !ReferenceEquals(x, k) && x.Datum == k.Datum && x.Von <= k.Bis && x.Bis >= k.Von && Regulaer(x)))
+            var sonder = Karte.IstSondereinsatzArt(k.Art);
+            if (k.Zusaetzlich && (sonder ? k.Status is "entfall" or "abwesend"
+                    : karten.Any(x => !ReferenceEquals(x, k) && x.Datum == k.Datum && x.Von <= k.Bis && x.Bis >= k.Von && Regulaer(x))))
                 k = k with { Zusaetzlich = false };
             if (k.Verlegung is null && (k.VerlegungVon != null || k.VerlegungNach != null)) k = k with { VerlegungVon = null, VerlegungNach = null };
             return k;
@@ -1247,9 +1253,10 @@ public sealed class Plandienst
             if (liste.Count == 1) { res.AddRange(liste); continue; }
             var f = liste[0];
             var texte = liste.Select(x => x.Text).Where(x => x.Length > 0).Distinct().ToList();
-            // zusätzlich nur, wenn alle Zeilen zusätzlich sind: ein Sondereinsatz zu einer regulären Stunde (z. B. zweite Lehrkraft) macht
-            // die gemeinsame Karte nicht zur Zusatzstunde – Art bevorzugt von den regulären Zeilen
-            var zusatz = liste.All(x => x.Zusaetzlich);
+            // zusätzlich, wenn alle Zeilen zusätzlich sind oder eine Zeile ein Sondereinsatz ist (z. B. zweite Lehrkraft zu einer
+            // regulären Stunde): dann gilt die Art des Sondereinsatzes; sonst Art bevorzugt von den regulären Zeilen
+            var sonder = liste.FirstOrDefault(x => x.Zusaetzlich && Karte.IstSondereinsatzArt(x.Art));
+            var zusatz = sonder is not null || liste.All(x => x.Zusaetzlich);
             res.Add(f with
             {
                 Zusaetzlich = zusatz,
@@ -1263,7 +1270,7 @@ public sealed class Plandienst
                 Klassen = Vereinigen(liste.SelectMany(x => x.Klassen)).OrderBy(w => w.K.Length > 0 ? w.K : w.Alt ?? "", StringComparer.OrdinalIgnoreCase).ToList(),
                 Lehrer = LehrerEinmal(Vereinigen(liste.SelectMany(x => x.Lehrer))),
                 Raeume = Vereinigen(liste.SelectMany(x => x.Raeume)),
-                Art = liste.Where(x => zusatz || !x.Zusaetzlich).Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
+                Art = sonder?.Art ?? liste.Where(x => zusatz || !x.Zusaetzlich).Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? liste.Select(x => x.Art).FirstOrDefault(x => x.Length > 0) ?? "",
                 Text = string.Join(" · ", texte),
                 Vertretung = liste.Select(x => x.Vertretung).FirstOrDefault(x => x.HasValue),
                 VertretungOffen = liste.Any(x => x.VertretungOffen),
@@ -1506,8 +1513,9 @@ public sealed class Plandienst
                 lehrer = eingeteilt.Distinct(Ci).Select(x => new Wert("", x)).ToList();
             }
         }
-        // zusätzlicher Unterricht ohne Lehrkraft: „---“
-        var zusatz = r.Status == "zusaetzlich" && status == "geaendert";
+        // zusätzlicher Unterricht ohne Lehrkraft: „---“; jede Stunde mit der Vertretungsart Sondereinsatz ist eine Zusatzstunde („+“),
+        // auch wenn sie einen Unterricht ändert (nicht: Sondereinsatz zu Vormerkung)
+        var zusatz = status == "geaendert" && (r.Status == "zusaetzlich" || Karte.IstSondereinsatzArt(art));
         if (zusatz && lehrer.Count == 0) lehrer.Add(new Wert(OhneLehrkraftZusatz));
         // Veranstaltung: nie ein Platzhalter („---“, „???“, „+++“) bzw. ein leerer Wert als Lehrkraft – ohne Lehrkräfte bleibt die Liste leer
         if (status == "veranstaltung")
@@ -1670,8 +1678,9 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Lehrkräfte einer zusätzlichen Unterrichtsstunde: alle Beteiligten (auch ein als „ersetzt“ gemeldeter alter Wert) je einmal als
-    /// hinzugekommener Wert ({ k, neu } → „+CS“) – nie durchgestrichen und nie „alt → neu“. Ohne Lehrkraft: „---“.
+    /// Lehrkräfte einer zusätzlichen Unterrichtsstunde (Zusatzunterricht, Sondereinsatz, Fachänderung): alle Beteiligten (auch ein als
+    /// „ersetzt“ gemeldeter alter Wert) je einmal schlicht – ohne Plakette und ohne „+“ wie in der Vorlage (die Karte trägt das „+“ oben
+    /// rechts); nie durchgestrichen und nie „alt → neu“. Nur eine Vertretung (siehe unten) bleibt als Label. Ohne Lehrkraft: „---“.
     /// </summary>
     public static List<Wert> ZusatzLehrer(IEnumerable<Wert> lehrer, bool vertretungBehalten = false)
     {
@@ -1692,7 +1701,7 @@ public sealed class Plandienst
             }
             foreach (var x in new[] { w.K, w.Alt ?? "" }.Select(x => x.Trim()))
                 if (x.Length > 0 && !Platzhalter(x) && !vertretungen.Any(v => Ci.Equals(v.Alt!.Trim(), x)) && !res.Any(r => Ci.Equals(r.K, x) && r.Alt is null))
-                    res.Add(new Wert(x, null, true));
+                    res.Add(new Wert(x));
         }
         return res.Count == 0 ? new List<Wert> { new(OhneLehrkraftZusatz) } : LehrerEinmal(res);
     }

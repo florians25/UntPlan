@@ -102,6 +102,10 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Sondereinsatz trägt im Stundenplan immer das „+“ (auch anstelle einer regulären Stunde, nicht bei Entfall, Verlegung oder Vormerkung); auf Zusatzkarten stehen die Lehrkräfte schlicht ohne „+“ wie in der Vorlage – auch in der App.
+- Modulseiten im neuen Design einheitlich: eine Filterleiste auf allen Listen- und Verwaltungsseiten (Klassenbuch, Unterricht, Abwesenheiten, Offene Stunden, Klassenbucheinträge, Hausaufgaben, Prüfungen, Berichte, Buchen, Sprechtag, Stammdaten) mit gleich hohen Feldern, Beschriftung über dem Feld, Zeitraum mit ‹ › und Kalender, Suche mit Lupe und Aktionsknöpfen rechts; Listen als weiße Karten mit Titel und Zähler, einheitliche Leerzustände.
+- „Offene Stunden pro Klasse“ entfällt – dieselben Stunden zeigt „Offene Stunden“ mit dem Filter Klasse; alte Links führen dorthin.
+- Neuigkeiten (Infocenter) um die Neuerungen der letzten Versionen für Web und App ergänzt.
 - Klassenleitung wie im Leitfaden: Abwesenheiten mit Kopf Klasse, Schüler*innen, Suche, Zeitraum, Abwesenheitsgrund, Status, Sortierung, Spalten Art, Benutzer, Schüler*innen, Klasse, Kl-Lehrkräfte, Von, Beginn, Bis, Ende, Grund, Status (mit Entschuldigungsnummer), Text und Knöpfen Neu, Löschen, Zusammenfassen, Entschuldigen, Berichte; Dialoge „Abwesenheit“ und „Entschuldigung für …“ in der Reihenfolge des Originals.
 - Klassendienste-Listenansicht (Klasse, Art, Zeitraum; Auswahl, Art, Dienst, Name, Klasse, Zeit, Text; „Nichts anzuzeigen“; Neu, Löschen, Berichte), Dialog mit „- Auswahl -“; Neue Befreiung mit „Schüler*innen (Klasse)“, Mehrfachauswahl, Zeitraum, „<Auswahl>“; Klassenbucheinträge mit Eintragskategorie/-gruppe und den Spalten des Originals.
 - Zeitraum überall mit Auswahl „Aktuelle Woche“, „Aktueller Monat“, „Bis Schuljahresende“, „Aktuelles Schuljahr“, „Datumsbereich“; Berichte mit Einstellungen direkt in der Zeile und Vorbelegung „Aktuelles Schuljahr“ und eigene Klasse; „… Elemente gefunden, Anzeige aller Elemente.“

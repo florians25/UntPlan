@@ -323,6 +323,13 @@ export function segmentSetzen(wurzel, wert) {
 /** Feld in einer Filterleiste: Beschriftung über dem Steuerelement. */
 export const filterFeld = (beschriftung, html) => `<label class="u-feld"><span>${e(beschriftung)}</span>${html}</label>`;
 
+/** Kopf einer Karte im neuen Design (modulseiten.css): Titel, Zähler (null = ohne) und rechts optionale Knöpfe. */
+export const karteKopf = (titel, zahl = null, rechts = '') =>
+  `<div class="u-karte-kopf"><h2>${e(titel)}</h2>${zahl === null || zahl === undefined ? '' : `<span class="u-zaehler">${e(String(zahl))}</span>`}${rechts ? `<div class="u-karte-rechts">${rechts}</div>` : ''}</div>`;
+
+/** Aktionsknöpfe rechts in der Filterleiste (modulseiten.css .u-fl-aktionen). */
+export const leistenAktionen = (html, klasse = '') => html ? `<div class="u-fl-aktionen ${klasse}">${html}</div>` : '';
+
 /** Bereich (Panel) mit Kopf. */
 export const panel = (titel, inhalt, { symbol = '', rechts = '', klasse = '' } = {}) =>
   `<section class="u-panel ${klasse}"><header>${symbol ? icon(symbol) : ''}<h2>${e(titel)}</h2>${rechts ? `<div class="ms-auto d-flex gap-2 align-items-center">${rechts}</div>` : ''}</header>${inhalt}</section>`;

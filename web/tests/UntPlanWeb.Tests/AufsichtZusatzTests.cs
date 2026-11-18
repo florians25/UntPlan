@@ -87,7 +87,7 @@ public class AufsichtZusatzTests
     }
 
     [Fact]
-    public async Task Zusatzstunde_zeigt_alle_Lehrkraefte_als_Plus_ohne_alt_neu()
+    public async Task Zusatzstunde_zeigt_alle_Lehrkraefte_schlicht_ohne_alt_neu()
     {
         var paket = Testserver.Beispielpaket();
         paket["revision"] = 291;
@@ -103,8 +103,9 @@ public class AufsichtZusatzTests
         var lehrer = k["lehrer"]!.AsArray().Select(w => w!).ToList();
         // vorher „KLE (statt BEC), LAN“ – jetzt jede beteiligte Lehrkraft genau einmal (die ersetzte gleich hinter ihrer Vertretung)
         Assert.Equal(new[] { "KLE", "BEC", "LAN" }, lehrer.Select(w => S(w["k"])));
-        Assert.All(lehrer, w => { Assert.Null(w["alt"]); Assert.True(w["neu"]!.GetValue<bool>()); Assert.True(w["plus"]!.GetValue<bool>()); });
-        // Marker nur „+“ – die „+“-Lehrkräfte sind keine Änderung eines Werts
+        // wie in der Vorlage schlicht (ohne Plakette, ohne „+“ – das „+“ trägt die Karte oben rechts)
+        Assert.All(lehrer, w => { Assert.Null(w["alt"]); Assert.False(w["neu"]!.GetValue<bool>()); Assert.False(w["plus"]!.GetValue<bool>()); });
+        // Marker nur „+“ – die Lehrkräfte einer Zusatzstunde sind keine Änderung eines Werts
         Assert.Equal(new[] { "plus" }, k["marker"]!.AsArray().Select(x => S(x)));
     }
 
@@ -114,11 +115,12 @@ public class AufsichtZusatzTests
         // CS nimmt teil UND vertritt SN: CS schlicht und als Vertretung (SN ist keine Teilnehmerin)
         var l = Plandienst.ZusatzLehrer(new[] { new Wert("CS"), new Wert("GA"), new Wert("CS", "SN", true), new Wert("---") });
         Assert.Equal(new[] { ("CS", (string?)null), ("GA", null), ("CS", "SN") }, l.Select(w => (w.K, w.Alt)));
-        Assert.All(l, w => Assert.True(w.Neu));
-        // Vertretung durch eine sonst nicht beteiligte Lehrkraft: wie bisher alle als „+“
+        // Teilnehmende schlicht (ohne „+“), die Vertretung bleibt Label
+        Assert.Equal(new[] { false, false, true }, l.Select(w => w.Neu));
+        // Vertretung durch eine sonst nicht beteiligte Lehrkraft: alle Beteiligten schlicht
         var m = Plandienst.ZusatzLehrer(new[] { new Wert("GA"), new Wert("KLE", "BEC", true) });
         Assert.Equal(new[] { "GA", "KLE", "BEC" }, m.Select(w => w.K));
-        Assert.All(m, w => Assert.True(w.Plus));
+        Assert.All(m, w => { Assert.False(w.Plus); Assert.False(w.Neu); Assert.Null(w.Alt); });
         Assert.Equal(new[] { Plandienst.OhneLehrkraftZusatz }, Plandienst.ZusatzLehrer(new[] { new Wert("---") }).Select(w => w.K));
     }
 

@@ -53,8 +53,9 @@ public class KlassenleitungMaskenTests
     public void Klassendienste_Listenansicht_und_Dialog()
     {
         var js = Datei("js", "ansichten", "dienste.js");
-        Reihenfolge(js, "function altListe()", "<span>Klasse</span>", "<span>Art</span>", "zeitbereichFeld(", "<th>Art</th>", "<th>Dienst</th>", "<th>Name</th>", "<th>Klasse</th>",
-            "<th>Zeit</th>", "<th>Text</th>", "Nichts anzuzeigen", ">Neu</button>", ">Löschen</button>", "Berichte <i");
+        // Knöpfe im neuen Design rechts in der Filterleiste (vor der Liste)
+        Reihenfolge(js, "function altListe()", "<span>Klasse</span>", "<span>Art</span>", "zeitbereichFeld(", "u-fl-aktionen", ">Neu</button>", ">Löschen</button>", "Berichte <i",
+            "<th>Art</th>", "<th>Dienst</th>", "<th>Name</th>", "<th>Klasse</th>", "<th>Zeit</th>", "<th>Text</th>", "Nichts anzuzeigen");
         Reihenfolge(js, "async function einteilenDialog", "<span>Dienst</span>", "- Auswahl -", "<span>Von</span>", "<span>Bis</span>", "<span>Anmerkung</span>", "text: 'Speichern'", "text: 'Schließen'");
         Assert.DoesNotContain("data-woche=\"0\">diese Woche", js);
     }

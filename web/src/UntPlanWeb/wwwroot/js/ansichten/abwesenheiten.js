@@ -139,6 +139,14 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
       <label class="sg-feld"><span>Abwesenheitsgrund</span><select class="form-select" data-grund><option value="">- Alle -</option>${gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></label>
       <label class="sg-feld"><span>Status</span><select class="form-select" data-status><option value="">- Alle -</option>${[['offen', '[offen]'], ['entschuldigt', 'entschuldigt'], ['unentschuldigt', 'nicht entschuldigt']].map(([k, t]) => `<option value="${k}" ${k === status ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <label class="sg-feld"><span>Sortierung</span><select class="form-select" data-sortierung>${Object.entries(SORTIERUNGEN).map(([k, t]) => `<option value="${k}" ${k === sortierung ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <div class="u-fl-aktionen kl-knoepfe">
+        ${verwalten ? `<button type="button" class="nl-knopf" data-neu>Neu</button><button type="button" class="nl-knopf" data-sammel-loeschen>Löschen</button>
+          <button type="button" class="nl-knopf" data-zusammen>Zusammenfassen</button><button type="button" class="nl-knopf" data-setzen="entschuldigt">Entschuldigen</button>` : ''}
+        <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
+          <div class="kl-menue-liste"><a href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Abwesenheiten</a>
+            <a href="#/berichte/fehlzeiten_schueler/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Fehlzeiten pro Schüler*in</a>
+            <button type="button" data-csv>CSV-Export</button></div></details>
+      </div>
     </div>
     <div class="nl-tabelle abw-tabelle">${liste.length ? `<table><thead><tr>${verwalten ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th><th></th>' : ''}
         <th>Art</th><th>Benutzer</th><th>Schüler*innen</th><th>Klasse</th><th>Kl-Lehrkräfte</th><th>Von</th><th>Beginn</th><th>Bis</th><th>Ende</th><th>Grund</th><th>Status</th><th>Text</th></tr></thead><tbody>
@@ -152,15 +160,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
         <td class="nl-text">${e(z.bemerkung)}${detailSymbole(z) ? `<div class="nl-chips mt-1">${detailSymbole(z)}</div>` : ''}</td></tr>`).join('')}
       </tbody></table>
       <div class="sg-fuss"><span>${liste.length === 1 ? 'Ein Element gefunden.' : `${liste.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>`
-      : '<div class="kl-nichts">Nichts anzuzeigen</div>'}</div>
-    <div class="kl-knoepfe">
-      ${verwalten ? `<button type="button" class="nl-knopf" data-neu>Neu</button><button type="button" class="nl-knopf" data-sammel-loeschen>Löschen</button>
-        <button type="button" class="nl-knopf" data-zusammen>Zusammenfassen</button><button type="button" class="nl-knopf" data-setzen="entschuldigt">Entschuldigen</button>` : ''}
-      <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
-        <div class="kl-menue-liste"><a href="#/berichte/abwesenheiten/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Abwesenheiten</a>
-          <a href="#/berichte/fehlzeiten_schueler/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Fehlzeiten pro Schüler*in</a>
-          <button type="button" data-csv>CSV-Export</button></div></details>
-    </div>`;
+      : leer('Nichts anzuzeigen')}</div>`;
   const f = n => inhalt.querySelector(`[data-${n}]`)?.value ?? '';
   suchfeldMitFilterBinden(inhalt, {
     beiSuche: t => { t = t.toLowerCase(); inhalt.querySelectorAll('.nl-tabelle tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); }); },

@@ -11,7 +11,7 @@ namespace UntPlanWeb.Tests;
 /// <summary>
 /// Leitfaden Klassenleitung, Kapitel 2–7: Schülergruppen (Zuordnung, Gruppenwechsel mit Zuordnungshistorie, neue Gruppe), Schüler-Gruppen-
 /// Zuordnung (Matrix), Klassendienst „Klassensprecher*in Stv.“, Bilder (einzeln, ZIP-Bildimport, Profil), Kennwort-Blatt, „Kennwort vergessen“,
-/// Selbstregistrierung der Eltern und Betriebe, Kontaktdaten sowie die Oberfläche (Menü, Dialoge, Offene Stunden pro Klasse).
+/// Selbstregistrierung der Eltern und Betriebe, Kontaktdaten sowie die Oberfläche (Menü, Dialoge).
 /// </summary>
 public class KlassenleitungTests
 {
@@ -316,15 +316,15 @@ public class KlassenleitungTests
         var app = Datei("js", "app.js");
         Assert.Contains("text: 'Schülergruppen'", app);
         Assert.Contains("text: 'Kontaktdaten'", app);
-        Assert.Contains("text: 'Offene Stunden pro Klasse'", app);
+        // „Offene Stunden pro Klasse“ entfällt: alte Adressen führen zu „Offene Stunden“
+        Assert.DoesNotContain("offenklasse.js", app);
+        Assert.Contains("history.replaceState(null, '', '#/offen')", app);
+        Assert.Throws<FileNotFoundException>(() => Datei("js", "ansichten", "offenklasse.js"));
         Assert.Contains("Registrieren (Eltern und Betriebe)", app);
         Assert.Contains("kennwortVergessen(anmeldeRahmen, anmeldung)", app);
         var sg = Datei("js", "ansichten", "schuelergruppen.js");
         foreach (var t in new[] { "Schüler-Gruppen-Zuordnung", "Auswahlkriterien", "Zuordnungshistorie", "Zugeordnet", "Schülerzahl", "gefunden", "Zurück", "Auswahl umkehren", "Zwischenablage", "Familienname", "Kurzname", "Externe Id" })
             Assert.Contains(t, sg);
-        var ok = Datei("js", "ansichten", "offenklasse.js");
-        foreach (var t in new[] { "Unerledigte Unterrichtsstunden in der Klasse", "Offene Stunden: ", "Unterrichtsstunden: ", "Nachricht senden", "Erinnerung an vergessene Eintragungen im Klassenbuch der", "Eintragung" })
-            Assert.Contains(t, ok);
         var sb = Datei("js", "ansichten", "stammschueler.js");
         foreach (var t in new[] { "Bild hochladen", "Bildimport", "Import", "Kennwort-Blatt" }) Assert.Contains(t, sb);
         var kd = Datei("js", "ansichten", "dienste.js");

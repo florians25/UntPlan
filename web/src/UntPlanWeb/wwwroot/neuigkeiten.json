@@ -1,5 +1,60 @@
 [
   {
+    "datum": "2026-11-18",
+    "titel": "Einheitliche Filter und Karten auf allen Seiten",
+    "punkte": [
+      "Klassenbuch, Mein Unterricht, Abwesenheiten, Offene Stunden, Hausaufgaben, Prüfungen, Berichte, Buchen und Sprechtag haben oben dieselbe Filterleiste: gleich hohe Felder, Datum mit Pfeilen und Kalender, Suche mit Lupe, Aktionsknöpfe rechts.",
+      "Listen stehen in ruhigen weißen Karten mit Titel und Anzahl; leere Listen sehen überall gleich aus.",
+      "„Offene Stunden pro Klasse“ entfällt – Klassenleitungen finden dieselben Stunden unter „Offene Stunden“ mit dem Filter Klasse. Alte Links führen automatisch dorthin."
+    ]
+  },
+  {
+    "datum": "2026-11-18",
+    "titel": "Klassenleitung: Abwesenheiten, Gruppen und Kontaktdaten",
+    "punkte": [
+      "Abwesenheiten mit Suche, Zeitraum, Grund und Status; „Zusammenfassen“ fasst zusammenhängende Abwesenheiten zu einer zusammen, „Entschuldigen“ direkt in der Liste.",
+      "Entschuldigungsstatus wie gewohnt (offen, Entschuldigt, Nicht entschuldigt, Mahnstufen …) – nur „Entschuldigt“ zählt als entschuldigt.",
+      "Neue Abwesenheitsgründe (z. B. Zug/Bus verspätet, schulische Veranstaltung); nicht zählende Gründe erscheinen nicht in den Fehlzeiten.",
+      "Schülergruppen und Schüler-Gruppen-Zuordnung, auch mit Gruppenwechsel im laufenden Schuljahr.",
+      "Kontaktdaten der Schüler*innen und Erziehungsberechtigten, Schülerbilder hochladen, Kennwort-Blatt für Schülerkonten, „Passwort vergessen?“ und Selbstregistrierung für Eltern und Betriebe.",
+      "Klassenbucheinträge mit Kategorien wie Erzieherische Maßnahme oder Trainingsraum und PDF-Bericht je Schüler*in."
+    ]
+  },
+  {
+    "datum": "2026-11-18",
+    "titel": "Berichte, Zeitraum und Buchen",
+    "punkte": [
+      "Zeitraum überall gleich wählbar: Aktuelle Woche, Aktueller Monat, Bis Schuljahresende, Aktuelles Schuljahr oder eigener Datumsbereich.",
+      "Berichte mit Einstellungen direkt in der Zeile, z. B. Fehlzeiten pro Klasse für das Zeugnis, Fehlzeiten pro Unterricht mit 75-%-Regel und Klassenbuch als PDF zum Schuljahresende.",
+      "Raum buchen: freie Räume suchen (einmalig oder regelmäßig), Terminsuche für mehrere Lehrkräfte, Klassen und Räume, zusätzliche Stunden zu eigenem Unterricht.",
+      "Meine Buchungen mit Status, Bearbeiten und Stornieren; Räume, die nur reserviert werden dürfen, bestätigt die Raumverwaltung.",
+      "Raumsperren durch die Administration, z. B. für einzelne Räume oder alle Ressourcen."
+    ]
+  },
+  {
+    "datum": "2026-11-18",
+    "titel": "Stundenplan, Stundendetails und Sprechtag",
+    "punkte": [
+      "Stundenplanformate: festlegen, was auf den Stundenkärtchen steht; die Wahl gilt sofort.",
+      "Lehrstoff direkt auf der Seite eingeben, Notizen und Link zum Online-Unterricht in den Stundendetails.",
+      "Entfall sauber durchgestrichen; findet die Stunde statt, bleibt nur die abwesende Lehrkraft durchgestrichen.",
+      "Sprechtag: Eltern wählen Termine im Raster je Kind und Lehrkraft; Lehrkräfte laden mit „Erwünscht“ oder „Verpflichtend“ ein.",
+      "Nach einem Update lädt die Seite beim nächsten Seitenwechsel automatisch neu."
+    ]
+  },
+  {
+    "datum": "2026-11-18",
+    "titel": "Neu in der App",
+    "punkte": [
+      "Stundenplan mit zwei Fingern zoomen; der Lehrerplan beginnt etwas früher, damit die Frühaufsicht Platz hat.",
+      "Meine Termine und Meine Abwesenheiten mit Filter, Suche und Karten nach Datum.",
+      "Klassenleitung: Abwesenheiten der eigenen Klasse nach Offen, Unentschuldigt und Entschuldigt; mehrere Abwesenheiten einer Person lassen sich bündeln.",
+      "Schülerliste: nach links wischen setzt abwesend, ein zweites Mal verspätet.",
+      "Sprechtag in der App: Termine buchen, annehmen oder absagen.",
+      "Stunden lassen sich immer antippen; Stunden von heute und morgen öffnen sofort."
+    ]
+  },
+  {
     "datum": "2026-10-16",
     "titel": "Offene Vertretungen, Koppelklassen und gleiche Schrift überall",
     "punkte": [

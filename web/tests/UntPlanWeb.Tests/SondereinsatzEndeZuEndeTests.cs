@@ -100,6 +100,9 @@ public class SondereinsatzEndeZuEndeTests
                     var karten = (await KartenAsync(s, l, Donnerstag, st)).Where(k => k["unterricht"] is null).ToList();
                     var k = Assert.Single(karten);
                     Assert.Equal(alle, Lehrkraefte(k));
+                    // Sondereinsatz: immer „+“ (auch anstelle einer regulären Stunde, ohne Fach, zusammengefasst)
+                    Assert.True(k["zusaetzlich"]!.GetValue<bool>());
+                    Assert.Equal("plus", k["marker"]![0]!.GetValue<string>());
                     Assert.Equal(stunde, k["von"]!.GetValue<int>());
                     Assert.Equal(stunde + dauer - 1, k["bis"]!.GetValue<int>());
                     // Klassenplan: ebenfalls eine Karte mit allen Lehrkräften
@@ -110,6 +113,8 @@ public class SondereinsatzEndeZuEndeTests
                         var kk = Assert.Single(plan["karten"]!.AsArray().Select(x => x!), x => x["datum"]!.GetValue<string>() == $"{Donnerstag:yyyy-MM-dd}"
                             && x["von"]!.GetValue<int>() <= st && x["bis"]!.GetValue<int>() >= st && x["unterricht"] is null);
                         Assert.Equal(alle, Lehrkraefte(kk));
+                        Assert.True(kk["zusaetzlich"]!.GetValue<bool>());
+                        Assert.Equal("plus", kk["marker"]![0]!.GetValue<string>());
                     }
                 }
             }
