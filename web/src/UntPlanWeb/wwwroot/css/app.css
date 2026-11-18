@@ -595,7 +595,7 @@ button.u-statuspille:hover { border-color: var(--u-grau); color: var(--u-titel);
 .std .z1 { font-size: 14px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #414d55; }
 .std .z2 { font-size: 12px; font-weight: 600; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #414d55; }
 .std .z3 { font-size: 11.5px; line-height: 15px; color: var(--u-grau); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.std .lbl { display: inline-block; padding: 0 3px; background: var(--u-gruen-label); color: #fff; font-weight: 600; line-height: 15px; font-size: 12px; border-radius: 1px; }
+.std .lbl { display: inline-block; padding: 0 3px; background: var(--u-gruen-label); color: #fff; font-weight: 500; line-height: 16px; font-size: 12px; border-radius: 1px; }
 .z1 .lbl { font-size: 14px; line-height: 18px; }
 .std .lbl.offen { background: var(--u-rot); }
 .std .lbl.weg { text-decoration: line-through; text-decoration-thickness: 1px; }
