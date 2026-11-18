@@ -1045,6 +1045,9 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 /* Kopfzeile des Plans: weißer „Heute“-Knopf (54.png), Elementwahl- und Datums-Pille (57.png) */
 .heute-pill { background: #fff; color: var(--u-titel); box-shadow: 0 1px 3px rgba(0, 5, 10, .1), 0 2px 8px rgba(0, 5, 10, .05); padding: 0 32px; }
 .heute-pill:hover { background: #fff; color: var(--u-titel); box-shadow: 0 0 0 1.5px var(--u-grau-3); }
+/* aktuelle Woche bzw. heutiger Tag: „Heute“ dunkelgrau mit weißer Schrift (Vorlage) */
+.heute-pill.aktuell, .heute-pill.aktuell:hover { background: var(--u-dunkel); color: #fff; box-shadow: none; }
+.heute-pill.aktuell:hover { background: var(--u-dunkel-2); }
 .planleiste .zeitraum { border: 0; background: none; padding: 4px 6px; border-radius: 999px; }
 .planleiste .zeitraum.pille { border: 1.5px solid var(--u-grau-2); background: #fff; padding: 3px 14px; height: 32px; }
 .planleiste .zeitraum.pille:hover { border-color: var(--u-text); }

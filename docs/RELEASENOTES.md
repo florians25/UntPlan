@@ -102,6 +102,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Stundenplan und Tagesplan: „Heute“ ist in der aktuellen Woche bzw. am heutigen Tag dunkelgrau mit weißer Schrift, sonst weiß.
 - Sondereinsatz trägt im Stundenplan immer das „+“ (auch anstelle einer regulären Stunde, nicht bei Entfall, Verlegung oder Vormerkung); auf Zusatzkarten stehen die Lehrkräfte schlicht ohne „+“ wie in der Vorlage – auch in der App.
 - Modulseiten im neuen Design einheitlich: eine Filterleiste auf allen Listen- und Verwaltungsseiten (Klassenbuch, Unterricht, Abwesenheiten, Offene Stunden, Klassenbucheinträge, Hausaufgaben, Prüfungen, Berichte, Buchen, Sprechtag, Stammdaten) mit gleich hohen Feldern, Beschriftung über dem Feld, Zeitraum mit ‹ › und Kalender, Suche mit Lupe und Aktionsknöpfen rechts; Listen als weiße Karten mit Titel und Zähler, einheitliche Leerzustände.
 - „Offene Stunden pro Klasse“ entfällt – dieselben Stunden zeigt „Offene Stunden“ mit dem Filter Klasse; alte Links führen dorthin.

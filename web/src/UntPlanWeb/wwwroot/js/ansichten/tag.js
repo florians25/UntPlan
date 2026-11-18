@@ -22,7 +22,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
         <span class="position-relative"><button type="button" class="zeitraum" data-datum title="Datum wählen" aria-haspopup="dialog">${e(datumLang(datum))}</button></span>
         <button type="button" class="rundknopf" data-tage="1" title="Nächster Tag" aria-label="Nächster Tag">${icon('rechts')}</button>
       </div>
-      <div class="rechts"><button type="button" class="rundknopf" data-drucken title="Drucken" aria-label="Drucken">${icon('drucken')}</button><button type="button" class="heute-pill" data-tage="0">Heute</button></div>
+      <div class="rechts"><button type="button" class="rundknopf" data-drucken title="Drucken" aria-label="Drucken">${icon('drucken')}</button><button type="button" class="heute-pill${datum === heuteIso() ? ' aktuell' : ''}" data-tage="0">Heute</button></div>
     </div>
     <div data-inhalt>${lade()}</div>`;
   seite.querySelector('[data-drucken]').onclick = () => window.print();
