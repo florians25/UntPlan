@@ -820,7 +820,8 @@ struct MeineTermineView: View {
                 }
             }
         } label: {
-            Glasknopf(breite: 32) {
+            // Ein Menü bekommt in der Leiste 8 pt mehr Rand als ein Knopf: 24 pt Inhalt → Kreis 44 pt wie die Lupe
+            Glasknopf(breite: 24) {
                 // Vorlage 33da91d4: Trichter (Umriss, 64 × 64 px) in #8997a4; gewählter Filter gefüllt
                 Trichter(gefuellt: !art.isEmpty)
                     .foregroundStyle(Color(hexWert: 0x8997A4))
