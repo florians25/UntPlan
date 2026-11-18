@@ -2,6 +2,7 @@
 // Klick auf einen Eintrag öffnet den Detaildialog (gemeinsame kbDialog-Komponente) mit allen Angaben und – je nach Recht – Bearbeiten/Löschen.
 import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, herunterladen } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
+import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
 const FARBE = { Lob: 'gruen', 'Ordnungsmaßnahme': 'rot', 'Elterngespräch': 'orange', 'Hausaufgabe fehlt': 'gelb', 'Material vergessen': 'gelb' };
 /** Verfasser*in: Kürzel mit vollem Namen der Lehrkraft (sonst der gespeicherte Name, z. B. „Administration“). */
@@ -21,8 +22,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
   const schueler = klasse && schuelerParam && schuelerParam !== '-' ? schuelerParam : '';
   const gruppe = KATEGORIEGRUPPEN[gruppeParam] ? gruppeParam : '';
   // „Bericht“: PDF der Einträge (z. B. einer Schülerin bzw. eines Schülers mit Kategorie „Trainingsraum“) zur Dokumentation oder Beratung
-  kontext.titel('Klassenbucheinträge', `<button class="btn btn-outline-secondary" data-bericht ${klasse ? '' : 'disabled title="Bitte eine Klasse wählen"'}><i class="bi bi-file-earmark-pdf"></i>Bericht</button>
-    <button class="btn btn-primary" data-neu>${icon('plus')}Neuer Eintrag</button>`);
+  kontext.titel('Klassenbucheinträge');
   const ziel = (v, b, k, a, sc = '', g = '') => `#/eintraege/${v}/${b}/${encodeURIComponent(k || '-')}/${encodeURIComponent(a || '-')}${sc || g ? `/${sc || '-'}/${encodeURIComponent(g || '-')}` : ''}`;
   const q = `von=${von}&bis=${bis}${klasse ? `&klasse=${encodeURIComponent(klasse)}` : ''}${art ? `&art=${encodeURIComponent(art)}` : ''}`;
   const [daten, kinder] = await Promise.all([holen(`/api/app/klassenbucheintraege?${q}`),
@@ -30,29 +30,46 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
   // Schüler*in und Kategoriegruppe filtern die geladenen Einträge
   daten.eintraege = daten.eintraege.filter(x => (!schueler || String(x.schuelerId) === schueler) && (!gruppe || KATEGORIEGRUPPEN[gruppe].includes(x.art)));
   const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? ` · ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
+  // wie im Original: Klasse | Schüler*innen | Eintragskategorie | Eintragskategoriegruppe | Zeitraum; Tabelle Auswahl | Stift/X | Art | Name | Klasse |
+  // Tag | Datum | Zeit | Fach | Benutzer | Eintragskategorie | Kategoriegruppe | Text; darunter Neu | Löschen | Bericht | Berichte
+  const sj = kontext.sitzung?.schuljahr ?? kontext.schuljahr ?? {};
+  const gruppeVon = a => Object.keys(KATEGORIEGRUPPEN).find(g => KATEGORIEGRUPPEN[g].includes(a)) ?? '';
+  const WT = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
+  const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
+  const darf = daten.eintraege.some(x => x.loeschen);
   seite.innerHTML = `
-    <div class="u-sf-leiste u-kopfteil">
-      ${suchfeldMitFilter({ platzhalter: 'Schüler*in, Text oder Lehrkraft suchen', label: 'Einträge durchsuchen', filter: [
-        { name: 'klasse', label: 'Klasse', alle: 'Alle Klassen', wert: klasse, optionen: el.klassen.map(k => [k.kurz, k.kurz]) },
-        ...(klasse ? [{ name: 'schueler', label: 'Schüler*innen', alle: 'Alle Schüler*innen', wert: schueler, optionen: kinder.map(k => [String(k.id), `${k.name} ${k.vorname}`]) }] : []),
-        { name: 'art', label: 'Art', alle: 'Alle Arten', wert: art, optionen: daten.arten.map(a => [a, a]) },
-        { name: 'gruppe', label: 'Kategoriegruppe', alle: 'Alle Kategoriegruppen', wert: gruppe, optionen: Object.keys(KATEGORIEGRUPPEN).map(g => [g, g]) },
-      ] })}
-      ${zeitraumPillen(von, bis)}
+    <div class="nl-leiste sg-leiste u-kopfteil ke-leiste">
+      <label class="sg-feld"><span>Klasse</span><select class="form-select" data-klasse><option value="">- Alle -</option>${el.klassen.map(k => `<option ${k.kurz === klasse ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></label>
+      <label class="sg-feld"><span>Schüler*innen</span><select class="form-select" data-schueler ${klasse ? '' : 'disabled'}><option value="">- Alle -</option>${kinder.map(k => `<option value="${k.id}" ${String(k.id) === schueler ? 'selected' : ''}>${e(k.name)} ${e(k.vorname)}</option>`).join('')}</select></label>
+      <label class="sg-feld"><span>Eintragskategorie</span><select class="form-select" data-art><option value="">- Alle -</option>${daten.arten.map(a => `<option ${a === art ? 'selected' : ''}>${e(a)}</option>`).join('')}</select></label>
+      <label class="sg-feld"><span>Eintragskategoriegruppe</span><select class="form-select" data-gruppe><option value="">- Alle -</option>${Object.keys(KATEGORIEGRUPPEN).map(g => `<option ${g === gruppe ? 'selected' : ''}>${e(g)}</option>`).join('')}</select></label>
+      ${zeitbereichFeld(von, bis, sj)}
+      <span class="sg-feld"><span>Suche</span>${suchfeldMitFilter({ platzhalter: 'Suchen', label: 'Einträge durchsuchen', klasse: 'abw-suche' })}</span>
     </div>
-    <div class="card">${daten.eintraege.length ? `<div class="table-responsive"><table class="table table-hover table-card align-middle u-karten-tabelle ke-tabelle"><thead><tr><th>Datum</th><th>Klasse</th><th>Schüler*in</th><th>Art</th><th>Text</th><th>Lehrkraft</th><th><span class="visually-hidden">Aktionen</span></th></tr></thead><tbody>
+    <div class="nl-tabelle ke-liste">${daten.eintraege.length ? `<table><thead><tr>${darf ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th>' : ''}<th></th>
+        <th>Art</th><th>Name</th><th>Klasse</th><th>Tag</th><th>Datum</th><th>Zeit</th><th>Fach</th><th>Benutzer</th><th>Eintragskategorie</th><th>Kategoriegruppe</th><th>Text</th></tr></thead><tbody>
       ${daten.eintraege.map((x, i) => `<tr data-eintrag="${i}" tabindex="0" role="button" aria-label="${e(`Eintrag vom ${datumKurz(x.datum)}${x.datum.slice(0, 4)}, ${x.art}, Klasse ${x.klasse} – Details öffnen`)}">
-        <td class="text-nowrap" data-label="Datum">${e(datumKurz(x.datum))}${x.datum.slice(0, 4)}${stundeText(x) ? `<div class="ke-stunde">${e(stundeText(x))}</div>` : ''}</td>
-        <td class="fw-semibold" data-label="Klasse">${e(x.klasse)}</td><td data-label="Schüler*in">${e(x.schueler || 'ganze Klasse')}</td>
-        <td data-label="Art"><span class="u-chip ${FARBE[x.art] ?? ''}">${e(x.art)}</span></td><td data-label="Text"><div class="ke-text" title="${e(x.text)}">${e(x.text)}</div></td><td class="text-body-secondary" data-label="Lehrkraft">${e(x.lehrer)}</td>
-        <td class="text-end ke-aktion">${x.loeschen ? `<button class="btn btn-sm btn-link text-danger p-0" data-weg="${x.id}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}<i class="bi bi-chevron-right ke-pfeil" aria-hidden="true"></i></td></tr>`).join('')}
-      </tbody></table></div>` : leer('Keine Klassenbucheinträge im Zeitraum.', 'eintraege')}</div>`;
+        ${darf ? `<td class="nl-wahl">${x.loeschen ? `<input type="checkbox" class="nl-rund" data-wahl="${x.id}" aria-label="auswählen">` : ''}</td>` : ''}
+        <td class="kl-zelle-icons">${x.bearbeiten ? `<button type="button" class="nl-icon sichtbar" data-stift="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>` : ''}${x.loeschen ? `<button type="button" class="nl-icon sichtbar rot" data-weg="${x.id}" title="Löschen" aria-label="Löschen"><i class="bi bi-x-lg"></i></button>` : ''}</td>
+        <td><i class="bi bi-${x.schuelerId ? 'person' : 'people'} nl-unter" title="${x.schuelerId ? 'Schüler*in' : 'Klasse'}"></i></td>
+        <td class="text-nowrap">${e(x.schueler || '')}</td><td>${e(x.klasse)}</td><td>${WT[new Date(`${x.datum}T12:00`).getDay()]}</td><td class="text-nowrap">${datumDe(x.datum)}</td>
+        <td>${e(x.zeit || '')}</td><td>${e(x.fach || '')}</td><td>${e(x.lehrer)}</td><td>${e(x.art)}</td><td>${e(gruppeVon(x.art))}</td>
+        <td><div class="ke-text" title="${e(x.text)}">${e(x.text)}</div></td></tr>`).join('')}
+      </tbody></table>
+      <div class="sg-fuss"><span>${daten.eintraege.length === 1 ? 'Ein Element gefunden.' : `${daten.eintraege.length} Elemente gefunden, Anzeige aller Elemente.`}</span></div>` : '<div class="kl-nichts">Nichts anzuzeigen</div>'}</div>
+    <div class="kl-knoepfe">
+      <button type="button" class="nl-knopf" data-neu>Neu</button>
+      ${darf ? '<button type="button" class="nl-knopf" data-sammel-loeschen>Löschen</button>' : ''}
+      <button type="button" class="nl-knopf" data-bericht ${klasse ? '' : 'disabled title="Bitte eine Klasse wählen"'}>Bericht</button>
+      <details class="kl-menue"><summary class="nl-knopf">Berichte <i class="bi bi-caret-down-fill"></i></summary>
+        <div class="kl-menue-liste"><a href="#/berichte/klassenbucheintraege/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Klasse</a>
+          <a href="#/berichte/klassenbucheintraege_schueler/${encodeURIComponent(klasse || '-')}/${von}/${bis}">Klassenbucheinträge pro Schüler*in</a></div></details>
+    </div>`;
   const f = n => seite.querySelector(`[data-${n}]`)?.value ?? '';
-  const sf = suchfeldMitFilterBinden(seite, {
-    beiSuche: t => zeilenFiltern(seite.querySelectorAll('tr[data-eintrag]'), t),
-    beiFilter: () => filterNeu(),
-  });
-  const filterNeu = () => { const k = sf.wert('klasse'); kontext.navigieren(ziel(f('von') || von, f('bis') || bis, k, sf.wert('art'), k === klasse ? (sf.wert('schueler') || '') : '', sf.wert('gruppe'))); };
+  suchfeldMitFilterBinden(seite, { beiSuche: t => zeilenFiltern(seite.querySelectorAll('tr[data-eintrag]'), t) });
+  const filterNeu = (v = f('von') || von, b = f('bis') || bis) => { const k = f('klasse'); kontext.navigieren(ziel(v, b, k, f('art'), k === klasse ? (f('schueler') || '') : '', f('gruppe'))); };
+  ['klasse', 'schueler', 'art', 'gruppe'].forEach(n => { seite.querySelector(`[data-${n}]`).onchange = () => filterNeu(); });
+  zeitbereichBinden(seite, sj, filterNeu);
   document.querySelector('[data-bericht]')?.addEventListener('click', async ev => {
     const knopf = ev.currentTarget;
     const kat = art || (gruppe ? `gruppe:${gruppe}` : '');
@@ -64,7 +81,6 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
       herunterladen(`klassenbucheintraege-${klasse}${schueler ? `-${schueler}` : ''}-${von}-${bis}.pdf`, await r.blob());
     } catch (err) { toast(err.message, true); } finally { knopf.disabled = false; }
   });
-  seite.querySelectorAll('[data-von], [data-bis]').forEach(x => x.onchange = filterNeu);
   // nach dem Speichern: liegt der Eintrag außerhalb von Zeitraum bzw. Filter (z. B. Datum in der Zukunft, andere Klasse oder Art),
   // Zeitraum erweitern bzw. Filter lösen – sonst wäre der gespeicherte Eintrag in der Liste nicht zu sehen
   const neu = v => {
@@ -78,9 +94,19 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
     try { await api(`/api/app/klassenbuch/vermerke/${id}`, { methode: 'DELETE' }); toast('Eintrag gelöscht.'); neu(); return true; } catch (err) { toast(err.message, true); return false; }
   };
   seite.querySelectorAll('[data-weg]').forEach(b => b.onclick = ev => { ev.stopPropagation(); loeschen(b.dataset.weg); });
+  seite.querySelectorAll('[data-wahl]').forEach(c => c.onclick = ev => ev.stopPropagation());
+  seite.querySelector('[data-alle]')?.addEventListener('change', ev => seite.querySelectorAll('[data-wahl]').forEach(c => { c.checked = ev.target.checked; }));
+  seite.querySelectorAll('[data-stift]').forEach(b => b.onclick = ev => { ev.stopPropagation(); eintragDialog(el, daten.eintraege[Number(b.dataset.stift)], daten.arten, neu); });
+  seite.querySelector('[data-sammel-loeschen]')?.addEventListener('click', async () => {
+    const ids = [...seite.querySelectorAll('[data-wahl]:checked')].map(c => c.dataset.wahl);
+    if (!ids.length) { toast('Bitte zuerst Einträge auswählen.', true); return; }
+    if (!await bestaetigen('Einträge löschen', `${ids.length === 1 ? 'Den ausgewählten Eintrag' : `${ids.length} Einträge`} endgültig löschen?`)) return;
+    try { for (const id of ids) await api(`/api/app/klassenbuch/vermerke/${id}`, { methode: 'DELETE' }); toast('Gelöscht.'); } catch (err) { toast(err.message, true); }
+    neu();
+  });
   seite.querySelectorAll('tr[data-eintrag]').forEach(tr => {
     const oeffnen = () => detail(daten.eintraege[Number(tr.dataset.eintrag)], { el, arten: daten.arten, loeschen, fertig: neu, stundeText });
-    tr.onclick = ev => { if (!ev.target.closest('[data-weg]')) oeffnen(); };
+    tr.onclick = ev => { if (!ev.target.closest('[data-weg], [data-stift], [data-wahl]')) oeffnen(); };
     tr.onkeydown = ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === tr) { ev.preventDefault(); oeffnen(); } };
   });
   // neuer Eintrag: gefilterte Klasse, sonst die eigene Klasse (Klassenleitung), sonst die erste

@@ -431,7 +431,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
   if (suchModus) sucheBinden();
   if (!basis) {
     seite.innerHTML = `<div class="kbl-leerseite"><span class="kbl-leer-symbol"><i class="bi bi-search"></i></span>
-      <p>${kriterien.length ? 'Nur ein Fach genügt nicht – bitte zusätzlich eine Klasse oder Lehrkraft angeben.' : 'Benutzen Sie die Suche, um das Ergebnis mit zumindest einer Lehrkraft und/oder Klasse einzuschränken.'}</p></div>`;
+      <p>${kriterien.length ? 'Nur ein Fach genügt nicht – bitte zusätzlich eine Klasse oder Lehrkraft angeben.' : 'Benutzen Sie die Suche, um das Ergebnis mit zumindest einem Lehrer und/oder Klasse einzuschränken.'}</p></div>`;
     filterBinden(() => {});
     return;
   }
@@ -474,7 +474,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
       const kwNeu = kw !== letzteKw; letzteKw = kw;
       return `<section class="kbl-tagblock ${t.datum === heute ? 'ist-heute' : ''}" data-datum="${t.datum}">
         <div class="kbl-trenner"><span class="kbl-links"><span class="kbl-kw">${kwNeu ? `KW ${kw}` : ''}</span><span class="kbl-linie"></span></span>
-          <button type="button" class="kbl-datum" data-datumwahl="${t.datum}" aria-haspopup="menu" aria-expanded="false">${e(wtVon(t.datum))}<span class="kbl-trennstrich">|</span>${e(tagText(t.datum))}${t.datum === heute ? ' <span class="kbl-heute">Heute</span>' : ''}<i class="bi bi-chevron-down"></i></button>
+          <button type="button" class="kbl-datum" data-datumwahl="${t.datum}" aria-haspopup="menu" aria-expanded="false">${e(wtVon(t.datum))}<span class="kbl-trennstrich">|</span>${e(tagText(t.datum))}<i class="bi bi-chevron-down"></i></button>
           <span class="kbl-linie"></span></div>
         <div class="kbl-tabelle ${mitLehrer ? '' : 'ohne-lehrer'}" role="table" aria-label="${e(`${wtVon(t.datum)}, ${tagText(t.datum)}`)}">
           <div class="kbl-kopfzeile" role="row"><span role="columnheader">h</span><span role="columnheader">Fach</span>${mitLehrer ? '<span role="columnheader">Lehrkräfte</span>' : ''}<span role="columnheader">Klassen</span>

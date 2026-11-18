@@ -1,5 +1,6 @@
-// Unterricht → Mein Unterricht im neuen Listendesign: Suche, Filterpillen (Aktivitätsart, Zeitraum), Tabelle mit Klasse,
-// Schülergruppe, Fach, Lehrkraft, Wochenstunden und Schnellzugriffen auf Klassenbuch, Termine, Lehrstoff, Fehlzeiten, Schülergruppe und Berichte.
+// Unterricht → Mein Unterricht im neuen Listendesign, Aufbau wie in der Vorlage: Filter (Aktivitätsart, Zeitraum von/bis, Aktuelle Woche),
+// Tabelle (Bearbeiten | Art | Aktivitätsart | Klasse | Schülergruppe | Fach | Lehrkraft | Wst | Von | Bis | Termine | zusätzliche Stunden |
+// Schüler | Schülergruppen | Berichte), darunter „Abwesenheiten“ und die Knöpfe „Abwesenheit melden“, „Bericht“, „Neuer Unterricht“.
 // Unterricht → Klasse zeigt dieselbe Liste für eine gewählte Klasse.
 import { e, holen, leer, herunterladen, heuteIso, plusTage, montag } from '../ui.js';
 import { elementWahl } from '../elementwahl.js';
@@ -29,20 +30,25 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   const ziel = (a = art, x = element, b = bereich, v = von, bi = bis, ak = aktivitaet) => `#/unterricht/${a}/${encodeURIComponent(x || '-')}/${b}/${v}/${bi}/${encodeURIComponent(ak || '-')}`;
   const titel = art === 'lehrer' ? `${element === ich.element ? 'Mein Unterricht' : 'Unterricht'} ${element}` : `Unterricht ${element}`;
   // Unterricht | Mein Unterricht | Neuer Unterricht (Buchungsmodul): Unterricht anlegen und zusätzliche Stunden verplanen
-  kontext.titel(titel, ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht/neu"><i class="bi bi-plus-lg"></i>Neuer Unterricht</a>' : '');
+  kontext.titel(titel);
+  const eigenerPlan = art === 'lehrer' && !!ich.element && element === ich.element;
   const pille = (inhalt, aktiv = false) => `<label class="nl-pille ${aktiv ? 'aktiv' : ''}">${inhalt}</label>`;
   seite.innerHTML = `
     <div class="nl-leiste">
-      <label class="nl-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-suche placeholder="Suchen" aria-label="Unterricht suchen"></label>
       ${art === 'klasse' ? '<span data-wahl></span>' : ''}
       ${pille(`<select data-akt aria-label="Aktivitätsart"><option value="">Aktivitätsart</option>${['Unterricht', 'Vertretung', 'Prüfung'].map(a => `<option ${a === aktivitaet ? 'selected' : ''}>${a}</option>`).join('')}</select>`, !!aktivitaet)}
-      ${pille(`<span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}">`)}
-      ${pille(`<span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${bis}">`)}
+      ${pille(`<span class="me-1 text-body-secondary">Zeitraum</span><input type="date" data-von value="${von}" aria-label="Zeitraum von">`)}
+      ${pille(`<input type="date" data-bis value="${bis}" aria-label="Zeitraum bis">`)}
       ${pille(`<select data-bereich aria-label="Zeitraum">${Object.entries(BEREICHE).map(([k, [t]]) => `<option value="${k}" ${k === bereich && !vonParam ? 'selected' : ''}>${t}</option>`).join('')}${vonParam ? '<option selected>Benutzerdefiniert</option>' : ''}</select>`)}
-      <span class="ms-auto d-flex gap-2"><button type="button" class="nl-knopf" data-bericht><i class="bi bi-filetype-csv"></i>Bericht</button></span>
       <button type="button" class="d-none" data-filtern></button>
     </div>
-    <div class="nl-tabelle" data-inhalt></div>`;
+    <div class="nl-tabelle" data-inhalt></div>
+    ${eigenerPlan ? '<section class="mu-abwesenheiten"><h3>Abwesenheiten</h3><div data-abwesenheiten class="nl-unter">Nichts anzuzeigen</div></section>' : ''}
+    <div class="mu-fuss">
+      ${eigenerPlan ? '<a class="nl-knopf" href="#/melden/abwesenheit">Abwesenheit melden</a>' : ''}
+      <button type="button" class="nl-knopf" data-bericht>Bericht</button>
+      ${ich.kollegium ? '<a class="nl-knopf" href="#/buchen/unterricht/neu">Neuer Unterricht</a>' : ''}
+    </div>`;
   const wahl = seite.querySelector('[data-wahl]');
   if (wahl) wahl.replaceWith(elementWahl({ eintraege: el.klassen, wert: element, platzhalter: 'Klasse wählen', beiWahl: x => kontext.navigieren(ziel(art, x)) }));
   const f = n => seite.querySelector(`[data-${n}]`).value;
@@ -64,36 +70,42 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   const geaendert = new Set((stunden?.zeilen ?? []).filter(z => z.status !== 'regulaer').map(z => z.unterricht));
   const zeilen = liste.map(u => ({ ...u, aktivitaet: geaendert.has(u.id) ? 'Vertretung' : 'Unterricht' })).filter(u => !aktivitaet || u.aktivitaet === aktivitaet || (aktivitaet === 'Prüfung' && /klausur|prüfung/i.test(u.text)));
   const knopf = (href, icon, titel) => `<a class="nl-icon sichtbar" href="${href}" title="${titel}" aria-label="${titel}"><i class="bi bi-${icon}"></i></a>`;
-  inhalt.innerHTML = zeilen.length || neue.length ? `<table><thead><tr><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th><th class="text-end">Wst</th><th>Zeitraum</th><th>Aktivität</th><th></th></tr></thead><tbody>
-    ${zeilen.map(u => { const k = u.klassen[0] ?? ''; return `<tr data-name="${e([u.klassen.join(' '), u.kurs, u.fach, u.lehrer.join(' ')].join(' ').toLowerCase())}">
-      <td><div class="nl-name">${e(u.klassen.join(', ') || '–')}</div></td>
-      <td class="nl-unter">${e(u.kurs || (k ? `SG_${u.klassen.join('_')}` : ''))}</td>
-      <td><span class="nl-tag">${e(u.fach)}</span></td><td>${e(u.lehrer.join(', '))}</td>
+  const sg = u => u.kurs || (u.klassen[0] ? `SG_${u.klassen.join('_')}` : '');
+  inhalt.innerHTML = zeilen.length || neue.length ? `<table class="mu-tabelle"><thead><tr><th></th><th>Art</th><th>Aktivitätsart</th><th>Klasse</th><th>Schülergruppe</th><th>Fach</th><th>Lehrkraft</th>
+      <th class="text-end">Wst</th><th class="mu-sortiert">Von</th><th class="mu-sortiert">Bis</th><th>Termine</th><th></th><th>Schüler</th><th>Schülergruppen</th><th>Berichte</th></tr></thead><tbody>
+    ${zeilen.map(u => { const k = u.klassen[0] ?? ''; return `<tr class="${u.aktivitaet === 'Vertretung' ? 'mu-geaendert' : ''}">
+      <td>${knopf(`#/klassenbuch/${encodeURIComponent(k)}/verlauf`, 'pencil', 'Bearbeiten (Lehrstoff)')}</td>
+      <td><i class="bi bi-easel mu-art" title="Unterricht" aria-label="Unterricht"></i></td>
+      <td>${e(u.aktivitaet)}</td>
+      <td>${e(u.klassen.join(', '))}</td>
+      <td class="nl-unter">${e(sg(u))}</td>
+      <td>${e(u.fach)}</td><td>${e(u.lehrer.join(', '))}</td>
       <td class="text-end">${u.wochenstunden}</td>
-      <td class="text-nowrap nl-unter">${datumDe(sj?.von)} – ${datumDe(sj?.bis)}</td>
-      <td>${u.aktivitaet === 'Vertretung' ? '<span class="nl-chip lila">Vertretung</span>' : '<span class="nl-chip grau">Unterricht</span>'}</td>
-      <td class="text-end text-nowrap nl-aktionen">
-        ${knopf(`#/klassenbuch/${encodeURIComponent(k ? `k:${k}` : '-')}/uebersicht/${heuteIso()}/-`, 'journal-text', 'Klassenbuch')}
-        ${knopf(`#/plan/klasse/${encodeURIComponent(k)}/${von}`, 'calendar3-week', e(u.termine.join(', ') || 'Termine im Stundenplan'))}
-        ${knopf(`#/klassenbuch/${encodeURIComponent(k)}/verlauf`, 'card-text', 'Lehrstoff')}
-        ${knopf(`#/klassenbuch/${encodeURIComponent(k)}/fehlzeiten`, 'person-x', 'Schüler*innen und Fehlzeiten')}
-        <button type="button" class="nl-icon sichtbar" data-schuelergruppen="${u.id}" title="${e(`Schüler*innen in der Schülergruppe ${u.kurs || (k ? `SG_${u.klassen.join('_')}` : '')}`)}" aria-label="Schülergruppen"><i class="bi bi-people"></i></button>
-        ${knopf(`#/unterricht/berichte/${u.id}/${von}/${bis}/${encodeURIComponent(k || '-')}`, 'file-earmark-bar-graph', 'Berichte zum Unterricht')}
-        ${ich.kollegium ? knopf(`#/buchen/zusatz/u${u.id}`, 'calendar-plus', 'Zusätzliche Stunden') : ''}</td></tr>`; }).join('')}
-    ${neue.map(u => `<tr data-name="${e([u.klassen.join(' '), u.gruppe, u.fach, u.lehrer].join(' ').toLowerCase())}">
-      <td><div class="nl-name">${e(u.klassen.join(', ') || '–')}</div></td><td class="nl-unter">${e(u.gruppe)}</td><td><span class="nl-tag">${e(u.fach)}</span></td><td>${e(u.lehrer)}</td>
-      <td class="text-end">${u.wochenstunden}</td><td class="text-nowrap nl-unter">${datumDe(u.zusatz?.von || sj?.von)} – ${datumDe(u.zusatz?.bis || sj?.bis)}</td>
-      <td><span class="nl-chip gelb">Neuer Unterricht</span></td>
-      <td class="text-end text-nowrap nl-aktionen">${knopf(`#/buchen/zusatz/e${u.id}`, 'calendar-plus', 'Zusätzliche Stunden')}</td></tr>`).join('')}
+      <td class="text-nowrap">${datumDe(sj?.von)}</td><td class="text-nowrap">${datumDe(sj?.bis)}</td>
+      <td class="text-nowrap">${knopf(`#/plan/klasse/${encodeURIComponent(k)}/${von}`, 'calendar3-week', e(u.termine.join(', ') || 'Termine im Stundenplan'))}
+        ${knopf(`#/klassenbuch/${encodeURIComponent(k ? `k:${k}` : '-')}/uebersicht/${heuteIso()}/-`, 'journal-text', 'Klassenbuch')}</td>
+      <td class="text-nowrap">${ich.kollegium ? knopf(`#/buchen/zusatz/u${u.id}`, 'calendar-plus', 'Zusätzliche Stunden') : ''}</td>
+      <td>${knopf(`#/klassenbuch/${encodeURIComponent(k)}/fehlzeiten`, 'person', 'Schüler*innen und Fehlzeiten')}</td>
+      <td><button type="button" class="nl-icon sichtbar" data-schuelergruppen="${u.id}" title="${e(`Schüler*innen in der Schülergruppe ${sg(u)}`)}" aria-label="Schülergruppen"><i class="bi bi-people"></i></button></td>
+      <td>${knopf(`#/unterricht/berichte/${u.id}/${von}/${bis}/${encodeURIComponent(k || '-')}`, 'file-earmark-bar-graph', 'Berichte zum Unterricht')}</td></tr>`; }).join('')}
+    ${neue.map(u => `<tr class="mu-neu">
+      <td>${knopf(`#/buchen/zusatz/e${u.id}`, 'pencil', 'Bearbeiten (zusätzliche Stunden)')}</td>
+      <td><i class="bi bi-easel mu-art" title="Neuer Unterricht" aria-label="Neuer Unterricht"></i></td>
+      <td>${e(u.zusatz?.aktivitaetsart || 'Unterricht')}</td>
+      <td>${e(u.klassen.join(', '))}</td><td class="nl-unter">${e(u.gruppe)}</td><td>${e(u.fach)}</td><td>${e(u.lehrer)}</td>
+      <td class="text-end">${u.wochenstunden}</td><td class="text-nowrap">${datumDe(u.zusatz?.von || sj?.von)}</td><td class="text-nowrap">${datumDe(u.zusatz?.bis || sj?.bis)}</td>
+      <td></td><td class="text-nowrap">${knopf(`#/buchen/zusatz/e${u.id}`, 'calendar-plus', 'Zusätzliche Stunden')}</td><td></td><td></td><td></td></tr>`).join('')}
     </tbody></table>` : `<div class="p-3">${leer('Keine Unterrichte gefunden.', 'meineunterrichte')}</div>`;
+  // Abwesenheiten der Lehrkraft im Zeitraum (eigene Abwesenheitsmeldungen); sonst „Nichts anzuzeigen“ wie in der Vorlage
+  if (eigenerPlan) holen('/api/app/meldungen').then(m => {
+    const a = m.filter(x => x.typ === 'absenz' && x.von <= bis && (x.bis ?? x.von) >= von);
+    const ziel = seite.querySelector('[data-abwesenheiten]');
+    if (ziel && a.length) ziel.innerHTML = `<ul class="mu-liste">${a.map(x => `<li>${e(datumDe(x.von))}${x.bis && x.bis !== x.von ? ` – ${e(datumDe(x.bis))}` : ''}${x.stundeVon ? `, ${x.stundeVon}.${x.stundeBis && x.stundeBis !== x.stundeVon ? `–${x.stundeBis}.` : ''} Std.` : ''} · ${e(x.grund ?? '')}${x.text ? ` · ${e(x.text)}` : ''}</li>`).join('')}</ul>`;
+  }).catch(() => {});
   // Schülergruppen des Unterrichts (Leitfaden Klassenleitung, Weg 1): Zuordnung der Schüler*innen (schuelergruppen.js)
   inhalt.querySelectorAll('[data-schuelergruppen]').forEach(b => b.onclick = async () => {
     try { (await import('./schuelergruppen.js')).zuordnungDialog(Number(b.dataset.schuelergruppen)); } catch (err) { kontext.fehler(err); }
   });
-  seite.querySelector('[data-suche]').oninput = ev => {
-    const t = ev.target.value.trim().toLowerCase();
-    inhalt.querySelectorAll('tbody tr').forEach(tr => { tr.hidden = t.length > 0 && !tr.dataset.name.includes(t); });
-  };
   seite.querySelector('[data-bericht]').onclick = () => herunterladen(`unterricht-${element}-${von}-${bis}.csv`,
     ['Aktivitätsart;Klassen;Schülergruppe;Fach;Lehrkraft;Wochenstunden;Termine;Räume', ...zeilen.map(u => [u.aktivitaet, u.klassen.join(', '), u.kurs, u.fach, u.lehrer.join(', '), u.wochenstunden, u.termine.join(', '), u.raeume.join(', ')]
       .map(x => `"${String(x ?? '').replace(/"/g, '""')}"`).join(';'))].join('\r\n'));

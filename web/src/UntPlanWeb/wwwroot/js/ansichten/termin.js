@@ -13,7 +13,8 @@ import { kbDialog } from '../kbdialog.js';
 import { cssLaden } from './kbeinstellungen.js';
 
 /** Eigene Stile (einmal je Seite). */
-function stileLaden() {
+function stileLaden(kontext = null) {
+  maskenKontext = kontext;
   cssLaden();
   if (document.querySelector('link[data-termin-css]')) return;
   const l = document.createElement('link');
@@ -24,11 +25,20 @@ function stileLaden() {
 }
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
+/** „2026-11-18 16:19“ → „18.11.2026 16:19“ */
+const zeitstempel = t => { const [d, z] = String(t ?? '').split(' '); return d ? `${datumDe(d)}${z ? ` ${z}` : ''}` : ''; };
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+/** Kurzdatum wie in der Vorlage: „16.2.“ */
+const tagPunkt = iso => `${Number(iso.slice(8, 10))}.${Number(iso.slice(5, 7))}.`;
 const tagIndex = iso => (new Date(iso + 'T12:00').getDay() + 6) % 7;
 const haken = (attr, text, an, typ = 'checkbox', name = '') => `<label class="pe-haken"><input type="${typ}" ${name ? `name="${name}"` : ''} ${attr} ${an ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span><span>${text}</span></label>`;
 const pfeld = (label, html, klasse = '') => `<label class="pe-feld rb-feld ${klasse}"><span class="pe-feld-label">${e(label)}</span>${html}</label>`;
-const rahmen = (titel, inhalt, fuss) => `<div class="rb tm"><h2 class="rb-titel">${e(titel)}</h2><section class="rb-karte">${inhalt}</section>${fuss ? `<div class="rb-fuss">${fuss}</div>` : ''}</div>`;
+/** Kontext der aktuellen Maske: der Titel der Maske steht wie in der Vorlage einmal oben (Seitenkopf), ohne zusätzliche Kopfknöpfe. */
+let maskenKontext = null;
+const rahmen = (titel, inhalt, fuss) => { maskenKontext?.titel(titel); return `<div class="rb tm"><section class="rb-karte">${inhalt}</section>${fuss ? `<div class="rb-fuss tm-fuss">${fuss}</div>` : ''}</div>`; };
+/** Zweispaltige Maske wie in der Vorlage: [links, rechts] je Zeile (rechts optional), Text = Zeile über die ganze Breite. */
+const maske = (zeilen, attr = '') => `<div class="tm-maske" ${attr}>${zeilen.filter(Boolean).map(z => Array.isArray(z)
+  ? `<div class="tm-l">${z[0] ?? ''}</div>${z[1] ? `<div class="tm-r">${z[1]}</div>` : ''}` : `<div class="tm-voll">${z}</div>`).join('')}</div>`;
 const auswahl = (liste, wert, leerText = '<Auswahl>') => `<option value="">${e(leerText)}</option>${liste.map(x => {
   const [w, t, z] = Array.isArray(x) ? x : [x, x];
   return `<option value="${e(w)}" ${String(w) === String(wert ?? '') ? 'selected' : ''} ${z ? `data-zweit="${e(z)}"` : ''}>${e(t)}</option>`;
@@ -43,24 +53,28 @@ async function pdfLaden(id) {
   herunterladen(`buchung-${id}.pdf`, await r.blob(), 'application/pdf');
 }
 
-/** Formularteil „Zusatzangaben“ (Neue Aktivität, Veranstaltung, Buchung bearbeiten). */
-function zusatzFelder(z, el, opt, { menge = true, teilnehmer = true } = {}) {
-  return `
-    ${pfeld('Abteilung', `<select class="form-select" data-zu="abteilung">${auswahl(opt.abteilungen ?? [], z.abteilung)}</select>`)}
-    ${menge ? pfeld('Menge', `<input type="number" min="0" class="form-control" data-zu="menge" value="${z.menge ?? 0}">`) : ''}
-    ${pfeld('Verantwortlicher', `<select class="form-select" data-zu="verantwortlich">${auswahl(el.lehrer.map(l => [l.kurz, l.name ? `${l.kurz} (${l.name})` : l.kurz]), z.verantwortlich)}</select>`)}
-    ${pfeld('Art', `<select class="form-select" data-zu="aktivitaetsart">${auswahl(AKTIVITAETSARTEN, z.aktivitaetsart)}</select>`)}
-    ${teilnehmer ? pfeld('Teilnehmer', `<input type="number" min="0" class="form-control" data-zu="teilnehmer" value="${z.teilnehmer ?? 0}">`) : ''}
-    ${teilnehmer ? pfeld('Kostenstelle', `<input class="form-control" maxlength="100" data-zu="kostenstelle" value="${e(z.kostenstelle ?? '')}">`) : ''}`;
+/** Felder „Zusatzangaben“ (Neue Aktivität, Veranstaltung, Buchung bearbeiten, Neuer Unterricht) – einzeln, die Maske ordnet sie wie in der Vorlage an. */
+function zusatzFelder(z, el, opt) {
+  return {
+    abteilung: pfeld('Abteilung', `<select class="form-select" data-zu="abteilung">${auswahl(opt.abteilungen ?? [], z.abteilung)}</select>`),
+    menge: pfeld('Menge', `<input type="number" min="0" class="form-control" data-zu="menge" value="${z.menge ?? 0}">`),
+    verantwortlich: pfeld('Verantwortlicher', `<select class="form-select" data-zu="verantwortlich">${auswahl(el.lehrer.map(l => [l.kurz, l.name ? `${l.kurz} (${l.name})` : l.kurz]), z.verantwortlich)}</select>`),
+    art: pfeld('Art', `<select class="form-select" data-zu="aktivitaetsart">${auswahl(AKTIVITAETSARTEN, z.aktivitaetsart)}</select>`),
+    teilnehmer: pfeld('Teilnehmer', `<input type="number" min="0" class="form-control" data-zu="teilnehmer" value="${z.teilnehmer ?? 0}">`),
+    kostenstelle: pfeld('Kostenstelle', `<input class="form-control" maxlength="100" data-zu="kostenstelle" value="${e(z.kostenstelle ?? '')}">`),
+  };
 }
 const zusatzBinden = (wurzel, z) => wurzel.querySelectorAll('[data-zu]').forEach(f => f.addEventListener(f.tagName === 'SELECT' || f.type === 'checkbox' ? 'change' : 'input', () => {
   const n = f.dataset.zu;
   z[n] = f.type === 'checkbox' ? f.checked : f.type === 'number' ? Number(f.value) || 0 : f.value;
 }));
-const textFelder = z => `
-    ${pfeld('Bemerkung (für alle Benutzer sichtbar)', `<input class="form-control" maxlength="1000" data-zu="bemerkung" value="${e(z.bemerkung ?? '')}">`, 'breit')}
-    ${pfeld('Anmerkung (dieses Feld wird in zukünftigen Versionen entfernt)', `<input class="form-control" maxlength="1000" data-zu="anmerkung" value="${e(z.anmerkung ?? '')}">`, 'breit')}
-    ${pfeld('E-Mail Adresse', `<input type="email" class="form-control" maxlength="200" data-zu="email" value="${e(z.email ?? '')}">`, 'breit')}`;
+/** Bemerkung, Anmerkung, E-Mail Adresse – je eine Zeile wie in der Vorlage. */
+const textFelder = z => [
+  pfeld('Bemerkung (für alle Benutzer sichtbar)', `<input class="form-control" maxlength="1000" data-zu="bemerkung" value="${e(z.bemerkung ?? '')}">`, 'breit'),
+  pfeld('Anmerkung (dieses Feld wird in zukünftigen Versionen entfernt)', `<input class="form-control" maxlength="1000" data-zu="anmerkung" value="${e(z.anmerkung ?? '')}">`, 'breit'),
+  pfeld('E-Mail Adresse', `<input type="email" class="form-control" maxlength="200" data-zu="email" value="${e(z.email ?? '')}">`, 'breit')];
+/** „Von - Bis“ wie in der Vorlage: zwei Datumsfelder unter einer Beschriftung, daneben das Kalendersymbol (Periodizität). */
+const vonBis = (von, bis, periode = '') => `<div class="tm-vonbis">${pfeld('Von - Bis', von)}${pfeld('', bis, 'tm-ohne-label')}${periode}</div>`;
 const zusatzDaten = z => ({ abteilung: z.abteilung || '', verantwortlich: z.verantwortlich || '', aktivitaetsart: z.aktivitaetsart || '', teilnehmer: Number(z.teilnehmer) || 0,
   kostenstelle: z.kostenstelle || '', menge: Number(z.menge) || 0, email: z.email || '', emailBenachrichtigung: !!z.emailBenachrichtigung, anmerkung: z.anmerkung || '' });
 
@@ -72,7 +86,7 @@ const LEGENDE = `<div class="tm-legende"><span><i class="tm-farbe konflikt"></i>
 // ------------------------------------------------------------------ Raum- / Ressourcenliste
 
 export async function raumliste(seite, kontext) {
-  stileLaden();
+  stileLaden(kontext);
   const opt = await holen('/api/app/buchen/optionen');
   kontext.titel('Raum- / Ressourcenliste', '<a class="nl-knopf" href="#/buchen/ressourcen"><i class="bi bi-box-seam"></i>Ressourcenübersicht</a>');
   const raeume = opt.raeume;
@@ -109,7 +123,7 @@ export async function raumliste(seite, kontext) {
 // ------------------------------------------------------------------ Raumwechsel (bestehende Stunde in einen anderen Raum)
 
 export async function raumwechsel(seite, kontext, [datumParam]) {
-  stileLaden();
+  stileLaden(kontext);
   const ich = kontext.ich;
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   kontext.titel('Raumwechsel');
@@ -133,19 +147,19 @@ export async function raumwechsel(seite, kontext, [datumParam]) {
 // ------------------------------------------------------------------ Neue Aktivität (zuerst der Termin, dann die Beteiligten)
 
 export async function neueAktivitaet(seite, kontext) {
-  stileLaden();
+  stileLaden(kontext);
   const [opt, el] = await Promise.all([holen('/api/app/buchen/optionen'), kontext.elemente()]);
   const raster = opt.zeitraster.filter(z => z.nr > 0 && z.beginn && z.ende);
   const heute = heuteIso();
-  kontext.titel('Neue Aktivität', '<a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>');
+  kontext.titel('Neue Aktivität');
   if (opt.buchungenGesperrt && !opt.admin) { seite.innerHTML = rahmen('Neue Aktivität', '<p class="rb-leer">Buchungen sind derzeit gesperrt.</p>'); return; }
   const start = opt.naechsterTag && opt.naechsterTag > heute ? opt.naechsterTag : heute;
   const z = { datum: start, bis: start, wiederholung: 'woechentlich', stundeVon: raster[0]?.nr ?? 1, stundeBis: raster[0]?.nr ?? 1 };
   const d = { lehrer: opt.ich || '', klassen: [], raeume: [], fach: '', benachrichtigen: false, sofort: true,
-    zu: { verantwortlich: opt.ich || '', aktivitaetsart: 'Aktivität', menge: 0, teilnehmer: 0, emailBenachrichtigung: true } };
+    zu: { verantwortlich: opt.ich || '', aktivitaetsart: 'Unterricht', menge: 0, teilnehmer: 0, emailBenachrichtigung: true } };
   const buchbar = opt.raeume.filter(r => r.buchbar);
   const reserv = new Set(opt.raeume.filter(r => r.nurReservieren).map(r => r.kurz));
-  let schritt = 'zeit', gespeichert = null, konflikt = new Set(), belegt = new Set();
+  let schritt = 'zeit', gespeichert = null, konflikt = new Set(), belegt = new Set(), periode = false;
   const zeitText = () => {
     const a = raster.find(r => r.nr === z.stundeVon), b = raster.find(r => r.nr === z.stundeBis);
     return `${datumDe(z.datum)}${z.bis > z.datum ? ` – ${datumDe(z.bis)}` : ''}, ${a?.beginn ?? ''} – ${b?.ende ?? ''}`;
@@ -214,30 +228,34 @@ export async function neueAktivitaet(seite, kontext) {
   }
 
   function buchenZeichnen() {
+    // Maske wie in der Vorlage: Lehrkraft | Klasse, Räume, Legende, Fach, Von - Bis, Abteilung, Menge | Verantwortlicher, Art,
+    // Teilnehmer | Kostenstelle, Bemerkung, Anmerkung, E-Mail Adresse, Benachrichtigungen → Speichern, Zurück
+    const f = zusatzFelder(d.zu, el, opt);
     seite.innerHTML = rahmen('Neue Aktivität', `
-      <div class="rb-kriterienzeile"><span>Zeitbereich</span><b>${e(zeitText())}</b></div>
       <h3 class="rb-abschnitt">Buchen</h3>
-      <div class="rb-formular" data-auswahl>
-        <div class="tm-spalte">${pfeld('Lehrkraft', `<select class="form-select tm-lehrer" data-d="lehrer" data-lehrer-anzeige>${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'keine')}</select>`)}</div>
-        <div class="tm-spalte">${pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie">${el.klassen.map(x => `<option value="${e(x.kurz)}" ${d.klassen.includes(x.kurz) ? 'selected' : ''}>${e(x.kurz)}</option>`).join('')}</select>`)}
-          <div data-klassen-chips></div></div>
-        <div class="tm-spalte">${pfeld('Räume', `<select multiple class="form-select" data-d="raeume" data-platzhalter="Bitte wählen Sie">${buchbar.map(r => `<option value="${e(r.kurz)}" ${d.raeume.includes(r.kurz) ? 'selected' : ''} data-zweit="${e(r.name)}">${e(r.kurz)}</option>`).join('')}</select>`)}
-          <div data-raeume-chips></div></div>
-        ${LEGENDE}
-        ${pfeld('Fach', `<select class="form-select" data-d="fach">${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), d.fach)}</select>`)}
-        <div class="rb-zeile tm-breit">
-          ${pfeld('Von', `<input type="date" class="form-control" data-z2="datum" value="${z.datum}" disabled>`)}
-          ${pfeld('Bis', `<input type="date" class="form-control" data-z2="bis" value="${z.bis}" min="${z.datum}">`)}
-          ${pfeld('Wiederholung', `<select class="form-select" data-z2="wiederholung">${[['woechentlich', 'Jede Woche'], ['taeglich', 'Täglich'], ['2wochen', 'Jede 2. Woche']].map(([w, t]) => `<option value="${w}" ${w === z.wiederholung ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
-        </div>
-        ${zusatzFelder(d.zu, el, opt)}
-        ${textFelder(d.zu)}
-        <div class="rb-haken tm-haken">
+      ${maske([
+        [pfeld('Lehrkraft', `<select class="form-select tm-lehrer" data-d="lehrer" data-lehrer-anzeige>${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'keine')}</select>`),
+          `<div class="tm-spalte">${pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie">${el.klassen.map(x => `<option value="${e(x.kurz)}" ${d.klassen.includes(x.kurz) ? 'selected' : ''}>${e(x.kurz)}</option>`).join('')}</select>`)}
+          <div data-klassen-chips></div></div>`],
+        [`<div class="tm-spalte">${pfeld('Räume', `<select multiple class="form-select" data-d="raeume" data-platzhalter="Bitte wählen Sie">${buchbar.map(r => `<option value="${e(r.kurz)}" ${d.raeume.includes(r.kurz) ? 'selected' : ''} data-zweit="${e(r.name)}">${e(r.kurz)}</option>`).join('')}</select>`)}
+          <div data-raeume-chips></div></div>`],
+        LEGENDE,
+        [pfeld('Fach', `<select class="form-select" data-d="fach">${auswahl(el.faecher.map(x => [x.kurz, x.kurz, x.name]), d.fach)}</select>`)],
+        vonBis(`<input type="date" class="form-control" data-z2="datum" value="${z.datum}" disabled>`, `<input type="date" class="form-control" data-z2="bis" value="${z.bis}" min="${z.datum}" aria-label="Bis">`,
+          `<button type="button" class="nl-icon sichtbar ${periode ? 'an' : ''}" data-periode title="Periodizität" aria-label="Periodizität" aria-expanded="${periode}"><i class="bi bi-calendar3"></i></button>`),
+        periode ? [pfeld('Periodizität', `<select class="form-select" data-z2="wiederholung">${[['woechentlich', 'Jede Woche'], ['taeglich', 'Täglich'], ['2wochen', 'Jede 2. Woche']].map(([w, t]) => `<option value="${w}" ${w === z.wiederholung ? 'selected' : ''}>${t}</option>`).join('')}</select>`)] : null,
+        [f.abteilung],
+        [f.menge, f.verantwortlich],
+        [f.art],
+        [f.teilnehmer, f.kostenstelle],
+        ...textFelder(d.zu),
+        `<div class="rb-haken tm-haken">
           ${haken('data-zu="emailBenachrichtigung"', 'E-Mail-Benachrichtigung bei Statusänderung', d.zu.emailBenachrichtigung)}
           ${haken('data-d="benachrichtigen"', 'Lehrkraft der Aktivität benachrichtigen', d.benachrichtigen)}
           ${haken('data-sofort', 'Buchung sofort bestätigen', d.sofort)}
-        </div>
-      </div>`, '<button type="button" class="pe-knopf primaer" data-speichern>Speichern</button><button type="button" class="pe-knopf" data-zurueck>Zurück</button>');
+        </div>`,
+      ], 'data-auswahl')}`, '<button type="button" class="pe-knopf primaer" data-speichern>Speichern</button><button type="button" class="pe-knopf" data-zurueck>Zurück</button>');
+    seite.querySelector('[data-periode]').onclick = () => { periode = !periode; buchenZeichnen(); };
     seite.querySelectorAll('[data-d]').forEach(f => f.addEventListener('change', () => {
       const n = f.dataset.d;
       d[n] = f.multiple ? [...f.selectedOptions].map(o => o.value) : f.type === 'checkbox' ? f.checked : f.value;
@@ -296,9 +314,9 @@ function erfolgsansicht(seite, kontext, g, raster, neu) {
  * „Zusätzliche Stunde“ (Auswahlkriterien, Tabelle der beteiligten Elemente je Tag, Beginnzeit anklicken) → Buchen.
  */
 export async function zusaetzlicheStunden(seite, kontext, [quelleParam]) {
-  stileLaden();
+  stileLaden(kontext);
   const m = /^([ueb])(\d+)$/.exec(quelleParam ?? '');
-  kontext.titel('Zusätzliche Stunden', '<a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>');
+  kontext.titel('Zusätzliche Stunde: Zeitbereich');
   if (!m) { seite.innerHTML = rahmen('Zusätzliche Stunde', '<p class="rb-leer">Wählen Sie den Unterricht unter Unterricht | Mein Unterricht bzw. die Buchung unter Meine Buchungen.</p>'); return; }
   const [opt, q, el] = await Promise.all([holen('/api/app/buchen/optionen'), holen(`/api/app/buchen/stundenquelle?${m[1]}=${m[2]}`), kontext.elemente()]);
   if (!opt.stundenplanaenderung) {
@@ -335,7 +353,7 @@ export async function zusaetzlicheStunden(seite, kontext, [quelleParam]) {
         ${pfeld('Endzeit', `<select class="form-select" data-z="stundeBis">${raster.map(r => `<option value="${r.nr}" ${r.nr === z.stundeBis ? 'selected' : ''}>${e(r.ende)}</option>`).join('')}</select>`)}
       </div>
       <div class="rb-zeile tm-abstand">${pfeld('Räume', `<select multiple class="form-select" data-raeume data-platzhalter="Bitte wählen Sie">${buchbar.map(r => `<option value="${e(r.kurz)}" ${z.raeume.includes(r.kurz) ? 'selected' : ''} data-zweit="${e(r.name)}">${e(r.kurz)}</option>`).join('')}</select>`)}</div>
-      <div class="rb-haken tm-haken">
+      <div class="rb-haken tm-haken tm-abstand">
         ${haken('data-k="lehrerKonflikte"', 'Lehrkraftkonflikte zulassen', z.lehrerKonflikte)}
         ${haken('data-k="klassenKonflikte"', 'Klassenkonflikte zulassen', z.klassenKonflikte)}
       </div>`, '<button type="button" class="pe-knopf primaer" data-suchen>Suchen</button><button type="button" class="pe-knopf" data-abbrechen>Abbrechen</button>');
@@ -405,7 +423,7 @@ export async function zusaetzlicheStunden(seite, kontext, [quelleParam]) {
       <div class="tm-beginn" role="radiogroup" aria-label="Beginnzeit">${raster.map(r => { const frei = beginnFrei(r.nr); return `<button type="button" role="radio" class="tm-beginnzeit ${r.nr === z.stundeVon ? 'an' : ''} ${frei ? 'frei' : 'belegt'}"
         aria-checked="${r.nr === z.stundeVon}" data-beginn="${r.nr}" ${raster.some(x => x.nr === r.nr + laenge()) ? '' : 'disabled'}><b>${e(r.beginn)}</b><small>${r.nr}. Std.</small></button>`; }).join('')}</div>
       <div class="rb-tabelle-huelle tm-abstand"><table class="pe-tabelle rb-tabelle"><thead>
-        <tr><th>Auswahl</th><th>Name</th><th>Langname</th>${tage.map(t => `<th class="rb-tag">${e(t.wochentag.slice(0, 2))} ${e(datumDe(t.datum).slice(0, 6))}</th>`).join('')}</tr>
+        <tr><th>Auswahl</th><th>Name</th><th>Langname</th>${tage.map(t => `<th class="rb-tag" title="${e(t.wochentag)}">${e(tagPunkt(t.datum))}</th>`).join('')}</tr>
         <tr><th></th><th></th><th></th>${tage.map(t => `<th class="rb-tag">${t.frei || t.datum < heute ? '' : haken(`data-tag="${t.datum}"`, '', tageWahl.has(t.datum))}</th>`).join('')}</tr></thead><tbody>
         ${zeilen.map(x => `<tr><td>${x.wahl ? haken(`data-raum="${e(x.name)}"`, '', raumWahl.has(x.name)) : ''}</td><td><span class="rb-kurz">${e(x.name)}</span></td><td>${e(x.lang)}</td>
           ${tage.map(t => zelle(t, x.key)).join('')}</tr>`).join('')}
@@ -447,12 +465,12 @@ export async function zusaetzlicheStunden(seite, kontext, [quelleParam]) {
 // ------------------------------------------------------------------ Terminsuche (Verabredungen)
 
 export async function terminsuche(seite, kontext, [wocheParam]) {
-  stileLaden();
+  stileLaden(kontext);
   const [opt, el] = await Promise.all([holen('/api/app/buchen/optionen'), kontext.elemente()]);
   const beschr = opt.beschraenkungen ?? { dauer: 45, beginn: '07:00', ende: '18:00' };
   const heute = heuteIso();
   const mo = montag(/^\d{4}-\d{2}-\d{2}$/.test(wocheParam ?? '') ? wocheParam : (opt.naechsterTag > heute ? opt.naechsterTag : heute));
-  kontext.titel('Terminsuche', '<a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>');
+  kontext.titel('Suche nach freien Terminen');
   const zustand = terminsucheZustand;
   zustand.dauer ||= beschr.dauer;
   const buchbar = opt.raeume.filter(r => r.buchbar);
@@ -460,7 +478,7 @@ export async function terminsuche(seite, kontext, [wocheParam]) {
   const schritt = 15;
   let v = null;
 
-  const liste = (n, titel, eintraege) => `<label class="tm-liste"><span>${e(titel)}</span><select multiple size="10" class="form-select" data-liste="${n}" aria-label="${e(titel)}">
+  const liste = (n, titel, eintraege) => `<label class="tm-liste"><span>${e(titel)}</span><select multiple size="10" class="form-select" data-nativ data-liste="${n}" aria-label="${e(titel)}">
     ${eintraege.map(([k, t]) => `<option value="${e(k)}" ${zustand[n].includes(k) ? 'selected' : ''} title="${e(t)}">${e(k)}</option>`).join('')}</select></label>`;
   seite.innerHTML = rahmen('Suche nach freien Terminen', `
     <div class="rb-zeile">
@@ -468,7 +486,7 @@ export async function terminsuche(seite, kontext, [wocheParam]) {
       ${haken('data-klassenlehrer', 'Lehrkraft der Klasse bei Klassenselektion selektieren', zustand.klassenlehrer)}
     </div>
     <div class="tm-listen">
-      ${liste('lehrer', 'Lehrkräfteliste', el.lehrer.map(l => [l.kurz, l.name]))}
+      ${liste('lehrer', 'Lehrkraftliste', el.lehrer.map(l => [l.kurz, l.name]))}
       ${liste('klassen', 'Klassen', el.klassen.map(k => [k.kurz, k.name]))}
       ${liste('raeume', 'Räume', buchbar.map(r => [r.kurz, r.name]))}
     </div>
@@ -499,7 +517,7 @@ export async function terminsuche(seite, kontext, [wocheParam]) {
             return `<td class="${!imBereich ? 'aus' : gruen ? 'frei' : ''}" ${gruen ? `data-slot="${t.datum}|${a}" title="${e(hhmm(a))}" tabindex="0" role="button"` : ''}></td>`;
           }).join('')}</tr>`).join('')}
     </tbody></table></div>
-    ${v ? '<div class="tm-legende"><span><i class="tm-farbe frei"></i>frei</span><span><i class="tm-farbe feiertag"></i>Feiertag / Ferien / unterrichtsfrei</span></div>' : '<p class="rb-leer">Wählen Sie Lehrkräfte, Klassen und Räume und klicken Sie auf „Suchen“.</p>'}`;
+    ${v ? '<div class="tm-legende"><span><i class="tm-farbe frei"></i>frei</span><span><i class="tm-farbe feiertag"></i>Feiertag / Ferien / unterrichtsfrei</span></div>' : ''}`;
   }
   function rasterBinden() {
     seite.querySelectorAll('[data-slot]').forEach(c => {
@@ -539,23 +557,26 @@ export async function terminsuche(seite, kontext, [wocheParam]) {
     const beginne = [];
     for (let x = Math.max(zb, a - 120); x <= Math.min(ze - zustand.dauer, a + 240); x += 5) if (frei(t, x)) beginne.push(x);
     const zu = { verantwortlich: opt.ich || zustand.lehrer[0] || '', emailBenachrichtigung: false };
+    const zf = zusatzFelder(zu, el, opt);
     const w = { beginn: a, dauer: zustand.dauer, fach: '', benachrichtigen: false, sofort: !zustand.raeume.some(r => opt.raeume.find(x => x.kurz === r)?.nurReservieren) || opt.admin };
     const box = kbDialog({
-      titel: `Veranstaltung am ${datumDe(datum)}`, breite: 'm',
+      titel: `Veranstaltung am ${datumDe(datum)}`, breite: 'm', klasse: 'tm-dialog',
       inhalt: `<div class="tm">
         <dl class="rb-angaben"><dt>Klasse</dt><dd>${e(zustand.klassen.join(', ') || '–')}</dd><dt>Lehrkraft</dt><dd>${e(zustand.lehrer.join(', ') || '–')}</dd><dt>Raum</dt><dd>${e(zustand.raeume.join(', ') || '–')}</dd></dl>
-        <div class="rb-formular">
-          ${pfeld('Beginnzeit', `<select class="form-select" data-w="beginn">${beginne.map(x => `<option value="${x}" ${x === a ? 'selected' : ''}>${hhmm(x)}</option>`).join('')}</select>`)}
-          ${pfeld('Dauer [Min.]', `<input type="number" min="5" step="5" class="form-control" data-w="dauer" value="${w.dauer}">`)}
-          ${pfeld('Fach', `<select class="form-select" data-w="fach">${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), '')}</select>`)}
-          ${zusatzFelder(zu, el, opt, { menge: false, teilnehmer: false })}
-          ${textFelder(zu)}
-          <div class="rb-haken tm-haken">
+        ${maske([
+          [pfeld('Beginnzeit', `<select class="form-select" data-w="beginn">${beginne.map(x => `<option value="${x}" ${x === a ? 'selected' : ''}>${hhmm(x)}</option>`).join('')}</select>`),
+            pfeld('Dauer [Min.]', `<input type="number" min="5" step="5" class="form-control" data-w="dauer" value="${w.dauer}">`)],
+          [pfeld('Fach', `<select class="form-select" data-w="fach">${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), '')}</select>`)],
+          [zf.abteilung, zf.verantwortlich],
+          [zf.art],
+          ...textFelder(zu),
+          `<div class="rb-haken tm-haken">
             ${haken('data-w="benachrichtigen"', 'Lehrkraft der Aktivität benachrichtigen', false)}
             ${haken('data-zu="emailBenachrichtigung"', 'E-Mail-Benachrichtigung bei Statusänderung', false)}
             ${haken(`data-w="sofort" ${opt.admin ? '' : 'disabled'}`, 'Buchung sofort bestätigen', w.sofort)}
-          </div></div></div>`,
-      fuss: '<button type="button" class="nl-knopf" data-kbd-zu>Abbrechen</button><button type="button" class="nl-knopf nw-primaer" data-buchen>Buchen</button>',
+          </div>`])}</div>`,
+      // wie in der Vorlage: Buchen links, Abbrechen rechts daneben
+      fuss: '<button type="button" class="nl-knopf nw-primaer" data-buchen>Buchen</button><button type="button" class="nl-knopf" data-kbd-zu>Abbrechen</button>',
     });
     zusatzBinden(box, zu);
     box.querySelectorAll('[data-w]').forEach(f => f.onchange = () => { const n = f.dataset.w; w[n] = f.type === 'checkbox' ? f.checked : n === 'fach' ? f.value : Number(f.value); });
@@ -586,47 +607,53 @@ const terminsucheZustand = { lehrer: [], klassen: [], raeume: [], dauer: 0, klas
 // ------------------------------------------------------------------ Buchung bearbeiten (Meine Buchungen | Bearbeiten)
 
 export async function buchungBearbeiten(seite, kontext, [idParam]) {
-  stileLaden();
+  stileLaden(kontext);
   const id = Number(idParam);
   const [x, opt, el] = await Promise.all([holen(`/api/app/buchen/${id}/details`), holen('/api/app/buchen/optionen'), kontext.elemente()]);
   const b = x.buchung;
   const raster = opt.zeitraster.filter(z => z.nr > 0);
   const heute = heuteIso();
-  kontext.titel(`Buchung ${b.id} - ${b.artName}`, '<a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>');
+  kontext.titel(`Buchung ${b.id} - ${b.artName}`);
   const d = { lehrer: b.lehrer, weitereLehrer: [...b.weitereLehrer], klassen: [...b.klassen], fach: b.fach, titel: b.titel, text: b.text, zu: { ...b.zusatz, bemerkung: b.text } };
   const schueler = new Set(x.schueler.filter(s => s.gewaehlt).map(s => s.id));
   const zeit = t => t.beginn ? `${t.beginn} - ${t.ende}` : `${t.stundeVon}.–${t.stundeBis}. Std.`;
   const aktiv = x.termine.filter(t => t.status === 'aktiv');
   const ressource = b.art === 'ressource';
+  const zf = zusatzFelder(d.zu, el, opt);
+  const aus = x.darf ? '' : 'disabled';
+  const raumSpalte = b.alleRaeume.join(', ') || 'Raum';
+  // Maske wie in der Vorlage: „Buchen“, Status, Termine (Bearbeiten/Stornieren | Datum | Zeit | Raum mit Status), „Zusätzliche Stunden“,
+  // Aufgegeben/Geändert/Bestätigt am … von …, darunter dieselben Felder wie bei „Neue Aktivität“
   seite.innerHTML = rahmen(`Buchung ${b.id} - ${b.artName}`, `
     <h3 class="rb-abschnitt">Buchen</h3>
     <p class="tm-status">Status: <b>${e(b.statusText)}</b></p>
-    <table class="pe-tabelle rb-ergebnis"><thead><tr><th></th><th>Datum</th><th>Zeit</th><th>${e(b.alleRaeume.join(', ') || 'Raum')}</th></tr></thead><tbody>
-      ${x.termine.map(t => `<tr class="${t.status === 'storniert' ? 'tm-storniert' : ''}"><td class="text-nowrap">${x.darf && t.status === 'aktiv' && (t.datum >= heute || opt.admin)
-          ? `<button type="button" class="nl-icon rot" data-storno="${t.id}" title="Termin stornieren" aria-label="Termin stornieren"><i class="bi bi-x-lg"></i></button>` : ''}
+    <table class="pe-tabelle rb-ergebnis"><thead><tr><th></th><th>Datum</th><th>Zeit</th><th>${e(raumSpalte)}</th></tr></thead><tbody>
+      ${x.termine.map(t => `<tr class="${t.status === 'storniert' ? 'tm-storniert' : ''}"><td class="text-nowrap">${x.darf && t.status === 'aktiv' ? '<button type="button" class="nl-icon sichtbar" data-zu-details title="Bearbeiten" aria-label="Bearbeiten"><i class="bi bi-pencil"></i></button>' : ''}
+          ${x.darf && t.status === 'aktiv' && (t.datum >= heute || opt.admin)
+          ? `<button type="button" class="nl-icon sichtbar rot" data-storno="${t.id}" title="Termin stornieren" aria-label="Termin stornieren"><i class="bi bi-x-lg"></i></button>` : ''}
           ${x.bestaetigen && t.status === 'aktiv' && !t.bestaetigt ? `<button type="button" class="nl-icon" data-bestaetigen="${t.id}" title="Bestätigen" aria-label="Bestätigen"><i class="bi bi-check2-circle"></i></button>` : ''}</td>
-        <td>${e(t.wochentag.slice(0, 2))} ${e(datumDe(t.datum))}</td><td>${e(zeit(t))}</td><td><span class="rb-status ${t.status !== 'aktiv' ? 'tm-aus' : t.bestaetigt ? '' : 'tm-offen'}">${e(t.statusText)}</span></td></tr>`).join('')}
+        <td>${e(datumDe(t.datum))}</td><td>${e(zeit(t))}</td><td><span class="rb-status ${t.status !== 'aktiv' ? 'tm-aus' : t.bestaetigt ? '' : 'tm-offen'}">${e(t.statusText)}</span></td></tr>`).join('')}
     </tbody></table>
     <div class="tm-knoepfe">
       ${!ressource && x.stundenplanaenderung && x.darf ? `<a class="pe-knopf" href="#/buchen/zusatz/b${b.id}"><i class="bi bi-calendar-plus me-2"></i>Zusätzliche Stunden</a>` : ''}
       ${x.darf && aktiv.length ? '<button type="button" class="pe-knopf rot" data-storno-alle>Buchung stornieren</button>' : ''}
       ${x.bestaetigen && aktiv.some(t => !t.bestaetigt) ? '<button type="button" class="pe-knopf" data-bestaetigen-alle>Alle Termine bestätigen</button>' : ''}
     </div>
-    <dl class="rb-angaben tm-abstand"><dt>Aufgegeben am</dt><dd>${e(b.erstellt)} von ${e(b.absender)}</dd>
-      ${b.geaendert ? `<dt>Geändert am</dt><dd>${e(b.geaendert)} von ${e(b.geaendertVon)}</dd>` : ''}
-      ${b.bestaetigt ? `<dt>Bestätigt am</dt><dd>${e(b.bestaetigt)}${b.bestaetigtVon ? ` von ${e(b.bestaetigtVon)}` : ''}</dd>` : '<dt>Bestätigt am</dt><dd>noch nicht bestätigt (Reservierung)</dd>'}
+    <dl class="rb-angaben tm-abstand"><dt>Aufgegeben am</dt><dd>${e(zeitstempel(b.erstellt))} von ${e(b.absender)}</dd>
+      ${b.geaendert ? `<dt>Geändert am</dt><dd>${e(zeitstempel(b.geaendert))} von ${e(b.geaendertVon)}</dd>` : ''}
+      ${b.bestaetigt ? `<dt>Bestätigt am</dt><dd>${e(zeitstempel(b.bestaetigt))}${b.bestaetigtVon ? ` von ${e(b.bestaetigtVon)}` : ''}</dd>` : ''}
       ${b.uebertragen ? `<dt>Übernommen</dt><dd>${e(b.uebertragen)} von UntPlan</dd>` : ''}</dl>
-    ${ressource ? '' : `<h3 class="rb-abschnitt">Details</h3>
-    <div class="rb-formular" data-details>
-      ${pfeld('Lehrkraft', `<select class="form-select" data-d="lehrer" ${x.darf ? '' : 'disabled'}>${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'keine')}</select>`)}
-      ${pfeld('Weitere Lehrkräfte', `<select multiple class="form-select" data-d="weitereLehrer" data-platzhalter="keine" ${x.darf ? '' : 'disabled'}>${el.lehrer.map(l => `<option value="${e(l.kurz)}" ${d.weitereLehrer.includes(l.kurz) ? 'selected' : ''}>${e(l.kurz)}</option>`).join('')}</select>`)}
-      ${pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie" ${x.darf ? '' : 'disabled'}>${el.klassen.map(k => `<option value="${e(k.kurz)}" ${d.klassen.includes(k.kurz) ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)}
-      ${pfeld('Fach', `<select class="form-select" data-d="fach" ${x.darf ? '' : 'disabled'}>${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), d.fach)}</select>`)}
-      ${pfeld('Titel', `<input class="form-control" maxlength="200" data-d="titel" value="${e(d.titel)}" ${x.darf ? '' : 'disabled'}>`)}
-      ${zusatzFelder(d.zu, el, opt)}
-      ${textFelder(d.zu)}
-      <div class="rb-haken">${haken('data-zu="emailBenachrichtigung"', 'E-Mail-Benachrichtigung bei Statusänderung', d.zu.emailBenachrichtigung)}</div>
-    </div>
+    ${ressource ? '' : `<div id="tm-details" data-details>${maske([
+      [pfeld('Lehrkraft', `<select class="form-select" data-d="lehrer" ${aus}>${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'keine')}</select>`),
+        pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie" ${aus}>${el.klassen.map(k => `<option value="${e(k.kurz)}" ${d.klassen.includes(k.kurz) ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select>`)],
+      [pfeld('Fach', `<select class="form-select" data-d="fach" ${aus}>${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), d.fach)}</select>`)],
+      [zf.abteilung],
+      [zf.menge, zf.verantwortlich],
+      [zf.art],
+      [zf.teilnehmer, zf.kostenstelle],
+      ...textFelder(d.zu),
+      `<div class="rb-haken">${haken('data-zu="emailBenachrichtigung"', 'E-Mail-Benachrichtigung bei Statusänderung', d.zu.emailBenachrichtigung)}</div>`,
+    ])}</div>
     ${x.darf ? `<div class="tm-knoepfe">${haken('data-serie', `Für alle kommenden Termine der Serie übernehmen`, true)}<button type="button" class="pe-knopf primaer" data-speichern>Speichern</button></div>` : ''}`}
     ${ressource ? '' : `<h3 class="rb-abschnitt">Schüler*innen</h3>
     ${x.schueler.length ? `<div class="tm-schueler">${x.schueler.map(s => haken(`data-schueler="${s.id}"`, `${e(s.name)} <small class="nl-unter">${e(s.klasse)}</small>`, s.gewaehlt)).join('')}</div>
@@ -640,6 +667,7 @@ export async function buchungBearbeiten(seite, kontext, [idParam]) {
 
   const neuLaden = () => kontext.navigieren(`#/buchen/buchung/${id}`, true);
   seite.querySelector('[data-zurueck]').onclick = () => kontext.navigieren('#/buchen/meine');
+  seite.querySelectorAll('[data-zu-details]').forEach(k => k.onclick = () => seite.querySelector('[data-details]')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   seite.querySelectorAll('[data-storno]').forEach(k => k.onclick = async () => {
     if (!await bestaetigen('Termin stornieren', 'Diesen Termin der Buchung stornieren?', 'Stornieren')) return;
     try { await api(`/api/app/buchen/${k.dataset.storno}`, { methode: 'DELETE' }); toast('Storniert.'); neuLaden(); } catch (err) { kontext.fehler(err); }
@@ -697,31 +725,33 @@ export async function buchungBearbeiten(seite, kontext, [idParam]) {
 // ------------------------------------------------------------------ Neuer Unterricht (Unterricht | Mein Unterricht | Neuer Unterricht)
 
 export async function neuerUnterricht(seite, kontext) {
-  stileLaden();
+  stileLaden(kontext);
   const [opt, el] = await Promise.all([holen('/api/app/buchen/optionen'), kontext.elemente()]);
   const ich = kontext.ich;
   const heute = heuteIso();
-  kontext.titel('Neuer Unterricht', '<a class="nl-knopf" href="#/buchen/unterricht"><i class="bi bi-easel"></i>Angelegter Unterricht</a>');
+  kontext.titel('Neuer Unterricht');
   const d = { lehrer: ich.element || opt.ich || '', klassen: [], fach: '', von: heute, bis: kontext.schuljahr?.bis || plusTage(heute, 120), wochenstunden: 0, jahresstunden: 0,
     benachrichtigen: true, zu: { verantwortlich: ich.element || '', aktivitaetsart: 'Unterricht', emailBenachrichtigung: true } };
+  const zf = zusatzFelder(d.zu, el, opt);
+  // Maske wie in der Vorlage: Lehrkraft | Klasse, Fach, Von - Bis, Wochenstunden | Jahresstunden, Abteilung, Verantwortlicher, Art,
+  // Bemerkung, Anmerkung, E-Mail Adresse, Benachrichtigungen → Speichern, Zurück
   seite.innerHTML = rahmen('Neuer Unterricht', `
     <h3 class="rb-abschnitt">Buchen</h3>
-    <div class="rb-formular">
-      ${pfeld('Lehrkraft', `<select class="form-select" data-d="lehrer">${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'bitte wählen')}</select>`)}
-      ${pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie">${el.klassen.map(k => `<option value="${e(k.kurz)}">${e(k.kurz)}</option>`).join('')}</select>`)}
-      ${pfeld('Fach', `<select class="form-select" data-d="fach">${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), '')}</select>`)}
-      <div class="rb-zeile tm-breit">${pfeld('Von', `<input type="date" class="form-control" data-d="von" value="${d.von}">`)}${pfeld('Bis', `<input type="date" class="form-control" data-d="bis" value="${d.bis}">`)}</div>
-      ${pfeld('Wochenstunden', `<input type="number" min="0" max="40" class="form-control" data-d="wochenstunden" value="0">`)}
-      ${pfeld('Jahresstunden', `<input type="number" min="0" max="2000" class="form-control" data-d="jahresstunden" value="0">`)}
-      ${pfeld('Abteilung', `<select class="form-select" data-zu="abteilung">${auswahl(opt.abteilungen ?? [], '')}</select>`)}
-      ${pfeld('Verantwortlicher', `<select class="form-select" data-zu="verantwortlich">${auswahl(el.lehrer.map(l => [l.kurz, l.name ? `${l.kurz} (${l.name})` : l.kurz]), d.zu.verantwortlich)}</select>`)}
-      ${pfeld('Art', `<select class="form-select" data-zu="aktivitaetsart">${auswahl(AKTIVITAETSARTEN, d.zu.aktivitaetsart)}</select>`)}
-      ${pfeld('Bezeichnung / Schülergruppe', '<input class="form-control" maxlength="100" data-d="gruppe" placeholder="z. B. Förderkurs">')}
-      ${textFelder(d.zu)}
-      <div class="rb-haken tm-haken">
+    ${maske([
+      [pfeld('Lehrkraft', `<select class="form-select" data-d="lehrer">${auswahl(el.lehrer.map(l => [l.kurz, l.kurz, l.name]), d.lehrer, 'Bitte wählen Sie')}</select>`),
+        pfeld('Klasse', `<select multiple class="form-select" data-d="klassen" data-platzhalter="Bitte wählen Sie">${el.klassen.map(k => `<option value="${e(k.kurz)}">${e(k.kurz)}</option>`).join('')}</select>`)],
+      [pfeld('Fach', `<select class="form-select" data-d="fach">${auswahl(el.faecher.map(f => [f.kurz, f.kurz, f.name]), '')}</select>`)],
+      vonBis(`<input type="date" class="form-control" data-d="von" value="${d.von}">`, `<input type="date" class="form-control" data-d="bis" value="${d.bis}" aria-label="Bis">`),
+      [pfeld('Wochenstunden', `<input type="number" min="0" max="40" class="form-control" data-d="wochenstunden" value="0">`),
+        pfeld('Jahresstunden', `<input type="number" min="0" max="2000" class="form-control" data-d="jahresstunden" value="0">`)],
+      [zf.abteilung],
+      [zf.verantwortlich],
+      [zf.art],
+      ...textFelder(d.zu),
+      `<div class="rb-haken tm-haken">
         ${haken('data-zu="emailBenachrichtigung"', 'E-Mail-Benachrichtigung bei Statusänderung', true)}
         ${haken('data-d="benachrichtigen"', 'Lehrkraft der Aktivität benachrichtigen', true)}
-      </div></div>`, '<button type="button" class="pe-knopf primaer" data-speichern>Speichern</button><button type="button" class="pe-knopf" data-zurueck>Zurück</button>');
+      </div>`])}`, '<button type="button" class="pe-knopf primaer" data-speichern>Speichern</button><button type="button" class="pe-knopf" data-zurueck>Zurück</button>');
   seite.querySelectorAll('[data-d]').forEach(f => f.addEventListener('change', () => {
     const n = f.dataset.d;
     d[n] = f.multiple ? [...f.selectedOptions].map(o => o.value) : f.type === 'checkbox' ? f.checked : f.type === 'number' ? Number(f.value) || 0 : f.value;
@@ -744,7 +774,7 @@ export async function neuerUnterricht(seite, kontext) {
 // ------------------------------------------------------------------ Administration | Buchungsbeschränkungen
 
 export async function beschraenkungen(seite, kontext) {
-  stileLaden();
+  stileLaden(kontext);
   kontext.titel('Buchungsbeschränkungen');
   const x = await holen('/api/app/buchen/beschraenkungen');
   const darf = kontext.ich.admin;

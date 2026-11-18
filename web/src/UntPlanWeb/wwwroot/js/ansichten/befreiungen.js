@@ -48,33 +48,50 @@ export async function zeigen(seite, kontext, [klasseParam, vonParam, bisParam, g
     const kl = b?.klasse ?? klasse ?? eigene ?? el.klassen[0]?.kurz;
     const schueler = kl ? await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(kl)}`) : [];
     const faecher = el.faecher.map(x => x.kurz);
+    // wie im Original: Klasse | Schüler*innen (Klasse) mit „Bitte wählen Sie“ und Liste der gewählten (✓ Name (Klasse)), Zeitraum | Wochentag,
+    // Fach, Beginnzeit | Endzeit, Befreiungsgrund, Text; Speichern | Abbrechen
+    const gewaehlt = new Map(b ? [[b.schuelerId, `${b.schueler} (${b.klasse})`]] : []);
+    const schuelerOptionen = (liste, k) => `<option value="">Bitte wählen Sie</option>${liste.map(s => `<option value="${s.id}" data-text="${e(`${s.name} ${s.vorname} (${k})`)}">${e(s.name)} ${e(s.vorname)}</option>`).join('')}`;
     dialog({
       titel: b ? 'Befreiung' : 'Neue Befreiung', breit: true,
       inhalt: `<div class="row g-3">
-        <div class="col-sm-4"><label class="form-label">Klasse</label><select class="form-select" name="klasse">${el.klassen.map(k => `<option ${k.kurz === kl ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></div>
-        <div class="col-sm-8"><label class="form-label">Schüler*in</label><select class="form-select" name="schuelerId">${schueler.map(s => `<option value="${s.id}" ${s.id === b?.schuelerId ? 'selected' : ''}>${e(s.name)} ${e(s.vorname)}</option>`).join('')}</select></div>
-        <div class="col-sm-4"><label class="form-label">Von</label><input type="date" class="form-control" name="von" value="${b?.von ?? heuteIso()}"></div>
-        <div class="col-sm-4"><label class="form-label">Bis</label><input type="date" class="form-control" name="bis" value="${b?.bis ?? plusTage(heuteIso(), 30)}"></div>
+        <div class="col-sm-6"><label class="form-label">Klasse</label><select class="form-select" name="klasse" ${b ? 'disabled' : ''}>${el.klassen.map(k => `<option ${k.kurz === kl ? 'selected' : ''}>${e(k.kurz)}</option>`).join('')}</select></div>
+        <div class="col-sm-6"><label class="form-label" data-sch-titel>Schüler*innen (${e(kl ?? '')})</label><select class="form-select" name="schuelerwahl" ${b ? 'disabled' : ''}>${schuelerOptionen(schueler, kl)}</select></div>
+        <div class="col-12"><div class="bf-gewaehlt" data-gewaehlt></div></div>
+        <div class="col-sm-8"><label class="form-label">Zeitraum</label><div class="d-flex gap-2"><input type="date" class="form-control" name="von" value="${b?.von ?? heuteIso()}" aria-label="Von"><input type="date" class="form-control" name="bis" value="${b?.bis ?? plusTage(heuteIso(), 30)}" aria-label="Bis"></div></div>
         <div class="col-sm-4"><label class="form-label">Wochentag</label><select class="form-select" name="wochentag"><option value="0">jeden Tag</option>${WOCHENTAGE.map((w, i) => `<option value="${i + 1}" ${b?.wochentag === i + 1 ? 'selected' : ''}>${w}</option>`).join('')}</select></div>
-        <div class="col-sm-4"><label class="form-label">Fach</label><select class="form-select" name="fach"><option value="">alle Fächer</option>${faecher.map(x => `<option ${x === b?.fach ? 'selected' : ''}>${e(x)}</option>`).join('')}</select></div>
-        <div class="col-sm-4"><label class="form-label">Beginnzeit</label><input type="time" class="form-control" name="beginn" value="${b?.beginn || '00:00'}"></div>
-        <div class="col-sm-4"><label class="form-label">Endzeit</label><input type="time" class="form-control" name="ende" value="${b?.ende || '00:00'}"></div>
+        <div class="col-sm-6"><label class="form-label">Fach</label><select class="form-select" name="fach"><option value="">&lt;Auswahl&gt;</option>${faecher.map(x => `<option ${x === b?.fach ? 'selected' : ''}>${e(x)}</option>`).join('')}</select></div>
+        <div class="col-sm-6"></div>
+        <div class="col-sm-3"><label class="form-label">Beginnzeit</label><input type="time" class="form-control" name="beginn" value="${b?.beginn || '00:00'}"></div>
+        <div class="col-sm-3"><label class="form-label">Endzeit</label><input type="time" class="form-control" name="ende" value="${b?.ende || '00:00'}"></div>
+        <div class="col-sm-6"></div>
         <div class="col-sm-6"><label class="form-label">Befreiungsgrund</label><select class="form-select" name="grund">${d.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === b?.grund ? 'selected' : ''}>${e(g.name)}</option>`).join('')}</select></div>
-        <div class="col-sm-6"><label class="form-label">Text</label><input class="form-control" name="text" value="${e(b?.text ?? '')}"></div></div>`,
+        <div class="col-12"><label class="form-label">Text</label><input class="form-control" name="text" value="${e(b?.text ?? '')}"></div></div>`,
       beimOeffnen: box => {
+        const zeichnen = () => {
+          box.querySelector('[data-gewaehlt]').innerHTML = [...gewaehlt].map(([id, t]) => `<span class="bf-chip"><i class="bi bi-check-lg"></i>${e(t)}${b ? '' : `<button type="button" data-weg="${id}" aria-label="${e(t)} entfernen"><i class="bi bi-x"></i></button>`}</span>`).join('');
+          box.querySelectorAll('[data-weg]').forEach(x => x.onclick = () => { gewaehlt.delete(Number(x.dataset.weg)); zeichnen(); });
+        };
+        zeichnen();
+        const wahl = box.querySelector('[name=schuelerwahl]');
+        wahl.onchange = () => { const o = wahl.selectedOptions[0]; if (o?.value) gewaehlt.set(Number(o.value), o.dataset.text); wahl.value = ''; zeichnen(); };
         box.querySelector('[name=klasse]').onchange = async ev => {
           const s = await holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(ev.target.value)}`);
-          box.querySelector('[name=schuelerId]').innerHTML = s.map(x => `<option value="${x.id}">${e(x.name)} ${e(x.vorname)}</option>`).join('');
+          wahl.innerHTML = schuelerOptionen(s, ev.target.value);
+          box.querySelector('[data-sch-titel]').textContent = `Schüler*innen (${ev.target.value})`;
         };
       },
-      knoepfe: [...(b ? [{ text: 'Löschen', art: 'gefahr', aktion: async () => { await api(`/api/app/befreiungen/${b.id}`, { methode: 'DELETE' }); toast('Gelöscht.'); neu(); } }] : []),
-        { text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
+      knoepfe: [{ text: 'Speichern', art: 'haupt', aktion: async box => {
           const v = n => box.querySelector(`[name=${n}]`).value;
-          const daten = { schuelerId: Number(v('schuelerId')), von: v('von'), bis: v('bis'), wochentag: Number(v('wochentag')), fach: v('fach'),
-            beginn: v('beginn') === '00:00' ? '' : v('beginn'), ende: v('ende') === '00:00' ? '' : v('ende'), grund: v('grund'), text: v('text') };
-          await senden(b ? `/api/app/befreiungen/${b.id}` : '/api/app/befreiungen', daten, b ? 'PUT' : 'POST');
+          if (!gewaehlt.size) { toast('Bitte Schüler*innen wählen.', true); return false; }
+          const daten = sid => ({ schuelerId: sid, von: v('von'), bis: v('bis'), wochentag: Number(v('wochentag')), fach: v('fach'),
+            beginn: v('beginn') === '00:00' ? '' : v('beginn'), ende: v('ende') === '00:00' ? '' : v('ende'), grund: v('grund'), text: v('text') });
+          if (b) await senden(`/api/app/befreiungen/${b.id}`, daten(b.schuelerId), 'PUT');
+          else for (const sid of gewaehlt.keys()) await senden('/api/app/befreiungen', daten(sid));
           toast('Gespeichert.'); neu();
-        } }],
+        } },
+        ...(b ? [{ text: 'Löschen', art: 'gefahr', aktion: async () => { await api(`/api/app/befreiungen/${b.id}`, { methode: 'DELETE' }); toast('Gelöscht.'); neu(); } }] : []),
+        { text: 'Abbrechen' }],
     });
   }
   document.querySelector('[data-neu]')?.addEventListener('click', () => formular());

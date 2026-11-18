@@ -246,7 +246,7 @@ public class TerminModulTests
             "'Bemerkung (für alle Benutzer sichtbar)'", "'Anmerkung (dieses Feld wird in zukünftigen Versionen entfernt)'", "'E-Mail Adresse'", "'Kostenstelle'", "'Teilnehmer'",
             "'Zusätzliche Stunde: Zeitbereich'", "'Erweiterte Suche >>'", "<h3 class=\"rb-abschnitt\">Uhrzeit und Dauer</h3>", "'Lehrkraftkonflikte zulassen'", "'Klassenkonflikte zulassen'",
             "data-buchen>Buchen</button>", "Recht „Stundenplanänderung“",
-            "'Suche nach freien Terminen'", "'Dauer [Min.]'", "'Lehrkraft der Klasse bei Klassenselektion selektieren'", "'Lehrkräfteliste'", "titel: `Veranstaltung am ${datumDe(datum)}`",
+            "'Suche nach freien Terminen'", "'Dauer [Min.]'", "'Lehrkraft der Klasse bei Klassenselektion selektieren'", "'Lehrkraftliste'", "titel: `Veranstaltung am ${datumDe(datum)}`",
             "Administration | Buchungsbeschränkungen", "`Buchung ${b.id} - ${b.artName}`", "Zusätzliche Stunden</a>", "Buchung stornieren", "Schüler*innen speichern", "Buchungsbeleg (PDF)",
             "'Raum- / Ressourcenliste'", "'Raumwechsel'", "sofort buchen", "reservieren",
             "'Jahresstunden'", "'Wochenstunden'",
@@ -272,7 +272,7 @@ public class TerminModulTests
         Assert.Contains("href=\"#/buchen/zusatz/u${k.unterricht}\" data-zusatz-link>Zusätzliche Stunden</a>", Datei("js", "stundendetails.js"));
         Assert.Contains("knopf(`#/buchen/zusatz/u${u.id}`, 'calendar-plus', 'Zusätzliche Stunden')", Datei("js", "ansichten", "unterricht.js"));
         var bu = Datei("js", "ansichten", "buchen.js");
-        Assert.Contains("href=\"#/buchen/buchung/${b.id}\"><i class=\"bi bi-pencil\"></i>Bearbeiten</a>", bu);
+        Assert.Contains("href=\"#/buchen/buchung/${b.id}\" title=\"Bearbeiten\" aria-label=\"Bearbeiten\"><i class=\"bi bi-pencil\"></i></a>", bu);
         Assert.Contains("const von = iso.test(vonParam ?? '') ? vonParam : montag(heuteIso());", bu);
         Assert.Contains("name=\"nurReservieren\"", Datei("js", "ansichten", "buchungsverwaltung.js"));
 

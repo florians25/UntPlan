@@ -109,7 +109,6 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
         ${auswahl.size ? `<div class="os-fuss">${auswahl.size} ${auswahl.size === 1 ? 'Stunde' : 'Stunden'} ausgewählt<button type="button" class="nl-knopf" data-auswahl-weg>Auswahl aufheben</button></div>` : ''}</div>`
         : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-check2-circle"></i></span><b>${r.gesamt ? 'Alles erledigt' : 'Keine gehaltenen Stunden'}</b>
             <p>${r.gesamt ? (text ? 'Keine Stunde passt zur Suche.' : 'Im gewählten Zeitraum sind Abwesenheiten und Lehrstoff vollständig eingetragen.') : 'Im gewählten Zeitraum gibt es keine gehaltenen Stunden.'}</p></div>`}
-      ${!r.alle && r.klassenleitung.length && !zustand.klasse ? `<p class="os-hinweis">${icon('info')}Als Klassenleitung können Sie über die Suche alle Stunden ${r.klassenleitung.length === 1 ? 'Ihrer Klasse' : 'Ihrer Klassen'} anzeigen.</p>` : ''}
     </div>`;
     binden(liste);
   };

@@ -138,3 +138,53 @@
 .sp-at:hover { border-color: #8a96a1; color: var(--u-text); }
 .sg-schuelertabelle th, .sg-schuelertabelle td { padding: 8px 7px; }
 .sg-schuelertabelle input[type=date], .sg-schuelertabelle .kal-eingabe { width: 108px; }
+
+/* ---------------------------------------------------------------- Feinabgleich Leitfaden: Zeitraum, Knopfreihe, Berichte-Menü */
+.zb-feld { flex-wrap: nowrap; }
+.zb-feld .nl-pille { height: 38px; }
+.zb-feld .form-select { min-width: 170px; }
+.kl-link { color: var(--u-akzent, #f56b2a); text-decoration: underline; font-size: .9rem; white-space: nowrap; }
+.kl-knoepfe { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.kl-knoepfe .nl-knopf:disabled { opacity: .5; }
+.kl-menue { position: relative; }
+.kl-menue > summary { list-style: none; cursor: pointer; }
+.kl-menue > summary::-webkit-details-marker { display: none; }
+.kl-menue > summary .bi { font-size: .7rem; margin-left: 4px; }
+.kl-menue-liste { position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); min-width: 220px; padding: 6px; background: #fff; border: 1px solid #dfe3e7; border-radius: 10px; box-shadow: 0 12px 32px rgba(36, 50, 61, .16); }
+.kl-menue-liste a, .kl-menue-liste button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 7px; background: none; color: var(--u-text, #24323d); text-align: left; text-decoration: none; font-size: .9rem; }
+.kl-menue-liste a:hover, .kl-menue-liste button:hover { background: #f3f5f7; }
+.kl-nichts { padding: 14px 16px; color: #67747e; font-size: .9rem; }
+.kd-dialog-zwei { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 14px; align-items: start; margin-bottom: 12px; }
+@media (max-width: 600px) { .kd-dialog-zwei { grid-template-columns: 1fr; } }
+.kl-checks { display: inline-flex; flex-direction: column; gap: 2px; font-size: .82rem; color: #414d55; }
+.kl-checks label { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.kl-zelle-icons { white-space: nowrap; }
+.kl-nr { color: #67747e; }
+.bf-gewaehlt { display: flex; flex-wrap: wrap; gap: 6px; min-height: 4px; }
+.bf-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 6px 0 10px; border-radius: 999px; background: #e9f6ee; color: #1f6b3a; font-size: .85rem; }
+.bf-chip button { display: inline-grid; place-content: center; width: 20px; height: 20px; border: 0; border-radius: 50%; background: none; color: inherit; }
+/* Abwesenheiten wie im Original */
+.abw-leiste { flex-wrap: wrap; row-gap: 10px; }
+.abw-suche { min-width: 180px; max-width: 220px; height: 38px; }
+.abw-tabelle td { white-space: nowrap; }
+.abw-tabelle td.nl-text { white-space: normal; min-width: 160px; }
+.abw-art { display: inline-flex; color: #67747e; }
+.abw-art.gelb { color: #b7791f; } .abw-art.lila { color: #6b5bb5; }
+.abw-gemeldet { display: flex; align-items: center; gap: 18px; font-size: .9rem; }
+.abw-protokoll { display: grid; grid-template-columns: 110px auto 1fr; gap: 8px; }
+.abw-tabelle th, .abw-tabelle td { padding-left: 7px !important; padding-right: 7px !important; }
+/* Klassenbucheinträge wie im Original */
+.ke-leiste { flex-wrap: wrap; row-gap: 10px; }
+.ke-liste td { white-space: nowrap; }
+.ke-liste td:last-child { white-space: normal; min-width: 200px; }
+.ke-liste tr[data-eintrag] { cursor: pointer; }
+.kd-leiste, .sg-leiste { flex-wrap: wrap; row-gap: 10px; }
+/* Berichte: Einstellungen in der Zeile wie im Original */
+.br-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.br-zopt { display: inline-flex; align-items: center; gap: 5px; margin: 0 10px 0 0; font-size: .8rem; font-weight: 400; color: #414d55; white-space: nowrap; text-transform: none; letter-spacing: 0; }
+.br-zopt .form-check-input { margin: 0; }
+.br-zwahl { display: inline-block; width: auto; min-width: 130px; height: 30px; padding-top: 2px; padding-bottom: 2px; margin-right: 8px; font-size: .8rem; border-radius: 8px; }
+.br-gemeinsam { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 18px; vertical-align: middle; }
+.br-reihe-text b { white-space: nowrap; }
+.ke-liste th, .ke-liste td { padding-left: 7px !important; padding-right: 7px !important; }
+.ke-liste .ke-text { max-width: 260px; white-space: normal; }
