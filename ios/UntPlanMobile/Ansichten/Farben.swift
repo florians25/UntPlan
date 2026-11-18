@@ -104,8 +104,9 @@ enum Farben {
     static let rasterOben = Color(hell: 0xF3F5F7, dunkel: 0x1C1C1E)
     static let rasterUnten = Color(hell: 0xE1E4E8, dunkel: 0x1C1C1E)
 
-    // Karten im Wochenraster
-    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7383)
+    // Karten im Wochenraster (dunkel nachgemessen an 567a139b/6d696e75, Display P3 → sRGB: Fläche #5e7382, Balken
+    // #bec8cf, Schrift #f3f5f7; Änderung #005641/Rand #1fc0a0, Entfall #81002e/Rand #f03064 – je 2 pt)
+    static let karte = Color(hell: 0xFFFFFF, dunkel: 0x5E7382)
     static let karteVergangen = Color(hell: 0xF3F5F7, dunkel: 0x323D45)
     static let karteBalken = Color(hell: 0xBEC8CF, dunkel: 0xBEC8CF)
     static let karteText = Color(hell: 0x10161D, dunkel: 0xF3F5F7)
@@ -156,9 +157,10 @@ enum Farben {
     static let markerRot = Color(hell: 0xF03E3E, dunkel: 0xE5484D)
     static let markerGruen = Color(hell: 0x1F9D55, dunkel: 0x22A866)
 
-    // Info-Zeichen auf den Karten
-    static let infoFeld = Color(hell: 0xF3F5F7, dunkel: 0x2B3138)
-    static let infoScheibe = Color(hell: 0x808E9B, dunkel: 0x9AA6B2)
+    // Info-Zeichen auf den Karten (Feld und Scheibe dunkel nachgemessen am Info-Zeichen der Vorlage 6d696e75: #323c45 und
+    // #808e9b; gilt auch für das Kürzungszeichen)
+    static let infoFeld = Color(hell: 0xF3F5F7, dunkel: 0x323C45)
+    static let infoScheibe = Color(hell: 0x808E9B, dunkel: 0x808E9B)
     static let infoZeichen = Color(hell: 0xFFFFFF, dunkel: 0x2B3138)
 
     // Köpfe der Infokarten

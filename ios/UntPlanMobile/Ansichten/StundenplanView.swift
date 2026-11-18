@@ -1487,7 +1487,11 @@ struct Rasterrahmen: Equatable {
     /// Breite der Zeitleiste: iPhone 44 pt wie in der Vorlage (Linien ab 132 px bei 3 px/pt, Spalten 71,6 pt), iPad 45 pt.
     static func rinnenBreite(kompakt: Bool) -> CGFloat { kompakt ? 44 : 45 }
     var rinnenBreite: CGFloat { Self.rinnenBreite(kompakt: kompakt) }
-    var tagesLuecke: CGFloat { kompakt ? 2 : 3 }
+    /// Abstand zwischen den Karten benachbarter Tage. iPhone nachgemessen (Vorlagen dunkel, 3 px/pt): Karten 208 px breit,
+    /// 7 px = 2,33 pt Abstand, 3 px = 1 pt hinter dem Spaltenbeginn (rechts bleiben 4 px bis zum Bildschirmrand); vorher 2 pt.
+    var tagesLuecke: CGFloat { kompakt ? 7.0 / 3 : 3 }
+    /// Versatz der Karten gegen den Spaltenbeginn (iPhone nachgemessen 1 pt; iPad mittig)
+    var tagesVersatz: CGFloat { kompakt ? 1 : 1.5 }
 
     /// nil, solange keine der Seiten geladen ist.
     /// `sichtHoehe`: Höhe der Scrollfläche (vom Kopf bis zum unteren Bildschirmrand); 0 = unbekannt.
@@ -1663,6 +1667,11 @@ struct Rasterlinien: View, Equatable {
 struct Zeitleiste: View, Equatable {
     let rahmen: Rasterrahmen
 
+    /// Uhrzeiten auf dem iPhone (nachgemessen 11 pt Regular, proportionale Ziffern)
+    static let zeitSchrift: CGFloat = 11
+    /// Beginn: Grundlinie nachgemessen 10,78 pt unter der Linienoberkante, die Oberlänge (0,952 em) liefert 10,47 pt
+    static let beginnVersatz: CGFloat = 0.3
+
     var body: some View {
         let mass = rahmen.mass
         let zeiten = rahmen.zeiten
@@ -1674,32 +1683,39 @@ struct Zeitleiste: View, Equatable {
                 let unten = mass.yEnde(z.ende)
                 let naechste: Rasterzeit? = eintrag.offset + 1 < zeiten.count ? zeiten[eintrag.offset + 1] : nil
                 let pauseDanach = naechste == nil || (naechste?.beginn ?? 0) > z.ende
-                // Vorlage (3 px/pt): 11,8 pt Regular, mittig in der Zeitleiste, Ziffern 3 pt unter der Oberkante der Linie
+                // iPhone nachgemessen (Vorlagen dunkel 567a139b/6d696e75, 3 px/pt): 11 pt Regular (Ziffernhöhe 23,25 px
+                // = 7,75 pt gegen 25,36 px bei der 12-pt-Kartenschrift; vorher 11,8 pt), Ziffern proportional („09:15“
+                // steht 2,5 px weiter rechts als „09:35“ – keine Tabellenziffern), #bec8cf, mittig in der Zeitleiste
+                // (Mitte 21,9 pt); Grundlinie 10,78 pt unter der Oberkante der Linie (Ziffern 3,05 pt darunter)
                 Text(Rasterzeit.uhrzeit(z.beginn))
-                    .font(.system(size: kompakt ? 11.8 : 12, weight: kompakt ? .regular : .medium).monospacedDigit())
+                    .font(kompakt ? .system(size: Self.zeitSchrift, weight: .regular)
+                                  : .system(size: 12, weight: .medium).monospacedDigit())
                     .tracking(kompakt ? 0 : 0.12)
                     .foregroundStyle(Farben.rinne)
                     .fixedSize()
                     .frame(width: kompakt ? rahmen.rinnenBreite : nil)
-                    .offset(x: kompakt ? 0 : 8, y: oben)
-                // Stundennummer mittig (Vorlage dunkel: 15 pt Regular, Ziffernhöhe 10,67 pt, mittig in Zeitleiste und Stunde)
+                    .offset(x: kompakt ? 0 : 8, y: kompakt ? oben + Self.beginnVersatz : oben)
+                // Stundennummer mittig (nachgemessen: 15 pt Regular, Ziffernhöhe 10,57 pt, Stamm 1,31 pt, #bec8cf, mittig in
+                // der Zeitleiste; Ziffernmitte 0,6 pt unter der Mitte zwischen den Linienoberkanten – Mittel aus 1.–4.)
                 if rahmen.stundenNummern && unten - oben > 36 {
                     Text("\(z.nr).")
                         .font(.system(size: kompakt ? 15 : 16, weight: .regular))
                         .foregroundStyle(kompakt ? Farben.rinne : Farben.tinte2)
                         .fixedSize()
                         .frame(width: kompakt ? rahmen.rinnenBreite : nil, height: 20)
-                        .offset(x: kompakt ? 0 : 14, y: oben + (unten - oben) / 2 - 10)
+                        .offset(x: kompakt ? 0 : 14, y: oben + (unten - oben) / 2 - 10 + (kompakt ? 0.6 : 0))
                 }
                 if pauseDanach {
-                    // Ende vor der Pause: Grundlinie 2,33 pt über der Linie (Vorlage)
+                    // Ende vor der Pause: Grundlinie 2,5 pt über der Oberkante der Linie (nachgemessen 09:15 und 11:05:
+                    // 2,41/2,6 pt; Unterlänge 11 pt × 0,241 = 2,65 pt → Textunterkante 0,15 pt unter der Linienoberkante)
                     Text(Rasterzeit.uhrzeit(z.ende))
-                        .font(.system(size: kompakt ? 11.8 : 12, weight: kompakt ? .regular : .medium).monospacedDigit())
+                        .font(kompakt ? .system(size: Self.zeitSchrift, weight: .regular)
+                                      : .system(size: 12, weight: .medium).monospacedDigit())
                         .tracking(kompakt ? 0 : 0.12)
                         .foregroundStyle(Farben.rinne)
                         .fixedSize()
                         .frame(width: kompakt ? rahmen.rinnenBreite : nil, height: 15, alignment: .bottom)
-                        .offset(x: kompakt ? 0 : 8, y: kompakt ? unten + 0.5 - 15 : unten - 3 - 15)
+                        .offset(x: kompakt ? 0 : 8, y: kompakt ? unten + 0.15 - 15 : unten - 3 - 15)
                 }
             }
         }
@@ -1736,6 +1752,7 @@ struct RasterSeite: View, Equatable {
 
     private var kompakt: Bool { rahmen.kompakt }
     private var tagesLuecke: CGFloat { rahmen.tagesLuecke }
+    private var tagesVersatz: CGFloat { rahmen.tagesVersatz }
     private var nurTage: [String]? { daten.nurTage }
     private var dichteAufsicht: Bool { rahmen.dichteAufsicht }
 
@@ -1757,7 +1774,7 @@ struct RasterSeite: View, Equatable {
                     ForEach(Array(tage.enumerated()), id: \.element.id) { eintrag in
                         tagesspalte(eintrag.element, kacheln: kacheln[eintrag.element.datum] ?? [], mass: mass,
                                     breite: spaltenBreite - tagesLuecke)
-                            .offset(x: CGFloat(eintrag.offset) * spaltenBreite + tagesLuecke / 2)
+                            .offset(x: CGFloat(eintrag.offset) * spaltenBreite + tagesVersatz)
                     }
                     jetztLinie(tage: tage, mass: mass, spaltenBreite: spaltenBreite)
                 }
@@ -1789,7 +1806,7 @@ struct RasterSeite: View, Equatable {
                 let mitte = (mass.y(rahmen.start) + mass.yEnde(rahmen.ende)) / 2 - feldOben
                 ferienfeld(tag, mitte: mitte)
                     .frame(width: breite + tagesLuecke - fuge, height: max(hoehe - feldOben, 20))
-                    .offset(x: -tagesLuecke / 2, y: feldOben)
+                    .offset(x: -tagesVersatz, y: feldOben)
             } else {
                 // Eigene Abwesenheit: grauer Balken hinter den Stunden – die Karten liegen voll lesbar darüber
                 ForEach(daten.abwesenheiten[tag.datum] ?? []) { b in
