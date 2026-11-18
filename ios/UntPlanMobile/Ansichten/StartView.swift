@@ -53,6 +53,8 @@ struct StartView: View {
     /// Geöffneter Sprechtag (als Blatt wie die Stundendetails)
     @State private var sprechtagWahl: SprechtagWahl? = nil
     @Environment(\.horizontalSizeClass) private var groessenklasse
+    /// Navigationspfad der Startseite (Startargumente für Bildschirmfotos öffnen darüber Termine bzw. Abwesenheiten)
+    @State private var startPfad = NavigationPath()
 
     /// Sprechtag, der als Blatt gezeigt wird.
     struct SprechtagWahl: Identifiable {
@@ -64,7 +66,7 @@ struct StartView: View {
     private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $startPfad) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     schulname
@@ -94,7 +96,10 @@ struct StartView: View {
             .scrollIndicators(.hidden)
             .background(Farben.grund.ignoresSafeArea())
             .refreshable { await laden() }
-            .task { await laden() }
+            .task {
+                await laden()
+                startzielOeffnen()
+            }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
@@ -476,6 +481,19 @@ struct StartView: View {
     private var mitSprechtag: Bool {
         guard let b = zustand.benutzer else { return false }
         return b.rolle.lowercased() != "schueler"
+    }
+
+    /// Nur mit Startargumenten (Debug-Builds, Bildschirmfotos): „Meine Termine“ bzw. „Meine Abwesenheiten“ öffnen.
+    private func startzielOeffnen() {
+        guard Startsteuerung.aktiv, startPfad.isEmpty else { return }
+        switch Startsteuerung.ansicht {
+        case "termine":
+            startPfad.append(Startziel.termine)
+        case "abwesenheiten":
+            startPfad.append(zustand.istFamilie ? Startziel.familieAbwesenheiten : Startziel.abwesenheiten)
+        default:
+            break
+        }
     }
 
     private func laden() async {

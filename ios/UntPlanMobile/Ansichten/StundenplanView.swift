@@ -254,7 +254,9 @@ struct StundenplanView: View {
                 planAnfrageUebernehmen()
                 schnellaktionUebernehmen()
                 tagAnfrageUebernehmen()
+                startsteuerungUebernehmen()
             }
+            .task { await startdetailOeffnen() }
             .onChange(of: zustand.tagAnfrage) { _, _ in tagAnfrageUebernehmen() }
             .onChange(of: zustand.planAnfrage) { _, _ in planAnfrageUebernehmen() }
             // Abwesenheiten eingeschaltet: eigene Abwesenheiten (Familienkonto) nachladen
@@ -324,6 +326,33 @@ struct StundenplanView: View {
         auswahl = nil
         ansicht = .tag
         datum = ziel
+    }
+
+    /// Nur mit Startargumenten (Debug-Builds, Bildschirmfotos): Plan, Tag und Ansicht übernehmen.
+    private func startsteuerungUebernehmen() {
+        guard Startsteuerung.aktiv else { return }
+        if let p = Startsteuerung.plan { auswahl = p }
+        if let d = Startsteuerung.datum { datum = d }
+        ansicht = Startsteuerung.ansicht == "tag" ? .tag : .woche
+    }
+
+    /// Nur mit Startargumenten „-uiAnsicht details“: nach dem Laden die Stundendetails einer Vertretung (bzw. einer anderen
+    /// geänderten Stunde) am angegebenen Tag öffnen.
+    private func startdetailOeffnen() async {
+        guard Startsteuerung.aktiv, Startsteuerung.ansicht == "details" else { return }
+        for _ in 0..<60 {
+            if let plan = aktuellerPlan, !plan.karten.isEmpty {
+                let tag = Startsteuerung.datum.map { Datumsformat.iso($0) }
+                let amTag = plan.karten.filter { tag == nil || $0.datum == tag }
+                let geaendert = amTag.filter { $0.unterricht != nil && $0.status != "regulaer" }
+                if let k = geaendert.first(where: { $0.vertretung != nil && ["vertretung", "vertreten"].contains($0.status) })
+                    ?? geaendert.first(where: { $0.vertretung != nil }) ?? geaendert.first ?? amTag.first {
+                    detail = Detailauswahl(karten: [k], start: 0)
+                }
+                return
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
     }
 
     /// „Im Stundenplan anzeigen“ aus den Stundendetails.

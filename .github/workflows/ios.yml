@@ -1,0 +1,185 @@
+name: iOS (Simulator)
+
+# Baut die iOS-App (ios/UntPlanMobile) auf macOS, startet sie im iOS-Simulator gegen den UntPlanWeb-Demo-Server und
+# macht Bildschirmfotos der wichtigsten Ansichten. Die App wird dabei über Startargumente gesteuert (nur Debug-Builds,
+# siehe Startsteuerung in Dienste/AppZustand.swift): Anmeldung, Plan, Tag und Ansicht.
+# Die Fotos liegen als Artefakt vor und stehen zusätzlich verkleinert als Base64 im Protokoll
+# (Zeilen „BILD-ANFANG name“, „B64 …“ je 4000 Zeichen, „BILD-ENDE name“).
+on:
+  push:
+    branches: [ 'claude/**' ]
+    paths:
+      - 'ios/**'
+      - 'web/src/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Neueste Xcode-Version wählen
+        run: |
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          [ -n "$XC" ] || XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Demo-Server starten
+        run: |
+          cd web/src/UntPlanWeb
+          UNTPLANWEB_DATEN=$RUNNER_TEMP/daten UNTPLANWEB_DEMO=1 UNTPLANWEB_ADMIN_PASSWORT='Test1234!' \
+            ASPNETCORE_URLS=http://127.0.0.1:5077 nohup dotnet run --no-launch-profile > $RUNNER_TEMP/web.log 2>&1 &
+
+      - name: Xcode-Projekt prüfen (alle Swift-Dateien eingetragen?)
+        working-directory: ios
+        run: |
+          fehlt=0
+          for f in $(find UntPlanMobile -name '*.swift'); do
+            if ! grep -q "$(basename "$f")" UntPlanMobile.xcodeproj/project.pbxproj; then echo "Fehlt im Projekt: $f"; fehlt=1; fi
+          done
+          if [ $fehlt = 1 ]; then
+            brew install xcodegen
+            xcodegen generate
+          fi
+
+      - name: Simulator wählen
+        id: sim
+        run: |
+          xcrun simctl list devices available
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          d = json.load(sys.stdin)["devices"]
+          def ver(r):
+              m = re.search(r"iOS-(\d+)-(\d+)", r)
+              return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+          laufzeiten = sorted([r for r in d if "iOS" in r and d[r]], key=ver, reverse=True)
+          geraete = d[laufzeiten[0]]
+          for name in ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 15 Pro"]:
+              for g in geraete:
+                  if g["name"] == name:
+                      print(g["udid"]); sys.exit()
+          iphones = [g for g in geraete if g["name"].startswith("iPhone")]
+          print((iphones or geraete)[0]["udid"])
+          ')
+          echo "Gewählt: $UDID"
+          echo "udid=$UDID" >> $GITHUB_OUTPUT
+
+      - name: App bauen (Debug, Simulator)
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/UntPlanMobile.xcodeproj -scheme UntPlanMobile -configuration Debug \
+            -sdk iphonesimulator -destination "id=${{ steps.sim.outputs.udid }}" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tee $RUNNER_TEMP/build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)|\*\* " || true
+          grep -q "BUILD SUCCEEDED" $RUNNER_TEMP/build.log
+
+      - name: Compilerfehler
+        if: failure()
+        run: |
+          grep -E "error:" -A3 $RUNNER_TEMP/build.log | head -200 || true
+          tail -80 $RUNNER_TEMP/build.log || true
+
+      - name: Auf den Demo-Server warten und Konten anlegen
+        run: |
+          for i in $(seq 1 90); do
+            curl -sf http://127.0.0.1:5077/api/app/sitzung > /dev/null && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:5077/api/app/sitzung || { cat $RUNNER_TEMP/web.log; exit 1; }
+          echo
+          S=http://127.0.0.1:5077/api/app
+          J=$RUNNER_TEMP/admin.cookies
+          curl -s -c $J -b $J -H 'Content-Type: application/json' -d '{"login":"admin","passwort":"Test1234!"}' $S/anmelden; echo
+          curl -s -c $J -b $J -H 'Content-Type: application/json' \
+            -d '{"login":"bec","passwort":"Lehrer1234!x","rolle":"lehrer","element":"BEC","anzeigename":"BEC","gesperrt":false}' $S/admin/benutzer; echo
+          KIND=$(python3 -c 'import json; d=json.load(open("web/demo/beispiel-paket.json")); print(next(s["id"] for s in d["elemente"]["schueler"] if s["klasse"]=="6a"))')
+          echo "Kind: $KIND"
+          curl -s -c $J -b $J -H 'Content-Type: application/json' \
+            -d "{\"login\":\"eltern1\",\"passwort\":\"Eltern1234!x\",\"rolle\":\"eltern\",\"anzeigename\":\"Familie Muster\",\"gesperrt\":false,\"schuelerIds\":[$KIND]}" $S/admin/benutzer; echo
+          # Abwesenheiten des Kindes in der aktuellen Woche (Montag entschuldigt, Dienstag offen, Mittwoch Verspätung)
+          MO=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday()))')
+          DI=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday())+d.timedelta(days=1))')
+          MI=$(python3 -c 'import datetime as d; t=d.date.today(); print(t-d.timedelta(days=t.weekday())+d.timedelta(days=2))')
+          echo "MI=$MI" >> $GITHUB_ENV
+          for z in "$MO|07:00|21:00|entschuldigt|K|Grippe" "$DI|07:00|21:00|offen|K|Attest folgt" "$MI|07:55|08:10|offen||Bus verpasst"; do
+            IFS='|' read -r tag von bis status grund text <<< "$z"
+            curl -s -c $J -b $J -H 'Content-Type: application/json' \
+              -d "{\"schuelerIds\":[$KIND],\"von\":\"${tag}T${von}\",\"bis\":\"${tag}T${bis}\",\"grund\":\"$grund\",\"status\":\"$status\",\"text\":\"$text\"}" \
+              $S/klassenbuch/abwesenheit; echo
+          done
+
+      - name: Simulator starten (Dunkelmodus, Statusleiste 9:41)
+        run: |
+          U=${{ steps.sim.outputs.udid }}
+          xcrun simctl boot $U || true
+          xcrun simctl bootstatus $U -b
+          xcrun simctl ui $U appearance dark
+          xcrun simctl status_bar $U override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
+            --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100
+
+      - name: Bildschirmfotos
+        run: |
+          U=${{ steps.sim.outputs.udid }}
+          APP=$(find build/Build/Products -maxdepth 2 -name 'UntPlanMobile.app' -path '*iphonesimulator*' | head -1)
+          echo "App: $APP"
+          # Klartext-HTTP zum lokalen Demo-Server erlauben (nur dieser Testlauf, nicht im Projekt)
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$APP/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$APP/Info.plist" || true
+          mkdir -p fotos
+          foto() {
+            name=$1; shift
+            xcrun simctl terminate $U de.untplan.mobile 2>/dev/null || true
+            xcrun simctl uninstall $U de.untplan.mobile 2>/dev/null || true
+            xcrun simctl install $U "$APP"
+            xcrun simctl launch $U de.untplan.mobile -AppleLanguages '(de)' -AppleLocale de_DE \
+              -uiServer http://127.0.0.1:5077 "$@"
+            sleep 10
+            xcrun simctl io $U screenshot "fotos/$name.png"
+            echo "Foto: $name"
+          }
+          L="-uiLogin bec -uiPasswort Lehrer1234!x -uiDatum $MI"
+          foto 01_Woche_Lehrkraft $L -uiAnsicht woche
+          foto 02_Woche_Klasse $L -uiAnsicht woche -uiPlan klasse:6a
+          foto 03_Tag_Lehrkraft $L -uiAnsicht tag
+          foto 04_Stundendetails_Vertretung $L -uiAnsicht details
+          foto 05_Meine_Termine $L -uiAnsicht termine
+          foto 06_Start_Lehrkraft $L -uiAnsicht start
+          foto 07_Meine_Abwesenheiten_Eltern -uiLogin eltern1 -uiPasswort 'Eltern1234!x' -uiDatum $MI -uiAnsicht abwesenheiten
+          ls -la fotos
+
+      - name: Bilder ins Protokoll
+        if: always()
+        run: |
+          mkdir -p klein
+          for f in fotos/*.png; do
+            [ -f "$f" ] || continue
+            n=$(basename "$f" .png)
+            sips -Z 900 -s format jpeg -s formatOptions 55 "$f" --out "klein/$n.jpg" > /dev/null
+            echo "BILD-ANFANG $n.jpg"
+            base64 -i "klein/$n.jpg" | tr -d '\n' | fold -w 4000 | sed 's/^/B64 /'
+            echo
+            echo "BILD-ENDE $n.jpg"
+          done
+
+      - name: Server-Protokoll
+        if: always()
+        run: tail -60 $RUNNER_TEMP/web.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Bildschirmfotos-iOS
+          path: fotos
+          retention-days: 3

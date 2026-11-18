@@ -90,7 +90,7 @@ final class AppZustand: ObservableObject {
     /// Fragt beim ersten Mal nach der Erlaubnis für Mitteilungen und meldet das Gerät für Push-Mitteilungen an
     /// (APNs; wirkt erst mit Push-Berechtigung in Xcode und dem Server-Endpunkt, sonst bleibt es bei der Prüfung).
     func planPruefen() async {
-        guard phase == .angemeldet, darfPlanmitteilungen, Planmitteilungen.aktiv else { return }
+        guard phase == .angemeldet, darfPlanmitteilungen, Planmitteilungen.aktiv, !Startsteuerung.aktiv else { return }
         await Planmitteilungen.erlaubnisAnfragen()
         UIApplication.shared.registerForRemoteNotifications()
         _ = await Planpruefer.shared.pruefen()
@@ -233,6 +233,16 @@ final class AppZustand: ObservableObject {
     func starten() async {
         Kontenspeicher.migrieren()
         konten = Kontenspeicher.laden()
+        // Nur Debug-Builds mit Startargumenten (automatische Bildschirmfotos): direkt am angegebenen Server anmelden
+        if let s = Startsteuerung.server, let l = Startsteuerung.login, let p = Startsteuerung.passwort {
+            do {
+                try await anmelden(server: s, login: l, passwort: p, merken: false)
+                reiter = Startsteuerung.reiter
+            } catch {
+                phase = .abgemeldet
+            }
+            return
+        }
         if let aktiv = aktivesKonto {
             // Sitzung des aktiven Kontos wiederherstellen (falls das System die Sitzungs-Cookies verworfen hat)
             if api.serverAdresse != aktiv.server { api.serverAdresse = aktiv.server }
@@ -382,4 +392,46 @@ struct NotizAenderung: Equatable {
     /// Neue Notiz für Schüler*innen bzw. Lehrkräfte (nil = unverändert)
     let schueler: String?
     let lehrer: String?
+}
+
+/// Steuerung über Startargumente für automatische Bildschirmfotos im Simulator (nur Debug-Builds; ohne Argumente und in
+/// Release-Builds ohne jede Wirkung). Beispiel:
+/// `-uiServer http://127.0.0.1:5077 -uiLogin bec -uiPasswort … -uiAnsicht woche|tag|details|termine|abwesenheiten
+///  -uiDatum 2026-10-14 -uiPlan klasse:6a`
+enum Startsteuerung {
+    private static func wert(_ schluessel: String) -> String? {
+        #if DEBUG
+        guard let v = UserDefaults.standard.string(forKey: schluessel)?.trimmingCharacters(in: .whitespaces), !v.isEmpty else { return nil }
+        return v
+        #else
+        return nil
+        #endif
+    }
+
+    static var server: String? { wert("uiServer") }
+    static var login: String? { wert("uiLogin") }
+    static var passwort: String? { wert("uiPasswort") }
+    /// woche (Standard), tag, details, termine, abwesenheiten
+    static var ansicht: String? { wert("uiAnsicht")?.lowercased() }
+    /// Angezeigter Tag (yyyy-MM-dd)
+    static var datum: Date? { wert("uiDatum").flatMap { Datumsformat.datum($0) } }
+    /// Anderer Plan als der eigene, z. B. „klasse:6a“ oder „lehrer:BEC“
+    static var plan: PlanAuswahl? {
+        guard let w = wert("uiPlan") else { return nil }
+        let teile = w.split(separator: ":", maxSplits: 1).map(String.init)
+        guard teile.count == 2 else { return nil }
+        return PlanAuswahl(typ: teile[0].lowercased(), element: teile[1], name: teile[1])
+    }
+
+    static var aktiv: Bool { server != nil }
+
+    /// Reiter nach der Anmeldung: Termine und Abwesenheiten liegen auf der Startseite.
+    static var reiter: AppReiter {
+        switch ansicht {
+        case "termine", "abwesenheiten", "start": return .start
+        case "mitteilungen": return .mitteilungen
+        case "profil": return .profil
+        default: return .stundenplan
+        }
+    }
 }
