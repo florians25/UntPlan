@@ -134,7 +134,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
-        OriginalLeiste = new ToolStripItem[] { normalform, felder, neu, loeschen, _filterKnopf, sortieren, rollup, layout, einst, kalender, splitten, aktualisieren };
+        OriginalLeiste = new ToolStripItem?[] { normalform, felder, neu, loeschen, null, _filterKnopf, sortieren, rollup, layout, einst, kalender, splitten, aktualisieren };
+        sortieren.Image = Symbole.Get("l_sortieren", 16);
 
         Ui.RasterGestalten(_g, true);
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern

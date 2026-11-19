@@ -294,7 +294,7 @@ public class MdiFenster : Form
     /// Sichtbare Symbole der Werkzeugleiste in der Reihenfolge der Original-Symbolübersicht (null = Leiste unverändert). Alle übrigen
     /// eigenen Befehle (auch „Spalten“) bleiben über den Überlaufpfeil » am rechten Rand der Leiste erreichbar.
     /// </summary>
-    protected ToolStripItem[]? OriginalLeiste { get; set; }
+    protected ToolStripItem?[]? OriginalLeiste { get; set; }
 
     /// <summary>„Normalform anzeigen“: Fensterrahmen an die Größe der Tabelle anpassen (sichtbare Spalten und Zeilen, im Arbeitsbereich).</summary>
     protected void NormalformAnzeigen(DataGridView g)
@@ -316,7 +316,13 @@ public class MdiFenster : Form
         foreach (var it in leiste.Items.OfType<ToolStripSeparator>().ToList()) leiste.Items.Remove(it);
         foreach (var it in sichtbar) leiste.Items.Remove(it);
         foreach (var it in rest) leiste.Items.Remove(it);
-        foreach (var it in sichtbar) { it.Overflow = ToolStripItemOverflow.Never; leiste.Items.Add(it); }
+        // null = Trennstrich an dieser Stelle (wie im Original)
+        foreach (var it in sichtbar)
+        {
+            if (it is null) { leiste.Items.Add(new ToolStripSeparator()); continue; }
+            it.Overflow = ToolStripItemOverflow.Never;
+            leiste.Items.Add(it);
+        }
         foreach (var it in rest)
         {
             it.Overflow = ToolStripItemOverflow.Always;

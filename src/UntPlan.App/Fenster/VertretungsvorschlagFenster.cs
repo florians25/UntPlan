@@ -98,7 +98,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(einstellungen);
         // wie auf dem Original-Bildschirmfoto: sichtbar nur „Vertreter übernehmen“ und „Einstellungen“, alles Weitere (auch „Spalten“)
         // über den Überlaufpfeil rechts in der Leiste
-        OriginalLeiste = new ToolStripItem[] { ts.Items[0], einstellungen };
+        OriginalLeiste = new ToolStripItem?[] { ts.Items[0], einstellungen };
         _alle.CheckedChanged += (_, _) => Neuaufbau();
         Ui.FlacheKaestchen(_block, _disloz, _dauer, _nahe, _besetzt, _zusatzRaum, _vorzSpaeter);
         foreach (var c in new[] { _block, _disloz, _dauer, _nahe, _besetzt })

@@ -129,7 +129,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var teilen = Knopf("Vertretung teilen", "l_teilen", Teilen);
         var filterKnopf = Knopf("Filter", "filter", FilterSetzen);
         // Handbuch Kap. 13.1.1.3: Sortierkriterien der Ansicht (bleiben für dieses Vertretungsformat gespeichert)
-        var sortieren = Knopf("Sortieren", "sortieren", SortierDialog);
+        var sortieren = Knopf("Sortieren", "l_sortieren", SortierDialog);
         _inhalt.Image = Symbole.Get("l_inhalt", 16);
         _inhalt.CheckedChanged += (_, _) => FelderMitInhalt(_inhalt.Checked);
         // Handbuch Kap. 14.2 (Tipp Spalte „Zählen“): grün = positiv, rot = negativ gezählt
@@ -175,7 +175,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         einst.DropDownItems.Add(nurNeu);
         einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, LehrerSicht));
         ts.Items.Add(einst);
-        OriginalLeiste = new ToolStripItem[] { normalform, felder, entfall, vorschlag, vormerkung, planung, raum, automatik, diagnose, teilen, filterKnopf, sortieren, _inhalt, farbigKnopf, fixieren, seitenlayout, aktualisieren, einst };
+        OriginalLeiste = new ToolStripItem?[] { normalform, felder, entfall, vorschlag, vormerkung, null, planung, raum, automatik, diagnose, null, teilen, null,
+            filterKnopf, sortieren, _inhalt, null, farbigKnopf, null, fixieren, seitenlayout, aktualisieren, null, einst };
 
         // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
         // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander

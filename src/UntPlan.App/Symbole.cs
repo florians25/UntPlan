@@ -100,9 +100,10 @@ public static class Symbole
         ["abwesenheit"] = "H 2 3 20 gr; E 17 17 13 13 r; L 20.5 23.5 26.5 23.5 w w3",
         ["absenz"] = "=abwesenheit",
         // Entfall: kräftiges rotes X mit dunklem Saum wie auf dem Original-Bildschirmfoto (Symbolleiste der Vertretungen)
-        ["entfall"] = "L 5 5 27 27 hx w10 h & L 27 5 5 27 hx w10 h; L 6 6 26 26 xr w5 & L 26 6 6 26 xr w5",
+        ["entfall"] = "L 5 5 27 27 hx w11 h & L 27 5 5 27 hx w11 h; L 6 6 26 26 xr w7 & L 26 6 6 26 xr w7",
         // Symbole der Werkzeugleisten nach der Original-Symbolübersicht (eigene Zeichnungen)
         ["l_loeschen"] = "=entfall",
+        ["l_sortieren"] = "L 4 13 8 3 b w2.5 & L 8 3 12 13 b w2.5; L 5 9 11 9 b w2; L 4 17 12 17 b w2.5 & L 12 17 4 29 b w2.5 & L 4 29 12 29 b w2.5; P 18 18 30 18 24 26 b",
         ["l_normalform"] = "R 3 3 26 26 1 w & R 3 3 26 6 1 b; V 16 18 16 10 b w2 h & V 16 18 16 27 b w2 h & V 16 18 7 18 b w2 h & V 16 18 25 18 b w2 h",
         ["l_felder"] = "R 7 3 18 7 1 hb; R 7 13 18 7 1 hb; R 7 23 18 7 1 hb",
         ["l_inhalt"] = "R 2 5 28 10 1 w; R 2 17 28 10 1 w; L 5 8 9 12 dk w1.5 & L 9 8 5 12 dk w1.5; L 11 8 15 12 dk w1.5 & L 15 8 11 12 dk w1.5; L 17 20 21 24 dk w1.5 & L 21 20 17 24 dk w1.5; L 23 20 27 24 dk w1.5 & L 27 20 23 24 dk w1.5",
