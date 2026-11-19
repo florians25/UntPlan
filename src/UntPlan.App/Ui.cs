@@ -13,8 +13,8 @@ public static partial class Ui
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
     public static readonly Font SchriftKursiv = new("Segoe UI", 9f, FontStyle.Italic);
 
-    /// <summary>Einheitliche Zeilenhöhe aller Tabellen: 19 Pixel (etwas luftiger als die 17 Pixel des Handbuchs), bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.</summary>
-    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(19, (schrift ?? Schrift).Height + 3);
+    /// <summary>Einheitliche Zeilenhöhe aller Tabellen: 22 Pixel (luftiger als die 17 Pixel des Handbuchs, Nutzerwunsch), bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.</summary>
+    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(22, (schrift ?? Schrift).Height + 6);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
     /// <summary>
