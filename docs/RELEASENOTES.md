@@ -7,6 +7,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Tabellen wie in den Original-Fenstern nachgemessen: Absenzen und Vertretungen 19 px je Zeile, Vertretungsvorschlag (Vorschläge, Räume) und Stundenplanlupe 21 px; Spaltenbreiten und -reihenfolge, Schriften (Arial 9 in Vertretungstabellen, MS Sans Serif 8,25 für Häkchen und Reiter, Segoe UI 8,25 in Absenzen), Rasterlinien nur rechts/unten; kleiner Stundenplan auch im Vertretungsmodus im Vorbild-Stil.
 - Schülergruppen automatisch für jeden Unterricht als „Fach_Klassen_Lehrkraft“ (z. B. „FU1_FIS4A_LN“) – beim Ändern und nachträglich beim Öffnen; vorhandene bzw. von Hand vergebene Schülergruppen bleiben unverändert (abschaltbar im Kontextmenü des Unterrichtsfensters). Platzhalter $, %, # bei der Eingabe für mehrere Unterrichte, Umbenennen in allen Perioden, Fenster „Unterrichte mit inkonsistenten Schülergruppen“, Prüfung auf fehlende Schülergruppen vor der Übertragung ins Web.
 - Sondereinsatz und Vertretungen übernehmen die Schülergruppe des Unterrichts (kursiv grau, von Hand eingetragene schwarz); Auswahl der bekannten Schülergruppen beim Tippen.
 - Drag & Drop im Stundenplan nach dem Handbuch: freie Felder in Grünschattierungen (je dunkler, desto besser), Ziel unter der Maus kräftig grün, rot = Sperrung, violett = Raum belegt (auch im Vertretungsmodus), grün hinterlegte Stunden = 2-er-Tausch, blauer Pfeil = Tauschkette mit roten Pfeilen; Farblegende neben dem Plan während des Ziehens.
