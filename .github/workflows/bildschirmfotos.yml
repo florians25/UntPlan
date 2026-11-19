@@ -8,7 +8,7 @@ on:
       schritte:
         description: 'Regulärer Ausdruck der Selbsttest-Schritte'
         required: false
-        default: '^(1[0-9]|R3B_Absenzen|R3B_Vertretungen)'
+        default: '^(16_Vertretungsmodus|V[0-9])'
   push:
     branches: [ 'claude/**' ]
     paths: [ 'src/UntPlan.App/**' ]
@@ -32,7 +32,7 @@ jobs:
       - name: Gewählte Selbsttest-Schritte
         shell: pwsh
         run: |
-          $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(1[0-9]|R3B_Absenzen|R3B_Vertretungen)' }
+          $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(16_Vertretungsmodus|V[0-9])' }
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
           if (-not $p.WaitForExit(900000)) { $p.Kill() }
           Get-Content artifacts/fotos/selbsttest.log
@@ -42,12 +42,14 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          foreach ($f in Get-ChildItem artifacts/fotos -Filter *.png | Where-Object { $_.Name -match '^(17_Vertretungen|18e1_Textvorschlag_im_Feld|R3B_Absenzen)\.png$' }) {
+          foreach ($f in Get-ChildItem artifacts/fotos -Filter *.png | Where-Object { $_.Name -match '^V[0-9].*_F\.png$' }) {
             $b = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
             Write-Output "BILD-ANFANG $($f.Name)"
             for ($i = 0; $i -lt $b.Length; $i += 4000) { Write-Output ("B64 " + $b.Substring($i, [Math]::Min(4000, $b.Length - $i))) }
             Write-Output "BILD-ENDE $($f.Name)"
           }
+          # Maße der Tabellen und Fehler am Ende (mit wenigen Protokollzeilen abrufbar)
+          Get-Content artifacts/fotos/selbsttest.log | Select-String -Pattern '^(MASS|FEHLER)' | ForEach-Object { Write-Output $_.Line }
 
       - uses: actions/upload-artifact@v4
         if: always()
