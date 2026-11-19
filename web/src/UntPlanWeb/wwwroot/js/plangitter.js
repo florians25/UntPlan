@@ -703,7 +703,8 @@ function hoverZeigen(ziel, anker = ziel) {
   if (!pillen && ziel.dataset.hoverPillen) pillen = ziel.dataset.hoverPillen.split(',').map(t => ({ t }));
   const art = zeile ? 'zeile' : ziel.dataset.hoverArt || '';
   if (pillen) hoverEl.innerHTML = pillen.map(p => `<span class="${p.a ? 'p-' + e(p.a) : ''}">${e(p.t)}</span>`).join('');
-  else hoverEl.textContent = zeile ? (ziel.dataset.voll || ziel.textContent.trim()) : ziel.dataset.hover || '';   // „alt → neu“ ohne Durchstreichung
+  // „alt → neu“ ohne Durchstreichung; um den Pfeil etwas mehr Luft wie in der Vorlage (schmale Leerzeichen nur in der Anzeige)
+  else hoverEl.textContent = zeile ? (ziel.dataset.voll || ziel.textContent.trim()) : (ziel.dataset.hover || '').replace(/ → /g, ' \u2009→\u2009 ');
   hoverEl.classList.toggle('dunkel', art === 'dunkel');
   hoverEl.classList.toggle('grau', art === 'grau' && !pillen);
   hoverEl.classList.toggle('zeile', art === 'zeile' && !pillen);
