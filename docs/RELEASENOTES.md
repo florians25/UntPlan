@@ -104,6 +104,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Stundenplan: Zusatzstunden (z. B. Sondereinsatz) zeigen ihren Raum als hinzugefügt („+B003“, darunter das Änderungssymbol), ohne Fach im Klassenplan Lehrkraft – Bezeichnung – Raum; Info-Symbol mit „Information zur Stunde:“ und dem Text darunter, Hinweis grau mittig über dem Symbol; Labels kürzen mit „…“ im grünen Kasten („+B…“).
+- Kopfleiste des Wochenplans: feine Pfeile mit dünnem Kreis beim Überfahren dicht am Zeitraum, „Heute“ etwas flacher, Tageszeile größer, Beginn der ersten Stunde an der ersten Linie.
 - Bericht „Abwesenheiten“: jede Verspätung bzw. jedes vorzeitige Gehen als eigene Zeile (auch reine Verspätungen ohne Abwesenheit) mit Uhrzeit, „verspätet x Min.“, Fach, Lehrkraft, Grund, Status und Text, je Schüler*in eine Summenzeile „Verspätungen“ (Anzahl, Minuten) – in PDF und CSV; „Aufgestanden“ steht nur noch in der Tabelle „Abwesende Schüler*innen“.
 - Klassenbuch-Berichte dokumentieren jede Verspätung und jedes vorzeitige Gehen genau (PDF und CSV): Datum, Stunde, Uhrzeit von–bis, Minuten, Fach, Lehrkraft, Grund, Text und Status; Summen mit Anzahl und Minuten (Verspätungen, Fehlzeiten pro Schüler*in/Klasse/Fach, Abwesenheiten, Statusübersicht, Anwesenheiten, Auffällige Verspätungen, Lehrnachweis, Tagesübersicht, Unterrichtsberichte, Fehlstundenmatrix „V12“/„G10“).
 - Haken „Fehlzeiten“ und „Verspätungen“ über der Berichtsliste wirken in allen Abwesenheitsberichten.

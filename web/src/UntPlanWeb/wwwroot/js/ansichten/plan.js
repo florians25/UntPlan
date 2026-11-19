@@ -14,6 +14,8 @@ const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
  */
 let gemerkterTag = null;
 const LISTE = { klasse: 'klassen', lehrer: 'lehrer', raum: 'raeume' };
+/** Pfeil Woche vor/zurück wie in der Vorlage: feiner Winkel (6 × 12 px, Linie 1 px), grau; beim Überfahren ein dünner grauer Kreis. */
+const WOCHE_PFEIL = d => `<svg class="woche-pfeil-sym" width="7" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${d}"/></svg>`;
 
 /** Langname ohne vorangestelltes Kürzel („7a – Klasse 7a“ → „Klasse 7a“). */
 function langname(plan) {
@@ -198,9 +200,9 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <button type="button" class="rundknopf" data-element="1" title="Nächstes Element (Alt+→)" aria-label="Nächstes Element" ${pos < 0 || pos >= liste.length - 1 ? 'disabled' : ''}>${icon('rechts')}</button>`}
       </div>
       <div class="mitte">
-        <button type="button" class="rundknopf" data-woche="-7" title="Vorherige Woche" aria-label="Vorherige Woche">${icon('links')}</button>
+        <button type="button" class="rundknopf woche-pfeil" data-woche="-7" title="Vorherige Woche" aria-label="Vorherige Woche">${WOCHE_PFEIL('M7 1 1 7l6 6')}</button>
         <span class="position-relative"><button type="button" class="zeitraum" data-kalender title="Datum wählen" aria-haspopup="dialog">${wochenText(mo)}</button></span>
-        <button type="button" class="rundknopf" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${icon('rechts')}</button>
+        <button type="button" class="rundknopf woche-pfeil" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${WOCHE_PFEIL('M1 1l6 6-6 6')}</button>
       </div>
       <div class="rechts"><button type="button" class="heute-pill${mo === montag(heuteIso()) ? ' aktuell' : ''}" data-woche="0">Heute</button></div>
     </div>

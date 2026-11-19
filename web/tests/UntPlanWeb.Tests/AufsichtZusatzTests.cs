@@ -105,8 +105,10 @@ public class AufsichtZusatzTests
         Assert.Equal(new[] { "KLE", "BEC", "LAN" }, lehrer.Select(w => S(w["k"])));
         // wie in der Vorlage schlicht (ohne Plakette, ohne „+“ – das „+“ trägt die Karte oben rechts)
         Assert.All(lehrer, w => { Assert.Null(w["alt"]); Assert.False(w["neu"]!.GetValue<bool>()); Assert.False(w["plus"]!.GetValue<bool>()); });
-        // Marker nur „+“ – die Lehrkräfte einer Zusatzstunde sind keine Änderung eines Werts
-        Assert.Equal(new[] { "plus" }, k["marker"]!.AsArray().Select(x => S(x)));
+        // die Lehrkräfte einer Zusatzstunde sind keine Änderung eines Werts – der Raum ist aber hinzugekommen („+R101“ wie in Vorlage 265),
+        // daher unter dem „+“ das Änderungssymbol
+        Assert.True(Assert.Single(k["raeume"]!.AsArray())!["plus"]!.GetValue<bool>());
+        Assert.Equal(new[] { "plus", "aenderung" }, k["marker"]!.AsArray().Select(x => S(x)));
     }
 
     [Fact]

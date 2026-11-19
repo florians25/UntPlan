@@ -665,7 +665,8 @@ public sealed class Plandienst
         // Zusatzstunden: Vertretungen erst jetzt (nach dem Zusammenfassen) auflösen – siehe ZusatzLehrer
         var gekoppelt = Kopplungen(einzel).Select(k => k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null
             && k.Lehrer.Any(w => w.K.Length > 0 && !string.IsNullOrEmpty(w.Alt)) ? k with { Lehrer = ZusatzLehrer(k.Lehrer) } : k).ToList();
-        return ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten)).Select(LabelVorne).ToList();
+        // erst nach ZusatzPruefen steht fest, welche Karten Zusatzstunden sind – deren Räume gelten dann als hinzugefügt („+B003“)
+        return ZusatzRaeume(ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten))).Select(LabelVorne).ToList();
     }
 
     /// <summary>Räume mit Label (geändert, hinzugekommen, entfernt) stehen vorne – wie in der Vorlage („[A103], C103“); sonst bleibt die Reihenfolge.</summary>
@@ -1331,11 +1332,24 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Der Raum einer Veranstaltung ist ein hinzugefügter Wert (die Veranstaltung kommt zum Plan hinzu): { K = Raum, Neu = true } –
-    /// Web „+A103“-Label, Apps grünes Label ohne „+“. Ersetzte bzw. entfernte Räume (Alt gesetzt) bleiben unverändert.
+    /// Der Raum einer Veranstaltung bzw. einer zusätzlichen Unterrichtsstunde (Marker „+“, z. B. Sondereinsatz; nicht Verlegung) ist ein
+    /// hinzugefügter Wert (die Stunde kommt zum Plan hinzu): { K = Raum, Neu = true } – Web „+A103“-Label (wie in der Vorlage „+B003“),
+    /// Apps grünes Label ohne „+“; die Zusatzkarte trägt dann unter dem „+“ auch das Änderungssymbol. Ersetzte bzw. entfernte Räume
+    /// (Alt gesetzt) bleiben unverändert. Lehrkräfte einer Zusatzstunde stehen dagegen weiter schlicht da (siehe <see cref="ZusatzLehrer"/>).
     /// </summary>
-    public static Karte RaeumeHinzugefuegt(Karte k) => k.Status != "veranstaltung" ? k
-        : k with { Raeume = k.Raeume.Select(w => w.K.Length > 0 && string.IsNullOrEmpty(w.Alt) && !w.Neu ? w with { Neu = true } : w).ToList() };
+    public static Karte RaeumeHinzugefuegt(Karte k) => RaeumeHinzugefuegt(k, Array.Empty<string>());
+
+    /// <summary>Wie oben; <paramref name="bleibt"/> = Räume, die schon die ersetzte Stunde hatte (kein „+“).</summary>
+    internal static Karte RaeumeHinzugefuegt(Karte k, IReadOnlyCollection<string> bleibt) => k.Status != "veranstaltung" && !k.IstZusatz ? k
+        : k with { Raeume = k.Raeume.Select(w => w.K.Length > 0 && string.IsNullOrEmpty(w.Alt) && !w.Neu && !bleibt.Contains(w.K, Ci) ? w with { Neu = true } : w).ToList() };
+
+    /// <summary>
+    /// Räume der Zusatzstunden als hinzugefügt markieren (siehe <see cref="RaeumeHinzugefuegt(Karte)"/>) – außer einem Raum, den die zur
+    /// selben Zeit entfallene bzw. abgegebene Stunde schon hatte (z. B. Fachänderung im selben Raum: der Raum bleibt, kein „+“).
+    /// </summary>
+    internal static List<Karte> ZusatzRaeume(List<Karte> karten) => karten.Select(k => !k.IstZusatz ? k
+        : RaeumeHinzugefuegt(k, karten.Where(x => !ReferenceEquals(x, k) && x.Datum == k.Datum && x.Von <= k.Bis && x.Bis >= k.Von && x.Status is "entfall" or "abwesend")
+            .SelectMany(x => x.Raeume).Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(r => r.Length > 0).ToList())).ToList();
 
     /// <summary>
     /// Veranstaltungen, die ausdrücklich für dieses Element gelten (nicht schulweit) und noch nicht als Karte vorhanden sind –

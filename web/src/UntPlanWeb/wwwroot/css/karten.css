@@ -249,6 +249,36 @@ input.sd-eingabe { min-height: 56px; }
 /* nicht bestätigte Buchung: „Information zur Stunde“ grau wie in der Vorlage */
 .sd-text.sd-grau { color: var(--u-grau); }
 
+/* ------------------------------------------------------------------ Info-Symbol und Information zur Stunde (Vorlage 265)
+
+   Dunkler Hinweis über dem Info-Symbol: Grau #67747e, Ecken 4px, weiße Schrift 13px Demi, Zeilenabstand 1,6 („Information zur Stunde:“
+   und darunter der Text), mittig über dem Symbol. Beim Überfahren steht das „i“ ohne Kreis grau auf etwas dunklerem Grund. */
+.u-hover-label.dunkel { background: #67747e; border-radius: 4px; line-height: 1.6; padding: 6px 10px; }
+.std .ecke .ecke-info:hover { content: url("../img/wu/exact/info-hover.svg"); }
+
+/* Labels (z. B. hinzugefügter Raum „+B003“) kürzen wie der Text ihrer Zeile: „+B…“ im grünen Kasten */
+.std :is(.z1, .z2) .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; box-sizing: border-box; }
+
+/* ------------------------------------------------------------------ Kopfleiste des Wochenplans (Vorlage 266)
+
+   Mittig „16. 11. - 22. 11. 2026“ (14px Demi, #414d55, Ziffern proportional) dicht zwischen den Pfeilen ‹ ›: feine graue Winkel, beim
+   Überfahren ein dünner grauer Kreis (32px, kein weißer Grund). „Heute“ 31px hoch, 14px Demi. Tageszeile 17px Demi (wie überall nur bis 600 – kein Bold-Schnitt), heute #414d55.
+   Links an der ersten Linie der Beginn der ersten Stunde (wenn die Uhrzeiten auf den Karten stehen). */
+.planleiste .mitte { gap: 0; }
+.planleiste .zeitraum.kal-pille { font-size: 14px; font-weight: 600; color: #414d55; letter-spacing: 0; font-variant-numeric: lining-nums proportional-nums; }
+.planleiste .rundknopf.woche-pfeil { width: 32px; height: 32px; color: #8a96a1; background: transparent; border: 1px solid transparent; }
+.planleiste .rundknopf.woche-pfeil:hover, .planleiste .rundknopf.woche-pfeil:focus-visible { background: transparent; color: #8a96a1; border-color: #8a96a1; }
+.planleiste .woche-pfeil-sym { width: 7px; height: 14px; display: block; }
+.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; }
+.tt-tag { font-size: 17px; font-weight: 600; font-variant-numeric: lining-nums proportional-nums; }
+.tt-tag.heute { font-weight: 600; color: #414d55; }
+/* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
+@media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
+.tt-zeit.erste { left: 12px; font-size: 12px; line-height: 14px; font-weight: 600; color: #8a96a1; transform: translateY(-50%); z-index: 20; }
+/* steht halb über der Tageszeile – beim Scrollen (Tageszeile klebt oben) ausgeblendet */
+body.plan-gescrollt .tt-zeit.erste { visibility: hidden; }
+
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die

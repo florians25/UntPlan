@@ -313,7 +313,8 @@ public class KartenSprint27Tests
         var manuell = Karten(plan, "2026-10-15", 6).Single();
         Assert.True(manuell["zusaetzlich"]!.GetValue<bool>());
         Assert.Equal("Förderkurs Lesen – bitte Lesebuch mitbringen", manuell["text"]!.GetValue<string>());
-        Assert.Equal(new[] { "plus" }, Marker(manuell));
+        // Raum der Zusatzstunde hinzugekommen („+R105“, Vorlage 265): „+“ und darunter das Änderungssymbol
+        Assert.Equal(new[] { "plus", "aenderung" }, Marker(manuell));
         var standard = Karten(plan, "2026-10-15", 7).Single();
         Assert.True(standard["zusaetzlich"]!.GetValue<bool>());
         Assert.Equal("", standard["text"]!.GetValue<string>());

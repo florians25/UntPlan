@@ -175,9 +175,11 @@ export function infoText(k) {
   // Zusatzstunden: der Server liefert nur von Hand eingegebene Texte (Standardtexte entfallen) – diese erscheinen wie sonst auch
   // Prüfung: nur ihr Name (Prüfungsart, Notenschema und Teilnehmende stehen in den Stundendetails)
   if (k.status === 'klausur') { if (k.pruefung || k.text) z.push(`Prüfung: ${k.pruefung || k.text}`); }
+  // Zusatzstunde (z. B. Sondereinsatz, auch ohne Fach) wie in der Vorlage: „Information zur Stunde:“ und darunter der Text
+  else if (istZusatz(k) && k.text && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Information zur Stunde:\n${k.text}`);
   else if (k.text && k.fach && !/^entf(ä|ae|a)llt\.?$/i.test(k.text.trim())) z.push(`Vertretungstext: ${k.text}`);
   // Veranstaltung (Vorlage): Info-Symbol mit dem Text der Veranstaltung
-  else if (k.status === 'veranstaltung' && !k.fach && k.text) z.push(`Information zur Stunde: ${k.text}`);
+  else if (k.status === 'veranstaltung' && !k.fach && k.text) z.push(`Information zur Stunde:\n${k.text}`);
   if (k.notizLehrer) z.push(`Notizen für Lehrkräfte: ${k.notizLehrer}`);
   if (k.notizSchueler) z.push(`Notizen für Schüler*innen: ${k.notizSchueler}`);
   return z.join('\n');
@@ -187,7 +189,8 @@ export function infoText(k) {
 function eckSymbole(k, typ) {
   const info = infoText(k);
   const hw = k.hausaufgabeFaellig ? '<img class="ecke-hw" src="img/wu/exact/tt-homework-icon.svg" alt="" data-hover="Hausaufgabe fällig" data-hover-art="dunkel">' : '';
-  const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel">` : '';
+  // Hinweis mittig über dem Symbol (wie in der Vorlage)
+  const i = info ? `<img class="ecke-info" src="img/wu/exact/info.svg" alt="" data-hover="${e(info)}" data-hover-art="dunkel" data-hover-mitte>` : '';
   // „Findet online statt“: Symbol online_lesson unten auf der Karte (statt eines Raumlabels)
   const online = istOnline(k, typ)
     ? '<img class="ecke-online" src="img/wu/klassenbuch/online_lesson.svg" alt="Findet online statt" data-hover="Findet online statt" data-hover-art="dunkel">' : '';
@@ -303,6 +306,12 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
     titel = e(k.text || k.art || '—');
     oben = lehrerZeile || titel;
     rest = [lehrerZeile ? titel : '', raum, werteListe(k.klassen, entfall)];
+  } else if (ohneFach && typ === 'klasse' && istZusatz(k) && (k.lehrer || []).some(w => (w.k || w.alt) && !PLATZHALTER.includes(w.k || ''))) {
+    // Zusatzstunde ohne Fach (z. B. Sondereinsatz „Tageslernsituation …“) im Klassenplan wie eine Stunde (Vorlage): Lehrkraft fett oben
+    // (schlicht), an Stelle des Fachs die Bezeichnung (gekürzt mit „…“, voll im Hover und im Info-Symbol), dann der Raum („+B003“)
+    titel = e(k.text || k.art || '—');
+    oben = werteListe(k.lehrer.filter(w => (w.k || w.alt) && !PLATZHALTER.includes(w.k || '')), entfall, true);
+    rest = [titel, raum, klassenReihe(k, k.klassen.length > 1 || abwesend(k).size)];
   } else if (ohneFach) {
     // Veranstaltung, Klausur, Buchung: Bezeichnung (Prüfung: ihr Name ohne freie Angaben – in jedem Plan gleich), dann Klassen,
     // Lehrkräfte (gekürzt) und Raum
@@ -587,6 +596,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     if (mitNummer) html += `<div class="tt-nr${mitZeiten ? '' : ' allein'}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
     if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
   });
+  // Uhrzeiten auf den Karten: an der ersten Linie der Beginn der ersten Stunde (wie in der Vorlage „07:45“)
+  if (!mitZeiten && kartenZeiten && plan.format?.zeiten !== false && zeiten.length) html += `<div class="tt-zeit erste" style="top:${aufbau.oben[0]}px">${e(zeiten[0].beginn)}</div>`;
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;
   html += '</div>';
 
