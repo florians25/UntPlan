@@ -9,16 +9,28 @@
    wie der Text ihrer Zeile, gleich kräftig wie der Text daneben. */
 .std, .aufsicht, .sd-zeile, .sd-titel h2 { font-variant-numeric: lining-nums; }
 .std .zt, .tt-zeit, .tt-jetzt-zeit { font-variant-numeric: lining-nums tabular-nums; }
-/* nachgemessen an der Plan-Vorlage (Versalien 11/25/41 px unter der Kartenkante): Kopf Demi ohne zusätzliche Kontur,
-   Zeilen Regular, Kopf 1px höher und 2px näher an den Zeilen */
+/* nachgemessen an der Plan-Vorlage (Bild 279, Windows, gleicher Zoom): Versalien +10, +24 und +40 px unter der Kartenkante
+   (Innenabstand oben 7px in nl-design.css); Kopf Demi ohne zusätzliche Kontur, Zeilen Regular, Kopf 1px höher und 2px näher an
+   den Zeilen */
 .std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }
 .std .z2 { font-weight: 400; }
-/* Kopf mit Label (farbiger Kasten): 3px Luft bis zur nächsten Zeile wie in der Vorlage – der Kasten ist höher als die Versalien */
-.std .z1:has(.lbl) { margin-bottom: 0; }
+/* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
+   darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
 .std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; }
 .std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
+/* Label in einer weiteren Zeile (z. B. Raum „C103“): Kasten 16px, 2px unter der Oberkante der Zeile (Kasten +38 bis +53 unter der
+   Kartenkante, Versalien der Zeile ohne Label +40 bis +48), Schrift im Kasten mittig (3px Luft oben und unten) */
+.std .z2 .lbl { position: relative; top: 2px; line-height: 15px; padding-bottom: 1px; }
+/* die Zeile schneidet ihren Inhalt ab (Kürzen mit „…“): Schnittkante 2px tiefer, damit der Kasten ganz sichtbar bleibt (ohne die
+   folgenden Zeilen zu verschieben) */
+.std .z2:has(.lbl) { padding-bottom: 2px; margin-bottom: -2px; }
+/* auch das durchgestrichene Label der abwesenden Lehrkraft (app.css setzt dort den Innenabstand neu) */
+.std.lehrer-abwesend .z2 .lbl.weg { padding-bottom: 1px; }
 .std .abw-label { font-size: 12px; line-height: 15px; padding: 0 3px; margin-top: 1px; border-radius: 1.5px; }
+
+/* Info-Symbol unten rechts: Kreis 10px über der Kartenunterkante und 9px vor der rechten Kante (Vorlage 279) */
+.std .ecke .ecke-info { position: relative; top: -1px; }
 
 /* ------------------------------------------------------------------ Online-Unterricht: nur das Symbol unten auf der Karte */
 .std .ecke .ecke-online { width: 20px; height: 20px; margin: -2px -1px; display: block; color: inherit; font-size: 0; }
@@ -264,7 +276,7 @@ input.sd-eingabe { min-height: 56px; }
 
    Mittig „16. 11. - 22. 11. 2026“ (14px Demi, #414d55, Ziffern proportional) dicht zwischen den Pfeilen ‹ ›: feine graue Winkel, beim
    Überfahren ein dünner grauer Kreis (32px, kein weißer Grund). „Heute“ 31px hoch, 14px Demi. Tageszeile 17px Demi (wie überall nur bis 600 – kein Bold-Schnitt), heute #414d55.
-   Links an der ersten Linie der Beginn der ersten Stunde (wenn die Uhrzeiten auf den Karten stehen). */
+   Mit Uhrzeiten auf den Karten steht links nur die Stundennummer – auch an der ersten Linie keine Uhrzeit (Vorlage 279). */
 .planleiste .mitte { gap: 0; }
 .planleiste .zeitraum.kal-pille { font-size: 14px; font-weight: 500; color: #414d55; letter-spacing: 0; font-variant-numeric: lining-nums proportional-nums; }
 .planleiste .rundknopf.woche-pfeil { width: 32px; height: 32px; color: #8a96a1; background: transparent; border: 1px solid transparent; }
@@ -277,9 +289,6 @@ input.sd-eingabe { min-height: 56px; }
 .tt-tag.heute { font-weight: 600; color: #414d55; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
-.tt-zeit.erste { left: 12px; font-size: 12px; line-height: 14px; font-weight: 600; color: #8a96a1; transform: translateY(-50%); z-index: 20; }
-/* steht halb über der Tageszeile – beim Scrollen (Tageszeile klebt oben) ausgeblendet */
-body.plan-gescrollt .tt-zeit.erste { visibility: hidden; }
 
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen

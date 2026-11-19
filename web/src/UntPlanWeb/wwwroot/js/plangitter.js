@@ -651,8 +651,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     if (mitNummer) html += `<div class="tt-nr${mitZeiten ? '' : ' allein'}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
     if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${aufbau.unten[i]}px">${e(z.ende)}</div>`;
   });
-  // Uhrzeiten auf den Karten: an der ersten Linie der Beginn der ersten Stunde (wie in der Vorlage „07:45“)
-  if (!mitZeiten && kartenZeiten && plan.format?.zeiten !== false && zeiten.length) html += `<div class="tt-zeit erste" style="top:${aufbau.oben[0]}px">${e(zeiten[0].beginn)}</div>`;
+  // Uhrzeiten auf den Karten: auch an der ersten Linie keine Uhrzeit (Vorlage 279 – „07:45“ an der Linie gibt es nur ohne Kartenzeiten)
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;
   html += '</div>';
 
