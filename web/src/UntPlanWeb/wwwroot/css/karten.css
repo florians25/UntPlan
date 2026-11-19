@@ -269,7 +269,9 @@ input.sd-eingabe { min-height: 56px; }
 .planleiste .rundknopf.woche-pfeil { width: 32px; height: 32px; color: #8a96a1; background: transparent; border: 1px solid transparent; }
 .planleiste .rundknopf.woche-pfeil:hover, .planleiste .rundknopf.woche-pfeil:focus-visible { background: transparent; color: #8a96a1; border-color: #8a96a1; }
 .planleiste .woche-pfeil-sym { width: 7px; height: 14px; display: block; }
-.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; font-family: "AvenirNextPro", "Avenir Next", 'Nunito Sans Fett', 'Nunito Sans', sans-serif; }
+.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; font-family: "AvenirNextProFett", "AvenirNextPro", "Avenir Next", 'Nunito Sans Fett', 'Nunito Sans', sans-serif; }
+/* Legende unten (Entfall, Prüfung, Änderung): in der Vorlage fett wie „Heute“ */
+.u-legende-pille { font-family: "AvenirNextProFett", "AvenirNextPro", "Avenir Next", 'Nunito Sans Fett', 'Nunito Sans', sans-serif; }
 .tt-tag { font-size: 17px; font-weight: 600; font-family: "AvenirNextPro", "Avenir Next", 'Nunito Sans Fett', 'Nunito Sans', sans-serif; font-variant-numeric: lining-nums proportional-nums; }
 .tt-tag.heute { font-weight: 600; color: #414d55; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */

@@ -108,6 +108,12 @@ public static partial class SchriftApi
                 foreach (var (css, schnitt) in Zuordnung(jeSchnitt.Keys))
                     sb.Append($"@font-face {{ font-family: \"{Familie}\"; font-weight: {css}; font-style: {(stil.Key ? "italic" : "normal")}; font-display: swap; src: {jeSchnitt[schnitt]}; }}\n");
             }
+            // Bold-Schnitt (falls hochgeladen) als eigene Familie – nur für die Stellen, die in der Vorlage fett sind („Heute“, Legende);
+            // alle übrigen Gewichte bleiben bei der Zuordnung oben (600–900 → Demi)
+            var fett = dateien.Where(d => !Schnitt(d).Kursiv && Schnitt(d).Gewicht == 700)
+                .OrderBy(d => Format(d) switch { "woff2" => 0, "woff" => 1, _ => 2 }).ToList();
+            if (fett.Count > 0)
+                sb.Append($"@font-face {{ font-family: \"{Familie}Fett\"; font-weight: 100 900; font-style: normal; font-display: swap; src: {string.Join(", ", fett.Select(d => $"url(\"/schriften/{Uri.EscapeDataString(d)}\") format(\"{Format(d)}\")"))}; }}\n");
             if (dateien.Count > 0)
                 sb.Append(":root { --u-schrift: " + Stapel + "; }\n").Append(Darstellung);
             return Results.Text(sb.ToString(), "text/css; charset=utf-8");

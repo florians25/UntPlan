@@ -315,7 +315,7 @@ tr[role=button] { cursor: pointer; }
 .u-benutzer-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .u-benutzer b { font-weight: 600; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--u-text); }
 .u-benutzer small { color: var(--u-grau-2); font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.u-abmelden { display: flex; align-items: center; gap: 24px; border: 0; background: none; color: var(--u-text); font-weight: 600; font-size: .8125rem; padding: 8px 12px 4px 21px; width: 100%; text-align: left; }
+.u-abmelden { display: flex; align-items: center; gap: 24px; border: 0; background: none; color: #67747e; font-weight: 600; font-size: .8125rem; padding: 8px 12px 4px 21px; width: 100%; text-align: left; }
 .u-abmelden .u-sym { width: 26px; height: 26px; color: var(--u-grau-2); }
 .u-abmelden:hover { color: var(--u-akzent-dunkel); }
 .u-abmelden:hover .u-sym { color: var(--u-akzent); }
@@ -2028,7 +2028,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-jahr { font-size: 13.8px; font-weight: 600; }
 .u-leiste .u-benutzer b { font-size: 16px; font-weight: 600; }
 .u-leiste .u-benutzer small { font-size: 14px; font-weight: 400; }
-.u-leiste .u-abmelden { font-size: 12px; font-weight: 600; }
+.u-leiste .u-abmelden { font-size: 12px; font-weight: 500; } /* Vorlage: Abmelden grau und dünner als die Menüpunkte */
 
 /* Seitenleiste wie in der Vorlage: Titel mittig neben dem Logo, Schulname in normaler Schreibweise einzeilig darunter */
 .u-leiste .u-marke span { margin-top: -1px; }
