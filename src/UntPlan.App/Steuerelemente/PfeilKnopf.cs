@@ -2,7 +2,7 @@ using System.Drawing.Drawing2D;
 
 namespace UntPlan.App.Steuerelemente;
 
-/// <summary>Flacher Blätterknopf mit gezeichnetem Winkel (‹ ›) bzw. Kalendersymbol, mit Hover- und Druckzustand.</summary>
+/// <summary>Flacher Blätterknopf mit Winkel (‹ ›) bzw. Kalendersymbol (FatCow), mit Hover- und Druckzustand.</summary>
 public sealed class PfeilKnopf : Control
 {
     public enum Art { Links, Rechts, Kalender }
@@ -50,16 +50,8 @@ public sealed class PfeilKnopf : Control
         var m = new PointF(Width / 2f, Height / 2f);
         if (_art == Art.Kalender)
         {
-            // kleines Kalenderblatt mit Kopfleiste und Ringen, daneben ein Dropdown-Dreieck
-            var k = new RectangleF(5, 6, 13, 12);
-            using var stift = new Pen(farbe, 1.2f);
-            using var kopf = new SolidBrush(_ueber ? Ui.Blau : Color.FromArgb(200, 70, 60));
-            g.FillRectangle(Brushes.White, k);
-            g.FillRectangle(kopf, k.X, k.Y, k.Width, 3.5f);
-            g.DrawRectangle(stift, k.X, k.Y, k.Width, k.Height);
-            for (var i = 0; i < 3; i++)
-                for (var j = 0; j < 2; j++)
-                    g.FillRectangle(new SolidBrush(farbe), k.X + 2.2f + i * 3.5f, k.Y + 5.5f + j * 3f, 1.8f, 1.6f);
+            // Kalendersymbol (FatCow „date“), daneben ein Dropdown-Dreieck
+            SymbolZeichnen(g, 4, (Height - 16) / 2);
             using var dreieck = new SolidBrush(farbe);
             g.FillPolygon(dreieck, new[] { new PointF(21, 10), new PointF(26, 10), new PointF(23.5f, 13.5f) });
             return;
@@ -78,16 +70,8 @@ public sealed class PfeilKnopf : Control
         if (_art == Art.Kalender)
         {
             using (var rand = new Pen(_ueber ? Color.FromArgb(0, 120, 215) : Color.FromArgb(171, 171, 171))) g.DrawRectangle(rand, 0, 0, Width - 1, Height - 1);
-            // Kalenderblatt (links) und Dropdown-Dreieck (rechts)
-            var k = new Rectangle(4, (Height - 14) / 2, 14, 14);
-            using var stift = new Pen(Color.FromArgb(110, 110, 110));
-            using var kopf = new SolidBrush(Color.FromArgb(127, 177, 206));
-            g.FillRectangle(kopf, k.X, k.Y, k.Width, 4);
-            g.DrawRectangle(stift, k.X, k.Y, k.Width - 1, k.Height - 1);
-            using var tage = new SolidBrush(Color.FromArgb(90, 90, 90));
-            for (var i = 0; i < 3; i++)
-                for (var j = 0; j < 2; j++)
-                    g.FillRectangle(tage, k.X + 2 + i * 4, k.Y + 6 + j * 3, 2, 2);
+            // Kalendersymbol (FatCow „date“, links) und Dropdown-Dreieck (rechts)
+            SymbolZeichnen(g, 3, (Height - 16) / 2);
             var dx = Width - 13;
             var dy = Height / 2 - 1;
             using var grau = new SolidBrush(Color.FromArgb(119, 119, 119));
@@ -116,15 +100,14 @@ public sealed class PfeilKnopf : Control
         return p;
     }
 
-    /// <summary>Winkel als Bild für Werkzeugleisten (16×16).</summary>
-    public static Bitmap Bild(bool rechts)
+    /// <summary>Kalendersymbol (FatCow) an der Stelle zeichnen; deaktiviert ausgegraut.</summary>
+    private void SymbolZeichnen(Graphics g, int x, int y)
     {
-        var bmp = new Bitmap(16, 16);
-        using var g = Graphics.FromImage(bmp);
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        using var p = new Pen(Color.FromArgb(60, 75, 95), 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
-        var dx = rechts ? -2.5f : 2.5f;
-        g.DrawLines(p, new[] { new PointF(8 + dx, 3), new PointF(8 - dx, 8), new PointF(8 + dx, 13) });
-        return bmp;
+        var bild = Symbole.Get("datum", 16);
+        if (Enabled) g.DrawImage(bild, x, y, 16, 16);
+        else ControlPaint.DrawImageDisabled(g, bild, x, y, Color.Transparent);
     }
+
+    /// <summary>Blätterpfeil als Bild für Werkzeugleisten (FatCow „resultset_next“ bzw. „resultset_previous“, 16×16).</summary>
+    public static Bitmap Bild(bool rechts) => Symbole.Get(rechts ? "vor" : "zurueck", 16);
 }

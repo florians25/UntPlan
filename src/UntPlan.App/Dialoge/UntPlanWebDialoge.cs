@@ -129,12 +129,7 @@ public sealed class UntPlanWebDialog : Dialog
         _meldung.Paint += (_, e) =>
         {
             if (!_fehler) return;
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var kreis = new SolidBrush(Color.FromArgb(210, 50, 40));
-            e.Graphics.FillEllipse(kreis, 3, 1, 16, 16);
-            using var weiss = new Pen(Color.White, 2f);
-            e.Graphics.DrawLine(weiss, 7, 5, 15, 13);
-            e.Graphics.DrawLine(weiss, 15, 5, 7, 13);
+            e.Graphics.DrawImage(Symbole.Get("fehler", 16), 3, 1, 16, 16);
         };
         _meldungLink.LinkClicked += (_, _) => EinstellungenOeffnen();
         _meldung.Controls.AddRange(new Control[] { _fortschritt, _meldungTitel, _meldungText, _meldungLink });
@@ -619,7 +614,7 @@ public sealed class UntPlanWebDialog : Dialog
         protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Faerben(); }
     }
 
-    /// <summary>Blaues ⓘ-Symbol (Hinweis mit Tooltip).</summary>
+    /// <summary>Blaues i-Symbol (FatCow „information“, Hinweis mit Tooltip).</summary>
     private sealed class InfoSymbol : Control
     {
         public InfoSymbol()
@@ -630,18 +625,7 @@ public sealed class UntPlanWebDialog : Dialog
             Cursor = Cursors.Help;
         }
 
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var blau = Color.FromArgb(0, 102, 204);
-            using var stift = new Pen(blau, 1.3f);
-            g.DrawEllipse(stift, 1.5f, 1.5f, Width - 4f, Height - 4f);
-            using var pinsel = new SolidBrush(blau);
-            var mx = (Width - 1) / 2f;
-            g.FillEllipse(pinsel, mx - 1.1f, 4.2f, 2.2f, 2.2f);
-            g.FillRectangle(pinsel, mx - 1f, 7.5f, 2f, 6f);
-        }
+        protected override void OnPaint(PaintEventArgs e) => e.Graphics.DrawImage(Symbole.Get("info", 16), 1, 1, 16, 16);
     }
 }
 

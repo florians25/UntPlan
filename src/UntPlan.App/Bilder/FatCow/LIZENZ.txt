@@ -1,3 +1,9 @@
 Symbole: "Farm-Fresh Web Icons" von FatCow Web Hosting (https://www.fatcow.com/free-icons)
+Urheber: FatCow Web Hosting, © 2009–2014
 Lizenz: Creative Commons Namensnennung 3.0 (CC BY 3.0 US), https://creativecommons.org/licenses/by/3.0/us/
-Verwendet unverändert in 16×16 und 32×32 Pixeln; Zuordnung zu den Programmsymbolen in Symbole.cs.
+
+Alle Symbole der Desktop-Anwendung (Menüband, Symbolleisten, Kontextmenüs, Schnellzugriff, Dialoge, Statusleiste)
+stammen aus diesem Satz. Verwendet werden ausschließlich die Originaldateien in 16×16 und 32×32 Pixeln, unverändert
+und unter ihren Originalnamen; andere Größen entstehen nur durch Skalieren. Bezugsquelle der Dateien: unveränderter
+Spiegel des Originalarchivs v3.9.2 (https://github.com/gammasoft/fatcow, Ordner 16x16 und 32x32).
+Die Zuordnung der Dateien zu den Programmbefehlen steht in Symbole.cs.

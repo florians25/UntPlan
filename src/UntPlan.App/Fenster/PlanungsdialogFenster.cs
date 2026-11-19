@@ -184,7 +184,7 @@ public sealed class PlanungsdialogFenster : MdiFenster
         _nurWochen.Checked = E.NurNichtVerplanteDerWoche;
         _nurWochen.CheckedChanged += (_, _) => NvFuellen();
         var pfeile = new Panel { Dock = DockStyle.Right, Width = 30 };
-        var nebeneinander = new Button { Text = "◂▸", Left = 3, Top = 4, Width = 24, Height = 22, FlatStyle = FlatStyle.Flat };
+        var nebeneinander = new Button { Image = Symbole.Get("nebeneinander", 16), Left = 3, Top = 4, Width = 24, Height = 22, FlatStyle = FlatStyle.Flat };
         new ToolTip().SetToolTip(nebeneinander, "Karteikarten nebeneinander anordnen");
         nebeneinander.Click += (_, _) => { E.KarteikartenNebeneinander = !E.KarteikartenNebeneinander; ReiterAnordnen(); AppZustand.Einstellungen.Speichern(); };
         pfeile.Controls.Add(nebeneinander);

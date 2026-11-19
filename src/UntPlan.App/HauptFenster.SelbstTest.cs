@@ -1777,6 +1777,12 @@ public sealed partial class HauptFenster
                 TextRenderer.DrawText(g, namen[i], Ui.SchriftKlein, new Rectangle(x - 5, y + 36, 105, 16), Color.Black, TextFormatFlags.HorizontalCenter);
             }
             bmp.Save(Path.Combine(ordner, "27c_Symbole_Uebersicht.png"));
+            // nur FatCow: jede zugeordnete Datei ist in 16 und 32 px eingebettet, kein Name ohne Zuordnung
+            var asm = typeof(Symbole).Assembly;
+            var ohne = Symbole.Dateien.SelectMany(d => new[] { 16, 32 }.Where(s => asm.GetManifestResourceInfo($"FatCow.{s}.{d}.png") is null).Select(s => $"{s}/{d}")).ToList();
+            if (ohne.Count > 0) throw new InvalidOperationException("FatCow-Dateien fehlen: " + string.Join(", ", ohne));
+            if (Symbole.Fehlend.Count > 0) throw new InvalidOperationException("Symbole ohne FatCow-Zuordnung: " + string.Join(", ", Symbole.Fehlend));
+            log.Add($"INFO  Symbole: {namen.Count} Programmnamen, {Symbole.Dateien.Count} FatCow-Dateien (16 und 32 px), keine gezeichneten Symbole");
         }, -1);
         Schritt("28_Speichern_Laden", () =>
         {
@@ -2873,6 +2879,12 @@ public sealed partial class HauptFenster
             }
             if (abweichungen.Count > 0) throw new InvalidOperationException("Einstellungen verlieren Werte beim Speichern/Laden:\n" + string.Join("\n", abweichungen.Take(40)));
             log.Add($"INFO  R3D Einstellungen: {Rundreise.Modelltypen(typeof(Benutzereinstellungen)).Count} Typen, {n} Ansichtsfelder über die Schuldatei übernommen");
+        }, -1);
+        Schritt("ZZ_Symbole_nur_FatCow", () =>
+        {
+            // nach allen Schritten: kein Fenster, Menü oder Dialog hat ein Symbol ohne FatCow-Zuordnung angefordert
+            if (Symbole.Fehlend.Count > 0) throw new InvalidOperationException("Symbole ohne FatCow-Zuordnung angefordert: " + string.Join(", ", Symbole.Fehlend));
+            log.Add("INFO  Symbole: alle angeforderten Symbole stammen aus dem FatCow-Satz");
         }, -1);
         File.WriteAllLines(logPfad, log.Append("ENDE"));
         Application.Exit();

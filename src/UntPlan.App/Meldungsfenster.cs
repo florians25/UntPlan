@@ -8,20 +8,12 @@ public enum MeldungsArt { Info, Frage, Warnung, Fehler }
 
 /// <summary>
 /// Hinweis-, Frage- und Fehlerfenster im Stil des Vorbilds (statt der Windows-Meldungsfenster): kleines Fenster mit heller
-/// Titelleiste in der Modusfarbe (Titel „… - Hinweis“ und ×), Fläche in der Listenfarbe mit Windows-Symbol (gelbes Warndreieck,
+/// Titelleiste in der Modusfarbe (Titel „… - Hinweis“ und ×), Fläche in der Listenfarbe mit FatCow-Symbol (gelbes Warndreieck,
 /// rotes ×, blaues ? bzw. i) und Text, darunter durch eine Linie abgesetzt die Knopfleiste mit flachen Knöpfen rechts.
 /// Alle Meldungen laufen über <see cref="Ui.Meldung"/> – auch Raumfragen (Raum belegt, Räume mitnehmen), Löschrückfragen und Fehler.
 /// </summary>
 public static partial class Ui
 {
-    /// <summary>Farbe des Symbols je Art (Windows-Symbole: Warndreieck gelb, Fehler rot, Frage/Info blau).</summary>
-    internal static Color MeldungsFarbe(MeldungsArt art) => art switch
-    {
-        MeldungsArt.Fehler => Color.FromArgb(232, 17, 35),
-        MeldungsArt.Warnung => Color.FromArgb(252, 202, 1),
-        _ => Color.FromArgb(0, 120, 215),
-    };
-
     /// <summary>Helle Titelleiste der Meldungsfenster (Vorbild: Mintgrün im Vertretungsmodus).</summary>
     public static Color MeldungTitel => Vertretungsmodus ? Color.FromArgb(149, 208, 185) : Color.FromArgb(158, 202, 218);
     /// <summary>Fläche der Meldungsfenster (wie der Listenhintergrund).</summary>
@@ -243,49 +235,12 @@ public static partial class Ui
     }
 
     /// <summary>
-    /// Symbol der Meldung wie unter Windows: Warnung als gelbes Dreieck mit schwarzem „!“, Fehler als roter Kreis mit weißem ×,
-    /// Frage bzw. Info als blauer Kreis mit weißem „?“ bzw. „i“.
+    /// Symbol der Meldung (FatCow, 32 px): Warnung „error“ (gelbes Warndreieck), Fehler „cancel“ (rotes ×), Frage „help“ (blaues ?),
+    /// Info „information“ (blaues i).
     /// </summary>
     internal static void SymbolZeichnen(Graphics g, Rectangle r, MeldungsArt art)
     {
-        var zustand = g.Save();
-        try
-        {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-            var farbe = MeldungsFarbe(art);
-            if (art == MeldungsArt.Warnung)
-            {
-                // Dreieck mit abgerundeten Ecken (28 hoch), Rand etwas dunkler
-                var oben = new PointF(r.X + r.Width / 2f, r.Y + 2.5f);
-                var links = new PointF(r.X + 1f, r.Bottom - 3.5f);
-                var rechts = new PointF(r.Right - 1f, r.Bottom - 3.5f);
-                using var pfad = new GraphicsPath();
-                pfad.AddPolygon(new[] { oben, rechts, links });
-                using (var b = new SolidBrush(farbe)) g.FillPath(b, pfad);
-                using (var p = new Pen(Color.FromArgb(214, 160, 0), 2f) { LineJoin = LineJoin.Round }) g.DrawPath(p, pfad);
-                // Ausrufezeichen: Strich und Punkt
-                var mx = r.X + r.Width / 2f;
-                using var schwarz = new SolidBrush(Color.FromArgb(20, 20, 20));
-                using (var strich = AbgerundetesRechteck(new RectangleF(mx - 1.6f, r.Y + 11f, 3.2f, 10f), 1.4f)) g.FillPath(schwarz, strich);
-                g.FillEllipse(schwarz, mx - 1.9f, r.Y + 22.6f, 3.8f, 3.8f);
-                return;
-            }
-            using (var b = new SolidBrush(farbe)) g.FillEllipse(b, r.X + 1, r.Y + 1, r.Width - 2, r.Height - 2);
-            if (art == MeldungsArt.Fehler)
-            {
-                var m = new PointF(r.X + r.Width / 2f, r.Y + r.Height / 2f);
-                using var p = new Pen(Color.White, 2.4f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-                g.DrawLine(p, m.X - 6, m.Y - 6, m.X + 6, m.Y + 6);
-                g.DrawLine(p, m.X + 6, m.Y - 6, m.X - 6, m.Y + 6);
-                return;
-            }
-            var zeichen = art == MeldungsArt.Frage ? "?" : "i";
-            using var schrift = new Font("Segoe UI", 18f, FontStyle.Bold, GraphicsUnit.Pixel);
-            using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            using var weiss = new SolidBrush(Color.White);
-            g.DrawString(zeichen, schrift, weiss, new RectangleF(r.X, r.Y + 0.5f, r.Width, r.Height), sf);
-        }
-        finally { g.Restore(zustand); }
+        var name = art switch { MeldungsArt.Warnung => "warnung", MeldungsArt.Fehler => "fehler", MeldungsArt.Frage => "frage", _ => "info" };
+        g.DrawImage(Symbole.Get(name, r.Width), r.X, r.Y, r.Width, r.Height);
     }
 }

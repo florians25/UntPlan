@@ -101,7 +101,7 @@ public sealed class FensterTitel : Control
         }
     }
 
-    /// <summary>Weißer Knopf mit blauem Dreieck (Vorbild-Durchschalter).</summary>
+    /// <summary>Weißer Knopf mit blauem Dreieck (Vorbild-Durchschalter, Symbol aus FatCow).</summary>
     private static void SchalterZeichnen(Graphics g, Rectangle r, bool vor, bool hover)
     {
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
@@ -112,13 +112,9 @@ public sealed class FensterTitel : Control
             using var p = new Pen(Color.FromArgb(120, 120, 120));
             g.DrawPath(p, pfad);
         }
-        var m = new PointF(r.X + r.Width / 2f, r.Y + r.Height / 2f);
-        var d = vor
-            ? new[] { new PointF(m.X - 3, m.Y - 5), new PointF(m.X + 4, m.Y), new PointF(m.X - 3, m.Y + 5) }
-            : new[] { new PointF(m.X + 3, m.Y - 5), new PointF(m.X - 4, m.Y), new PointF(m.X + 3, m.Y + 5) };
-        using (var blau = new SolidBrush(Color.FromArgb(0, 102, 214))) g.FillPolygon(blau, d);
-        using (var rand = new Pen(Color.FromArgb(0, 40, 110))) g.DrawPolygon(rand, d);
+        // Blätterpfeil aus dem FatCow-Satz („resultset_next“ bzw. „resultset_previous“)
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+        g.DrawImage(Symbole.Get(vor ? "vor" : "zurueck", 16), r.X + (r.Width - 16) / 2, r.Y + (r.Height - 16) / 2, 16, 16);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
