@@ -104,6 +104,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Klassenbuch-Berichte dokumentieren jede Verspätung und jedes vorzeitige Gehen genau (PDF und CSV): Datum, Stunde, Uhrzeit von–bis, Minuten, Fach, Lehrkraft, Grund, Text und Status; Summen mit Anzahl und Minuten (Verspätungen, Fehlzeiten pro Schüler*in/Klasse/Fach, Abwesenheiten, Statusübersicht, Anwesenheiten, Auffällige Verspätungen, Lehrnachweis, Tagesübersicht, Unterrichtsberichte, Fehlstundenmatrix „V12“/„G10“).
+- Haken „Fehlzeiten“ und „Verspätungen“ über der Berichtsliste wirken in allen Abwesenheitsberichten.
+- Schülerliste der Stundendetails: Symbol „Aufgestanden“ (Bett mit Pfeil nach oben) bei abwesenden Schüler*innen in der laufenden Stunde – anwesend ab jetzt, Verspätung von Stundenbeginn bis jetzt.
 - Startseite: Sprechtag als kompakte Karte mit Name, Tag und Zeit, kurzer Statuszeile (z. B. „Anmeldung bis 02.12. 18:00 · 3 Termine gebucht“, Lehrkräfte „4 gebucht · 23 frei“, am Tag selbst der nächste Termin), den eigenen Terminen (Eltern mit Lehrkraft und Raum, Lehrkräfte die nächsten drei) und einem Knopf „Termine wählen“ bzw. „Termine verwalten“; die Phase wird nicht mehr doppelt genannt.
 - Stundendetails zeigen im Kopf „Klasse | Schülergruppe | Fach“ mit der Schülergruppe aus dem Desktop; ein Sondereinsatz mit der Schülergruppe eines anderen Unterrichts der Klasse zählt als zusätzliche Stunde dieses Unterrichts.
 - Stundenplan und Tagesplan: „Heute“ ist in der aktuellen Woche bzw. am heutigen Tag dunkelgrau mit weißer Schrift, sonst weiß.
@@ -207,6 +210,9 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Schülerliste: „Aufgestanden“ (Bett mit Pfeil nach oben) setzt abwesende Schüler*innen in der laufenden Stunde ab jetzt auf anwesend, mit Verspätung von Stundenbeginn bis jetzt.
+- Verspätungen genau: Minuten, Uhrzeit von–bis, Stunde, Fach und Status in Schülerliste, Abwesenheitsliste und Entschuldigungen.
+- Meine Abwesenheiten wie die Vorlage: Karten ohne Datumsköpfe (Datum, Uhrzeit, Grund, Status; bei Verspätung nur Zeit und Art), Filter-Seite mit Startzeitraum (1 Woche bis Aktuelles Schuljahr, Lupe für eigenen Zeitraum) und „Nicht entschuldigte“ (gespeichert).
 - Startseite: Sprechtag als eigene Karte unter „Sprechtag“ im Stil von „Meine Termine“ mit Tag und Zeit, Statuszeile, eigenen Terminen und Knopf „Termine wählen“ bzw. „Termine verwalten“ (statt einer Listenzeile).
 - Stundenplan mit zwei Fingern zoombar (0,8–2, wird gespeichert); Lehrerplan beginnt wie im Original 30 Minuten vor der ersten Stunde (Platz für die Frühaufsicht).
 - Stundendetails ohne Fachfarben-Balken unter dem Kopf; Pfeil und Schüler*innen-Plakette an der Stelle des Originals; Pausenaufsicht in der Tagesansicht wie in der Woche.

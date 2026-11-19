@@ -429,8 +429,8 @@ struct EntschuldigenView: View {
             Feldtitel(text: "FEHLSTUNDEN")
             VStack(spacing: 8) {
                 ForEach(a.stunden) { s in
-                    stundenkarte(zeit: "\(Datumsformat.anzeige(s.datum, "EE, dd.MM."))  \(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))",
-                                 wer: [s.fach, s.lehrer].filter { !$0.isEmpty }.joined(separator: " - "),
+                    stundenkarte(zeit: "\(Datumsformat.anzeige(s.datum, "EE, dd.MM."))  \(s.stunde > 0 ? "\(s.stunde). Std.  " : "")\(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))",
+                                 wer: [[s.fach, s.lehrer].filter { !$0.isEmpty }.joined(separator: " - "), s.verspaetung].filter { !$0.isEmpty }.joined(separator: " · "),
                                  status: s.stand, text: s.entschuldigung?.text ?? "")
                 }
             }
@@ -1401,15 +1401,19 @@ struct KlassenleitungAbwesenheitenView: View {
         return ["\(von) \(Detailmass.uhrzeit(a.vonZeit)) -", "\(Datumsformat.anzeige(a.bisDatum, "dd.MM.yyyy")) \(Detailmass.uhrzeit(a.bisZeit))"]
     }
 
-    /// Grund (z. B. „Krankheit“), sonst die Art: „Abwesend“, „Verspätet“, „Vorzeitig gegangen“.
+    /// Grund (z. B. „Krankheit“), sonst die Art: „Abwesend“, „Verspätet 12 Min.“, „Vorzeitig gegangen 20 Min.“ – bei Verspätung
+    /// mit Grund beides („Bus · verspätet 12 Min. (3. Std.)“).
     private func artText(_ a: EntschuldigungsAbwesenheit) -> String {
         let g = a.grund.trimmingCharacters(in: .whitespaces)
-        if !g.isEmpty { return g }
+        let std = a.stunden.first.map { " (\($0.stunde). Std.)" } ?? ""
+        let min = a.minuten > 0 ? " \(a.minuten) Min." : ""
+        let art: String
         switch a.art {
-        case "verspaetet": return "Verspätet"
-        case "vorzeitig": return "Vorzeitig gegangen"
-        default: return "Abwesend"
+        case "verspaetet": art = "verspätet\(min)\(std)"
+        case "vorzeitig": art = "vorzeitig gegangen\(min)\(std)"
+        default: return g.isEmpty ? "Abwesend" : g
         }
+        return g.isEmpty ? art.prefix(1).uppercased() + art.dropFirst() : "\(g) · \(art)"
     }
 
     // MARK: Bündeln

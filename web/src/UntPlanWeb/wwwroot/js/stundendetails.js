@@ -53,6 +53,11 @@ const maskeIcon = datei => `<span class="u-sym wu kb-icon" style="--wu:url(${W}$
 /** Weiche Linien-Symbole (dünne, abgerundete Striche) für „abwesend“ bzw. „anwesend“ in den Schülerkacheln. */
 const KREUZ = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2"/></svg>';
 const HAKEN = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.6"/><path d="M5.3 8.2l1.9 1.9 3.6-3.9"/></svg>';
+/**
+ * „Aufgestanden“: Bett mit Pfeil nach oben (Vorlage img/wu/legacy/absence-end.png, Gegenstück zu absence-start.png „Bett mit Pfeil nach unten“).
+ * Beendet die Abwesenheit jetzt – anwesend ab der aktuellen Uhrzeit, Verspätung von Stundenbeginn bis jetzt.
+ */
+const BETT_AUF = '<svg class="sd-bett" viewBox="0 0 20 16" aria-hidden="true"><path class="bett" d="M2 4.5v9.5M2 11.6h16M18 8.6v5.4M2 8.6h16"/><rect class="bett" x="3.3" y="6.3" width="3.6" height="2.3" rx="1.1"/><path class="pfeil" d="M12.4 8.6V1.8M9.9 4.3l2.5-2.5 2.5 2.5"/></svg>';
 /** Plus als feines Linien-Symbol (runde Enden, genau mittig im runden Knopf). */
 const PLUS_SYM = '<svg class="sd-plus-sym" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.25v9.5M3.25 8h9.5"/></svg>';
 
@@ -309,6 +314,8 @@ export function karteDialog(karte, kontext = {}) {
   // ---------------------------------------------------------------- Klassenbuch
 
   const fehlzeitVon = id => (daten.anwesenheit?.fehlzeiten ?? []).find(f => f.schuelerId === id);
+  /** Die Stunde (bzw. gewählte Einzelstunde) läuft gerade – nur dann gibt es „Aufgestanden“. */
+  const laeuftJetzt = () => { const b = bereich(); const j = uhrJetzt(); return k.datum === heuteIso() && !!b.beginn && !!b.ende && j > b.beginn && j < b.ende; };
   const schueler = () => {
     const l = (daten.anwesenheit?.schueler ?? []).slice();
     return sitz.sortieren(l, sitz.einstellungen()); // Klassenbuch-Einstellungen (Zahnrad)
@@ -339,6 +346,7 @@ export function karteDialog(karte, kontext = {}) {
         ${status}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name">${sitz.nameHtml(s, nameW)}</span>
+        ${darf && st === 'weg' && laeuftJetzt() ? `<button type="button" class="sd-aufgestanden" data-aufgestanden="${s.id}" title="Aufgestanden" aria-label="Aufgestanden: ${e(`${s.name} ${s.vorname}`)} ab jetzt anwesend">${BETT_AUF}</button>` : ''}
         ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };
@@ -455,7 +463,7 @@ export function karteDialog(karte, kontext = {}) {
         <td>${e(grundText(f.grund) || '–')}</td>
         <td class="text-nowrap">${label}${zusatz ? `<span class="sd-abw-zusatz">${e(zusatz)}</span>` : ''}</td>
         <td class="nl-text sd-abw-text" title="${e(f.text ?? f.bemerkung ?? '')}">${e(f.text ?? f.bemerkung)}</td>
-        <td class="text-end">${a.darf && !vor ? `<button type="button" class="sd-kreisknopf" data-abw-bearbeiten="${f.schuelerId}" title="Abwesenheit bearbeiten" aria-label="Abwesenheit von ${e(name(f.schuelerId))} bearbeiten"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`;
+        <td class="text-end text-nowrap">${a.darf && !vor && f.art === 'fehlt' && laeuftJetzt() ? `<button type="button" class="sd-kreisknopf sd-aufgestanden-rund" data-aufgestanden="${f.schuelerId}" title="Aufgestanden" aria-label="Aufgestanden: ${e(name(f.schuelerId))} ab jetzt anwesend">${BETT_AUF}</button>` : ''}${a.darf && !vor ? `<button type="button" class="sd-kreisknopf" data-abw-bearbeiten="${f.schuelerId}" title="Abwesenheit bearbeiten" aria-label="Abwesenheit von ${e(name(f.schuelerId))} bearbeiten"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`;
     };
     const n = zeilen.length;
     const tabelle = n ? `<div class="nl-tabelle sd-abw"><table>
@@ -865,6 +873,18 @@ export function karteDialog(karte, kontext = {}) {
       zeichnen();
     });
     alle('[data-sid]', t => t.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); t.click(); } });
+    // „Aufgestanden“: Abwesenheit endet jetzt (minutengenau), Verspätung von Stundenbeginn bis jetzt
+    alle('[data-aufgestanden]', b => b.onclick = async ev => {
+      ev.stopPropagation();
+      b.disabled = true;
+      try {
+        const r = await senden('/api/app/klassenbuch/abwesenheit/aufgestanden', { datum: k.datum, stunde: k.von, unterricht: k.unterricht, schuelerIds: [Number(b.dataset.aufgestanden)], ...eb() });
+        await anwesenheitNeu();
+        geaendert = true;
+        toast(`${schuelerName(Number(b.dataset.aufgestanden))}: anwesend ab ${r.ankunft} (verspätet ${r.minuten} min)`);
+      } catch (err) { toast(err.message, true); }
+      zeichnen();
+    });
     alle('[data-umschalten]', b => b.onclick = () => {
       const id = Number(b.dataset.umschalten);
       const m = fzKarte();

@@ -85,8 +85,8 @@ public class AbwesenheitskontrolleTests
         // „pro Stunde“ mit [nicht entschuldigt]: nur Kind 1 und Kind 3 (offen zählt wie nicht entschuldigt)
         var u = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/fehlzeiten_klasse?klasse=7a&von=2026-10-12&bis=2026-10-14&ausgabe=pro_stunde&status=nicht_entschuldigt");
         Assert.Contains("nicht entschuldigt", u["titel"]!.GetValue<string>());
-        Assert.Contains("u-1Mahn", Spalte(u, 8));
-        Assert.Equal(new[] { "Datum", "Schulst", "Std.", "Fach", "Lehrkraft", "Abwesenheitsgrund", "ENr", "Erledigt", "Status" }, u["spalten"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
+        Assert.Contains("u-1Mahn", Spalte(u, 12));
+        Assert.Equal(new[] { "Datum", "Stunde", "Schulst", "Std.", "Uhrzeit", "Art", "Fach", "Lehrkraft", "Abwesenheitsgrund", "Text", "ENr", "Erledigt", "Status" }, u["spalten"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
         // je Schüler*in ein Kopfblock wie im Original (Schüler*innen, Text, Klasse)
         Assert.Contains(Spalte(u, 0), x => x.StartsWith("Schüler*innen\t") && x.Contains("\nKlasse\t7a"));
         Assert.DoesNotContain(Spalte(u, 0), x => x.Contains(kinder[1].Name));
@@ -100,7 +100,7 @@ public class AbwesenheitskontrolleTests
         var d = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/klassenbuch_deckblatt?klasse=7a&von=2026-08-01&bis=2026-10-14");
         Assert.Contains("Klassenleitung", Spalte(d, 0));
         var w = await Testserver.HolenAsync(leitung, "/api/app/berichte/erstellen/wochenuebersicht?klasse=7a&von=2026-10-12&bis=2026-10-14&mitabw=1");
-        Assert.Equal("Abwesende Schüler*innen", w["spalten"]!.AsArray()[^1]!.GetValue<string>());
+        Assert.Equal("Abwesende Schüler*innen", w["spalten"]!.AsArray()[^2]!.GetValue<string>());
         var pdf = await leitung.GetAsync("/api/app/berichte/erstellen/klassenbuch_deckblatt?klasse=7a&von=2026-08-01&bis=2026-10-14&format=pdf");
         Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
 
@@ -139,7 +139,7 @@ public class AbwesenheitskontrolleTests
         var f = await Testserver.HolenAsync(leitung, $"/api/app/berichte/erstellen/fehlzeiten_unterricht_schueler?von=2026-10-12&bis=2026-10-14&unterricht={uid}");
         Assert.Contains("Unterrichtsstunden", f["hinweis"]!.GetValue<string>());
         // wie im Original: je Fehlzeit eine Zeile, am Ende Summe | Summe (zählend) und davon unent. mit Anteil an den gehaltenen Stunden
-        Assert.Equal(new[] { "Schüler*innen", "Datum", "Fehlstd.", "Zeit", "Abwesenheitsgrund", "ENr", "Erledigt" }, f["spalten"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
+        Assert.Equal(new[] { "Schüler*innen", "Datum", "Fehlstd.", "Zeit", "Abwesenheitsgrund", "ENr", "Erledigt", "Verspätung / vorzeitig" }, f["spalten"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
         Assert.Contains(kind.Name, Spalte(f, 0).First());
         Assert.Equal("Summe", Spalte(f, 0)[^2]);
         Assert.Equal("Summe (zählend)", Spalte(f, 4)[^2]);

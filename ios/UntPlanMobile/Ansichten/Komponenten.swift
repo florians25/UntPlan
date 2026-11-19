@@ -886,6 +886,92 @@ struct Listenkarte: View {
     }
 }
 
+/// Zeile einer Abwesenheitskarte: Symbol (15 pt) und Text (15 pt).
+struct Abwesenheitskartenzeile {
+    var symbol: String
+    var text: String
+    var symbolFarbe: Color = Farben.abwSymbol
+}
+
+/// Karte von „Meine Abwesenheiten“ wie in der Vorlage 82e54208 (Dunkelmodus, 3 px/pt): dunkelgraue Fläche #1C1C1E mit 7 pt Ecken,
+/// innen 16 pt links/rechts; oben das Datum (20 pt, „15. Okt. - 16. Okt.“), darunter je Zeile Symbol (15 pt, #838E9A bzw. Status-
+/// farbe) und Text (15 pt, #DCDEE4) im Grundlinienabstand 21 pt: Uhrzeit, Grund bzw. Verspätung, Status. Kein Symbol links neben der Karte.
+struct Abwesenheitskarte: View {
+    let titel: String
+    let zeilen: [Abwesenheitskartenzeile]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(titel)
+                .font(.system(size: 20))
+                .foregroundStyle(Farben.tinte)
+                .lineLimit(1)
+                .padding(.bottom, 1)
+            ForEach(Array(zeilen.enumerated()), id: \.offset) { e in
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Image(systemName: e.element.symbol)
+                        .font(.system(size: 15, weight: .light))
+                        .foregroundStyle(e.element.symbolFarbe)
+                        .frame(width: 15)
+                        .accessibilityHidden(true)
+                    Text(e.element.text)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Farben.abwText)
+                        .lineLimit(3)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.top, 15)
+        .padding(.bottom, 15)
+        .background(Farben.flaeche, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// „15. Okt. - 16. Okt.“ bzw. „8. Okt.“
+    static func titel(von: String, bis: String) -> String {
+        let v = Datumsformat.anzeige(String(von.prefix(10)), "d. MMM")
+        guard !bis.isEmpty, bis.prefix(10) != von.prefix(10) else { return v }
+        return "\(v) - \(Datumsformat.anzeige(String(bis.prefix(10)), "d. MMM"))"
+    }
+
+    /// „7:45 - 21:00“ an einem Tag, „Do., 07:45 - Fr., 21:00“ über mehrere Tage.
+    static func uhrzeit(vonDatum: String, vonZeit: String, bisDatum: String, bisZeit: String) -> String {
+        if bisDatum.isEmpty || bisDatum.prefix(10) == vonDatum.prefix(10) {
+            return "\(Detailmass.uhrzeit(vonZeit)) - \(Detailmass.uhrzeit(bisZeit))"
+        }
+        return "\(Datumsformat.anzeige(String(vonDatum.prefix(10)), "EE")), \(vonZeit) - \(Datumsformat.anzeige(String(bisDatum.prefix(10)), "EE")), \(bisZeit)"
+    }
+
+    /// Status-Zeile: entschuldigt (grüner Haken-Kreis), nicht entschuldigt (roter Kreuz-Kreis), sonst offen (oranges Fragezeichen).
+    static func status(_ status: String) -> Abwesenheitskartenzeile {
+        switch status {
+        case "entschuldigt": return Abwesenheitskartenzeile(symbol: "checkmark.circle", text: "entschuldigt", symbolFarbe: Farben.abwGruen)
+        case "unentschuldigt": return Abwesenheitskartenzeile(symbol: "xmark.circle", text: "nicht entschuldigt", symbolFarbe: Farben.entfallRand)
+        default: return Abwesenheitskartenzeile(symbol: "questionmark.circle", text: "offen", symbolFarbe: Farben.orange)
+        }
+    }
+}
+
+/// Trichter wie im Kopf der Vorlage (Filter), als Linie gezeichnet.
+struct TrichterSymbol: View {
+    var body: some View {
+        Path { p in
+            p.move(to: CGPoint(x: 1, y: 2))
+            p.addLine(to: CGPoint(x: 19, y: 2))
+            p.addLine(to: CGPoint(x: 12, y: 10.5))
+            p.addLine(to: CGPoint(x: 12, y: 17))
+            p.addLine(to: CGPoint(x: 8, y: 19.5))
+            p.addLine(to: CGPoint(x: 8, y: 10.5))
+            p.closeSubpath()
+        }
+        .stroke(style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round))
+        .frame(width: 20, height: 21)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Einträge eines Tages in einer Liste mit Datumsgruppen.
 struct Datumsgruppe<Eintrag>: Identifiable {
     let datum: String

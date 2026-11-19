@@ -558,6 +558,17 @@ public static class AppApi
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
             return Results.Json(new { geaendert = kb.AbwesenheitStatusSetzen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Status ?? "", d.Einzelstunde) });
         });
+        // „Aufgestanden“ (Bett mit Pfeil nach oben): Abwesenheit endet jetzt – anwesend ab der aktuellen Uhrzeit, Verspätung von Stundenbeginn bis jetzt
+        api.MapPost("/klassenbuch/abwesenheit/aufgestanden", (AbwesenheitEntfernenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
+        {
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var ids = (d.SchuelerIds ?? new()).Distinct().ToList();
+            if (ids.Count == 0) throw new ArgumentException("Bitte eine Schülerin bzw. einen Schüler wählen.");
+            var s = Paket(p);
+            var erg = ids.Select(id => kb.Aufgestanden(b, s, d.Datum, d.Stunde, d.Unterricht, id, d.Einzelstunde)).ToList();
+            return Results.Json(new { ankunft = erg[0].Ankunft, minuten = erg[0].Minuten, stunde = erg[0].Stunde, anzahl = erg.Count });
+        });
         api.MapPost("/klassenbuch/abwesenheit/loeschen", (AbwesenheitEntfernenDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);

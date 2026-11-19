@@ -88,6 +88,11 @@ enum Farben {
     static let grund = Color(hell: 0xEEF0F3, dunkel: 0x000000)
     static let flaeche = Color(hell: 0xFFFFFF, dunkel: 0x1C1C1E)
     static let blatt = Color(hell: 0xFFFFFF, dunkel: 0x1C1C1E)
+    /// „Meine Abwesenheiten“ (Vorlage 82e54208): Zeilentext #DCDEE4, Symbole #838E9A, Haken grün #5BBDA1, Trennlinien #2A2A2C
+    static let abwText = Color(hell: 0x253746, dunkel: 0xDCDEE4)
+    static let abwSymbol = Color(hell: 0x6B7A85, dunkel: 0x838E9A)
+    static let abwGruen = Color(hell: 0x007D64, dunkel: 0x5BBDA1)
+    static let abwLinie = Color(hell: 0xE4E7EA, dunkel: 0x2A2A2C)
     static let knopf = Color(hell: 0xF1F3F5, dunkel: 0x2A2A2E)
     static let suchfeld = Color(hell: 0xF1F3F5, dunkel: 0x1C1C1E)
     static let avatar = Color(hexWert: 0x8B9AA5)

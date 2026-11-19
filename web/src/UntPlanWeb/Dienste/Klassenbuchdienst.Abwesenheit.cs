@@ -43,6 +43,8 @@ public sealed record Abwesenheitszeitraum(string Schluessel, int SchuelerId, str
     public bool Loeschbar { get; init; } = true;
     public int Entschuldigt { get; init; }
     public int Unentschuldigt { get; init; }
+    /// <summary>Unterrichtsstunden der Abwesenheit (Nummern laut Zeitraster, z. B. für „3. Std.“ bei einer Verspätung).</summary>
+    public List<int> Stunden { get; init; } = new();
 }
 
 /// <summary>
@@ -92,6 +94,9 @@ public sealed partial class Klassenbuchdienst
         if (art == "vorzeitig" && min > 0 && min < laenge) return (e.AddMinutes(-min), e);
         return (b, e);
     }
+
+    /// <summary>Abwesenheitsfenster einer Fehlzeit als Text „08:00–08:12“.</summary>
+    public static string FensterText(Stand s, Fehlzeit f) { var (b, e) = Fenster(s, f); return $"{Hhmm(b)}–{Hhmm(e)}"; }
 
     /// <summary>Text einer Abwesenheit ohne die automatischen Hinweise („verspätet 12 min – …“, „vorzeitig gegangen (3. Std.)“).</summary>
     public static string Klartext(string bemerkung) =>
@@ -264,6 +269,7 @@ public sealed partial class Klassenbuchdienst
                 StatusGemischt = blk.Any(f => f.Status != f0.Status),
                 StatusName = blk.All(f => f.Status == f0.Status && f.StatusName == f0.StatusName) ? f0.StatusName : "",
                 Entschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "entschuldigt"), Unentschuldigt = blk.Count(f => f.Art == "fehlt" && f.Status == "unentschuldigt"),
+                Stunden = blk.Select(f => f.Stunde).ToList(),
             };
         }).OrderByDescending(z => z.VonDatum, StringComparer.Ordinal).ThenByDescending(z => z.VonZeit, StringComparer.Ordinal).ThenBy(z => z.Schueler, StringComparer.Create(new CultureInfo("de-DE"), true)).ToList();
     }
@@ -371,6 +377,40 @@ public sealed partial class Klassenbuchdienst
         });
         if (karte != null && darfStunde && stunde is var (sd, _, su)) GeprueftMarkieren(b, s, sd, karte, su, lehrer);
         return anzahl;
+    }
+
+    /// <summary>
+    /// „Aufgestanden“ (Bett mit Pfeil nach oben in der Schülerliste): beendet die Abwesenheit einer Schülerin bzw. eines Schülers in der laufenden
+    /// Stunde minutengenau zur aktuellen Uhrzeit. Ab jetzt gilt sie bzw. er als anwesend; aus der Stunde wird eine Verspätung von Stundenbeginn bis
+    /// jetzt (ganz verpasste Stunden eines Blocks bleiben Fehlstunden, spätere Stunden der Abwesenheit entfallen). Grund, Text und Status bleiben.
+    /// </summary>
+    /// <returns>Ankunft („HH:mm“), Minuten der Verspätung in der Stunde der Ankunft und deren Nummer.</returns>
+    public (string Ankunft, int Minuten, int Stunde) Aufgestanden(Benutzer b, Stand s, DateOnly datum, int stunde, int unterricht, int schuelerId, int? einzelstunde = null)
+    {
+        var jetzt = _uhr.Jetzt;
+        if (datum != DateOnly.FromDateTime(jetzt)) throw new ArgumentException("„Aufgestanden“ gibt es nur in der laufenden Stunde.");
+        var sch = s.Schueler.FirstOrDefault(x => x.Id == schuelerId) ?? throw new ArgumentException("Unbekannte Schülerin / unbekannter Schüler.");
+        var karte = KarteZu(b, s, datum, stunde, unterricht, null, einzelstunde) ?? throw new ArgumentException("Zu dieser Stunde gibt es keinen Unterricht.");
+        var ankunft = new TimeOnly(jetzt.Hour, jetzt.Minute);
+        var beginn = StundenZeit(s, karte.Von).Beginn;
+        var ende = StundenZeit(s, karte.Bis).Ende;
+        if (ankunft <= beginn) throw new ArgumentException("Die Stunde hat noch nicht begonnen.");
+        if (ankunft >= ende) throw new ArgumentException("Die Stunde ist bereits vorbei.");
+        var block = FehlzeitenVon(schuelerId, datum, datum).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis).ToList();
+        var jetztStunde = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).LastOrDefault(n => StundenZeit(s, n).Beginn < ankunft, karte.Von);
+        var aktuell = block.FirstOrDefault(f => f.Stunde == jetztStunde);
+        if (aktuell is null || aktuell.Art != "fehlt" && Fenster(s, aktuell).Ende <= ankunft)
+            throw new ArgumentException("Die Schülerin bzw. der Schüler ist in dieser Stunde nicht als abwesend erfasst.");
+        // Beginn der Abwesenheit: ggf. früher am Tag (bzw. für die Klassenleitung an einem früheren Tag)
+        var kl = IstKlassenleitung(b, s, sch.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle);
+        var gesamt = Gesamtabwesenheit(block, karte).Where(f => kl || f.Datum == block[0].Datum).ToList();
+        var erste = gesamt[0];
+        var von = DateOnly.Parse(erste.Datum, CultureInfo.InvariantCulture).ToDateTime(Fenster(s, erste).Beginn);
+        var bis = datum.ToDateTime(ankunft);
+        if (bis <= von) throw new ArgumentException("Die Abwesenheit beginnt erst nach der aktuellen Uhrzeit.");
+        AbwesenheitErfassen(b, s, schuelerId, von, bis, null, null, null, (datum, stunde, unterricht), null, einzelstunde: einzelstunde);
+        var sb = StundenZeit(s, jetztStunde).Beginn;
+        return (Hhmm(ankunft), (int)Math.Round((ankunft - sb).TotalMinutes), jetztStunde);
     }
 
     /// <summary>

@@ -38,7 +38,10 @@ public sealed partial class Klassenbuchverwaltung
         Haken("alle", "Alle Schüler*innen"), Haken("sortiert", "sortiert nach Schülern/Schülerinnen", true), Haken("trennen", "Fehltage und -zeiten trennen", true),
         Haken("klassenfilter", "Klassenfilter aktivieren"),
     };
-    private static List<Berichtsoption> OptionenFehlzeitenFach => new() { Auswahl("ausgabe", "Ausgabe", "gesamt", ("gesamt", "Gesamtübersicht")), StatusFilter };
+    private static List<Berichtsoption> OptionenFehlzeitenFach => new() { Auswahl("ausgabe", "Ausgabe", "gesamt", ("gesamt", "Gesamtübersicht")), StatusFilter,
+        Haken("fehlzeiten", "Fehlzeiten", true), Haken("verspaetungen", "Verspätungen", true) };
+    /// <summary>Haken „Fehlzeiten“ und „Verspätungen“ (im Kopf des Abschnitts „Abwesenheiten“) für die Listen und Übersichten.</summary>
+    private static List<Berichtsoption> OptionenFehlzeitenVerspaetungen => new() { Haken("fehlzeiten", "Fehlzeiten", true), Haken("verspaetungen", "Verspätungen", true) };
     private static List<Berichtsoption> OptionenFehltage => new() { Haken("ganze", "Ganze Tage") };
     private static List<Berichtsoption> OptionenEntschuldigung => new()
     {
@@ -155,7 +158,18 @@ public sealed partial class Klassenbuchverwaltung
             var trennen = An(o, info, "trennen");
             var sortiert = An(o, info, "sortiert");
             var spalten = new List<string> { "Schüler*in", "Fehlschulst. alle", "Fehlschulst. zählend", "Fehlschulst. unent.", "Fehlschulst. zählend unent.",
-                "Fehlstd. alle", "Fehlstd. zählend", "Fehlstd. unent.", "Fehlstd. zählend unent.", "Fehltage alle", "Fehltage zählend", "Fehltage unent.", "Fehltage zählend unent." };
+                "Fehlstd. alle", "Fehlstd. zählend", "Fehlstd. unent.", "Fehlstd. zählend unent.", "Fehltage alle", "Fehltage zählend", "Fehltage unent.", "Fehltage zählend unent.",
+                "Verspätungen", "Verspätung (Min.)", "vorzeitig", "vorzeitig (Min.)" };
+            // Verspätungen und vorzeitiges Gehen je Schüler*in (nur mit Haken „Verspätungen“)
+            var spaetNach = posten.Where(p => !p.Fehlstunde || Spaet(s, fzNach[p.Id]) is { AlsFehlstunde: true }).Select(p => (p.SchuelerId, a: Spaet(s, fzNach[p.Id])))
+                .Where(t => t.a != null && spaet).GroupBy(t => t.SchuelerId).ToDictionary(g => g.Key, g => g.Select(t => t.a!).ToList());
+            object?[] SpaetWerte(IEnumerable<Spaetangabe> l, bool leer)
+            {
+                var v = l.Where(a => a.Art == "verspaetet").ToList();
+                var z = l.Where(a => a.Art == "vorzeitig").ToList();
+                return leer ? new object?[] { Leer0(v.Count), Leer0(v.Sum(a => a.Minuten)), Leer0(z.Count), Leer0(z.Sum(a => a.Minuten)) }
+                    : new object?[] { v.Count, v.Sum(a => a.Minuten), z.Count, z.Sum(a => a.Minuten) };
+            }
             foreach (var k in klassen)
             {
                 var liste = kinder.Where(x => Ci.Equals(x.Klasse, k)).Select(x => (x, a: Fehlzeitenrechnung.Auswerten(x.Id, posten, plan, trennen)))
@@ -166,11 +180,13 @@ public sealed partial class Klassenbuchverwaltung
                 foreach (var (x, a) in liste)
                     zeilen.Add(("", new object?[] { Name(namen, x.Id), Leer0(a.Schulstunden), Leer0(a.SchulstundenZaehlend), Leer0(a.SchulstundenUnent), Leer0(a.SchulstundenZaehlendUnent),
                         Zeit0(a.Minuten), Zeit0(a.MinutenZaehlend), Zeit0(a.MinutenUnent), Zeit0(a.MinutenZaehlendUnent),
-                        Leer0(a.Fehltage), Leer0(a.FehltageZaehlend), Leer0(a.FehltageUnent), Leer0(a.FehltageZaehlendUnent) }));
+                        Leer0(a.Fehltage), Leer0(a.FehltageZaehlend), Leer0(a.FehltageUnent), Leer0(a.FehltageZaehlendUnent) }
+                        .Concat(SpaetWerte(spaetNach.GetValueOrDefault(x.Id) ?? new(), true)).ToArray()));
                 var sum = liste.Select(t => t.a).ToList();
                 zeilen.Add(("summe", new object?[] { $"Summe {k}", sum.Sum(a => a.Schulstunden), sum.Sum(a => a.SchulstundenZaehlend), sum.Sum(a => a.SchulstundenUnent), sum.Sum(a => a.SchulstundenZaehlendUnent),
                     Fehlzeitenrechnung.Hhmm(sum.Sum(a => a.Minuten)), Fehlzeitenrechnung.Hhmm(sum.Sum(a => a.MinutenZaehlend)), Fehlzeitenrechnung.Hhmm(sum.Sum(a => a.MinutenUnent)),
-                    Fehlzeitenrechnung.Hhmm(sum.Sum(a => a.MinutenZaehlendUnent)), sum.Sum(a => a.Fehltage), sum.Sum(a => a.FehltageZaehlend), sum.Sum(a => a.FehltageUnent), sum.Sum(a => a.FehltageZaehlendUnent) }));
+                    Fehlzeitenrechnung.Hhmm(sum.Sum(a => a.MinutenZaehlendUnent)), sum.Sum(a => a.Fehltage), sum.Sum(a => a.FehltageZaehlend), sum.Sum(a => a.FehltageUnent), sum.Sum(a => a.FehltageZaehlendUnent) }
+                    .Concat(SpaetWerte(liste.SelectMany(t => spaetNach.GetValueOrDefault(t.x.Id) ?? new()), false)).ToArray()));
             }
             // wie im Original: Spaltengruppen „Fehlschulstunde“, „Fehlstunden“, „Fehltage“ mit Alle, zählend, unent., zählend; die zählenden Spalten grau
             var vier = new[] { "Alle", "zählend", "unent.", "zählend" };
@@ -180,8 +196,9 @@ public sealed partial class Klassenbuchverwaltung
             {
                 Darstellung = new Berichtsdarstellung
                 {
-                    Koepfe = new[] { "Schüler*innen" }.Concat(vier).Concat(vier).Concat(vier).ToList(),
-                    Gruppen = new[] { "" }.Concat(Enumerable.Repeat("Fehlschulstunde", 4)).Concat(Enumerable.Repeat("Fehlstunden", 4)).Concat(Enumerable.Repeat("Fehltage", 4)).ToList(),
+                    Koepfe = new[] { "Schüler*innen" }.Concat(vier).Concat(vier).Concat(vier).Concat(new[] { "Anzahl", "Min.", "Anzahl", "Min." }).ToList(),
+                    Gruppen = new[] { "" }.Concat(Enumerable.Repeat("Fehlschulstunde", 4)).Concat(Enumerable.Repeat("Fehlstunden", 4)).Concat(Enumerable.Repeat("Fehltage", 4))
+                        .Concat(Enumerable.Repeat("Verspätungen", 2)).Concat(Enumerable.Repeat("vorzeitig gegangen", 2)).ToList(),
                     Grau = new() { 2, 4, 6, 8, 10, 12 },
                 },
             };
@@ -190,8 +207,8 @@ public sealed partial class Klassenbuchverwaltung
         // pro Stunde bzw. pro Tag: je Schüler*in ein Kopfblock (Schüler*innen, Text, Klasse), die Fehlzeiten und die Summen
         var proTag = ausgabe == "pro_tag";
         var spaltenD = proTag
-            ? new List<string> { "Datum", "Schulstd. Fehlst", "Schulstd. Unt.", "hh:mm Fehlst", "hh:mm Unt.", "%", "Abwesenheitsgrund", "Erledigt", "Status" }
-            : new List<string> { "Datum", "Schulst", "Std.", "Fach", "Lehrkraft", "Abwesenheitsgrund", "ENr", "Erledigt", "Status" };
+            ? new List<string> { "Datum", "Schulstd. Fehlst", "Schulstd. Unt.", "hh:mm Fehlst", "hh:mm Unt.", "%", "Abwesenheitsgrund", "Erledigt", "Status", "Verspätung / vorzeitig" }
+            : new List<string> { "Datum", "Stunde", "Schulst", "Std.", "Uhrzeit", "Art", "Fach", "Lehrkraft", "Abwesenheitsgrund", "Text", "ENr", "Erledigt", "Status" };
         var reihen = kinder.Where(x => mitAllen || posten.Any(p => p.SchuelerId == x.Id))
             .OrderBy(x => string.IsNullOrEmpty(klasse) ? x.Klasse : "", De).ThenBy(x => Name(namen, x.Id), De).ToList();
         object?[] Leerzeile(object? erstes) => new[] { erstes }.Concat(Enumerable.Repeat<object?>("", spaltenD.Count - 1)).ToArray();
@@ -200,24 +217,44 @@ public sealed partial class Klassenbuchverwaltung
             var eigene = posten.Where(p => p.SchuelerId == x.Id).OrderBy(p => p.Datum, StringComparer.Ordinal).ThenBy(p => p.Stunde).ToList();
             zeilen.Add(("block", Leerzeile(Schuelerblock(Name(namen, x.Id), x.Klasse))));
             bool U(Fehlposten p) => Fehlzeitenrechnung.Unentschuldigt(wirksam[p.Id]);
+            // Verspätungen und vorzeitiges Gehen: Anzahl und Minuten als eigene Summenzeile
+            var spaetEigene = eigene.Select(p => Spaet(s, fzNach[p.Id])).Where(a => a != null).Select(a => a!).ToList();
+            void SpaetSummen(int textSpalte)
+            {
+                foreach (var art in new[] { "verspaetet", "vorzeitig" })
+                {
+                    var t = SpaetSumme(spaetEigene, art);
+                    if (t.Length == 0) continue;
+                    var z = Leerzeile(art == "vorzeitig" ? "vorzeitig gegangen" : "Verspätungen");
+                    z[textSpalte] = t;
+                    zeilen.Add(("zwischensumme", z));
+                }
+            }
             if (!proTag)
             {
                 foreach (var p in eigene)
                 {
                     var f = fzNach[p.Id];
                     var d = zeilenDetail.GetValueOrDefault(p.Id);
-                    zeilen.Add(("", new object?[] { TagPunkt(p.Datum, "   "), p.Fehlstunde ? 1 : 0, Fehlzeitenrechnung.Hhmm(p.Minuten), f.Fach, d?.Lehrer ?? f.Lehrer, Grund(p.Grund),
-                        enr.GetValueOrDefault(p.Id, ""), KurzDatum(f.EntschuldigtAm), StatusKurz(wirksam[p.Id], wirksam[p.Id] == f.Status ? f.StatusName : "") }));
+                    var sp = Spaet(s, f);
+                    var (ab, bi) = Klassenbuchdienst.Fenster(s, f);
+                    zeilen.Add(("", new object?[] { TagPunkt(p.Datum, "   "), $"{p.Stunde}.", p.Fehlstunde ? 1 : 0, Fehlzeitenrechnung.Hhmm(p.Minuten), sp?.Zeit ?? $"{Hm(ab)}–{Hm(bi)}",
+                        sp is null ? "abwesend" : sp.AlsFehlstunde ? $"{sp.Kurz} (als Fehlstunde gewertet)" : sp.Kurz, f.Fach, d?.Lehrer ?? f.Lehrer, Grund(p.Grund),
+                        Klassenbuchdienst.Klartext(f.Bemerkung), enr.GetValueOrDefault(p.Id, ""), KurzDatum(f.EntschuldigtAm), StatusKurz(wirksam[p.Id], wirksam[p.Id] == f.Status ? f.StatusName : "") }));
                 }
                 void Summe(string text, IEnumerable<Fehlposten> menge)
                 {
                     var l = menge.ToList();
-                    zeilen.Add(("zwischensumme", new object?[] { text, l.Count(p => p.Fehlstunde), Fehlzeitenrechnung.Hhmm(l.Sum(p => p.Minuten)), "", "", "", "", "", "" }));
+                    var z = Leerzeile(text);
+                    z[2] = l.Count(p => p.Fehlstunde);
+                    z[3] = Fehlzeitenrechnung.Hhmm(l.Sum(p => p.Minuten));
+                    zeilen.Add(("zwischensumme", z));
                 }
                 Summe("Summe", eigene);
                 Summe("davon unent.", eigene.Where(U));
                 Summe("Summe (zählend)", eigene.Where(p => p.Zaehlt));
                 Summe("davon unent.", eigene.Where(p => p.Zaehlt && U(p)));
+                SpaetSummen(5);
             }
             else
             {
@@ -226,8 +263,10 @@ public sealed partial class Klassenbuchverwaltung
                 {
                     var erste = eigene.First(p => p.Datum == t.Datum);
                     var f = fzNach[erste.Id];
+                    var spTag = string.Join("\n", eigene.Where(p => p.Datum == t.Datum).Select(p => (p, a: Spaet(s, fzNach[p.Id]))).Where(x => x.a != null)
+                        .Select(x => $"{x.p.Stunde}. Std. {fzNach[x.p.Id].Fach}: {x.a!.Lang}"));
                     zeilen.Add(("", new object?[] { TagPunkt(t.Datum, ""), t.Fehlstunden, t.Unterrichtsstunden, Fehlzeitenrechnung.Hhmm(t.Fehlminuten), Fehlzeitenrechnung.Hhmm(t.Unterrichtsminuten),
-                        ProzentOriginal(t.Prozent), Grund(t.Grund), KurzDatum(f.EntschuldigtAm), t.Unentschuldigt ? "nicht entsch." : "entsch." }));
+                        ProzentOriginal(t.Prozent), Grund(t.Grund), KurzDatum(f.EntschuldigtAm), t.Unentschuldigt ? "nicht entsch." : "entsch.", spTag }));
                 }
                 // Unterricht im Zeitraum (bis heute) als Bezugsgröße der Summen
                 int unt = 0, untMin = 0;
@@ -242,12 +281,13 @@ public sealed partial class Klassenbuchverwaltung
                     var l = menge.ToList();
                     var min = l.Sum(p => p.Minuten);
                     zeilen.Add(("zwischensumme", new object?[] { text, l.Count(p => p.Fehlstunde), unt, Fehlzeitenrechnung.Hhmm(min), Fehlzeitenrechnung.Hhmm(untMin),
-                        ProzentOriginal(Fehlzeitenrechnung.Anteil(min, untMin)), "", "", "" }));
+                        ProzentOriginal(Fehlzeitenrechnung.Anteil(min, untMin)), "", "", "", "" }));
                 }
                 Summe("Summe", eigene);
                 Summe("davon unent.", eigene.Where(U));
                 Summe("Summe (zählend)", eigene.Where(p => p.Zaehlt));
                 Summe("davon unent.", eigene.Where(p => p.Zaehlt && U(p)));
+                SpaetSummen(9);
             }
         }
         return new Bericht(info.Id, titel, spaltenD, zeilen.Select(z => z.Zeile.ToList()).ToList(),
@@ -257,8 +297,9 @@ public sealed partial class Klassenbuchverwaltung
             // wie im Original: „Fehlstunden“ über Schulst/Std. bzw. „Schulstd.“ und „hh:mm“ über Fehlst/Unt.; je Schüler*in eine Seite (außer „ohne Seitenumbrüche“)
             Darstellung = new Berichtsdarstellung
             {
-                Koepfe = proTag ? new() { "Datum", "Fehlst", "Unt.", "Fehlst", "Unt.", "%", "Abwesenheitsgrund", "Erledigt", "Status" } : null,
-                Gruppen = proTag ? new() { "", "Schulstd.", "Schulstd.", "hh:mm", "hh:mm", "", "", "", "" } : new() { "", "Fehlstunden", "Fehlstunden", "", "", "", "", "", "" },
+                Koepfe = proTag ? new() { "Datum", "Fehlst", "Unt.", "Fehlst", "Unt.", "%", "Abwesenheitsgrund", "Erledigt", "Status", "Verspätung / vorzeitig" } : null,
+                Gruppen = proTag ? new() { "", "Schulstd.", "Schulstd.", "hh:mm", "hh:mm", "", "", "", "", "" }
+                    : new() { "", "", "Fehlstunden", "Fehlstunden", "", "", "", "", "", "", "", "", "" },
                 Seitenumbruch = info.Id == "fehlzeiten_schueler",
             },
         };
@@ -306,15 +347,17 @@ public sealed partial class Klassenbuchverwaltung
         var mehrere = ende.DayNumber - start.DayNumber > 6;
         foreach (var woche in eintraege.GroupBy(e => Plandienst.Montag(DateOnly.Parse(e.Datum, CultureInfo.InvariantCulture))))
         {
-            if (mehrere) zeilen.Add(("gruppe", new object?[] { $"Woche {woche.Key:dd.MM.} – {woche.Key.AddDays(tage - 1):dd.MM.yyyy}", "", "", "", "", "", "" }));
+            if (mehrere) zeilen.Add(("gruppe", new object?[] { $"Woche {woche.Key:dd.MM.} – {woche.Key.AddDays(tage - 1):dd.MM.yyyy}", "", "", "", "", "", "", "" }));
             foreach (var e in woche)
             {
-                var fehlend = fz.Where(f => f.Datum == e.Datum && f.Stunde == e.Stunde && f.Art == "fehlt").Select(f => f.SchuelerId).Distinct().ToList();
+                var fehlend = fz.Where(f => f.Datum == e.Datum && f.Stunde == e.Stunde && f.Art == "fehlt" && Spaet(s, f) is null).Select(f => f.SchuelerId).Distinct().ToList();
+                var spaet = fz.Where(f => f.Datum == e.Datum && f.Stunde == e.Stunde).Select(f => (f, a: Spaet(s, f))).Where(t => t.a != null)
+                    .Select(t => $"{Name(namen, t.f.SchuelerId)} ({t.a!.Lang})").OrderBy(n => n, De).ToList();
                 zeilen.Add(("", new object?[] { DateOnly.TryParse(e.Datum, out var d) ? d.ToString("dd.MM.yyyy") : e.Datum, $"{e.Stunde}.", e.Fach, e.Lehrer, e.Thema, e.Hausaufgabe,
-                    mitAbwesenheiten ? string.Join(", ", fehlend.Select(id => Name(namen, id)).OrderBy(n => n, De)) : fehlend.Count }));
+                    mitAbwesenheiten ? string.Join(", ", fehlend.Select(id => Name(namen, id)).OrderBy(n => n, De)) : fehlend.Count, string.Join("\n", spaet) }));
             }
         }
-        return new Bericht(info.Id, info.Titel, new() { "Datum", "Std.", "Fach", "Lehrkraft", "Lehrstoff", "Hausaufgabe", mitAbwesenheiten ? "Abwesende Schüler*innen" : "Fehlende" },
+        return new Bericht(info.Id, info.Titel, new() { "Datum", "Std.", "Fach", "Lehrkraft", "Lehrstoff", "Hausaufgabe", mitAbwesenheiten ? "Abwesende Schüler*innen" : "Fehlende", "Verspätet / vorzeitig" },
             zeilen.Select(z => z.Item2.ToList()).ToList(), mehrere ? $"Lehrnachweis {start:dd.MM.yyyy} – {ende:dd.MM.yyyy}" : $"Woche {start:dd.MM.} – {ende:dd.MM.yyyy}",
             mehrere ? zeilen.Select(z => z.Item1).ToList() : null);
     }
@@ -437,19 +480,23 @@ public sealed partial class Klassenbuchverwaltung
                     stunden.Select(x =>
                     {
                         var e = eintraege.Where(e => e.Datum == Plandienst.Iso(x.Datum) && e.Stunde >= x.Von && e.Stunde <= x.Bis).ToList();
-                        var abw = fz.Where(f => f.Datum == Plandienst.Iso(x.Datum) && f.Stunde >= x.Von && f.Stunde <= x.Bis).Select(f => f.SchuelerId).Distinct()
-                            .Select(id => Name(namen, id)).OrderBy(n => n, De);
+                        var abw = fz.Where(f => f.Datum == Plandienst.Iso(x.Datum) && f.Stunde >= x.Von && f.Stunde <= x.Bis).GroupBy(f => f.SchuelerId)
+                            .Select(g => (g, sp: g.Select(f => (f, a: Spaet(s, f))).Where(t => t.a != null).ToList()))
+                            .Select(t => t.sp.Count > 0 && t.g.All(f => f.Art != "fehlt" || Spaet(s, f) != null)
+                                ? $"{Name(namen, t.g.Key)} ({string.Join(", ", t.sp.Select(y => (x.Von < x.Bis ? $"{y.f.Stunde}. Std. " : "") + y.a!.Lang))})"
+                                : Name(namen, t.g.Key)).OrderBy(n => n, De);
                         return new List<object?> { x.Datum.ToString("dd.MM.yyyy"), Std(x), string.Join(", ", x.Lehrer), string.Join(" / ", e.Select(y => y.Thema).Where(t => t.Length > 0)),
                             string.Join(" / ", e.Select(y => y.Hausaufgabe).Where(t => t.Length > 0)), string.Join("\n", abw) };
                     }).ToList(), kopf)
                 { Darstellung = new Berichtsdarstellung { Kontext = new() { $"Klasse: {string.Join(", ", u.Klassen)}, Fach: {u.FachName}", stundenText }, KontextFett = true, KopfFett = true, Breit = new() { 3, 4, 5 } } };
             }
             case "fehlzeiten_unterricht_stunde":
-                return new Bericht(info.Id, "Fehlzeiten pro Unterricht pro Stunde", new() { "Datum", "Std.", "Zeit", "Lehrkraft", "Schüler*innen", "Fehlstd.", "Abwesenheitsgrund", "ENr", "Status" },
+                return new Bericht(info.Id, "Fehlzeiten pro Unterricht pro Stunde", new() { "Datum", "Std.", "Zeit", "Lehrkraft", "Schüler*innen", "Fehlstd.", "Abwesenheitsgrund", "ENr", "Status", "Verspätung / vorzeitig", "Text" },
                     stunden.SelectMany(x => fz.Where(f => f.Datum == Plandienst.Iso(x.Datum) && f.Stunde >= x.Von && f.Stunde <= x.Bis)
                         .OrderBy(f => f.Stunde).ThenBy(f => Name(namen, f.SchuelerId), De)
                         .Select(f => new List<object?> { x.Datum.ToString("dd.MM.yyyy"), $"{f.Stunde}", $"{x.Beginn}-{x.Ende}", string.Join(", ", x.Lehrer), Name(namen, f.SchuelerId),
-                            f.Art == "fehlt" ? 1 : 0, Grund(f.Grund), enr.GetValueOrDefault(f.Id, ""), StatusKurz(f.Status, f.StatusName) })).ToList(), kopf)
+                            f.Art == "fehlt" ? 1 : 0, Grund(f.Grund), enr.GetValueOrDefault(f.Id, ""), StatusKurz(f.Status, f.StatusName), Spaet(s, f)?.Lang ?? "",
+                            Klassenbuchdienst.Klartext(f.Bemerkung) })).ToList(), kopf)
                 { Darstellung = new Berichtsdarstellung { Kontext = new() { $"{kontextFach}\t{stundenText}" }, Gitter = false, Breit = new() { 0, 1, 2, 3, 4, 5, 6, 7, 8 } } };
             case "schueler_unterricht":
             {
@@ -464,13 +511,15 @@ public sealed partial class Klassenbuchverwaltung
                 var spalten = new List<string> { "Schüler*innen", "Klasse" };
                 var einzel = stunden.SelectMany(x => Enumerable.Range(x.Von, x.Bis - x.Von + 1).Select(n => (x.Datum, n))).ToList();
                 spalten.AddRange(einzel.Select(e => $"{e.Datum.Day}.{e.Datum.Month}. {Hm(Klassenbuchdienst.StundenZeit(s, e.n).Beginn)}"));
-                var fehlt = fz.Select(f => (f.SchuelerId, f.Datum, f.Stunde)).ToHashSet();
+                // A = abwesend, V12 = 12 Min. verspätet, G10 = 10 Min. vorzeitig gegangen
+                var fehlt = fz.GroupBy(f => (f.SchuelerId, f.Datum, f.Stunde)).ToDictionary(g => g.Key, g => Spaet(s, g.First()) is { AlsFehlstunde: false } a
+                    ? $"{(a.Art == "vorzeitig" ? "G" : "V")}{a.Minuten}" : "A");
                 var klassen = s.Schueler.GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Klasse);
                 // Kopf wie im Original: „Fach M, Lehrkraft BEC,MUE, Klasse 7a, Schülergruppe“, Datumsspalten senkrecht
                 return new Bericht(info.Id, "Fehlstundenmatrix", spalten,
                     schuelerIds.OrderBy(id => Name(namen, id), De).Select(id => new List<object?> { Name(namen, id), klassen.GetValueOrDefault(id, "") }
-                        .Concat(einzel.Select(e => (object?)(!ohne && fehlt.Contains((id, Plandienst.Iso(e.Datum), e.n)) ? "A" : ""))).ToList()).ToList(),
-                    $"Fach {u.Fach}, Lehrkraft {string.Join(",", u.Lehrer)}, Klasse {string.Join(", ", u.Klassen)}{(u.Kurs.Length > 0 ? $", Schülergruppe {u.Kurs}" : "")}. A = abwesend (ohne Entschuldigungsstatus).")
+                        .Concat(einzel.Select(e => (object?)(!ohne && fehlt.TryGetValue((id, Plandienst.Iso(e.Datum), e.n), out var w) ? w : ""))).ToList()).ToList(),
+                    $"Fach {u.Fach}, Lehrkraft {string.Join(",", u.Lehrer)}, Klasse {string.Join(", ", u.Klassen)}{(u.Kurs.Length > 0 ? $", Schülergruppe {u.Kurs}" : "")}. A = abwesend, V = verspätet, G = vorzeitig gegangen (Minuten).")
                 {
                     Darstellung = new Berichtsdarstellung
                     {
@@ -495,7 +544,7 @@ public sealed partial class Klassenbuchverwaltung
                     var f = fzNach[p.Id];
                     var (ab, bi) = Klassenbuchdienst.Fenster(s, f);
                     zeilen.Add(("", new object?[] { Name(namen, p.SchuelerId), DM(p.Datum), p.Fehlstunde ? 1 : 0, $"{Hm(ab)}-{Hm(bi)}", Grund(p.Grund),
-                        enr.GetValueOrDefault(p.Id, ""), DM(f.EntschuldigtAm) }));
+                        enr.GetValueOrDefault(p.Id, ""), DM(f.EntschuldigtAm), Spaet(s, f) is { } sp ? $"{p.Stunde}. Std.: {sp.Lang}, {StatusText(f.Status, f.StatusName)}" : "" }));
                 }
                 var inListe = posten.Where(p => schuelerIds.Contains(p.SchuelerId)).ToList();
                 (int N, string Zeit, string Anteil) Werte(List<Fehlposten> l)
@@ -506,15 +555,17 @@ public sealed partial class Klassenbuchverwaltung
                 var zaehl = inListe.Where(p => p.Zaehlt).ToList();
                 var (a1, a2, a3) = Werte(inListe);
                 var (b1, b2, b3) = Werte(zaehl);
-                zeilen.Add(("summe", new object?[] { "Summe", a1, a2, a3, "Summe (zählend)", b1, $"{b2}   {b3}" }));
+                var spAlle = inListe.Select(p => Spaet(s, fzNach[p.Id])).Where(a => a != null).Select(a => a!).ToList();
+                var spText = string.Join("; ", new[] { SpaetSumme(spAlle, "verspaetet"), SpaetSumme(spAlle, "vorzeitig") }.Where(x => x.Length > 0));
+                zeilen.Add(("summe", new object?[] { "Summe", a1, a2, a3, "Summe (zählend)", b1, $"{b2}   {b3}", spText }));
                 (a1, a2, a3) = Werte(inListe.Where(U).ToList());
                 (b1, b2, b3) = Werte(zaehl.Where(U).ToList());
-                zeilen.Add(("zwischensumme", new object?[] { "davon unent.", a1, a2, a3, "davon unent.", b1, $"{b2}   {b3}" }));
-                return new Bericht(info.Id, "Fehlzeiten pro Unterricht", new() { "Schüler*innen", "Datum", "Fehlstd.", "Zeit", "Abwesenheitsgrund", "ENr", "Erledigt" },
+                zeilen.Add(("zwischensumme", new object?[] { "davon unent.", a1, a2, a3, "davon unent.", b1, $"{b2}   {b3}", "" }));
+                return new Bericht(info.Id, "Fehlzeiten pro Unterricht", new() { "Schüler*innen", "Datum", "Fehlstd.", "Zeit", "Abwesenheitsgrund", "ENr", "Erledigt", "Verspätung / vorzeitig" },
                     zeilen.Select(z => z.Item2.ToList()).ToList(),
                     $"{kopf}. Anteil = Fehlzeit bezogen auf die gehaltenen Unterrichtsstunden. An der abschließenden Leistungsfeststellung darf nur teilnehmen, wer 75 % des Unterrichts besucht hat. Ist der Unterricht auf mehrere Zeilen der Unterrichtsliste verteilt, die Zahlen der Listen addieren.",
                     zeilen.Select(z => z.Item1).ToList())
-                { Darstellung = new Berichtsdarstellung { Kontext = new() { $"{kontextFach}\t{stundenText}" }, Gitter = false, Breit = new() { 0, 1, 2, 3, 4, 5, 6 } } };
+                { Darstellung = new Berichtsdarstellung { Kontext = new() { $"{kontextFach}\t{stundenText}" }, Gitter = false, Breit = new() { 0, 1, 2, 3, 4, 5, 6, 7 } } };
             }
         }
     }

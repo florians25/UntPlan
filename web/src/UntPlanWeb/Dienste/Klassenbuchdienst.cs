@@ -605,8 +605,9 @@ public sealed partial class Klassenbuchdienst
                         lehrer = k.Lehrer.Select(x => x.K), raeume = k.Raeume.Select(x => x.K),
                         thema = e?.Thema ?? "", hausaufgabe = e?.Hausaufgabe ?? "", faellig = e?.Faellig, geprueft = e?.Anwesenheit,
                         fehlend = f.Where(x => x.Art == "fehlt").Select(x => x.SchuelerId).Distinct().Select(i => namen.GetValueOrDefault(i, "?")).ToList(),
-                        verspaetet = f.Where(x => x.Art == "verspaetet").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
-                        vorzeitig = f.Where(x => x.Art == "vorzeitig").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min)").ToList(),
+                        // minutengenau mit Uhrzeit (z. B. „Muster, Max (12 min, 08:00–08:12)“)
+                        verspaetet = f.Where(x => x.Art == "verspaetet").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min, {FensterText(s, x)})").ToList(),
+                        vorzeitig = f.Where(x => x.Art == "vorzeitig").Select(x => $"{namen.GetValueOrDefault(x.SchuelerId, "?")} ({x.Minuten} min, {FensterText(s, x)})").ToList(),
                         // Wochenraster: Hausaufgaben der Stunde und Klassenbucheinträge (Vermerke) mit Uhrzeit innerhalb der Stunde
                         hausaufgaben = us.SelectMany(u => HausaufgabenDerStunde(d, k.Von, k.Bis, u)).DistinctBy(h => h.Id).Select(h => h.Text).ToList(),
                         eintraege = vermerke.Count(v => v.Datum == iso && v.Zeit.Length == 5 && string.CompareOrdinal(v.Zeit, k.Beginn) >= 0 && string.CompareOrdinal(v.Zeit, k.Ende) < 0),
