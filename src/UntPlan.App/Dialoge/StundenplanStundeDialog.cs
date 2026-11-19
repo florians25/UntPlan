@@ -55,13 +55,12 @@ public static class StundenplanStundeDialog
         art.Items.AddRange(new object[] { "Klasse", "Lehrer", "Raum", "Fach" });
         art.SelectedIndex = typ switch { ElementTyp.Lehrer => 1, ElementTyp.Raum => 2, ElementTyp.Fach => 3, _ => 0 };
         artLabel.Top = 108; artLabel.Height = 14; art.Top = 123; oben.Height = 150;
-        var fett = Umschalter("B", FontStyle.Bold, 210, 10);
-        var kursiv = Umschalter("K", FontStyle.Italic, 240, 10);
-        var unter = Umschalter("U", FontStyle.Underline, 270, 10);
-        var links = Knopf("≡", "Linksbündig", 210, 40);
-        var mitte = Knopf("≡", "Zentriert", 240, 40);
-        var rechts = Knopf("≡", "Rechtsbündig", 270, 40);
-        links.TextAlign = ContentAlignment.MiddleLeft; rechts.TextAlign = ContentAlignment.MiddleRight;
+        var fett = Umschalter("fett", "Fett", 210, 10);
+        var kursiv = Umschalter("kursiv", "Kursiv", 240, 10);
+        var unter = Umschalter("unterstrichen", "Unterstrichen", 270, 10);
+        var links = Knopf("linksbuendig", "Linksbündig", 210, 40);
+        var mitte = Knopf("zentriert", "Zentriert", 240, 40);
+        var rechts = Knopf("rechtsbuendig", "Rechtsbündig", 270, 40);
         var prozentText = new Label { Text = "100", Left = 210, Top = 72, Width = 40 };
         oben.Controls.Add(new Label { Text = "Schriftgröße in %", Left = 300, Top = 72, Width = 120 });
         var prozent = new TrackBar { Left = 206, Top = 88, Width = 220, Minimum = 40, Maximum = 300, TickFrequency = 20, SmallChange = 5, LargeChange = 20, Value = 100, AutoSize = false, Height = 30 };
@@ -158,12 +157,16 @@ public static class StundenplanStundeDialog
         return d;
     }
 
-    private static CheckBox Umschalter(string text, FontStyle stil, int x, int y) =>
-        new() { Text = text, Appearance = Appearance.Button, Left = x, Top = y, Width = 26, Height = 26, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 9f, stil | FontStyle.Bold), FlatStyle = FlatStyle.Flat };
-
-    private static Button Knopf(string text, string hinweis, int x, int y)
+    private static CheckBox Umschalter(string symbol, string hinweis, int x, int y)
     {
-        var b = new Button { Text = text, Left = x, Top = y, Width = 26, Height = 26, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9f) };
+        var k = new CheckBox { Image = Symbole.Get(symbol, 16), ImageAlign = ContentAlignment.MiddleCenter, Appearance = Appearance.Button, Left = x, Top = y, Width = 26, Height = 26, FlatStyle = FlatStyle.Flat };
+        new ToolTip().SetToolTip(k, hinweis);
+        return k;
+    }
+
+    private static Button Knopf(string symbol, string hinweis, int x, int y)
+    {
+        var b = new Button { Image = Symbole.Get(symbol, 16), ImageAlign = ContentAlignment.MiddleCenter, Left = x, Top = y, Width = 26, Height = 26, FlatStyle = FlatStyle.Flat };
         new ToolTip().SetToolTip(b, hinweis);
         return b;
     }

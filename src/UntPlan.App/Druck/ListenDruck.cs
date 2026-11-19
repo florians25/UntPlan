@@ -228,8 +228,8 @@ public static class ListenDruck
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "N", HeaderText = "Spalte", Width = 130, ReadOnly = true });
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "B", HeaderText = "Breite", Width = 60 });
         foreach (var sp in l.Spalten) g.Rows.Add(sp.Drucken, sp.Name, sp.Breite);
-        var hoch = new Button { Text = "▲", Left = 576, Top = 34, Width = 32, Height = 28 };
-        var runter = new Button { Text = "▼", Left = 576, Top = 66, Width = 32, Height = 28 };
+        var hoch = new Button { Image = Symbole.Get("hoch", 16), Left = 576, Top = 34, Width = 32, Height = 28 };
+        var runter = new Button { Image = Symbole.Get("runter", 16), Left = 576, Top = 66, Width = 32, Height = 28 };
         void Verschieben(int r)
         {
             if (g.CurrentRow is not { } row) return;

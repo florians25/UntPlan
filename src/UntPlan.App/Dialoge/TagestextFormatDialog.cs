@@ -38,18 +38,17 @@ public sealed class TagestextFormatDialog : Form
         BackColor = Color.FromArgb(240, 240, 240);
 
         var leiste = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, RenderMode = ToolStripRenderMode.System, Padding = new Padding(4, 1, 0, 1), BackColor = BackColor };
-        ToolStripButton Knopf(string text, FontStyle stil, string tip)
+        ToolStripButton Knopf(string symbol, FontStyle stil, string tip)
         {
-            var k = new ToolStripButton(text) { DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = tip, CheckOnClick = false, AutoSize = false, Width = 20, Height = 20 };
-            k.Font = new Font("Segoe UI", 9f, stil);
+            var k = new ToolStripButton(Symbole.Get(symbol, 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = tip, CheckOnClick = false, AutoSize = false, Width = 22, Height = 22 };
             k.Click += (_, _) => StilUmschalten(stil);
             leiste.Items.Add(k);
             return k;
         }
-        _fett = Knopf("B", FontStyle.Bold, "Fett (Strg+B)");
-        _kursiv = Knopf("K", FontStyle.Italic, "Kursiv (Strg+K)");
-        _unter = Knopf("U", FontStyle.Underline, "Unterstrichen (Strg+U)");
-        _farbe = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Schriftfarbe", Image = FarbSymbol(_letzteFarbe), AutoSize = false, Width = 24, Height = 20 };
+        _fett = Knopf("fett", FontStyle.Bold, "Fett (Strg+B)");
+        _kursiv = Knopf("kursiv", FontStyle.Italic, "Kursiv (Strg+K)");
+        _unter = Knopf("unterstrichen", FontStyle.Underline, "Unterstrichen (Strg+U)");
+        _farbe = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Schriftfarbe", Image = FarbSymbol(_letzteFarbe), ImageScaling = ToolStripItemImageScaling.None, AutoSize = false, Width = 24, Height = 24 };
         _farbe.Click += (_, _) => FarbeWaehlen();
         leiste.Items.Add(_farbe);
 
@@ -159,15 +158,13 @@ public sealed class TagestextFormatDialog : Form
         _unter.Checked = f?.Underline == true;
     }
 
+    /// <summary>Schriftfarbe-Symbol (FatCow „font_colors“) mit Farbleiste der gewählten Farbe darunter (Farbanzeige, kein Symbol).</summary>
     private static Bitmap FarbSymbol(Color farbe)
     {
-        var b = new Bitmap(16, 16);
+        var b = new Bitmap(16, 20);
         using var g = Graphics.FromImage(b);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        // Farbeimer-ähnliches Symbol: Kreis mit gewählter Farbe und dunklem Rand
-        using (var br = new SolidBrush(Color.FromArgb(232, 190, 60))) g.FillEllipse(br, 2, 1, 12, 10);
-        using (var p = new Pen(Color.FromArgb(120, 90, 20))) g.DrawEllipse(p, 2, 1, 12, 10);
-        using (var br = new SolidBrush(farbe)) g.FillRectangle(br, 1, 12, 14, 4);
+        g.DrawImage(Symbole.Get("schriftfarbe", 16), 0, 0, 16, 16);
+        using (var br = new SolidBrush(farbe)) g.FillRectangle(br, 1, 17, 14, 3);
         return b;
     }
 

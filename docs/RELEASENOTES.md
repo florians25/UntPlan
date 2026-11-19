@@ -7,6 +7,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Alle Symbole aus dem FatCow-Symbolsatz (Farm-Fresh, CC BY 3.0) – keine selbst gezeichneten Symbole mehr (Menüband, Symbolleisten, Kontextmenüs, Meldungen, Dialoge).
 - Symbolleisten von Vertretungen, Absenzen und Vertretungsvorschlag in der Reihenfolge des Originals (übrige Befehle im Überlauf »), rotes X mit hellem Innenrand; Schriftzug im Arbeitsbereich entfernt.
 - Programmfenster wie das Original nachgemessen: Titelzeile 36 px, Menüband 91 px mit engen Knöpfen und blauem Datumsfeld, Farben von Kopf und Hintergrund, Fenstertitel 30 px, Statusleiste; „Entfall setzen“ als rotes X an 3. Stelle der Vertretungsleiste; Vertretungsvorschlag mit 2 Symbolen und Klappleisten ▼/▲; flache Häkchen; mehrzeilige Klassen in höheren Zeilen; Räume-Reiter markiert nur die aktuelle Zelle.
 - Tabellen wie in den Original-Fenstern nachgemessen: Absenzen und Vertretungen 19 px je Zeile, Vertretungsvorschlag (Vorschläge, Räume) und Stundenplanlupe 21 px; Spaltenbreiten und -reihenfolge, Schriften (Arial 9 in Vertretungstabellen, MS Sans Serif 8,25 für Häkchen und Reiter, Segoe UI 8,25 in Absenzen), Rasterlinien nur rechts/unten; kleiner Stundenplan auch im Vertretungsmodus im Vorbild-Stil.

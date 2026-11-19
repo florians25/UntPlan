@@ -45,12 +45,12 @@ public sealed class StundenplanSeitenlayout : Form
         MinimizeBox = false;
 
         var leiste = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top };
-        leiste.Items.Add(new ToolStripButton("◀") { ToolTipText = "Vorherige Seite" }.Mit(b => b.Click += (_, _) => Blaettern(-1)));
-        leiste.Items.Add(new ToolStripButton("▶") { ToolTipText = "Nächste Seite" }.Mit(b => b.Click += (_, _) => Blaettern(1)));
+        leiste.Items.Add(new ToolStripButton(null, Symbole.Get("zurueck", 16)) { ToolTipText = "Vorherige Seite", DisplayStyle = ToolStripItemDisplayStyle.Image }.Mit(b => b.Click += (_, _) => Blaettern(-1)));
+        leiste.Items.Add(new ToolStripButton(null, Symbole.Get("vor", 16)) { ToolTipText = "Nächste Seite", DisplayStyle = ToolStripItemDisplayStyle.Image }.Mit(b => b.Click += (_, _) => Blaettern(1)));
         leiste.Items.Add(_seitenText);
         var papier = new ToolStripDropDownButton("Papier") { ToolTipText = "Papierformat: Hochformat oder Querformat" };
-        papier.DropDownItems.Add("Hochformat", null, (_, _) => { StundenplanDruck.Seite.Landscape = false; Neu(); });
-        papier.DropDownItems.Add("Querformat", null, (_, _) => { StundenplanDruck.Seite.Landscape = true; Neu(); });
+        papier.DropDownItems.Add("Hochformat", Symbole.Get("hochformat", 16), (_, _) => { StundenplanDruck.Seite.Landscape = false; Neu(); });
+        papier.DropDownItems.Add("Querformat", Symbole.Get("querformat", 16), (_, _) => { StundenplanDruck.Seite.Landscape = true; Neu(); });
         papier.DropDownItems.Add(new ToolStripSeparator());
         papier.DropDownItems.Add("Seite einrichten…", null, (_, _) => SeiteEinrichten());
         leiste.Items.Add(new ToolStripSeparator());
@@ -59,8 +59,8 @@ public sealed class StundenplanSeitenlayout : Form
         leiste.Items.Add(new ToolStripButton("Drucken", Symbole.Get("drucken", 16)).Mit(b => b.Click += (_, _) => StundenplanDruck.Drucken(this, _typ, _ids, _format, false, _woche)));
 
         // Stift (Überschrift für den Druck von Einzelplänen) links oben und Zahnrad (Einstellungen) rechts oben auf der Seitenansicht
-        var stift = new Button { Text = "✎", Width = 24, Height = 24, Left = 6, Top = 6, FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand };
-        var zahnrad = new Button { Text = "⚙", Width = 24, Height = 24, Top = 6, Anchor = AnchorStyles.Top | AnchorStyles.Right, FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand };
+        var stift = new Button { Image = Symbole.Get("bearbeiten", 16), Width = 24, Height = 24, Left = 6, Top = 6, FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand };
+        var zahnrad = new Button { Image = Symbole.Get("einstellungen", 16), Width = 24, Height = 24, Top = 6, Anchor = AnchorStyles.Top | AnchorStyles.Right, FlatStyle = FlatStyle.Flat, BackColor = Color.White, Cursor = Cursors.Hand };
         var tipp = new ToolTip();
         tipp.SetToolTip(stift, "Überschrift für den Druck von Einzelplänen");
         tipp.SetToolTip(zahnrad, "Einstellungen");

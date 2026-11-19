@@ -143,7 +143,7 @@ public static class RaumZuordnenDialog
         foreach (var (n, k, w) in new[] { ("U", "Unt.", 40), ("L", "Lehrer", 60), ("F", "Fach", 50), ("R", "Raum", 64), ("K", "Klasse(n)", 110), ("W", "Wunschraum", 84), ("G", "U-Gruppe", 76) })
             links.Columns[links.Columns.Add(n, k)].Width = w;
 
-        var pfeil = new Button { Text = "←", Left = 516, Top = 220, Width = 34, Height = 34, Font = new Font(Ui.Schrift.FontFamily, 13, FontStyle.Bold) };
+        var pfeil = new Button { Image = Symbole.Get("pfeil_links", 32), Left = 516, Top = 220, Width = 34, Height = 34 };
         var loeschen = new Button { Image = Symbole.Get("loeschen", 16), Left = 516, Top = 260, Width = 34, Height = 34 };
         var tip = new ToolTip();
         tip.SetToolTip(pfeil, "Markierten Raum zuordnen (Doppelklick)");

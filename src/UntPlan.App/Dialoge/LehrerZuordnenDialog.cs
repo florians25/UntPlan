@@ -32,7 +32,7 @@ public static class LehrerZuordnenDialog
         links.MultiSelect = false;
         links.Columns.Add("L", "Lehrer");
         links.Columns.Add("F", "Fach");
-        var pfeil = new Button { Text = "←", Left = 236, Top = 180, Width = 34, Height = 34, Font = new Font(Ui.Schrift.FontFamily, 13, FontStyle.Bold) };
+        var pfeil = new Button { Image = Symbole.Get("pfeil_links", 32), Left = 236, Top = 180, Width = 34, Height = 34 };
         var mitKoll = new CheckBox { Text = "Auch Lehrer mit Kollisionen anzeigen", Left = 280, Top = 56, AutoSize = true, Checked = _mitKollisionen };
         d.Controls.Add(new Label { Text = "Mögliche Lehrer:", Left = 280, Top = 104, AutoSize = true });
         var rechts = new DataGridView { Left = 280, Top = 122, Width = 610, Height = 290, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };

@@ -1057,25 +1057,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         using (var p = new Pen(Color.White)) g.DrawLine(p, b.X + 4, b.Y + 3, b.X + 8, b.Y + 3);
     }
 
-    /// <summary>Schülersymbol (zwei Köpfe mit Oberkörper) für „unterrichtet die Klasse“.</summary>
-    private static void SchuelerZeichnen(Graphics g, Rectangle r)
-    {
-        var x = r.X + (r.Width - 16) / 2;
-        var y = r.Y + (r.Height - 13) / 2;
-        var alt = g.SmoothingMode;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var rand = new Pen(Color.FromArgb(90, 60, 20));
-        foreach (var (dx, koerper) in new[] { (0, Color.FromArgb(200, 120, 40)), (7, Color.FromArgb(230, 170, 60)) })
-        {
-            using var haut = new SolidBrush(Color.FromArgb(250, 210, 160));
-            using var kb = new SolidBrush(koerper);
-            g.FillPie(kb, x + dx, y + 6, 9, 12, 180, 180);
-            g.DrawPie(rand, x + dx, y + 6, 9, 12, 180, 180);
-            g.FillEllipse(haut, x + dx + 2, y + 1, 5, 5);
-            g.DrawEllipse(rand, x + dx + 2, y + 1, 5, 5);
-        }
-        g.SmoothingMode = alt;
-    }
+    /// <summary>Schülersymbol (FatCow „users_men_women“) für „unterrichtet die Klasse“.</summary>
+    private static void SchuelerZeichnen(Graphics g, Rectangle r) =>
+        g.DrawImage(Symbole.Get("schueler", 16), r.X + (r.Width - 16) / 2, r.Y + (r.Height - 16) / 2, 16, 16);
 
     /// <summary>Vertretungsstunde: gelb-orange gestrichelter Rahmen links und rechts, oben in der ersten und unten in der letzten Zeile.</summary>
     private static void ZielMarkieren(Graphics g, Rectangle r, bool erste, bool letzte)

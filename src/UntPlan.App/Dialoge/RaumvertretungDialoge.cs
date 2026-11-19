@@ -98,7 +98,7 @@ public sealed class RaumZuordnenVertretungDialog : Dialog
         Controls.Add(new Label { Text = "Auswahl derzeitiger Unterricht:", Left = 2, Top = 121, AutoSize = true });
         Controls.Add(new Label { Text = "Mögliche Räume:", Left = 388, Top = 130, AutoSize = true });
         // kleiner Pfeil ohne Rahmen zwischen den Tabellen wie im Bild (bei x = 362, y = 161)
-        var pfeil = new Button { Text = "←", Left = 359, Top = 156, Width = 18, Height = 16, FlatStyle = FlatStyle.Flat, Padding = Padding.Empty, Font = new Font(Ui.Schrift.FontFamily, 7, FontStyle.Bold) };
+        var pfeil = new Button { Image = Symbole.Get("pfeil_links", 16), Left = 359, Top = 156, Width = 18, Height = 16, FlatStyle = FlatStyle.Flat, Padding = Padding.Empty };
         pfeil.FlatAppearance.BorderSize = 0;
         var loeschen = new Button { Image = Symbole.Get("loeschen", 16), Left = 359, Top = 176, Width = 22, Height = 22, FlatStyle = FlatStyle.Flat };
         loeschen.FlatAppearance.BorderSize = 0;

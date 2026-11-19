@@ -67,7 +67,7 @@ public sealed class ListenauswahlFenster : MdiFenster
         ts.Items.Add(Knopf("Seite einrichten", "vorschau", BerichtsansichtFenster.SeiteEinrichtenOhneBericht));
         _datum.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
         _baum.ImageList = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
-        _baum.ImageList.Images.Add("gruppe", OrdnerSymbol());
+        _baum.ImageList.Images.Add("gruppe", Symbole.Get("oeffnen", 16));
         _baum.ImageList.Images.Add("liste", Symbole.Get("drucken", 16));
         foreach (var gruppe in Gruppen)
         {
@@ -87,22 +87,6 @@ public sealed class ListenauswahlFenster : MdiFenster
         Controls.Add(ts);
         if (_baum.Nodes.Count > 0) _baum.SelectedNode = _baum.Nodes[0];
         Gewaehlt();
-    }
-
-    /// <summary>Gelber Ordner wie im Vorbild für die Gruppen des Baums.</summary>
-    private static Bitmap OrdnerSymbol()
-    {
-        var b = new Bitmap(16, 16);
-        using var g = Graphics.FromImage(b);
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var rand = new Pen(Color.FromArgb(150, 120, 40));
-        using var fuellung = new System.Drawing.Drawing2D.LinearGradientBrush(new Rectangle(0, 3, 16, 12), Color.FromArgb(255, 245, 170), Color.FromArgb(235, 200, 90), 90f);
-        var lasche = new[] { new Point(1, 4), new Point(6, 4), new Point(7, 2), new Point(1, 2) };
-        g.FillPolygon(fuellung, lasche);
-        g.DrawPolygon(rand, lasche);
-        g.FillRectangle(fuellung, 1, 4, 13, 10);
-        g.DrawRectangle(rand, 1, 4, 13, 10);
-        return b;
     }
 
     /// <summary>Selbsttest: Gruppen sind wie im Vorbild zunächst zugeklappt.</summary>

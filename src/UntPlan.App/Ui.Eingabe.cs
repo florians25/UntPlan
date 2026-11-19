@@ -150,12 +150,16 @@ public static partial class Ui
             Padding = new Padding(1);
             var l = new Label
             {
-                Text = "⚠ " + text, AutoSize = true, Font = ListenSchrift, ForeColor = Color.FromArgb(30, 30, 30),
-                Padding = new Padding(6, 4, 6, 4), BackColor = BackColor,
+                Text = text, AutoSize = true, Font = ListenSchrift, ForeColor = Color.FromArgb(30, 30, 30),
+                Padding = new Padding(2, 4, 6, 4), BackColor = BackColor,
             };
+            // Warnsymbol (FatCow „error“) links neben dem Text
+            var symbol = new PictureBox { Image = Symbole.Get("warnung", 16), Size = new Size(16, 16), BackColor = BackColor };
             Controls.Add(l);
-            ClientSize = l.PreferredSize + new Size(2, 2);
-            l.Location = new Point(1, 1);
+            Controls.Add(symbol);
+            ClientSize = l.PreferredSize + new Size(2 + 24, 2);
+            l.Location = new Point(1 + 24, 1);
+            symbol.Location = new Point(7, (ClientSize.Height - 16) / 2);
             Paint += (_, e) => e.Graphics.DrawRectangle(SystemPens.ControlDark, 0, 0, Width - 1, Height - 1);
             _zeit.Tick += (_, _) => Close();
             _zeit.Start();

@@ -69,15 +69,15 @@ public sealed class SeitenlayoutFenster : Form
         // Symbolleiste wie im Handbuch: Spalten ein-/ausblenden | Drucken, Seitenvorschau | Fett, Zeilenumbruch, Kurz-/Langname |
         // Schriftschnitt der Überschriftszeile | Schrift und Größe | Hoch-/Querformat
         var ts = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Padding = new Padding(4, 2, 4, 2) };
-        ts.Items.Add(new ToolStripButton(null, Glyphe("▤", 0, false, Color.FromArgb(40, 110, 200)), (_, _) => FelderDialog()) { ToolTipText = "Spalten ein- und ausblenden", DisplayStyle = ToolStripItemDisplayStyle.Image });
+        ts.Items.Add(new ToolStripButton(null, Symbole.Get("l_felder", 16), (_, _) => FelderDialog()) { ToolTipText = "Spalten ein- und ausblenden", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(new ToolStripButton(null, Symbole.Get("drucken", 16), (_, _) => VertretungsplanDruck.Ausgeben(this, _von, _bis, _lehrer, false)) { ToolTipText = "Drucken", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripButton(null, Symbole.Get("vorschau", 16), (_, _) => VertretungsplanDruck.Ausgeben(this, _von, _bis, _lehrer, true)) { ToolTipText = "Seitenvorschau", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripButton("HTML-Ausg.", Symbole.Get("html", 16), (_, _) => HtmlAusgabe()) { ToolTipText = "Vertretungsliste im HTML-Format in einem frei wählbaren Ordner speichern" });
         ts.Items.Add(new ToolStripSeparator());
-        _fett.Image = Glyphe("B", 0, true, Color.Black);
-        _umbruch.Image = Glyphe("↵", 0, true, Color.FromArgb(40, 110, 200));
-        _langname.Image = Glyphe("ab", 0, false, Color.Black, "↔");
+        _fett.Image = Symbole.Get("fett", 16);
+        _umbruch.Image = Symbole.Get("umbruch", 16);
+        _langname.Image = Symbole.Get("langname", 16);
         _fett.CheckedChanged += (_, _) => Setzen(() => E.TabelleFett = _fett.Checked);
         _umbruch.CheckedChanged += (_, _) => Setzen(() => E.Zeilenumbruch = _umbruch.Checked);
         _langname.CheckedChanged += (_, _) => Setzen(() => E.Langname = _langname.Checked);
@@ -86,7 +86,7 @@ public sealed class SeitenlayoutFenster : Form
         for (var i = 0; i < 3; i++)
         {
             var nr = i;
-            _schnitt[i] = new ToolStripButton(null, Glyphe("abc", i == 0 ? 0 : i == 1 ? -45 : -90, false, Color.Black)) { ToolTipText = "Schriftschnitt der " + schnittTexte[i], DisplayStyle = ToolStripItemDisplayStyle.Image };
+            _schnitt[i] = new ToolStripButton(null, Symbole.Get(i == 0 ? "schnitt_waagrecht" : i == 1 ? "schnitt_schraeg" : "schnitt_senkrecht", 16)) { ToolTipText = "Schriftschnitt der " + schnittTexte[i], DisplayStyle = ToolStripItemDisplayStyle.Image };
             _schnitt[i].Click += (_, _) => { E.UeberschriftSchnitt = nr; EinstellungenLaden(); Neuzeichnen(); };
             ts.Items.Add(_schnitt[i]);
         }
@@ -96,8 +96,8 @@ public sealed class SeitenlayoutFenster : Form
         _schrift.ToolTipText = _groesse.ToolTipText = "Einstellungen zur Schrift";
         ts.Items.Add(_schrift);
         ts.Items.Add(_groesse);
-        _format.DropDownItems.Add("Hochformat", Glyphe("▯", 0, false, Color.Black), (_, _) => { E.Querformat = false; EinstellungenLaden(); Neuzeichnen(); });
-        _format.DropDownItems.Add("Querformat", Glyphe("▭", 0, false, Color.Black), (_, _) => { E.Querformat = true; EinstellungenLaden(); Neuzeichnen(); });
+        _format.DropDownItems.Add("Hochformat", Symbole.Get("hochformat", 16), (_, _) => { E.Querformat = false; EinstellungenLaden(); Neuzeichnen(); });
+        _format.DropDownItems.Add("Querformat", Symbole.Get("querformat", 16), (_, _) => { E.Querformat = true; EinstellungenLaden(); Neuzeichnen(); });
         ts.Items.Add(_format);
         ts.Items.Add(new ToolStripSeparator());
         var version = new ToolStripComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 90, ToolTipText = "Klassen- oder Lehrerversion" };
@@ -111,11 +111,11 @@ public sealed class SeitenlayoutFenster : Form
 
         // über der Vorschau: Seiten blättern und Zoom
         var blatt = new ToolStrip { GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.Top, Padding = new Padding(4, 1, 4, 1) };
-        blatt.Items.Add(new ToolStripButton("|◀", null, (_, _) => Blaettern(-1000)) { ToolTipText = "Erste Seite" });
+        blatt.Items.Add(new ToolStripButton(null, Symbole.Get("erste", 16), (_, _) => Blaettern(-1000)) { ToolTipText = "Erste Seite", DisplayStyle = ToolStripItemDisplayStyle.Image });
         blatt.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(false), (_, _) => Blaettern(-1)) { ToolTipText = "Vorherige Seite", DisplayStyle = ToolStripItemDisplayStyle.Image });
         blatt.Items.Add(_seitenText);
         blatt.Items.Add(new ToolStripButton(null, Steuerelemente.PfeilKnopf.Bild(true), (_, _) => Blaettern(1)) { ToolTipText = "Nächste Seite", DisplayStyle = ToolStripItemDisplayStyle.Image });
-        blatt.Items.Add(new ToolStripButton("▶|", null, (_, _) => Blaettern(1000)) { ToolTipText = "Letzte Seite" });
+        blatt.Items.Add(new ToolStripButton(null, Symbole.Get("letzte", 16), (_, _) => Blaettern(1000)) { ToolTipText = "Letzte Seite", DisplayStyle = ToolStripItemDisplayStyle.Image });
         blatt.Items.Add(new ToolStripSeparator());
         _zoom.Items.AddRange(new object[] { "50 %", "75 %", "100 %", "125 %", "Ganze Seite" });
         _zoom.SelectedIndex = 4;
@@ -138,28 +138,6 @@ public sealed class SeitenlayoutFenster : Form
         Shown += (_, _) => Neuzeichnen();
         FormClosed += (_, _) => { AppZustand.Einstellungen.Speichern(); foreach (var b in _bilder) b.Dispose(); };
         if (!IsHandleCreated) Neuzeichnen();
-    }
-
-    /// <summary>Kleines Symbol aus Text (gedreht um <paramref name="winkel"/> Grad) für die Symbolleiste.</summary>
-    private static Bitmap Glyphe(string text, float winkel, bool fett, Color farbe, string? zusatz = null)
-    {
-        var bmp = new Bitmap(16, 16);
-        using var g = Graphics.FromImage(bmp);
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        using var f = new Font("Segoe UI", text.Length > 2 ? 6.5f : zusatz is null ? 9f : 7f, fett ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Point);
-        using var b = new SolidBrush(farbe);
-        using var mitte = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        g.TranslateTransform(8, zusatz is null ? 8 : 5);
-        g.RotateTransform(winkel);
-        g.DrawString(text, f, b, new RectangleF(-10, -8, 20, 16), mitte);
-        g.ResetTransform();
-        if (zusatz != null)
-        {
-            using var z = new Font("Segoe UI Symbol", 7f);
-            using var blau = new SolidBrush(Color.FromArgb(40, 110, 200));
-            g.DrawString(zusatz, z, blau, new RectangleF(0, 7, 16, 9), mitte);
-        }
-        return bmp;
     }
 
     private void Setzen(Action a)
@@ -365,7 +343,7 @@ public sealed class SeitenlayoutFenster : Form
             _umbruch.Checked = E.Zeilenumbruch;
             _langname.Checked = E.Langname;
             for (var i = 0; i < _schnitt.Length; i++) _schnitt[i].Checked = E.UeberschriftSchnitt == i;
-            _format.Image = Glyphe(E.Querformat ? "▭" : "▯", 0, false, Color.Black);
+            _format.Image = Symbole.Get(E.Querformat ? "querformat" : "hochformat", 16);
             foreach (ToolStripMenuItem m in _format.DropDownItems) m.Checked = (m.Text == "Querformat") == E.Querformat;
             foreach (var (box, lesen) in _haken) box.Checked = lesen();
             _felder.Items.Clear();
@@ -774,7 +752,7 @@ public sealed class SeitenlayoutFenster : Form
         {
             var stift = new Button
             {
-                Text = "✎", FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.FromArgb(40, 70, 160), Font = new Font("Segoe UI Symbol", 8f),
+                Image = Symbole.Get("bearbeiten", 16), FlatStyle = FlatStyle.Flat, BackColor = Color.White,
                 Size = new Size(16, 16), TabStop = false, Padding = new Padding(0), Location = lage,
             };
             stift.FlatAppearance.BorderSize = 0;
@@ -857,8 +835,8 @@ public static class FelderDerAnsichtDialog
         Fuellen();
         g.CurrentCellDirtyStateChanged += (_, _) => { if (g.CurrentCell is DataGridViewCheckBoxCell) g.CommitEdit(DataGridViewDataErrorContexts.Commit); };
         g.CellValueChanged += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 1) arbeit[e.RowIndex].Drucken = g.Rows[e.RowIndex].Cells[1].Value is true; };
-        var hoch = new Button { Text = "▲", Left = 266, Top = 46, Width = 32, Height = 28 };
-        var runter = new Button { Text = "▼", Left = 266, Top = 78, Width = 32, Height = 28 };
+        var hoch = new Button { Image = Symbole.Get("hoch", 16), Left = 266, Top = 46, Width = 32, Height = 28 };
+        var runter = new Button { Image = Symbole.Get("runter", 16), Left = 266, Top = 78, Width = 32, Height = 28 };
         void Schieben(int r)
         {
             var i = g.CurrentRow?.Index ?? -1;
