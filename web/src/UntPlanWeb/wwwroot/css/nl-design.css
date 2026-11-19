@@ -155,8 +155,8 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover { color: var(--u-akzent); }
 .u-nav-punkt.aktiv .u-nav-sym { color: var(--u-akzent); }
 .u-marke b { color: #414d55; }
-/* Überschrift im Untermenü (z. B. „Weitere Stundenpläne“) wie Vorlage: grau #69747d, halbfett */
-.u-unterkopf b { color: #69747d; font-weight: 500; }
+/* Überschrift im Untermenü (z. B. „Weitere Stundenpläne“) wie Vorlage: grau (gemessen #69747d = Palettengrau #67747e), halbfett */
+.u-unterkopf b { color: var(--u-graustufe-3); font-weight: 500; }
 .u-marke small { color: var(--u-grau-2); }
 .u-benutzer b { color: #4a5662; font-weight: 600; }
 .u-benutzer small { color: var(--u-grau-2); }

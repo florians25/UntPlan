@@ -43,7 +43,7 @@ public static partial class OberflaecheApi
         return (gewicht, stil);
     }
 
-    /// <summary>@font-face-Regeln für die vorhandenen AvenirNextPro-Dateien (leer, wenn keine vorhanden sind – dann gilt Nunito Sans).</summary>
+    /// <summary>@font-face-Regeln für die vorhandenen AvenirNextPro-Dateien (leer, wenn keine vorhanden sind – dann gilt Lato).</summary>
     public static string SchriftCss(string? webroot)
     {
         var ordner = webroot is null ? null : Path.Combine(webroot, "fonts");
@@ -51,7 +51,7 @@ public static partial class OberflaecheApi
             ? Directory.GetFiles(ordner).Select(Path.GetFileName).Where(f => f is not null && Schriftdatei().IsMatch(f)).Cast<string>().ToList()
             : new List<string>();
         var sb = new StringBuilder("/* UntPlanWeb: Schriftfamilie AvenirNextPro aus wwwroot/fonts (lizenzierte Dateien der Schule). */\n");
-        if (dateien.Count == 0) return sb.Append("/* Keine AvenirNextPro-Dateien gefunden – es gilt Nunito Sans. */\n").ToString();
+        if (dateien.Count == 0) return sb.Append("/* Keine AvenirNextPro-Dateien gefunden – es gilt Lato. */\n").ToString();
         static int Rang(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => 0, ".woff" => 1, ".otf" => 2, _ => 3 };
         static string Format(string f) => Path.GetExtension(f).ToLowerInvariant() switch { ".woff2" => "woff2", ".woff" => "woff", ".otf" => "opentype", _ => "truetype" };
         // gleiche Zuordnung wie bei hochgeladenen Schriften (SchriftApi): CSS 100–400 Regular, 500 Medium, 600–900 Demi, jedes Gewicht fest belegt

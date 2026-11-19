@@ -1558,11 +1558,17 @@ struct Rasterrahmen: Equatable {
         let start = min(zeiten.first?.beginn ?? 480, alleZeiten.map(\.beginn).min() ?? 480)
         let ende = max(zeiten.last?.ende ?? 960, alleZeiten.map(\.ende).max() ?? 960)
         var vorErster = false
+        var vorErsterPille = false
+        var fruehMinuten = 0
         var pausenAufsichten: [Kachel] = []
         for s in seiten {
             let t = StundenplanView.seitenTyp(s, standard: typ)
             let liste = s.kacheln(typ: t, element: element).values.flatMap { $0 }
             if liste.contains(where: \.vorErsterStunde) { vorErster = true }
+            // Pillen fester Größe vor der 1. Stunde (ganztägiger Termin, Frühaufsicht ohne Dauer im Zeitraster)
+            if liste.contains(where: { $0.vorErsterStunde && !$0.fruehaufsichtMitZeit }) { vorErsterPille = true }
+            // Frühaufsicht mit Dauer laut Zeitraster: so viele Minuten Raster über der Linie der 1. Stunde
+            fruehMinuten = max(fruehMinuten, liste.filter(\.fruehaufsichtMitZeit).map { $0.ende - $0.beginn }.max() ?? 0)
             pausenAufsichten += liste.filter { $0.art == .aufsicht && $0.inPause && !$0.vorErsterStunde }
         }
         let dicht = tagesansicht || kompakt
@@ -1572,7 +1578,8 @@ struct Rasterrahmen: Equatable {
         // der Zeitraum der Aufsicht vor der 1. Stunde (Vorlagen 00e27251, 6a2e7724, 3beee594, da72165b, eedec6e2: erste
         // Linie 08:00, Raster ab 07:30, „STD-früh“ direkt über der Linie); Klassen- und Schülerpläne ohne Vorlauf
         // (567a139b, 6d696e75, 0837d301: Linie der 1. Stunde 15,33 pt unter dem Kopf)
-        let vorlauf = kompakt && typ == "lehrer" ? Self.lehrerVorlauf : 0
+        // Frühaufsicht mit Dauer im Zeitraster: das Raster beginnt mindestens mit ihr (maßstäblich wie die Pausen)
+        let vorlauf = max(kompakt && typ == "lehrer" ? Self.lehrerVorlauf : 0, fruehMinuten)
         let proMinute: CGFloat
         if kompakt && sichtHoehe > 200 {
             // iPhone wie in den Vorlagen (dunkel, 3 px/pt): vom Rasterbeginn bis 17:00 füllt das Raster die Sichthöhe
@@ -1586,7 +1593,7 @@ struct Rasterrahmen: Equatable {
         } else {
             proMinute = Self.proMinuteBreit
         }
-        let vorErsterPlatz: CGFloat = vorErster ? pille + Self.pillenLuft : 0
+        let vorErsterPlatz: CGFloat = vorErsterPille ? pille + Self.pillenLuft : 0
         let oben: CGFloat = max(Self.obenAbstand + CGFloat(vorlauf) * proMinute, vorErsterPlatz)
         let mass = Rastermass(oben: oben, start: start, proMinute: proMinute,
                               dehnungen: Rastermass.dehnungen(pausenAufsichten, proMinute: proMinute,
@@ -1989,14 +1996,22 @@ struct RasterSeite: View, Equatable {
         var w = spurBreite
         var y: CGFloat
         var h: CGFloat
-        if k.vorErsterStunde {
+        if k.fruehaufsichtMitZeit {
+            // Frühaufsicht mit Dauer laut Zeitraster: wie die Aufsichten in den Pausen – füllt ihren Zeitraum bis zur Linie der
+            // 1. Stunde (Lücke − 1 pt); mehrere nebeneinander wie die übrigen Pillen vor der 1. Stunde
+            let anzahl = CGFloat(max(1, vorErste.count))
+            let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
+            w = (breite - (anzahl - 1) * 2) / anzahl
+            x = i * (w + 2)
+            (y, h) = pausenLage(beginn: k.beginn, ende: k.ende, mass: mass)
+        } else if k.vorErsterStunde {
             // Pille über dem Raster (Aufsicht vor der ersten Stunde, ganztägiger Termin); mehrere nebeneinander
             let anzahl = CGFloat(max(1, vorErste.count))
             let i = CGFloat(vorErste.firstIndex(of: k.id) ?? 0)
             w = (breite - (anzahl - 1) * 2) / anzahl
             x = i * (w + 2)
             // Direkt auf der Linie der 1. Stunde (Unterkante an der Oberkante der Linie), wie im Original
-            // Aufsicht vor der 1. Stunde wie in der Vorlage (eedec6e2): 11 pt hoch, 0,67 pt über der Linie
+            // Aufsicht vor der 1. Stunde ohne Dauer im Zeitraster wie in der Vorlage (eedec6e2): 11 pt hoch, 0,67 pt über der Linie
             h = k.art == .aufsicht ? 11 : rahmen.pillenHoehe
             y = bildpunkt(max(0, mass.y(mass.start) - h - (k.art == .aufsicht ? 0.67 : 0)))
         } else if k.inPause {

@@ -497,6 +497,19 @@ public class OberflaecheTests
 
     // ------------------------------------------------------------------ Schrift (UW-04)
 
+    [Theory]
+    [InlineData("AvenirNextLTPro-DemiIt.otf", 600, true)]
+    [InlineData("AvenirNextPro-Regular.woff2", 400, false)]
+    [InlineData("Avenir-Next-Bold.woff2", 700, false)]
+    [InlineData("Avenir-Next-Bold-Italic.woff2", 700, true)]
+    [InlineData("Avenir-Next-Demi.woff2", 600, false)]
+    [InlineData("Avenir-Next-Medium-Italic.woff2", 500, true)]
+    [InlineData("Avenir-Next-Ultra-Light.woff2", 200, false)]
+    [InlineData("Avenir-Next-Italic.woff2", 400, true)]
+    [InlineData("Avenir-Next-Heavy.woff2", 800, false)]
+    public void Schriftschnitt_aus_Dateinamen_auch_mit_Leerzeichen_bzw_Bindestrichen(string datei, int gewicht, bool kursiv)
+        => Assert.Equal((gewicht, kursiv), SchriftApi.Schnitt(datei));
+
     [Fact]
     public void Schrift_wird_nur_mit_vorhandenen_Dateien_eingebunden()
     {
@@ -515,7 +528,7 @@ public class OberflaecheTests
             Assert.Contains("font-weight: 600", css);
             Assert.Contains("font-weight: 700; font-style: italic", css);
             Assert.DoesNotContain("fremd", css);
-            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Nunito Sans\"", css);
+            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Lato\"", css);
             // wie im Original: 100–400 → Regular, 500 → Medium (fehlt: Demi), 600–900 → Demi
             Assert.Equal(new[] { (100, 400), (200, 400), (300, 400), (400, 400), (500, 600), (600, 600), (700, 600), (800, 600), (900, 600) }, SchriftApi.Zuordnung(new[] { 400, 600 }));
             var mitMedium = SchriftApi.Zuordnung(new[] { 300, 400, 500, 600, 700 });

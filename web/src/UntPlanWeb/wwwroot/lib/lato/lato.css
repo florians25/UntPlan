@@ -1,0 +1,10 @@
+/* Lato (SIL Open Font License 1.1, siehe LICENSE) – freie Ersatzschrift für die Hausschrift Avenir Next, lokal eingebunden,
+   ohne externe Schriftquellen. Schnitte: Light (300), Regular (400), Bold (700), Black (900), Zeichensatz Latin.
+   Zuordnung wie bei der Hausschrift (SchriftApi.Zuordnung): 100–300 Light, 400 Regular, 500–800 Bold (statt Medium/Demi Bold), 900 Black.
+   Jedes Gewicht ist fest belegt, damit Browser nichts künstlich verfetten. */
+@font-face { font-family: 'Lato'; font-style: normal; font-display: swap; font-weight: 100 300; src: url(lato-latin-300-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Lato'; font-style: normal; font-display: swap; font-weight: 400; src: url(lato-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Lato'; font-style: normal; font-display: swap; font-weight: 500 800; src: url(lato-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Lato'; font-style: normal; font-display: swap; font-weight: 900; src: url(lato-latin-900-normal.woff2) format('woff2'); }
+/* Fett-Schnitt für „Heute“, Legende und Tageszeile des Wochenplans (Vorlage wirkt dort fetter): Lato Bold für jedes Gewicht */
+@font-face { font-family: 'Lato Fett'; font-style: normal; font-display: swap; font-weight: 100 900; src: url(lato-latin-700-normal.woff2) format('woff2'); }

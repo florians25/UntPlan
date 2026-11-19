@@ -3,7 +3,7 @@
 
 :root {
   --sp-tisch: #fff;
-  --sp-tisch-rand: #d9dee3;
+  --sp-tisch-rand: var(--u-graustufe-6);
   --sp-saal: #f4f6f8;
   --sp-pult: #414d55;
   --sp-ziel: rgba(var(--u-akzent-rgb, 245, 107, 42), .14);
@@ -29,7 +29,7 @@
 .sp-knopf.rot:hover:not(:disabled) { border-color: #e03131; color: #c92a2a; }
 .sp-knopf .bi { font-size: 1rem; line-height: 1; }
 
-.sp-ava { flex: none; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .74rem; font-weight: 700; letter-spacing: .02em; color: #3d4a54; background: var(--ava, #e4e9ee); }
+.sp-ava { flex: none; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .74rem; font-weight: 700; letter-spacing: .02em; color: var(--u-graustufe-2); background: var(--ava, #e4e9ee); }
 
 /* ------------------------------------------------------------------ Editor (großes Fenster) */
 

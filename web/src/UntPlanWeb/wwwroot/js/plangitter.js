@@ -1,8 +1,10 @@
 // Darstellung der Stundenpläne: Raster nach Unterrichtsstunden, Stundenkarten, Veranstaltungsleiste, Detaildialog mit Klassenbuch.
 import { e, minuten, jetztMinuten, heuteIso, datumKurz, WOCHENTAGE_KURZ } from './ui.js';
 
-/** Höhe einer Unterrichtsstunde im Raster (Pausen werden nicht maßstäblich dargestellt). */
-/** Höhe einer Stunde: mindestens 80 px, bei mehr Platz so hoch, dass das Raster bis zum Seitenende reicht (siehe zeileAnpassen). */
+/**
+ * Höhe einer Regelstunde (der im Zeitraster häufigsten Stundenlänge, z. B. 45 Minuten): mindestens 80 px, bei mehr Platz so hoch, dass
+ * das Raster bis zum Seitenende reicht (siehe zeileAnpassen). Längere bzw. kürzere Stunden im Verhältnis ihrer Dauer laut Zeitraster.
+ */
 const ZEILE_MIN = 80;
 let ZEILE = ZEILE_MIN;
 
@@ -406,48 +408,100 @@ export const fachStil = k => /^#[0-9a-f]{6}$/i.test(k.farbe || '') ? `--fach:${k
 
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-/** Höhe einer Pausenzeile mit Aufsichten. */
-const PAUSE = 30;
-
 /**
- * Raster bis zum Seitenende: verfügbare Höhe (Fenster abzüglich Kopf mit Tagen und Legende unten) gleichmäßig auf die Stunden verteilen,
- * nie unter 80 px – auf hohen Bildschirmen (z. B. Handy in der Desktop-Ansicht) füllt der Plan so die ganze Seite.
+ * Pausenzeilen mit Aufsichten im Maßstab ihrer Dauer laut Zeitraster: 1,5 px je Minute (eine 20-Minuten-Pause = 30 px). Die Pausen haben
+ * einen eigenen, festen Maßstab – die Stunden wachsen mit der Fensterhöhe (Raster bis zum Seitenende), die Pausen bleiben so knapp, wie
+ * sie im Plan stehen; untereinander bleiben Pausen (15, 20, 25 Minuten, Frühaufsicht, Mittagspause) im Verhältnis ihrer Dauer.
  */
-function zeileAnpassen(zeiten, aufsichten) {
-  const RESERVE = 200;
-  const pausen = new Set((aufsichten || []).map(a => a.nachStunde)).size;
-  const hoehe = typeof window === 'undefined' ? 0 : window.innerHeight;
-  ZEILE = Math.max(ZEILE_MIN, Math.floor((hoehe - RESERVE - pausen * PAUSE) / Math.max(1, zeiten.length)));
+const PAUSE_PRO_MINUTE = 1.5;
+
+/** Dauer einer Stunde laut Zeitraster (Minuten, mindestens 1). */
+const stundenDauer = z => Math.max(1, minuten(z.ende) - minuten(z.beginn));
+
+/** Länge der Regelstunde: die häufigste Stundenlänge des Zeitrasters (bei Gleichstand die kürzere). */
+function regelDauer(zeiten) {
+  const anzahl = new Map();
+  for (const z of zeiten) anzahl.set(stundenDauer(z), (anzahl.get(stundenDauer(z)) ?? 0) + 1);
+  return [...anzahl].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0]?.[0] ?? 45;
 }
 
 /**
- * Zeilenaufbau: je Stunde eine Zeile, dazu eine Pausenzeile nur dort, wo im Zeitraster wirklich eine Pause liegt
- * (Ende ≠ nächster Beginn) und in dieser Woche eine Pausenaufsicht stattfindet. Liefert die Oberkante jeder Stunde und jeder Pausenzeile.
+ * Pausen mit Zeile im Raster: dort, wo im Zeitraster wirklich eine Pause liegt (Ende ≠ nächster Beginn) bzw. vor der ersten und nach der
+ * letzten Stunde, und in dieser Woche eine Pausenaufsicht stattfindet. Liefert je Pause (nach Stunde) die Dauer in Minuten: zwischen
+ * zwei Stunden aus deren Uhrzeiten, vor der ersten bzw. nach der letzten Stunde aus den Uhrzeiten der Aufsicht (Pausendauer aus UntPlan);
+ * ohne Uhrzeiten (ältere Server) die häufigste Pausenlänge des Rasters.
  */
-function zeilenAufbau(zeiten, aufsichten) {
-  const pausenNach = new Set(aufsichten.map(a => a.nachStunde));
-  const oben = [], pause = new Map();
-  let y = 0;
+function pausenDauern(zeiten, aufsichten) {
+  const pausenNach = new Set((aufsichten || []).map(a => a.nachStunde));
+  const luecken = zeiten.slice(1).map((z, i) => minuten(z.beginn) - minuten(zeiten[i].ende)).filter(m => m > 0);
+  const haeufig = new Map();
+  for (const m of luecken) haeufig.set(m, (haeufig.get(m) ?? 0) + 1);
+  const ueblich = [...haeufig].sort((x, y) => y[1] - x[1] || y[0] - x[0])[0]?.[0] ?? 20;
+  const ausAufsicht = nach => {
+    const a = (aufsichten || []).find(x => x.nachStunde === nach && x.beginn && x.ende && minuten(x.ende) > minuten(x.beginn));
+    return a ? minuten(a.ende) - minuten(a.beginn) : ueblich;
+  };
+  const res = new Map();
   zeiten.forEach((z, i) => {
     const vorher = i === 0 ? z.nr - 1 : zeiten[i - 1].nr;
-    const luecke = i === 0 || zeiten[i - 1].ende !== z.beginn;
-    if (luecke && pausenNach.has(vorher)) { pause.set(vorher, y); y += PAUSE; }
-    oben.push(y);
-    y += ZEILE;
+    if (!pausenNach.has(vorher)) return;
+    if (i === 0) res.set(vorher, ausAufsicht(vorher));
+    else if (zeiten[i - 1].ende !== z.beginn) res.set(vorher, Math.max(1, minuten(z.beginn) - minuten(zeiten[i - 1].ende)));
   });
   const letzte = zeiten[zeiten.length - 1].nr;
-  if (pausenNach.has(letzte)) { pause.set(letzte, y); y += PAUSE; }
-  return { oben, pause, hoehe: y };
+  if (pausenNach.has(letzte)) res.set(letzte, ausAufsicht(letzte));
+  return res;
+}
+
+/**
+ * Raster bis zum Seitenende: verfügbare Höhe (Fenster abzüglich Kopf mit Tagen und Legende unten sowie der Pausenzeilen) auf die Stunden
+ * im Verhältnis ihrer Dauer verteilen, die Regelstunde nie unter 80 px – auf hohen Bildschirmen (z. B. Handy in der Desktop-Ansicht)
+ * füllt der Plan so die ganze Seite.
+ */
+function zeileAnpassen(zeiten, pausen) {
+  const RESERVE = 200;
+  const regel = regelDauer(zeiten);
+  const stunden = zeiten.reduce((s, z) => s + stundenDauer(z) / regel, 0);
+  const pausenHoehe = [...pausen.values()].reduce((s, m) => s + m * PAUSE_PRO_MINUTE, 0);
+  const hoehe = typeof window === 'undefined' ? 0 : window.innerHeight;
+  ZEILE = Math.max(ZEILE_MIN, Math.floor((hoehe - RESERVE - pausenHoehe) / Math.max(1, stunden)));
+}
+
+/**
+ * Zeilenaufbau aus dem Zeitraster: je Stunde eine Zeile (Höhe im Verhältnis ihrer Dauer zur Regelstunde), dazu je Pause mit Aufsicht
+ * eine Pausenzeile im Maßstab ihrer Dauer (siehe pausenDauern). Liefert Ober- und Unterkante jeder Stunde sowie Oberkante und Höhe jeder
+ * Pausenzeile (auf ganze Pixel gerundet, ohne dass sich Rundungen aufsummieren).
+ */
+function zeilenAufbau(zeiten, pausen) {
+  const regel = regelDauer(zeiten);
+  const oben = [], unten = [], pause = new Map(), pauseHoehe = new Map();
+  let y = 0;
+  const neuePause = nach => {
+    const y0 = Math.round(y);
+    y += pausen.get(nach) * PAUSE_PRO_MINUTE;
+    pause.set(nach, y0);
+    pauseHoehe.set(nach, Math.round(y) - y0);
+  };
+  zeiten.forEach((z, i) => {
+    const vorher = i === 0 ? z.nr - 1 : zeiten[i - 1].nr;
+    if (pausen.has(vorher)) neuePause(vorher);
+    oben.push(Math.round(y));
+    y += ZEILE * stundenDauer(z) / regel;
+    unten.push(Math.round(y));
+  });
+  const letzte = zeiten[zeiten.length - 1].nr;
+  if (pausen.has(letzte)) neuePause(letzte);
+  return { oben, unten, pause, pauseHoehe, hoehe: Math.round(y) };
 }
 
 /** Position der Jetzt-Linie (null außerhalb des Unterrichts). */
 function jetztPosition(zeiten, aufbau, jetzt) {
   for (let i = 0; i < zeiten.length; i++) {
     const b = minuten(zeiten[i].beginn), en = minuten(zeiten[i].ende);
-    if (jetzt >= b && jetzt < en) return Math.round(aufbau.oben[i] + (jetzt - b) / Math.max(1, en - b) * ZEILE);
+    if (jetzt >= b && jetzt < en) return Math.round(aufbau.oben[i] + (jetzt - b) / Math.max(1, en - b) * (aufbau.unten[i] - aufbau.oben[i]));
     if (i + 1 < zeiten.length && jetzt >= en && jetzt < minuten(zeiten[i + 1].beginn)) {
       const p = aufbau.pause.get(zeiten[i].nr);
-      return p === undefined ? aufbau.oben[i + 1] : Math.round(p + (jetzt - en) / Math.max(1, minuten(zeiten[i + 1].beginn) - en) * PAUSE);
+      return p === undefined ? aufbau.oben[i + 1] : Math.round(p + (jetzt - en) / Math.max(1, minuten(zeiten[i + 1].beginn) - en) * aufbau.pauseHoehe.get(zeiten[i].nr));
     }
   }
   return null;
@@ -457,7 +511,7 @@ function jetztPosition(zeiten, aufbau, jetzt) {
 function zeitY(zeiten, aufbau, m) {
   const n = zeiten.length - 1;
   if (m <= minuten(zeiten[0].beginn)) return aufbau.oben[0];
-  if (m >= minuten(zeiten[n].ende)) return aufbau.oben[n] + ZEILE;
+  if (m >= minuten(zeiten[n].ende)) return aufbau.unten[n];
   return jetztPosition(zeiten, aufbau, m) ?? aufbau.oben[0];
 }
 
@@ -561,8 +615,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   const zeiten = alle;
   const index = new Map(zeiten.map((z, i) => [z.nr, i]));
   const letzte = zeiten[zeiten.length - 1].nr;
-  zeileAnpassen(zeiten, plan.aufsichten);
-  const aufbau = zeilenAufbau(zeiten, plan.aufsichten);
+  const pausen = pausenDauern(zeiten, plan.aufsichten);
+  zeileAnpassen(zeiten, pausen);
+  const aufbau = zeilenAufbau(zeiten, pausen);
   const heute = heuteIso();
   const jetzt = jetztMinuten();
   const tage = plan.tage;
@@ -594,7 +649,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     const oben = aufbau.oben[i];
     if (mitZeiten) html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
     if (mitNummer) html += `<div class="tt-nr${mitZeiten ? '' : ' allein'}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
-    if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${oben + ZEILE}px">${e(z.ende)}</div>`;
+    if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${aufbau.unten[i]}px">${e(z.ende)}</div>`;
   });
   // Uhrzeiten auf den Karten: an der ersten Linie der Beginn der ersten Stunde (wie in der Vorlage „07:45“)
   if (!mitZeiten && kartenZeiten && plan.format?.zeiten !== false && zeiten.length) html += `<div class="tt-zeit erste" style="top:${aufbau.oben[0]}px">${e(zeiten[0].beginn)}</div>`;
@@ -602,11 +657,11 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   html += '</div>';
 
   const linien = new Set();
-  zeiten.forEach((z, j) => { linien.add(aufbau.oben[j]); linien.add(aufbau.oben[j] + ZEILE); });
+  zeiten.forEach((z, j) => { linien.add(aufbau.oben[j]); linien.add(aufbau.unten[j]); });
   tage.forEach((t, i) => {
     html += `<div class="tt-spalte ${t.frei ? 'frei ' + e(t.freiArt || '') : ''} ${i === ausgewaehlt ? 'gewaehlt' : ''}" style="height:${aufbau.hoehe}px">`;
     html += [...linien].map(y => `<div class="tt-linie" style="top:${y}px"></div>`).join('');
-    html += [...aufbau.pause.values()].map(y => `<div class="tt-pause" style="top:${y}px;height:${PAUSE}px"></div>`).join('');
+    html += [...aufbau.pause].map(([nach, y]) => `<div class="tt-pause" style="top:${y}px;height:${aufbau.pauseHoehe.get(nach)}px"></div>`).join('');
     if (t.frei) html += freiUeberlagerung(t);
     // eigene Abwesenheit: graue Fläche hinter den Stunden (wird nach den Karten berechnet und hier eingefügt)
     const vorKarten = html.length, belegt = [];
@@ -624,7 +679,7 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       // Pausenaufsichten immer automatisch: Blöcke laufen über die Pause hinweg durch, die Aufsicht steht dort schmal daneben
       for (const [von, bis] of abschnitte(k, aufbau, index, true)) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
-        const oben = aufbau.oben[iv] + 1, h = aufbau.oben[ib] + ZEILE - aufbau.oben[iv] - 1;
+        const oben = aufbau.oben[iv] + 1, h = aufbau.unten[ib] - aufbau.oben[iv] - 1;
         // Beginn und Ende links in der Karte (Einstellung „Uhrzeiten auf den Karten“); bei zwei parallelen Stunden nur in der linken
         const mitZeit = kartenZeiten && k.status !== 'gesperrt' && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
@@ -650,10 +705,12 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
         const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
-        belegt.push([aufbau.pause.get(nach), aufbau.pause.get(nach) + PAUSE, j * breite, breite]);
+        const pOben = aufbau.pause.get(nach), pHoehe = aufbau.pauseHoehe.get(nach);
+        belegt.push([pOben, pOben + pHoehe, j * breite, breite]);
         // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
-        // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie, gleiche Breite und Einrückung
-        html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
+        // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie – füllt genau die Pausenzeile, deren Höhe
+        // aus der Pausendauer im Zeitraster kommt –, gleiche Breite und Einrückung
+        html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
           ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
       });
     }

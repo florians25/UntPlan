@@ -7,6 +7,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 ## Neu in dieser Version
 
 ### Desktop
+- Symbolleisten von Vertretungen, Absenzen und Vertretungsvorschlag in der Reihenfolge des Originals (übrige Befehle im Überlauf »), rotes X mit hellem Innenrand; Schriftzug im Arbeitsbereich entfernt.
 - Programmfenster wie das Original nachgemessen: Titelzeile 36 px, Menüband 91 px mit engen Knöpfen und blauem Datumsfeld, Farben von Kopf und Hintergrund, Fenstertitel 30 px, Statusleiste; „Entfall setzen“ als rotes X an 3. Stelle der Vertretungsleiste; Vertretungsvorschlag mit 2 Symbolen und Klappleisten ▼/▲; flache Häkchen; mehrzeilige Klassen in höheren Zeilen; Räume-Reiter markiert nur die aktuelle Zelle.
 - Tabellen wie in den Original-Fenstern nachgemessen: Absenzen und Vertretungen 19 px je Zeile, Vertretungsvorschlag (Vorschläge, Räume) und Stundenplanlupe 21 px; Spaltenbreiten und -reihenfolge, Schriften (Arial 9 in Vertretungstabellen, MS Sans Serif 8,25 für Häkchen und Reiter, Segoe UI 8,25 in Absenzen), Rasterlinien nur rechts/unten; kleiner Stundenplan auch im Vertretungsmodus im Vorbild-Stil.
 - Schülergruppen automatisch für jeden Unterricht als „Fach_Klassen_Lehrkraft“ (z. B. „FU1_FIS4A_LN“) – beim Ändern und nachträglich beim Öffnen; vorhandene bzw. von Hand vergebene Schülergruppen bleiben unverändert (abschaltbar im Kontextmenü des Unterrichtsfensters). Platzhalter $, %, # bei der Eingabe für mehrere Unterrichte, Umbenennen in allen Perioden, Fenster „Unterrichte mit inkonsistenten Schülergruppen“, Prüfung auf fehlende Schülergruppen vor der Übertragung ins Web.
@@ -106,6 +107,8 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Erscheinungsbild vereinheitlicht: benannte Farbpalette (Primärfarbe, Dunkelblau, Türkis, sechs Grautöne) – nachgemessene Werte aus der Vorlage bleiben, nahe Grautöne folgen der Palette; freie Ersatzschrift Lato (Light, Regular, Bold, Black, SIL OFL) statt Nunito Sans, solange keine Hausschrift hochgeladen ist; Seiten-Icons im Linienstil einheitlich 24 px in Palettengrau.
+- Stundenplan: Höhen im Raster richten sich nach den Zeiten des Zeitrasters aus UntPlan – Stunden und Blöcke im Verhältnis ihrer Dauer, Pausenzeilen mit Aufsicht im Maßstab ihrer Pausenlänge (z. B. 15 und 25 Minuten unterschiedlich hoch, statt fest 30 px), Frühaufsicht vor der 1. Stunde und Aufsichten nach der letzten Stunde mit der im Raster gepflegten Pausendauer; für das bisherige Raster (45-Minuten-Stunden, 20-Minuten-Pausen) bleibt die Darstellung pixelgleich.
 - Stundenplan: Zusatzstunden (z. B. Sondereinsatz) zeigen ihren Raum als hinzugefügt („+B003“, darunter das Änderungssymbol), ohne Fach im Klassenplan Lehrkraft – Bezeichnung – Raum; Info-Symbol mit „Information zur Stunde:“ und dem Text darunter, Hinweis grau mittig über dem Symbol; Labels kürzen mit „…“ im grünen Kasten („+B…“).
 - Kopfleiste des Wochenplans: feine Pfeile mit dünnem Kreis beim Überfahren dicht am Zeitraum, „Heute“ etwas flacher, Tageszeile größer, Beginn der ersten Stunde an der ersten Linie.
 - Bericht „Abwesenheiten“: jede Verspätung bzw. jedes vorzeitige Gehen als eigene Zeile (auch reine Verspätungen ohne Abwesenheit) mit Uhrzeit, „verspätet x Min.“, Fach, Lehrkraft, Grund, Status und Text, je Schüler*in eine Summenzeile „Verspätungen“ (Anzahl, Minuten) – in PDF und CSV; „Aufgestanden“ steht nur noch in der Tabelle „Abwesende Schüler*innen“.
@@ -215,6 +218,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Stundenplan: Frühaufsicht vor der 1. Stunde mit ihrer Dauer aus dem Zeitraster von UntPlan (bisher fest 11 pt bzw. 15 Minuten angenommen) – füllt wie die Aufsichten in den Pausen ihren Zeitraum bis zur Linie der 1. Stunde, in Woche und Tag; keine erfundenen Pausenlängen nach der letzten Stunde mehr.
 - Schülerliste: neuer Abschnitt „Abwesende Schüler*innen“ unter der Liste (Name, Zeit, Art, Status, Grund) mit „Aufgestanden“ und „Bearbeiten“; das Bett-Symbol erscheint nur noch dort.
 - Schülerliste: „Aufgestanden“ (Bett mit Pfeil nach oben) setzt abwesende Schüler*innen in der laufenden Stunde ab jetzt auf anwesend, mit Verspätung von Stundenbeginn bis jetzt.
 - Verspätungen genau: Minuten, Uhrzeit von–bis, Stunde, Fach und Status in Schülerliste, Abwesenheitsliste und Entschuldigungen.

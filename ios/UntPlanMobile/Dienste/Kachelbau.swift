@@ -147,6 +147,8 @@ struct Kachel: Identifiable {
     /// Nach Uhrzeit gesetzt (Aufsicht, Termin-Pille)
     var inPause: Bool = false
     var vorErsterStunde: Bool = false
+    /// Frühaufsicht mit Zeitraum aus dem Zeitraster (Pausendauer vor der 1. Stunde): steht maßstäblich über der Linie der 1. Stunde
+    var fruehaufsichtMitZeit: Bool { vorErsterStunde && art == .aufsicht && ende > beginn }
     /// Feld (Raumsperre) – liegt vor den verdrängten Stunden
     var feld: Bool = false
     var vergangen: Bool = false
@@ -1041,12 +1043,20 @@ enum Kachelbau {
         var ende = Rasterzeit.minuten(a.ende)
         let vorErster = a.nachStunde <= 0
         if vorErster, let erste {
-            beginn = erste.beginn - 15
-            ende = erste.beginn
+            // Frühaufsicht: Zeitraum laut Zeitraster aus UntPlan (Pausendauer vor der 1. Stunde, vom Server als Beginn und Ende
+            // geliefert); ohne gepflegte Dauer keine erfundene Länge – dann ein Punkt am Beginn der 1. Stunde (Pille in fester Größe)
+            if let b = beginn, let e = ende, b < e {
+                beginn = b
+                ende = e
+            } else {
+                beginn = erste.beginn
+                ende = erste.beginn
+            }
         }
         if beginn == nil, let i = raster.firstIndex(where: { $0.nr == a.nachStunde }) {
             beginn = raster[i].ende
-            ende = i + 1 < raster.count ? raster[i + 1].beginn : raster[i].ende + 15
+            // nach der letzten Stunde ohne Uhrzeit vom Server: keine erfundene Pausenlänge
+            ende = i + 1 < raster.count ? raster[i + 1].beginn : raster[i].ende
         }
         let b = beginn ?? (erste?.beginn ?? 480)
         var e = ende ?? b

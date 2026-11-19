@@ -10,7 +10,7 @@
 .ub-gruss h1 { margin: 0; font-size: 1.3rem; line-height: 1.3; font-weight: 500; color: var(--u-titel); }
 .ub-tageszeile { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-height: 26px; margin: 4px 0 0; font-size: .9rem; line-height: 1.3; color: var(--u-grau); }
 .ub-tageszeile b { font-weight: 500; color: var(--u-titel); }
-.ub-sep { color: #c2c9cf; }
+.ub-sep { color: var(--u-graustufe-5); }
 .ub-ferien { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; background: #e8f1f8; color: #2d5f86; font-size: .8rem; white-space: nowrap; }
 .ub-kind { display: flex; align-items: center; gap: 12px; }
 .ub-kind .fm-wahl { margin: 0; }
