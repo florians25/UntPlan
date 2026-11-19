@@ -234,9 +234,12 @@ public sealed partial class PlanAnsicht : Control
     private int KopfHoehe => KlassikStil ? (Format.Klein ? (PlanKleinVorbild ? 37 : 20) : 30) : Format.Klein ? 17 : 22;
     // im Druck etwas breiter, damit „10:40-11:25“ vollständig in die Stundenspalte passt
     private int KopfBreite => (KlassikStil ? (Format.Klein ? (PlanKleinVorbild ? 41 : 26) : Format.ZeitenAnzeigen ? 72 : 34) : Format.Klein ? 20 : Format.ZeitenAnzeigen ? 74 : 32) + (_druck && Format.ZeitenAnzeigen && !Format.Klein ? 12 : 0);
-    /// <summary>Kleiner Plan im Stundenplanmodus (Vorbild-Format „Kla1“: großer fetter Kopf, „Nvpl“-Ecke).</summary>
-    private bool PlanKleinVorbild => Format.Klein && !AppZustand.Vertretungsmodus;
-    private int PausenHoehe => KlassikStil ? (Format.Klein ? 15 : 16) : Format.Klein ? 12 : 15;
+    /// <summary>
+    /// Kleiner Plan wie im Vorbild-Format „Kla1“ (großer fetter Kopf, „Nvpl“-Ecke) – in beiden Modi, wie das Original-Bildschirmfoto
+    /// des kleinen Klassenplans im Vertretungsmodus zeigt (Kopf 37, Stundenspalte 41, Stunden 25, Pausen 16 Pixel samt Linie).
+    /// </summary>
+    private bool PlanKleinVorbild => Format.Klein;
+    private int PausenHoehe => KlassikStil ? (Format.Klein ? (PlanKleinVorbild ? 16 : 15) : 16) : Format.Klein ? 12 : 15;
 
     /// <summary>
     /// Darstellung wie im Vorbild im Vertretungsmodus: Kopf und Stundenspalte mintgrün, belegte Stunden mintgrün, freie weiß,

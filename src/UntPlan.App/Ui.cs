@@ -240,6 +240,11 @@ public static partial class Ui
             });
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
+        // wie auf den Original-Bildschirmfotos: Rasterlinien nur rechts und unten – die erste Spalte beginnt direkt am Rahmen
+        g.AdvancedCellBorderStyle.Left = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedCellBorderStyle.Top = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedCellBorderStyle.Right = DataGridViewAdvancedCellBorderStyle.Single;
+        g.AdvancedCellBorderStyle.Bottom = DataGridViewAdvancedCellBorderStyle.Single;
         // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
         // mit der aktuellen Zelle hell orange
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
