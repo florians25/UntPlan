@@ -365,7 +365,7 @@ public class KartenSprint27Tests
     public void Web_Stundendetails_Badges_oben_Knoepfe_kleiner_Abmelden_schliesst_Dialog()
     {
         var sd = Datei("js", "stundendetails.js");
-        Assert.Contains("<div class=\"sd-titel\"><h2>${titel.join('<span class=\"trenn\">|</span>')}${pille ? `<span class=\"sd-statuspille\">${pille}</span>` : ''}", sd);
+        Assert.Contains("<div class=\"sd-titel\"><h2>${titel.map(t => `<span class=\"sd-tteil\">${t}</span>`).join('<span class=\"trenn\">|</span>')}${pille ? `<span class=\"sd-statuspille\">${pille}</span>` : ''}", sd);
         Assert.Contains("window.addEventListener('untplan:abmeldung', abmeldung, { once: true });", sd);
         Assert.Contains("if (beendet || !el.isConnected) return;", sd);
         var app = Datei("js", "app.js");

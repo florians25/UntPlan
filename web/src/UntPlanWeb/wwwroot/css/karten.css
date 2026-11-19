@@ -209,6 +209,8 @@ input.sd-eingabe { min-height: 56px; }
 /* Kopf der Stundendetails wie in der Vorlage etwas enger: kleinere Abstände um die Trennstriche, dichtere Laufweite */
 .sd-titel h2 { letter-spacing: -.012em; gap: 0; }
 .sd-titel .trenn { margin: 0 .38rem; }
+/* mehrere Klassen (bzw. Lehrkräfte) im Kopf: „HET12A, HIT12A“ – Komma mit Leerzeichen, nicht als einzelne Flex-Elemente */
+.sd-titel h2 .sd-tteil { white-space: normal; }
 .sd-zeile { letter-spacing: -.008em; }
 .sd-zeile .trenn { margin: 0 .4rem; }
 /* Reiter direkt nebeneinander (nur der Innenabstand trennt sie), der erste bündig unter dem Titel */
