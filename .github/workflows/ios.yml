@@ -76,6 +76,8 @@ jobs:
           # Pausenaufsichten der Lehrkraft BEC: Do. nach der 2. Stunde abgegeben (RIC vertritt), Mo. nach der 4. Stunde vertritt BEC (Halle, WEB)
           vertretung(datum=iso(3), stunde=2, art="Pausenaufsicht", klassen=[], lehrer="BEC", vertreter="RIC", raum="Hof", neuerRaum="Hof", nurLehrer=True)
           vertretung(datum=iso(0), stunde=4, art="Pausenaufsicht", klassen=[], lehrer="WEB", vertreter="BEC", raum="Halle", neuerRaum="Halle", nurLehrer=True)
+          # Künftige reguläre Aufsicht der Lehrkraft BEC (Fr. nach der 2. Stunde, Schulhof) wie in der Vorlage 2bb77419
+          d["pausenaufsichten"].append({"gang": "Hof", "tag": 4, "nachStunde": 2, "lehrer": "BEC", "wochen": ""})
           # Fachfarben leeren: die Schulen der Vorlagen haben keine (alle Balken grau #bec8cf) – fairer Vergleich
           for f in d["elemente"]["faecher"]:
               f["farbe"] = ""

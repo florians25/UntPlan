@@ -350,7 +350,9 @@ struct KachelView: View {
         .clipShape(RoundedRectangle(cornerRadius: klein ? 3 : 3.33, style: .continuous))
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
-        .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
+        // Dunkel ohne Schatten (2bb77419: Rastergrund und Linie direkt unter der Pille unverändert)
+        .shadow(color: a.schatten == .keiner || dunkel ? .clear : Farben.kartenSchattenFlach,
+                radius: a.schatten == .keiner || dunkel ? 0 : 1.5, y: a.schatten == .keiner || dunkel ? 0 : 1)
     }
 
     private var aufsichtHinweis: String? {
