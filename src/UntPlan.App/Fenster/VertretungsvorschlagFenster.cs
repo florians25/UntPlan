@@ -34,23 +34,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static readonly Color Klassenlehrergruen = Color.FromArgb(150, 240, 150);
     /// <summary>Spalte „Stundenplan“ (früher drei Spalten S1–S3; zeigt jetzt so viele Stunden, wie Platz ist).</summary>
     private static readonly string[] Stundenplanspalten = { "S1" };
-    private ToolStrip? _leiste;
-    private ToolStripItem[] _sichtbareKnoepfe = Array.Empty<ToolStripItem>();
 
-    protected override void OnLoad(EventArgs e)
-    {
-        base.OnLoad(e);
-        if (_leiste is null) return;
-        foreach (ToolStripItem it in _leiste.Items)
-        {
-            if (_sichtbareKnoepfe.Contains(it)) continue;
-            it.Overflow = ToolStripItemOverflow.Always;
-            if (it.Alignment == ToolStripItemAlignment.Right) it.Alignment = ToolStripItemAlignment.Left;
-        }
-        // Einstellungen direkt hinter „Vertreter übernehmen“
-        _leiste.Items.Remove(_sichtbareKnoepfe[1]);
-        _leiste.Items.Insert(1, _sichtbareKnoepfe[1]);
-    }
     /// <summary>Breite einer Stunde in der Spalte „Stundenplan“ (per Ziehen an einer Stundengrenze änderbar).</summary>
     private static int _zellBreite = 53;
 
@@ -114,8 +98,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(einstellungen);
         // wie auf dem Original-Bildschirmfoto: sichtbar nur „Vertreter übernehmen“ und „Einstellungen“, alles Weitere (auch „Spalten“)
         // über den Überlaufpfeil rechts in der Leiste
-        _leiste = ts;
-        _sichtbareKnoepfe = new ToolStripItem[] { ts.Items[0], einstellungen };
+        OriginalLeiste = new ToolStripItem[] { ts.Items[0], einstellungen };
         _alle.CheckedChanged += (_, _) => Neuaufbau();
         Ui.FlacheKaestchen(_block, _disloz, _dauer, _nahe, _besetzt, _zusatzRaum, _vorzSpaeter);
         foreach (var c in new[] { _block, _disloz, _dauer, _nahe, _besetzt })

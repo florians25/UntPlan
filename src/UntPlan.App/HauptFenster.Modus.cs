@@ -463,22 +463,14 @@ public sealed partial class HauptFenster
         cm.Show(mdi, pt);
     }
 
-    /// <summary>Wird im Konstruktor aufgerufen: Kontextmenü und Datumsanzeige im Arbeitsbereich.</summary>
+    /// <summary>Wird im Konstruktor aufgerufen: Kontextmenü im Arbeitsbereich, Reaktion auf den Datumswechsel.</summary>
     private void ModusVorbereiten()
     {
         foreach (Control c in Controls)
             if (c is MdiClient mdi)
             {
                 mdi.MouseUp += (_, e) => { if (e.Button == MouseButtons.Right) ArbeitsbereichMenue(e.Location, mdi); };
-                mdi.Paint += (_, e) =>
-                {
-                    // großer Schriftzug im Hintergrund: Modus und Planungsdatum
-                    var text = AppZustand.Vertretungsmodus ? $"Vertretungsplanung · {Format.Datum(AppZustand.Datum)}" : "Stundenplanung";
-                    using var f = new Font("Segoe UI", 28f, FontStyle.Bold);
-                    var farbe = Color.FromArgb(70, Color.White);
-                    TextRenderer.DrawText(e.Graphics, text, f, new Rectangle(0, mdi.ClientSize.Height - 70, mdi.ClientSize.Width - 20, 60), farbe, TextFormatFlags.Right | TextFormatFlags.Bottom);
-                };
-                mdi.Resize += (_, _) => mdi.Invalidate();
+                // wie im Original: Arbeitsbereich ohne Schriftzug (Modus und Planungsdatum stehen in Kopf und Menüband)
             }
         AppZustand.DatumGewechselt += datum =>
         {

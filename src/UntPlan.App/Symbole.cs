@@ -43,7 +43,8 @@ public static class Symbole
         ["o"] = 0xE5832A,   // Orange
         ["ho"] = 0xFAD7B0,  // Hellorange
         ["r"] = 0xC9372C,   // Rot
-        ["xr"] = 0xEE4040,  // helles Signalrot (Entfall-X)
+        ["xr"] = 0xE83434,  // Signalrot (Kern des Entfall-X)
+        ["hx"] = 0xF7A3A3,  // heller Innenrand des Entfall-X
         ["y"] = 0xF2BE2E,   // Gelb
         ["hy"] = 0xFBE7A6,  // Hellgelb
         ["gy"] = 0xD49A1A,  // Ocker (Ordnerrückseite)
@@ -99,7 +100,21 @@ public static class Symbole
         ["abwesenheit"] = "H 2 3 20 gr; E 17 17 13 13 r; L 20.5 23.5 26.5 23.5 w w3",
         ["absenz"] = "=abwesenheit",
         // Entfall: kräftiges rotes X mit dunklem Saum wie auf dem Original-Bildschirmfoto (Symbolleiste der Vertretungen)
-        ["entfall"] = "L 5 5 27 27 xr w8 h & L 27 5 5 27 xr w8 h",
+        ["entfall"] = "L 5 5 27 27 hx w10 h & L 27 5 5 27 hx w10 h; L 6 6 26 26 xr w5 & L 26 6 6 26 xr w5",
+        // Symbole der Werkzeugleisten nach der Original-Symbolübersicht (eigene Zeichnungen)
+        ["l_loeschen"] = "=entfall",
+        ["l_normalform"] = "R 3 3 26 26 1 w & R 3 3 26 6 1 b; V 16 18 16 10 b w2 h & V 16 18 16 27 b w2 h & V 16 18 7 18 b w2 h & V 16 18 25 18 b w2 h",
+        ["l_felder"] = "R 7 3 18 7 1 hb; R 7 13 18 7 1 hb; R 7 23 18 7 1 hb",
+        ["l_inhalt"] = "R 2 5 28 10 1 w; R 2 17 28 10 1 w; L 5 8 9 12 dk w1.5 & L 9 8 5 12 dk w1.5; L 11 8 15 12 dk w1.5 & L 15 8 11 12 dk w1.5; L 17 20 21 24 dk w1.5 & L 21 20 17 24 dk w1.5; L 23 20 27 24 dk w1.5 & L 27 20 23 24 dk w1.5",
+        ["l_farbig"] = "E 3 5 26 22 hbr; E 8 9 5 5 r!; E 15 8 5 5 y!; E 21 11 5 5 b!; E 9 16 5 5 g!; L 18 28 28 12 br w3 h",
+        ["l_seitenlayout"] = "P 5 2 19 2 25 8 25 30 5 30 w; P 19 2 19 8 25 8 hg; Z 20 22 7 8 y",
+        ["l_vorschlag"] = "P 2 12 16 6 30 12 16 18 dk; P 9 15 9 22 16 25 23 22 23 15 16 18 dk; L 27 13 27 22 dk w1.5",
+        ["l_vormerkung"] = "R 5 3 22 26 1 w & R 5 3 22 4 1 gr; L 9 11 23 11 hg w1.5; L 9 16 23 16 hg w1.5; V 30 22 12 22 g w4 h",
+        ["l_planung"] = "R 3 3 20 22 2 hgr; E 7 7 9 9 g; L 18 30 28 20 gr w4 h; E 24 16 6 6 gr",
+        ["l_automatik"] = "R 6 2 20 28 2 hg & R 9 5 14 6 1 w; R 9 14 3 3 dk!; R 14 14 3 3 dk!; R 19 14 3 3 dk!; R 9 19 3 3 dk!; R 14 19 3 3 dk!; R 19 19 3 3 b!; R 9 24 3 3 dk!; R 14 24 3 3 dk!; R 19 24 3 3 dk!",
+        ["l_teilen"] = "L 5 27 16 16 gr w4 h; P 14 10 22 4 28 10 22 18 b; E 20 20 6 6 y",
+        ["l_aktualisieren"] = "A 5 5 22 22 200 290 b w4 h; V 27 9 27 15 b w3",
+        ["l_kalender"] = "R 4 4 24 24 1 w & R 4 4 24 6 1 b; R 8 14 4 3 dk!; R 14 14 4 3 dk!; R 20 14 4 3 dk!; R 8 20 4 3 dk!; R 14 20 4 3 dk!; R 20 20 4 3 dk!",
         ["bereitschaft"] = "E 13 23 6 6 dk; C 8 5 16 16 180 180 o & R 8 13 16 8 o & P 4 25 28 25 24 20 8 20 o & E 14.5 3 3 3 o",
         ["sondereinsatz"] = "P 20 2 7 18 15 18 12 30 25 13 17 13 23 2 o",
         ["pausenaufsicht"] = "P 16 3 28 7 27 19 16 29 5 19 4 7 b; L 10 16 15 21 23 11 w w3",

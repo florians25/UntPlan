@@ -75,11 +75,19 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // Symbolleiste in der Reihenfolge der Vorlage: Fensterverknüpfung, Felder der Ansicht, Neu, Löschen | Filter, Sortieren,
         // Absenz kopieren (andere Elemente) | Seitenlayout ▾, Einstellungen ▾, Absenz splitten, Absenzen zusammenfassen, Aktualisieren –
         // dahinter die eigenen Funktionen (Bearbeiten, Veranstaltungen)
+        // Reihenfolge der sichtbaren Symbole nach der Original-Symbolübersicht (Absenzen / Standard): Normalform anzeigen, Felder der Ansicht,
+        // Neu, Löschen (rotes X), Filter, Sortieren, Element-Rollup, Seitenlayout, Einstellungen, Schuljahreskalender, Absenz splitten,
+        // Aktualisieren – die übrigen eigenen Befehle im Überlauf » der Leiste
         var ts = Werkzeugleiste();
+        var normalform = Knopf("Normalform anzeigen", "l_normalform", () => NormalformAnzeigen(_g));
+        var felder = Knopf("Felder der Ansicht", "l_felder", () => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position));
+        var neu = Knopf("Neue Absenz (Dialog)", "neu", Neu);
+        var loeschen = Knopf("Löschen", "l_loeschen", Loeschen);
         ts.Items.Add(VerknuepfenKnopf());
-        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => Steuerelemente.TabellenFormate.MenueZeigen(_g, Cursor.Position)));
-        ts.Items.Add(Knopf("Neue Absenz (Dialog)", "neu", Neu));
-        ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
+        ts.Items.Add(normalform);
+        ts.Items.Add(felder);
+        ts.Items.Add(neu);
+        ts.Items.Add(loeschen);
         ts.Items.Add(new ToolStripSeparator());
         _filterKnopf = Knopf("Filter", "filter", FilterSetzen);
         ts.Items.Add(_filterKnopf);
@@ -98,6 +106,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         layout.DropDownItems.Add("Seitenansicht", Symbole.Get("vorschau", 16), (_, _) => Drucken(true));
         layout.DropDownItems.Add("Drucken", Symbole.Get("drucken", 16), (_, _) => Drucken(false));
         ts.Items.Add(layout);
+        layout.Image = Symbole.Get("l_seitenlayout", 16);
         var einst = new ToolStripDropDownButton("Einstellungen", Symbole.Get("einstellungen", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Einstellungen" };
         _vaZeigen.Checked = AppZustand.Einstellungen.AbsenzenVeranstaltungenZeigen;
         _vaZeigen.CheckedChanged += (_, _) =>
@@ -109,12 +118,23 @@ public sealed class AbwesenheitenFenster : MdiFenster
         };
         einst.DropDownItems.Add(_vaZeigen);
         ts.Items.Add(einst);
-        ts.Items.Add(Knopf("Absenz splitten", "tausch", Teilen));
+        var rollup = Knopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen());
+        ts.Items.Add(rollup);
+        var kalender = Knopf("Schuljahreskalender – Absenzen", "l_kalender", () =>
+        {
+            if (_g.CurrentRow?.Tag is Abwesenheit a) AbsenzKalenderDialog.Zeigen(this, Typ, a.ElementId);
+            else Ui.Info("Bitte zuerst eine Absenz bzw. ein Element in der Liste wählen.");
+        });
+        ts.Items.Add(kalender);
+        var splitten = Knopf("Absenz splitten", "l_teilen", Teilen);
+        ts.Items.Add(splitten);
         ts.Items.Add(Knopf("Absenzen zusammenfassen", "uebersicht", Zusammenfassen));
-        ts.Items.Add(Knopf("Aktualisieren", "aktualisieren", () => { EntwurfSofortUebernehmen(); Neuaufbau(); }));
+        var aktualisieren = Knopf("Aktualisieren", "l_aktualisieren", () => { EntwurfSofortUebernehmen(); Neuaufbau(); });
+        ts.Items.Add(aktualisieren);
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Veranstaltungen", "veranstaltung", () => HauptFenster.Oeffnen("veranst", () => new VeranstaltungenFenster())));
+        OriginalLeiste = new ToolStripItem[] { normalform, felder, neu, loeschen, _filterKnopf, sortieren, rollup, layout, einst, kalender, splitten, aktualisieren };
 
         Ui.RasterGestalten(_g, true);
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern

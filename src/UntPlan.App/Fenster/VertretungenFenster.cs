@@ -109,39 +109,51 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Text = "Vertretungen / " + Fmt.Langname;
         ElementeFuellen();
 
+        // Werkzeugleiste in der Reihenfolge der Original-Symbolübersicht (Fenster Vertretungen):
+        // Normalform anzeigen, Felder der Ansicht, Entfall (rotes X), Vertretungsvorschlag, Vormerkung, Planungsdialog, Raum zuordnen / löschen,
+        // Vertretungsautomatik, Vertretungsdiagnose, Vertretung teilen | Filter, Sortieren, Felder mit Inhalt | Zu zählende farbig |
+        // Ansicht fixieren, Seitenlayout, Aktualisieren | Einstellungen – alle weiteren eigenen Befehle im Überlauf » der Leiste
         var ts = Werkzeugleiste();
-        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", FelderDialog));
-        // Handbuch Kap. 13.1.1.3: Sortierkriterien der Ansicht (bleiben für dieses Vertretungsformat gespeichert)
-        ts.Items.Add(Knopf("Sortieren", "sortieren", SortierDialog));
-        // Werkzeugleiste wie im Vorbild nur mit Symbolen (Text im Tooltip)
-        ts.Items.Add(Knopf("Vertretungsvorschlag", "vertretung", VorschlagOeffnen));
-        ts.Items.Add(Knopf("Diagnose – Vertretungs-Diagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis)));
-        ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
-        ts.Items.Add(new ToolStripSeparator());
-        // wie auf dem Original-Bildschirmfoto: „Entfall“ als rotes X an dritter Stelle der Leiste
-        ts.Items.Insert(2, new ToolStripButton("Entfall", Symbole.Get("entfall", 16), (_, _) => Entfall())
+        var normalform = Knopf("Normalform anzeigen", "l_normalform", () => NormalformAnzeigen(_g));
+        var felder = Knopf("Felder der Ansicht", "l_felder", FelderDialog);
+        var entfall = new ToolStripButton("Entfall", Symbole.Get("entfall", 16), (_, _) => Entfall())
         {
-            // wie in der Vorlage: Titel „Entfall“, darunter „Unterricht entfällt“
             ToolTipText = "Entfall\nUnterricht entfällt\n(Taste - beim Vertreter; erneut klicken macht wieder eine offene Vertretung daraus)", DisplayStyle = ToolStripItemDisplayStyle.Image,
-        });
+        };
+        var vorschlag = Knopf("Vertretungsvorschlag", "l_vorschlag", VorschlagOeffnen);
+        var vormerkung = Knopf("Vormerkung (Stunde für eine spätere Verplanung beiseitelegen)", "l_vormerkung", AlsVormerkung);
+        var planung = Knopf("Planungsdialog", "l_planung", () => VertretungsPlanungsdialogFenster.Zeigen());
+        var raum = Knopf("Raum zuordnen / löschen", "raumzuordnen", RaumZuordnen);
+        var automatik = Knopf("Vertretungsautomatik", "l_automatik", () => VertretungsautomatikDialog.Zeigen(this, Von, Bis));
+        var diagnose = Knopf("Vertretungsdiagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis));
+        var teilen = Knopf("Vertretung teilen", "l_teilen", Teilen);
+        var filterKnopf = Knopf("Filter", "filter", FilterSetzen);
+        // Handbuch Kap. 13.1.1.3: Sortierkriterien der Ansicht (bleiben für dieses Vertretungsformat gespeichert)
+        var sortieren = Knopf("Sortieren", "sortieren", SortierDialog);
+        _inhalt.Image = Symbole.Get("l_inhalt", 16);
+        _inhalt.CheckedChanged += (_, _) => FelderMitInhalt(_inhalt.Checked);
+        // Handbuch Kap. 14.2 (Tipp Spalte „Zählen“): grün = positiv, rot = negativ gezählt
+        var farbigKnopf = new ToolStripButton("Zu zählende farbig", Symbole.Get("l_farbig", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image,
+            ToolTipText = "Zu zählende farbig: zeigt, ob eine Vertretung bzw. ein Entfall gezählt wird (grün = positiv, rot = negativ)" };
+        farbigKnopf.CheckedChanged += (_, _) => { _zaehlendeFarbig = farbigKnopf.Checked; _g.Invalidate(); };
+        var fixieren = new ToolStripButton("Ansicht fixieren", Symbole.Get("schloss", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image,
+            ToolTipText = "Ansicht fixieren: die Liste folgt nicht der Auswahl (Vertretung, Datum) in anderen Fenstern" };
+        fixieren.CheckedChanged += (_, _) => _ansichtFixiert = fixieren.Checked;
+        var seitenlayout = Knopf("Seitenlayout", "l_seitenlayout", () => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, LehrerSicht));
+        var aktualisieren = Knopf("Aktualisieren (F5)", "l_aktualisieren", Neuaufbau);
+        foreach (var k in new ToolStripItem[] { normalform, felder, entfall, vorschlag, vormerkung, planung, raum, automatik, diagnose, teilen, filterKnopf, sortieren, _inhalt, farbigKnopf, fixieren, seitenlayout, aktualisieren })
+            ts.Items.Add(k);
+        // eigene Befehle ohne Gegenstück in der Übersicht (über den Überlauf » erreichbar)
+        ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(Knopf("Vertr. o. Lehrkr. (+)", "planen", OhneLehrkraft));
-        ts.Items.Add(Knopf("Vertretung teilen", "tausch", Teilen));
         ts.Items.Add(Knopf("Lehrkraft zur Veranstaltung hinzufügen", "lehrer", LehrkraftHinzufuegen));
-        ts.Items.Add(Knopf("Raum zuordnen", "raumzuordnen", RaumZuordnen));
         ts.Items.Add(Knopf("Sondereinsatz", "neu", () => SondereinsatzDialog.Neu(this, AppZustand.Datum, Aktuelle().FirstOrDefault()?.Stunde ?? 1, Array.Empty<int>(), Array.Empty<int>())));
-        ts.Items.Add(Knopf("Als Vormerkung beiseitelegen", "zurueck", AlsVormerkung));
         ts.Items.Add(Knopf("Zurücksetzen (wieder offen)", "rueckgaengig", Zuruecksetzen));
         ts.Items.Add(Knopf("Löschen", "minus", Loeschen));
-        ts.Items.Add(new ToolStripSeparator());
-        _inhalt.CheckedChanged += (_, _) => FelderMitInhalt(_inhalt.Checked);
-        ts.Items.Add(_inhalt);
-        ts.Items.Add(Knopf("Vertretung fixieren (X) / lösen", "schloss", Fixieren));
+        ts.Items.Add(Knopf("Vertretung fixieren (X) / lösen", "fixieren", Fixieren));
         ts.Items.Add(Knopf("Nicht drucken (N) ein/aus", "drucken", NichtDrucken));
-        ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Automatik – Vertretungs-Automatik", "optimierung", () => VertretungsautomatikDialog.Zeigen(this, Von, Bis)));
         ts.Items.Add(Knopf("Neu berechnen (Absenzen, Veranstaltungen, Klausuren)", "aktualisieren", NeuBerechnen));
         ts.Items.Add(Knopf("Nachrichten zum Tag", "kommentar", () => TagestextDialog.Zeigen(this, AppZustand.Datum)));
-        ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Vertretungsplan (HTML)", "html", () => HtmlAusgabe(DateOnly.FromDateTime(_von.Value), Math.Max(1, (int)(_bis.Value - _von.Value).TotalDays + 1), LehrerSicht)));
         ts.Items.Add(Knopf("Vertretungsplan drucken (Aushang)", "drucken", () => Drucken(true)));
         ts.Items.Add(Knopf("Liste drucken (Felder mit „drucken“)", "vorschau", ListeDrucken));
@@ -153,13 +165,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             ToolTipText = "Zeigt farbig, ob eine Vertretung bzw. ein Entfall gezählt wird (grün = pos., rot = neg.). Zum Deaktivieren das Vertretungsfenster schließen und erneut öffnen.",
         };
-        farbig.Click += (_, _) =>
-        {
-            _zaehlendeFarbig = true;
-            farbig.Checked = true;
-            farbig.Enabled = false;
-            _g.Invalidate();
-        };
+        farbig.Click += (_, _) => farbigKnopf.Checked = !farbigKnopf.Checked;
+        einst.DropDownOpening += (_, _) => farbig.Checked = farbigKnopf.Checked;
         einst.DropDownItems.Add(farbig);
         einst.DropDownItems.Add("Vertretungsplanung: Farben und Bezeichnungen, Zähler, Vorschlag…", null, (_, _) => VertretungsEinstellungenDialog.Zeigen(this));
         var nurNeu = new ToolStripMenuItem("Seitenlayout: Nur neue Vertretungen drucken") { CheckOnClick = true, Checked = AppZustand.Einstellungen.Vertretungsdruck.NurNeue, ToolTipText = "Nur Vertretungen drucken, die in dieser Arbeitssitzung angelegt oder geändert wurden (Kennzeichen „Neu“)" };
@@ -168,6 +175,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         einst.DropDownItems.Add(nurNeu);
         einst.DropDownItems.Add("Seitenlayout Vertretungsplan…", Symbole.Get("drucken", 16), (_, _) => Druck.SeitenlayoutFenster.Zeigen(this, Von, Bis, LehrerSicht));
         ts.Items.Add(einst);
+        OriginalLeiste = new ToolStripItem[] { normalform, felder, entfall, vorschlag, vormerkung, planung, raum, automatik, diagnose, teilen, filterKnopf, sortieren, _inhalt, farbigKnopf, fixieren, seitenlayout, aktualisieren, einst };
 
         // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
         // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander
@@ -955,7 +963,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private void DatumGewechselt(DateOnly datum)
     {
-        if (!_sync || IsDisposed) return;
+        if (!_sync || _ansichtFixiert || IsDisposed) return;
         _laedt = true;
         // eingefrorener Tages-Abstand (Schloss bei „Von-Bis“) bleibt erhalten
         _zeitraum.DatumSetzen(datum.ToDateTime(TimeOnly.MinValue));
@@ -965,7 +973,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
     private void FremdGewaehlt(Vertretung? v)
     {
-        if (v is null || _laedt || IsDisposed || ContainsFocus || _g.IsCurrentCellInEditMode) return;
+        if (v is null || _ansichtFixiert || _laedt || IsDisposed || ContainsFocus || _g.IsCurrentCellInEditMode) return;
         if (_behalten.Zeilenwechsel(v.Id)) Neuaufbau();
         foreach (DataGridViewRow r in _g.Rows)
             if (r.Tag is Vertretung x && x.Id == v.Id)
@@ -1162,7 +1170,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         IEnumerable<Vertretung> liste = TauschZusammenfassen(Zusammenfassen(Vertretungen.ImZeitraum(D, Von, Bis).Where(Passt).ToList()));
         if (druck) liste = liste.Where(v => !v.NichtDrucken || _behalten.Enthaelt(v.Id));
         if (AppZustand.Einstellungen.VertretungenUnterrichtZeigen && !PausenSicht && !_offen.Checked && !_kollisionen.Checked) liste = liste.Concat(Unterrichtszeilen());
-        var zeilen = liste.ToList();
+        var zeilen = liste.Where(FilterPasst).ToList();
         var vergleich = StringComparer.Create(Format.De, true);
         if (_sortSpalte is { } sp && _g.Columns.Contains(sp))
         {
@@ -1499,6 +1507,21 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// durch Schließen und erneutes Öffnen des Fensters wieder deaktiviert.
     /// </summary>
     private bool _zaehlendeFarbig;
+    /// <summary>„Ansicht fixieren“: die Liste folgt nicht der Auswahl bzw. dem Datum anderer Fenster.</summary>
+    private bool _ansichtFixiert;
+    /// <summary>Filter der Symbolleiste: nur Zeilen, die diesen Text enthalten (leer = alle).</summary>
+    private string _filterText = "";
+
+    private void FilterSetzen()
+    {
+        var text = Ui.Eingabe("Nur Vertretungen anzeigen, die Folgendes enthalten (leer = alle):", "Filter", _filterText);
+        if (text is null) return;
+        _filterText = text.Trim();
+        Neuaufbau();
+    }
+
+    private bool FilterPasst(Vertretung v) => _filterText.Length == 0 ||
+        Werte(v).Any(w => (w?.ToString() ?? "").Contains(_filterText, StringComparison.CurrentCultureIgnoreCase));
 
     /// <summary>
     /// Bezeichnung der Vertretungsart in Anzeige und Druck des Vertretungsfensters (Handbuch Kap. 7.2: „Vtr. ohne Lehrer“). Die gemeinsamen

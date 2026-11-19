@@ -287,6 +287,44 @@ public class MdiFenster : Form
             knopf.Click += (_, _) => Steuerelemente.TabellenFormate.MenueZeigen(haupt, leiste.PointToScreen(new Point(knopf.Bounds.Left, knopf.Bounds.Bottom)));
             leiste.Items.Add(knopf);
         }
+        LeisteWieOriginal();
+    }
+
+    /// <summary>
+    /// Sichtbare Symbole der Werkzeugleiste in der Reihenfolge der Original-Symbolübersicht (null = Leiste unverändert). Alle übrigen
+    /// eigenen Befehle (auch „Spalten“) bleiben über den Überlaufpfeil » am rechten Rand der Leiste erreichbar.
+    /// </summary>
+    protected ToolStripItem[]? OriginalLeiste { get; set; }
+
+    /// <summary>„Normalform anzeigen“: Fensterrahmen an die Größe der Tabelle anpassen (sichtbare Spalten und Zeilen, im Arbeitsbereich).</summary>
+    protected void NormalformAnzeigen(DataGridView g)
+    {
+        if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
+        var spalten = g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).Sum(c => c.Width) + (g.RowHeadersVisible ? g.RowHeadersWidth : 0);
+        var zeilen = g.Rows.Cast<DataGridViewRow>().Where(r => r.Visible).Sum(r => r.Height) + g.ColumnHeadersHeight;
+        var rand = new Size(Width - g.ClientSize.Width, Height - g.ClientSize.Height);
+        var arbeit = Parent?.ClientSize ?? new Size(1600, 900);
+        Size = new Size(Math.Clamp(spalten + rand.Width + SystemInformation.VerticalScrollBarWidth + 2, 300, Math.Max(300, arbeit.Width - Left)),
+            Math.Clamp(zeilen + rand.Height + 4, 200, Math.Max(200, arbeit.Height - Top)));
+    }
+
+    private void LeisteWieOriginal()
+    {
+        if (OriginalLeiste is not { Length: > 0 } sichtbar || Controls.OfType<ToolStrip>().FirstOrDefault(t => t is not MenuStrip && t.Dock == DockStyle.Top) is not { } leiste) return;
+        leiste.SuspendLayout();
+        var rest = leiste.Items.Cast<ToolStripItem>().Where(i => !sichtbar.Contains(i) && i is not ToolStripSeparator).ToList();
+        foreach (var it in leiste.Items.OfType<ToolStripSeparator>().ToList()) leiste.Items.Remove(it);
+        foreach (var it in sichtbar) leiste.Items.Remove(it);
+        foreach (var it in rest) leiste.Items.Remove(it);
+        foreach (var it in sichtbar) { it.Overflow = ToolStripItemOverflow.Never; leiste.Items.Add(it); }
+        foreach (var it in rest)
+        {
+            it.Overflow = ToolStripItemOverflow.Always;
+            it.Alignment = ToolStripItemAlignment.Left;
+            if (it.DisplayStyle == ToolStripItemDisplayStyle.Image && it.Text.Length > 0) it.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
+            leiste.Items.Add(it);
+        }
+        leiste.ResumeLayout();
     }
 
     private static IEnumerable<DataGridView> Tabellen(Control c)
