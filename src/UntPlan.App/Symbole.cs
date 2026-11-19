@@ -100,6 +100,7 @@ public static class Symbole
         ["import"] = "table_import",
         ["export"] = "table_export",
         ["html"] = "html",
+        ["pdf"] = "page_white_acrobat",
         ["web"] = "world",
         ["kommentar"] = "comment",
         ["nachricht"] = "email",

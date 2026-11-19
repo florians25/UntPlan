@@ -35,7 +35,7 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar, IExcelExport
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false), false));
         ts.Items.Add(Knopf("Als Excel-Datei speichern", "export", ExcelSpeichern, false));
-        ts.Items.Add(Knopf("Als PDF-Datei speichern", "dk", PdfAusgeben, false));
+        ts.Items.Add(Knopf("Als PDF-Datei speichern", "pdf", PdfAusgeben, false));
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(Knopf("Seitenansicht", "vorschau", () => Drucken(true), false));
         ts.Items.Add(Knopf("Seite einrichten", "einstellungen", SeiteEinrichten, false));
