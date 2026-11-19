@@ -2037,33 +2037,7 @@ struct SchuelerSeite: View {
                             .id(gruppe.buchstabe)
                         }
                         // Wie im Web: unter der Schülerliste die abwesenden Schüler*innen – nur hier „Aufgestanden“
-                        if filter != .anwesend && !abwesendeListe.isEmpty {
-                            Section {
-                                ForEach(abwesendeListe) { s in
-                                    abwesendZeile(s)
-                                        .padding(.leading, 16)
-                                        .padding(.trailing, 26)
-                                        .listRowInsets(EdgeInsets())
-                                        .listRowBackground(Farben.blatt)
-                                        .listRowSeparator(.hidden)
-                                }
-                            } header: {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    Text("Abwesende Schüler*innen (\(abwesendeListe.count))")
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundStyle(Farben.gedaempft)
-                                        .padding(.top, 18)
-                                        .padding(.bottom, 10)
-                                    Rectangle()
-                                        .fill(Farben.trennlinie)
-                                        .frame(height: 1)
-                                }
-                                .padding(.trailing, 4)
-                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                                .accessibilityAddTraits(.isHeader)
-                            }
-                            .id("abwesende")
-                        }
+                        // Kein eigener Abschnitt „Abwesende Schüler*innen“ in der App (Nutzerwunsch) – Abwesende stehen in der Liste oben
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
