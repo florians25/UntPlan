@@ -160,7 +160,7 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .u-marke small { color: var(--u-grau-2); }
 .u-benutzer b { color: #4a5662; font-weight: 600; }
 .u-benutzer small { color: var(--u-grau-2); }
-.u-abmelden { color: #4a5662; }
+.u-abmelden { color: #67747e; } /* wie Vorlage: Abmelden grau */
 .u-benutzer:hover, .u-benutzer.aktiv, .u-abmelden:hover, .u-abmelden:focus-visible { background: #f4f6f8; color: #36424c; }
 .u-benutzer:hover b, .u-benutzer.aktiv b { color: #36424c; }
 .u-abmelden:hover .u-sym { color: var(--u-grau); }
