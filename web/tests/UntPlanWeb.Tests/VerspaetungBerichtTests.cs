@@ -7,7 +7,7 @@ using UntPlanWeb.Dienste;
 namespace UntPlanWeb.Tests;
 
 /// <summary>
-/// „Aufgestanden“ (Bett mit Pfeil nach oben in der Schülerliste) und die genaue Dokumentation von Verspätungen in den Berichten:
+/// „Aufgestanden“ (Bett mit Pfeil nach oben in der Liste „Abwesende Schüler*innen“) und die genaue Dokumentation von Verspätungen in den Berichten:
 /// Datum, Stunde, Uhrzeit von–bis, Minuten, Fach, Lehrkraft, Grund, Text und Status; Summen mit Anzahl und Minuten.
 /// </summary>
 public class VerspaetungBerichtTests
@@ -127,5 +127,116 @@ public class VerspaetungBerichtTests
         Assert.Contains("1 Verspätung, 12 Min.", us);
         Assert.Contains("(12 Min.)", Alles(await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/arbeitsbericht_unterricht?{u}")));
         Assert.Contains("V12", Alles(await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/fehlstundenmatrix?{u}")).Split('|'));
+    }
+
+    /// <summary>
+    /// Server mit zwei reinen Verspätungen einer Schülerin bzw. eines Schülers der 7a (ohne Abwesenheit, nur über die Anwesenheit erfasst):
+    /// 7 Minuten in der ersten und 5 Minuten in einer späteren Stunde des Tages.
+    /// </summary>
+    private static async Task<(Testserver S, List<Karte> K, int Sid, HttpClient Leitung)> MitReinenVerspaetungenAsync()
+    {
+        var s = await Testserver.StartenAsync();
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var d = DateOnly.Parse(Tag);
+        var karten = s.Dienst<Plandienst>().Karten(stand, d, Elementtyp.Klasse, "7a")
+            .Where(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0 && x.Von == x.Bis).OrderBy(x => x.Von).Take(2).ToList();
+        Assert.Equal(2, karten.Count);
+        s.Dienst<Uhr>().Fest = d.ToDateTime(new TimeOnly(18, 0));
+        var kl = await s.AlsAsync("sl-test", "leitung", "");
+        int sid = 0;
+        foreach (var (k, min, text) in new[] { (karten[0], 7, "Bus verpasst"), (karten[1], 5, "") })
+        {
+            var c = await s.AlsAsync(k.Lehrer[0].K.ToLowerInvariant(), "lehrer", k.Lehrer[0].K);
+            if (sid == 0)
+                sid = (await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={Tag}&stunde={k.Von}&unterricht={k.Unterricht}"))["schueler"]![0]!["id"]!.GetValue<int>();
+            await Testserver.JsonAsync(await c.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new
+            {
+                datum = Tag, stunde = k.Von, unterricht = k.Unterricht, eintraege = new[] { new { schuelerId = sid, art = "verspaetet", minuten = min, bemerkung = text } },
+            }));
+        }
+        return (s, karten, sid, kl);
+    }
+
+    private static string H(TimeOnly t) => t.ToString("HH:mm");
+    private static List<List<string>> Zeilen(JsonNode b) => b["zeilen"]!.AsArray().Select(z => z!.AsArray().Select(x => x?.ToString() ?? "").ToList()).ToList();
+    private static List<string> Arten(JsonNode b) => b["arten"]?.AsArray().Select(x => x?.ToString() ?? "").ToList() ?? new();
+
+    [Fact]
+    public async Task Bericht_Abwesenheiten_listet_reine_Verspaetungen_einzeln_mit_Summe_je_Schueler()
+    {
+        var (s, k, sid, kl) = await MitReinenVerspaetungenAsync();
+        await using var _s = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var b0 = Klassenbuchdienst.StundenZeit(stand, k[0].Von).Beginn;
+        var b1 = Klassenbuchdienst.StundenZeit(stand, k[1].Von).Beginn;
+        var q = $"klasse=7a&von={Tag}&bis={Tag}&schueler={sid}";
+        var bericht = await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/abwesenheiten?{q}");
+        var zeilen = Zeilen(bericht);
+        var arten = Arten(bericht);
+        // je Verspätung eine eigene Zeile: Datum, Stunde, Uhrzeit von–bis, „verspätet x Min.“, Fach, Lehrkraft, Status, Text
+        var z7 = zeilen.Single(z => z[5] == "verspätet 7 Min.");
+        Assert.Equal(new[] { "14.10.2026", $"{k[0].Von}.", $"{H(b0)}–{H(b0.AddMinutes(7))}", "verspätet 7 Min.", k[0].Fach, k[0].Lehrer[0].K }, z7.Skip(2).Take(6));
+        Assert.Equal(("offen", "Bus verpasst"), (z7[9], z7[10]));
+        var z5 = zeilen.Single(z => z[5] == "verspätet 5 Min.");
+        Assert.Equal(new[] { $"{k[1].Von}.", $"{H(b1)}–{H(b1.AddMinutes(5))}" }, z5.Skip(3).Take(2));
+        Assert.Equal((k[1].Fach, k[1].Lehrer[0].K), (z5[6], z5[7]));
+        // Summenzeile je Schüler*in: Anzahl und Minuten
+        var iSumme = zeilen.FindIndex(z => z[5] == "2 Verspätungen, 12 Min.");
+        Assert.True(iSumme > zeilen.IndexOf(z5), "Summenzeile nach den Verspätungen");
+        Assert.Equal("zwischensumme", arten[iSumme]);
+        Assert.Equal("Verspätungen", zeilen[iSumme][2]);
+        Assert.StartsWith("Summe ", zeilen[iSumme][1]);
+        // CSV und PDF
+        var csv = await kl.GetStringAsync($"/api/app/berichte/erstellen/abwesenheiten?{q}&format=csv");
+        Assert.Contains("verspätet 7 Min.", csv);
+        Assert.Contains("verspätet 5 Min.", csv);
+        Assert.Contains("2 Verspätungen, 12 Min.", csv);
+        var pdf = await kl.GetByteArrayAsync($"/api/app/berichte/erstellen/abwesenheiten?{q}&format=pdf");
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+        // Haken „Verspätungen“ aus: weder Zeilen noch Summe
+        var ohne = Zeilen(await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/abwesenheiten?{q}&verspaetungen=0"));
+        Assert.DoesNotContain(ohne, z => z.Any(x => x.Contains("Verspätung") || x.StartsWith("verspätet")));
+    }
+
+    [Fact]
+    public async Task Bericht_Fehlzeiten_pro_Schueler_listet_reine_Verspaetungen_in_allen_Darstellungen()
+    {
+        var (s, k, sid, kl) = await MitReinenVerspaetungenAsync();
+        await using var _s = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var b0 = Klassenbuchdienst.StundenZeit(stand, k[0].Von).Beginn;
+        var b1 = Klassenbuchdienst.StundenZeit(stand, k[1].Von).Beginn;
+        var q = $"klasse=7a&von={Tag}&bis={Tag}&schueler={sid}";
+
+        // pro Stunde: je Verspätung eine Zeile (Datum, Stunde, Uhrzeit, Art, Fach, Lehrkraft, Text, Status), Summenzeile „Verspätungen“
+        var ps = await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=pro_stunde");
+        var zeilen = Zeilen(ps);
+        var z7 = zeilen.Single(z => z[5] == "verspätet 7 Min.");
+        Assert.Equal(new[] { $"{k[0].Von}.", "0", "0:07", $"{H(b0)}–{H(b0.AddMinutes(7))}", "verspätet 7 Min.", k[0].Fach, k[0].Lehrer[0].K }, z7.Skip(1).Take(7));
+        Assert.Equal(("Bus verpasst", "[offen]"), (z7[9], z7[12]));
+        var z5 = zeilen.Single(z => z[5] == "verspätet 5 Min.");
+        Assert.Equal(($"{k[1].Von}.", $"{H(b1)}–{H(b1.AddMinutes(5))}"), (z5[1], z5[4]));
+        var iSumme = zeilen.FindIndex(z => z[0] == "Verspätungen");
+        Assert.Equal("2 Verspätungen, 12 Min.", zeilen[iSumme][5]);
+        Assert.Equal("zwischensumme", Arten(ps)[iSumme]);
+        var csv = await kl.GetStringAsync($"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=pro_stunde&format=csv");
+        Assert.Contains("verspätet 7 Min.", csv);
+        Assert.Contains("2 Verspätungen, 12 Min.", csv);
+        var pdf = await kl.GetByteArrayAsync($"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=pro_stunde&format=pdf");
+        Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(pdf, 0, 4));
+
+        // pro Tag: der Tag mit beiden Verspätungen (je Stunde eine Angabe) und die Summenzeile
+        var pt = Zeilen(await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=pro_tag"));
+        var tag = pt.Single(z => z[9].Length > 0 && z[0] != "Verspätungen");
+        Assert.Contains($"{k[0].Von}. Std. {k[0].Fach}: verspätet {H(b0)}–{H(b0.AddMinutes(7))} (7 Min.)", tag[9]);
+        Assert.Contains($"{k[1].Von}. Std. {k[1].Fach}: verspätet {H(b1)}–{H(b1.AddMinutes(5))} (5 Min.)", tag[9]);
+        Assert.Equal("2 Verspätungen, 12 Min.", pt.Single(z => z[0] == "Verspätungen")[9]);
+
+        // Gesamtübersicht: Anzahl und Minuten der Verspätungen je Schüler*in
+        var g = await Testserver.HolenAsync(kl, $"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=gesamt");
+        var sp = g["spalten"]!.AsArray().Select(x => x!.GetValue<string>()).ToList();
+        var gz = Zeilen(g).Single();
+        Assert.Equal(("2", "12"), (gz[sp.IndexOf("Verspätungen")], gz[sp.IndexOf("Verspätung (Min.)")]));
+        Assert.Contains("2 Verspätungen, 12 Min.", await kl.GetStringAsync($"/api/app/berichte/erstellen/fehlzeiten_schueler?{q}&ausgabe=pro_tag&format=csv"));
     }
 }

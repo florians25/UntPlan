@@ -713,18 +713,50 @@ public sealed partial class Klassenbuchverwaltung
             }
             case "abwesenheiten":
             {
-                // je Abwesenheit: Stunden, Uhrzeit von–bis (bei Verspätung bzw. vorzeitigem Gehen minutengenau), Fach, Lehrkraft, Grund, Status, Text
+                // je Abwesenheit: Stunden, Uhrzeit von–bis (bei Verspätung bzw. vorzeitigem Gehen minutengenau), Fach, Lehrkraft, Grund, Status, Text.
+                // Jede Verspätung bzw. jedes vorzeitige Gehen steht als eigene Zeile (auch ohne Abwesenheit, z. B. nur „verspätet 7 Min.“);
+                // je Schüler*in eine Summenzeile mit Anzahl und Minuten der Verspätungen bzw. des vorzeitigen Gehens.
                 var fzId = Fz(von, bis).ToDictionary(f => f.Id);
-                return B(new() { "Klasse", "Schüler*in", "Datum", "Stunden", "Uhrzeit", "Art", "Fach", "Lehrkraft", "Grund", "Status", "Text" },
-                    _listen.Abwesenheiten(s, b, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null).Where(z => (schueler is null || z.SchuelerId == schueler) && z.Ids.Any(fzId.ContainsKey))
-                        .OrderBy(z => z.Klasse, De).ThenBy(z => z.Schueler, De).ThenBy(z => z.Datum).ThenBy(z => z.StundeVon)
-                        .Select(z =>
+                var lehrkraft = _kb.Fehlzeilen(s, fzId.Values).ToDictionary(z => z.Id, z => z.Lehrer);
+                var zeilen = new List<(string, object?[])>();
+                var bloecke = _listen.Abwesenheiten(s, b, von, bis, string.IsNullOrEmpty(klasse) ? null : klasse, null).Where(z => (schueler is null || z.SchuelerId == schueler) && z.Ids.Any(fzId.ContainsKey))
+                    .OrderBy(z => z.Klasse, De).ThenBy(z => z.Schueler, De).ThenBy(z => z.Datum).ThenBy(z => z.StundeVon).ToList();
+                foreach (var sg in bloecke.GroupBy(z => (z.Klasse, z.SchuelerId)))
+                {
+                    var spaet = new List<Spaetangabe>();
+                    foreach (var z in sg)
+                    {
+                        var eigene = z.Ids.Where(fzId.ContainsKey).Select(i => fzId[i]).OrderBy(f => f.Stunde).ToList();
+                        // Block mit Verspätung bzw. vorzeitigem Gehen: jede Stunde einzeln, damit jede Verspätung eine eigene Zeile hat
+                        if (eigene.Count > 1 && eigene.Any(f => Spaet(s, f) != null))
                         {
-                            var sp = z.Ids.Where(fzId.ContainsKey).Select(i => Spaet(s, fzId[i])).FirstOrDefault(a => a != null);
-                            return new object?[] { z.Klasse, z.Schueler, Datum(z.Datum), z.StundeVon == z.StundeBis ? $"{z.StundeVon}." : $"{z.StundeVon}.–{z.StundeBis}.",
-                                sp?.Zeit ?? $"{z.Beginn}–{z.Ende}", sp is null ? "abwesend" : sp.AlsFehlstunde ? $"{sp.Kurz} (als Fehlstunde gewertet)" : sp.Kurz,
-                                string.Join(", ", z.Faecher), string.Join(", ", z.Lehrer), Grund(z.Grund), StatusText(z.Status, ""), Klassenbuchdienst.Klartext(z.Bemerkung) };
-                        }));
+                            foreach (var f in eigene)
+                            {
+                                var a = Spaet(s, f);
+                                if (a != null) spaet.Add(a);
+                                var (ab, bi) = Klassenbuchdienst.Fenster(s, f);
+                                zeilen.Add(("", new object?[] { z.Klasse, z.Schueler, Datum(f.Datum), $"{f.Stunde}.", a?.Zeit ?? $"{Hm(ab)}–{Hm(bi)}",
+                                    a is null ? "abwesend" : a.AlsFehlstunde ? $"{a.Kurz} (als Fehlstunde gewertet)" : a.Kurz, f.Fach, lehrkraft.GetValueOrDefault(f.Id, f.Lehrer),
+                                    Grund(f.Grund), StatusText(f.Status, f.StatusName), Klassenbuchdienst.Klartext(f.Bemerkung) }));
+                            }
+                            continue;
+                        }
+                        var sp = eigene.Select(f => Spaet(s, f)).FirstOrDefault(a => a != null);
+                        if (sp != null) spaet.Add(sp);
+                        zeilen.Add(("", new object?[] { z.Klasse, z.Schueler, Datum(z.Datum), z.StundeVon == z.StundeBis ? $"{z.StundeVon}." : $"{z.StundeVon}.–{z.StundeBis}.",
+                            sp?.Zeit ?? $"{z.Beginn}–{z.Ende}", sp is null ? "abwesend" : sp.AlsFehlstunde ? $"{sp.Kurz} (als Fehlstunde gewertet)" : sp.Kurz,
+                            string.Join(", ", z.Faecher), string.Join(", ", eigene.Count == 1 ? new[] { lehrkraft.GetValueOrDefault(eigene[0].Id, eigene[0].Lehrer) } : z.Lehrer),
+                            Grund(z.Grund), StatusText(z.Status, eigene.Count == 1 ? eigene[0].StatusName : ""), Klassenbuchdienst.Klartext(z.Bemerkung) }));
+                    }
+                    var name = sg.First().Schueler;
+                    foreach (var artS in new[] { "verspaetet", "vorzeitig" })
+                    {
+                        var t = SpaetSumme(spaet, artS);
+                        if (t.Length > 0)
+                            zeilen.Add(("zwischensumme", new object?[] { "", $"Summe {name}", artS == "vorzeitig" ? "vorzeitig gegangen" : "Verspätungen", "", "", t, "", "", "", "", "" }));
+                    }
+                }
+                return G(new() { "Klasse", "Schüler*in", "Datum", "Stunden", "Uhrzeit", "Art", "Fach", "Lehrkraft", "Grund", "Status", "Text" }, zeilen);
             }
             case "unentschuldigt":
             {
