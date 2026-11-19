@@ -177,3 +177,6 @@
 .nl-tabelle table:has(.sg-kopfwahl) .nl-wahl .nl-rund { margin: 0 auto; display: grid; place-content: center; }
 .nl-tabelle table:has(.sg-kopfwahl) th.nl-wahl + th, .nl-tabelle table:has(.sg-kopfwahl) td.nl-wahl + td.text-nowrap { width: 1%; white-space: nowrap; padding-left: 0 !important; }
 .sg-kopfwahl { vertical-align: middle; }
+/* Kopf der Auswahlspalte: Kreis „Alle auswählen“ mit Luft zur Linie darunter */
+.nl-tabelle thead th.nl-wahl:has(.sg-kopfwahl) { padding-top: 10px !important; padding-bottom: 12px !important; }
+.nl-tabelle thead th.nl-wahl .sg-kopfwahl { gap: 6px; }
