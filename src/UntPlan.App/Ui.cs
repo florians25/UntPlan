@@ -13,8 +13,25 @@ public static partial class Ui
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
     public static readonly Font SchriftKursiv = new("Segoe UI", 9f, FontStyle.Italic);
 
-    /// <summary>Einheitliche Zeilenhöhe aller Tabellen: 22 Pixel (luftiger als die 17 Pixel des Handbuchs, Nutzerwunsch), bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.</summary>
-    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(22, (schrift ?? Schrift).Height + 6);
+    /// <summary>
+    /// Einheitliche Zeilenhöhe aller Tabellen: 19 Pixel samt Rasterlinie wie auf den Original-Bildschirmfotos (Absenzen, Vertretungen, 100 %),
+    /// bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.
+    /// </summary>
+    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(19, (schrift ?? Schrift).Height + 3);
+
+    // Schriften nach den Original-Bildschirmfotos (100 %), ermittelt über die Textbreiten unter Windows (Selbsttest „V0_Schriften“):
+    // Tabellen Arial 9 (Vertretungen, Vorschlag, Stundenplanlupe), Absenzentabelle Segoe UI 8,25, Häkchen/Beschriftungen/Reiter
+    // Microsoft Sans Serif 8,25 – alles Windows-Systemschriften (fehlt eine, ersetzt Windows sie)
+
+    /// <summary>Tabellenschrift der Originale (Vertretungen, Vertretungsvorschlag, Stundenplanlupe): Arial 9.</summary>
+    public static readonly Font TabellenSchrift = new("Arial", 9f);
+
+    /// <summary>Tabellenschrift der Absenzen im Original: Segoe UI 8,25.</summary>
+    public static readonly Font AbsenzSchrift = new("Segoe UI", 8.25f);
+
+    /// <summary>Schrift der Häkchen, Beschriftungen und Reiter in den Originalfenstern: Microsoft Sans Serif 8,25 (Windows-Standard).</summary>
+    public static readonly Font DialogSchrift = new("Microsoft Sans Serif", 8.25f);
+    public static readonly Font DialogSchriftFett = new("Microsoft Sans Serif", 8.25f, FontStyle.Bold);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
     /// <summary>
@@ -150,6 +167,32 @@ public static partial class Ui
     /// <summary>Für ein Eingabefeld ungeeignete Hintergrundfarbe: leer, durchsichtig oder Schwarz (so zeichnet Windows „leer“).</summary>
     private static bool Ungueltig(Color c) => c.IsEmpty || c.A < 255 || c.ToArgb() == Color.Black.ToArgb();
 
+    /// <summary>Tabellen mit Spaltenbreiten wie im Original: Überschriften werden am Spaltenrand abgeschnitten statt die Spalte zu verbreitern.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, object> FesteBreiten = new();
+
+    /// <summary>Spaltenbreiten der Tabelle nicht an die Überschriften anpassen (Breiten wie im Original, z. B. „Von TT“ abgeschnitten).</summary>
+    public static void BreitenWieOriginal(DataGridView g) => FesteBreiten.AddOrUpdate(g, new object());
+
+    /// <summary>
+    /// Zu lange Zelltexte wie auf den Original-Bildschirmfotos am Spaltenrand abschneiden statt mit „…“ zu kürzen. Nach den eigenen
+    /// Zellzeichnern des Fensters anmelden: bereits gezeichnete Zellen (e.Handled) und andere Zellarten bleiben unberührt.
+    /// </summary>
+    public static void OhneAuslassungspunkte(DataGridView g) => g.CellPainting += (_, e) =>
+    {
+        if (e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || e.CellStyle is null) return;
+        if (g.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewTextBoxCell || e.FormattedValue is not string text || text.Length == 0) return;
+        if (e.CellStyle.WrapMode == DataGridViewTriState.True) return;
+        var schrift = e.CellStyle.Font ?? g.Font;
+        var r = Rectangle.FromLTRB(e.CellBounds.Left + 2, e.CellBounds.Top, e.CellBounds.Right - 2, e.CellBounds.Bottom - 1);
+        if (TextRenderer.MeasureText(e.Graphics, text, schrift, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width <= r.Width) return;
+        e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+        var farbe = (e.State & DataGridViewElementStates.Selected) != 0 ? e.CellStyle.SelectionForeColor : e.CellStyle.ForeColor;
+        var rechts = e.CellStyle.Alignment is DataGridViewContentAlignment.MiddleRight or DataGridViewContentAlignment.TopRight or DataGridViewContentAlignment.BottomRight;
+        TextRenderer.DrawText(e.Graphics, text, schrift, r, farbe, (rechts ? TextFormatFlags.Right : TextFormatFlags.Left) |
+            TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+        e.Handled = true;
+    };
+
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
         RasterFarben(g);
@@ -162,10 +205,15 @@ public static partial class Ui
         g.ColumnHeadersDefaultCellStyle.Font = Schrift;
         g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Kopf;
         g.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+        // wie auf den Original-Bildschirmfotos: Überschriften ohne Linie oben (direkt unter dem Rahmen), Trennlinien rechts und unten
+        g.AdvancedColumnHeadersBorderStyle.Top = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedColumnHeadersBorderStyle.Left = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedColumnHeadersBorderStyle.Right = DataGridViewAdvancedCellBorderStyle.Single;
+        g.AdvancedColumnHeadersBorderStyle.Bottom = DataGridViewAdvancedCellBorderStyle.Single;
         g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         // Höhen nach der tatsächlichen Schrift (größere Windows-Schrift/Skalierung: nichts abgeschnitten), mindestens wie bisher
         var zeilenSchrift = g.DefaultCellStyle.Font ?? g.Font;
-        g.ColumnHeadersHeight = Math.Max(22, zeilenSchrift.Height + 7);
+        g.ColumnHeadersHeight = Math.Max(19, zeilenSchrift.Height + 3);
         g.RowHeadersDefaultCellStyle.BackColor = Erste;
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
         g.RowHeadersWidth = 22;
@@ -177,7 +225,7 @@ public static partial class Ui
             var kopfSchrift = g.ColumnHeadersDefaultCellStyle.Font ?? g.Font;
             foreach (DataGridViewColumn c in g.Columns)
             {
-                if (c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
+                if (!FesteBreiten.TryGetValue(g, out _) && c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
                     c.Width = Math.Max(c.Width, TextRenderer.MeasureText(c.HeaderText, kopfSchrift).Width + 8);
                 // Einstellungen | Anpassen: „Tooltips mit Spaltenbeschreibungen einblenden“
                 if (AppZustand.Einstellungen.SpaltenTooltips && c.ToolTipText.Length == 0 && c.HeaderText.Length > 0) c.ToolTipText = c.HeaderText;
@@ -212,6 +260,11 @@ public static partial class Ui
             });
         };
         g.CellBorderStyle = DataGridViewCellBorderStyle.Single;
+        // wie auf den Original-Bildschirmfotos: Rasterlinien nur rechts und unten – die erste Spalte beginnt direkt am Rahmen
+        g.AdvancedCellBorderStyle.Left = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedCellBorderStyle.Top = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedCellBorderStyle.Right = DataGridViewAdvancedCellBorderStyle.Single;
+        g.AdvancedCellBorderStyle.Bottom = DataGridViewAdvancedCellBorderStyle.Single;
         // wie im Vorbild: Überschriften einzeilig (zu schmale Spalten schneiden ab statt umzubrechen), Überschrift der Spalte
         // mit der aktuellen Zelle hell orange
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;

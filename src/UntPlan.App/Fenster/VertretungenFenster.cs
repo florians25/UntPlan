@@ -170,7 +170,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
         // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
         // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
+        // Beschriftungen und Häkchen wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
         var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 2, 6, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
         _element.Margin = new Padding(2, 0, 0, 0);
         Ui.KlassischeDarstellung(_element);
@@ -219,6 +220,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         links.Dock = DockStyle.Left;
 
         Ui.RasterGestalten(_g, true);
+        // wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): Arial 9, Überschrift und Zeilen 19 Pixel hoch (samt Linie)
+        _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
+        _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.TabellenSchrift);
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen
         _g.RowHeadersVisible = false;
         _g.BorderStyle = BorderStyle.Fixed3D;
@@ -246,15 +250,16 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var reihenfolge = Reihenfolge(AnsichtName);
         for (var i = 0; i < reihenfolge.Count; i++) _g.Columns[reihenfolge[i]]!.DisplayIndex = i;
         _g.Columns["Nr"]!.Frozen = true;
-        // Vertretungstext füllt die Restbreite, wird aber nie schmaler als 240 Pixel (sonst waagerecht blättern)
-        _g.Columns["Text"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
-        _g.Columns["Text"]!.MinimumWidth = 240;
-        _g.Columns["Text"]!.FillWeight = 300;
-        // mehrere Klassen untereinander (Zeilenhöhe passt sich an)
+        // Breiten wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): 43 bzw. 67 Pixel, auch „Text“ (rechts bleibt die Fläche frei);
+        // zu lange Überschriften werden am Spaltenrand abgeschnitten („Klasse(“, „Vertrete“)
+        Ui.BreitenWieOriginal(_g);
+        // mehrere Klassen untereinander umbrechen (bei fester Zeilenhöhe sichtbar, sobald die Zeile höher gezogen wird)
         _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         if (_g.Columns["AKlassen"] is { } ak) ak.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-        _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
-        _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
+        // Text wie im Original einzeilig (am Spaltenrand abgeschnitten), damit die Zeilen gleich hoch bleiben
+        _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
+        // wie im Original-Bildschirmfoto: alle Zeilen gleich hoch (19 Pixel samt Linie) – keine automatische Zeilenhöhe
+        _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         // „Standard wiederherstellen“ (Spaltenmenü) bzw. „Standardansicht“: auch die Felder der Ansicht auf den Standard zurücksetzen
         Steuerelemente.TabellenFormate.BeimStandard(_g, () =>
         {
@@ -266,6 +271,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellFormatting += Formatieren;
         _g.CellPainting += KollisionZeichnen;
+        // zu lange Texte wie im Original abgeschnitten, ohne „…“ (nach den eigenen Zellzeichnern)
+        Ui.OhneAuslassungspunkte(_g);
         _g.CellBeginEdit += (_, e) =>
         {
             if (e.RowIndex < 0 || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
@@ -461,17 +468,17 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
     {
         // Reihenfolge und Bezeichnungen wie im Dialog „Felder der Ansicht“ des Vorbilds (Handbuch Vertretungsplanung, Kap. 7.1)
-        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 46, true, true, false), ("Art", "Art", "Art der Vertretung", 70, true, true, false),
+        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 43, true, true, false), ("Art", "Art", "Art der Vertretung", 67, true, true, false),
         ("Datum", "Datum", "Datum (TT.MM.)", 44, true, false, false), ("Tag", "Tag", "Tag", 30, true, false, false),
-        ("Std", "Stunde", "Std.", 46, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
-        ("Fach", "(Fach)", "statt Fach:", 52, true, true, true), ("NFach", "Fach", "Fach", 48, false, true, true),
-        ("Lehrer", "(Lehrer)", "statt Lehrer:", 56, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 62, false, true, true),
-        ("AKlassen", "(Klasse(n))", "statt Klasse(n):", 62, true, false, true), ("Klassen", "Klasse(n)", "Klasse(n)", 62, true, true, true),
-        ("Raum", "(Raum)", "statt Raum:", 52, true, true, true), ("NRaum", "Raum", "Raum", 48, false, true, true),
+        ("Std", "Stunde", "Std.", 43, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
+        ("Fach", "(Fach)", "statt Fach:", 43, true, true, true), ("NFach", "Fach", "Fach", 43, false, true, true),
+        ("Lehrer", "(Lehrer)", "statt Lehrer:", 43, true, true, true), ("Vertreter", "Vertreter", "Vertreter", 43, false, true, true),
+        ("AKlassen", "(Klasse(n))", "statt Klasse(n):", 62, true, false, true), ("Klassen", "Klasse(n)", "Klasse(n)", 43, true, true, true),
+        ("Raum", "(Raum)", "statt Raum:", 43, true, true, true), ("NRaum", "Raum", "Raum", 43, false, true, true),
         ("Kz", "Statistik", "Statistik-Kennzeichen", 50, false, false, false),
-        ("Von", "Vertr. von", "Verlegung", 68, true, true, false), ("Nach", "(Le.) nach", "Wegverlegung", 68, true, true, false),
+        ("Von", "Vertr. von", "Verlegung", 67, true, true, false), ("Nach", "(Le.) nach", "Wegverlegung", 67, true, true, false),
         ("UText", "Unt.-Text", "Unterrichts-Text", 90, true, false, false), ("UZText", "Unt.-Zeilentext", "Unterrichts-Zeilentext", 90, true, false, false),
-        ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Text", "Text", "Vertretungs-Text", 200, false, true, false),
+        ("Beschr", "Beschr.", "Beschr.", 70, false, false, false), ("Text", "Text", "Vertretungs-Text", 67, false, true, false),
         ("Entf", "Entfall", "Entfall", 44, true, false, false), ("Mitb", "Mitbetr.", "Mitbetreuung", 50, true, false, false),
         ("Kopp", "Vtr-Kopplung", "Vertretungs-Kopplung", 50, false, false, false), ("Neu", "Neu", "Neue Vertretung", 36, true, false, false),
         ("Fix", "(X)", "(X) Fixiert", 30, true, false, false), ("Grund", "Absenzgrund", "Absenzgrund", 80, true, false, true),

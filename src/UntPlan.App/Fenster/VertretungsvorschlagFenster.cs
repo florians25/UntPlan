@@ -32,11 +32,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static readonly Color MerkerRot = Color.FromArgb(255, 55, 55);
     private static readonly Color Hohlstundengruen = Color.FromArgb(150, 240, 150);
     private static readonly Color Klassenlehrergruen = Color.FromArgb(150, 240, 150);
-    private static readonly Color KopfLinie = Color.FromArgb(105, 105, 105);
     /// <summary>Spalte „Stundenplan“ (früher drei Spalten S1–S3; zeigt jetzt so viele Stunden, wie Platz ist).</summary>
     private static readonly string[] Stundenplanspalten = { "S1" };
     /// <summary>Breite einer Stunde in der Spalte „Stundenplan“ (per Ziehen an einer Stundengrenze änderbar).</summary>
-    private static int _zellBreite = 42;
+    private static int _zellBreite = 53;
 
     private readonly Klappleiste _kopfLeiste = new(false) { Text = "" };
     private readonly Label _kopfDetails = new() { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 3, 4, 0), BackColor = Color.White, Visible = false };
@@ -114,17 +113,18 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         RasterEinrichten(_vorschlag);
         Spalten(_vorschlag, new (string, string, int)[]
         {
-            // Breiten der vorderen Spalten wie in der Vorlage (Name, Merker zur Stunde breit, Klasse … Punkte, Zeitwünsche zum Element)
-            ("Name", "Name", 42), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 110), ("Vertr", "Vertr.", 52),
-            ("Entf", "Entfall", 56), ("Zaehler", "Zähler", 52), ("ZW", "Zeitwünsche zum Element", 150), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42),
+            // Breiten der vorderen Spalten wie im Original-Bildschirmfoto (100 %): Name 75 | Stundenplan 160 | Merker zur Stunde 82 |
+            // Vertr. 40 | Entfall 40 | Zähler – zu lange Überschriften werden abgeschnitten („Merker zur Stu“)
+            ("Name", "Name", 75), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 82), ("Vertr", "Vertr.", 40),
+            ("Entf", "Entfall", 40), ("Zaehler", "Zähler", 52), ("ZW", "Zeitwünsche zum Element", 150), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42),
             ("RegB", "reg. Ber.", 46), ("DepB", "Dep. Ber.", 46), ("Dep", "Dep.", 58), ("Fach", "Fach", 46), ("Klasse", "Klasse", 60), ("StdTag", "Unt./Tag", 50),
             ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 80), ("Statistik", "Statistik", 52), ("Sperr", "Sperrvermerk", 70),
             ("Vorm", "Vormerkungen", 90), ("Bez", "bez.", 40), ("Betr", "Betreuungen", 70), ("Ben", "Benachrichtigen", 90), ("Punkte", "Punkte", 60),
             ("Kr", "Kriterien", 220),
         });
-        // Standard-Reihenfolge der Anzeige (gespeicherte Tabellenformate des Benutzers gehen vor): die für die Auswahl wichtigsten Spalten vorn
-        // wie in den Handbuch-Bildern (Kap. 7.3, 7.3.7, 7.3.9): Name, Merker zur Stunde, gleich danach der Stundenplan
-        var reihe = new[] { "Name", "Merker", "S1", "Klasse", "Fach", "Zaehler", "Vertr", "Entf", "Vorwoche", "Punkte", "ZW" };
+        // Standard-Reihenfolge der Anzeige (gespeicherte Tabellenformate des Benutzers gehen vor) wie im Original-Bildschirmfoto:
+        // Name, Stundenplan, Merker zur Stunde, Vertr., Entfall, Zähler, danach die weiteren Spalten
+        var reihe = new[] { "Name", "S1", "Merker", "Vertr", "Entf", "Zaehler", "Klasse", "Fach", "Vorwoche", "Punkte", "ZW" };
         var anzeige = reihe.Concat(_vorschlag.Columns.Cast<DataGridViewColumn>().OrderBy(c => c.Index).Select(c => c.Name).Where(n => !reihe.Contains(n))).ToList();
         for (var i = 0; i < anzeige.Count; i++) _vorschlag.Columns[anzeige[i]]!.DisplayIndex = i;
         _vorschlag.Columns["RegB"]!.ToolTipText = "Genutzte reguläre Bereitschaften";
@@ -174,8 +174,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 g.Columns[n]!.ContextMenuStrip = PlanMenue();
 
         // --- Räume ---
-        // Spaltenbreiten wie im Handbuch-Bild (Kap. 7.3.10, auf 96 dpi umgerechnet): Rm., Kap., Ausw-Rm., Ausw-Sr., Besetzt (schmal, „Beset“), Raumgruppe
-        foreach (var (n, b) in new[] { ("Rm", 62), ("Kap", 26), ("AR", 61), ("SR", 60), ("B", 26), ("RG", 58) })
+        // Spaltenbreiten wie im Original-Bildschirmfoto (Reiter „Räume“, 100 %): Rm. 75 | Kap. 33 | Ausw-Rm. 75 | Ausw-Sr. 75 | Besetzt 33 („Bese“) |
+        // Raumgruppe 75 – zu lange Überschriften werden abgeschnitten
+        Ui.BreitenWieOriginal(_raeume.Raster);
+        foreach (var (n, b) in new[] { ("Rm", 75), ("Kap", 33), ("AR", 75), ("SR", 75), ("B", 33), ("RG", 75) })
             if (_raeume.Raster.Columns[n] is { } rc) rc.Width = b;
         _raeume.Gewaehlt += _ => Raum();
         _raeume.Raster.ContextMenuStrip = Menue(("Raum übernehmen (Doppelklick, Enter)", Raum));
@@ -244,6 +246,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         FormClosed += (_, _) => _planTimer.Dispose();
 
         _reiter.Gewechselt += ReiterGewechselt;
+        // Reiter wie im Original-Bildschirmfoto: Microsoft Sans Serif 8,25, Leiste 22 Pixel hoch
+        _reiter.Font = Ui.DialogSchrift;
+        _reiter.Height = 22;
         _inhalt.Controls.Add(_vorschlag);
         _inhalt.Controls.Add(_betreuung);
         _inhalt.Controls.Add(_raeume);
@@ -252,7 +257,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         StundenplanZiehenEinrichten(_betreuung);
         LayoutUmstellen();
 
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell };
+        // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (die Tabellen haben ihre eigene Schrift)
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
@@ -302,13 +308,18 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     /// <summary>Schrift aus den Einstellungen („Schrift“) auf die Tabellen anwenden.</summary>
     private void SchriftAnwenden()
     {
-        var schrift = VorschlagEinstellungenDialog.Schrift(D.Vertretungseinstellungen.Vorschlag.Schrift) ?? Ui.Schrift;
+        var schrift = VorschlagEinstellungenDialog.Schrift(D.Vertretungseinstellungen.Vorschlag.Schrift) ?? Ui.TabellenSchrift;
         foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung, _vorziehung2, _pause, _raeume.Raster })
         {
-            g.DefaultCellStyle.Font = schrift;
-            g.RowTemplate.Height = Ui.ZeilenHoehe();
+            g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = schrift;
+            g.RowTemplate.Height = ZeilenHoehe(schrift);
+            g.ColumnHeadersHeight = (g == _vorziehung2 ? 2 : 1) * ZeilenHoehe(schrift);
+            foreach (DataGridViewRow r in g.Rows) r.Height = g.RowTemplate.Height;
         }
     }
+
+    /// <summary>Zeilen- und Überschriftenhöhe wie im Original-Bildschirmfoto (Arial 9, 100 %): 21 Pixel samt Rasterlinie, bei größerer Schrift höher.</summary>
+    private static int ZeilenHoehe(Font schrift) => Math.Max(21, schrift.Height + 6);
 
     /// <summary>
     /// Höchste Höhe des Vorziehungsbereichs: Werte bis 100 sind wie in der Vorlage ein Prozentsatz der Fensterhöhe („Max. Prozentsatz der
@@ -369,8 +380,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.RowHeadersVisible = false;
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.MultiSelect = false;
-        g.ColumnHeadersHeight = 17;
-        g.RowTemplate.Height = Ui.ZeilenHoehe();
+        // wie im Original-Bildschirmfoto: Arial 9, Überschrift und Zeilen 21 Pixel hoch, Spaltenbreiten fest (Überschriften abgeschnitten)
+        g.Font = g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
+        g.ColumnHeadersHeight = ZeilenHoehe(Ui.TabellenSchrift);
+        g.RowTemplate.Height = ZeilenHoehe(Ui.TabellenSchrift);
+        Ui.BreitenWieOriginal(g);
+        // Überschrift der Spalte mit der aktuellen Zelle hell orange: beim Zellwechsel die Kopfzeile neu zeichnen
+        g.CurrentCellChanged += (_, _) => g.Invalidate(new Rectangle(0, 0, g.Width, g.ColumnHeadersHeight));
         g.AllowUserToResizeColumns = true;
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         g.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
@@ -547,7 +563,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         foreach (var k in kandidaten)
         {
             var z = k.Zellen;
-            var zeile = new DataGridViewRow();
+            var zeile = new DataGridViewRow { Height = _vorschlag.RowTemplate.Height };
             var (reg, dep) = einsaetze.TryGetValue(k.Lehrer.Id, out var ein) ? ein : (new BereitschaftsEinsatz(0, 0), new BereitschaftsEinsatz(0, 0));
             var vms = _vorschlagVormerkungen.GetValueOrDefault(k.Lehrer.Id);
             zeile.CreateCells(_vorschlag, Werte(_vorschlag, ("Name", langname ? k.Lehrer.VollerName : k.Lehrer.Kurzname), ("S1", string.Join(" ", z.Select(x => x.Text))),
@@ -579,7 +595,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         foreach (var b in VertretungsVorschlag.Betreuungen(D, v, markiert).Where(b => !_nahe.Checked || b.Naehe <= 2))
         {
             var z = b.Zellen;
-            var zeile = new DataGridViewRow();
+            var zeile = new DataGridViewRow { Height = _betreuung.RowTemplate.Height };
             // Gang (Flur) des Betreuers; ohne Gänge die Differenz der Eingabereihenfolge der beiden Räume, gekoppelte Lehrkräfte „Kopplung“
             var gang = b.Kopplung ? "Kopplung" : b.Gang.Length > 0 ? b.Gang
                 : raumReihe.TryGetValue(b.Raum, out var r1) && raumReihe.TryGetValue(eigenerRaum, out var r2) ? Math.Abs(r1 - r2).ToString() : "";
@@ -675,7 +691,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         {
             var b = Core.Module.Pausenaufsichten.Bewerten(D, Ix, l, a.GangId, tag, a.NachStunde);
             var bereit = Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde) || Vertretungen.HatBereitschaft(D, tp, l.Id, v.Stunde + 1);
-            var zeile = new DataGridViewRow();
+            var zeile = new DataGridViewRow { Height = _pause.RowTemplate.Height };
             zeile.CreateCells(_pause, Werte(_pause, ("Name", langname ? l.VollerName : l.Kurzname), ("Punkte", ((int)Math.Round(b.Punkte)).ToString()),
                 ("MaxMin", b.MaxMinuten > 0 ? b.MaxMinuten.ToString() : ""), ("PaTag", b.ProTag > 0 ? b.ProTag.ToString() : ""),
                 ("Zaehler", gehalten.GetValueOrDefault(l.Id) is int n and > 0 ? n.ToString() : ""), ("UntVor", Ja(b.UnterrichtDavor)), ("UntNach", Ja(b.UnterrichtDanach)),
@@ -698,7 +714,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var res = new List<DataGridViewRow>();
         foreach (var vm in vms)
         {
-            var zeile = new DataGridViewRow();
+            var zeile = new DataGridViewRow { Height = _vorschlag.RowTemplate.Height };
             var text = VertretungsVorschlag.VormerkungText(Ix, vm);
             zeile.CreateCells(_vorschlag, Werte(_vorschlag, ("S1", text), ("Vorm", text), ("Kr", vm.Text)));
             zeile.Tag = new VormerkungsZeile(k, vm);
@@ -751,8 +767,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _vorzLeiste.Text = $"Vorziehungen ({VorziehungsRaster.Rows.Count})";
     }
 
-    /// <summary>Standardbreite der Spalte „Stundenplan“: drei Stunden.</summary>
-    private const int StandardPlanBreite = 3 * 42 + 2;
+    /// <summary>Standardbreite der Spalte „Stundenplan“: drei Stunden zu je 53 Pixel wie im Original-Bildschirmfoto (160 samt Linie).</summary>
+    private const int StandardPlanBreite = 3 * 53 + 1;
 
     /// <summary>
     /// Gemerkte Spaltenanordnung älterer Versionen (drei Spalten S1–S3 für den Stundenplan) einmalig auf die eine Spalte „Stundenplan“
@@ -773,7 +789,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     }
 
     /// <summary>Anzahl der Stunden, die in die Spalte „Stundenplan“ passen (Handbuch Kap. 7.3.2: so viele, wie Platz ist).</summary>
-    private static int PlanAnzahl(int spaltenBreite) => Math.Max(1, (spaltenBreite - 2) / Math.Max(12, _zellBreite));
+    private static int PlanAnzahl(int spaltenBreite) => Math.Max(1, (spaltenBreite - 1) / Math.Max(12, _zellBreite));
 
     /// <summary>Angezeigte Stunden einer Zeile in der Spalte „Stundenplan“ (Ausschnitt aus allen Stunden des Tages).</summary>
     private List<StundenplanZelle>? PlanZellen(DataGridView g, int zeile)
@@ -1069,7 +1085,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static void KopfZeichnen(DataGridView g, DataGridViewCellPaintingEventArgs e, DataGridViewColumn spalte)
     {
         var r = e.CellBounds;
-        using (var br = new SolidBrush(Color.White)) e.Graphics!.FillRectangle(br, r);
+        // wie im Original-Bildschirmfoto: Überschriften grünlich, die Spalte der aktuellen Zelle hell orange, Linie unten in Rasterfarbe
+        var aktuell = g.CurrentCell?.ColumnIndex == spalte.Index;
+        using (var br = new SolidBrush(aktuell ? Ui.ZelleAktivVertretung : Ui.Kopf)) e.Graphics!.FillRectangle(br, r);
         var i = Array.IndexOf(Stundenplanspalten, spalte.Name);
         var textRect = new Rectangle(r.X + 3, r.Y, r.Width - 4, r.Height - 1);
         var text = spalte.HeaderText;
@@ -1100,7 +1118,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
         using (var p = new Pen(g.GridColor))
             if (i < 0 || i == Stundenplanspalten.Length - 1) e.Graphics.DrawLine(p, r.Right - 1, r.Y, r.Right - 1, r.Bottom - 1);
-        using (var p = new Pen(KopfLinie)) e.Graphics.DrawLine(p, r.X, r.Bottom - 1, r.Right, r.Bottom - 1);
+        using (var p = new Pen(g.GridColor)) e.Graphics.DrawLine(p, r.X, r.Bottom - 1, r.Right, r.Bottom - 1);
         e.Graphics.Clip = clip;
         e.Handled = true;
     }
@@ -1447,7 +1465,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             Dock = unten ? DockStyle.Bottom : DockStyle.Top;
             // wie im Bild 20 Pixel hoch; übereinanderliegende Leisten teilen sich die Trennlinie
             Height = 20;
-            Font = Ui.SchriftFett;
+            // wie im Original-Bildschirmfoto: Microsoft Sans Serif 8,25 fett
+            Font = Ui.DialogSchriftFett;
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }

@@ -789,6 +789,69 @@ public sealed partial class HauptFenster
             Warten(400);
             log.Add("INFO  " + f.SelbsttestTextverlauf(() => Warten(300), () => Foto(Path.Combine(ordner, "18e1_Textvorschlag_im_Feld.png"))));
         }, -1);
+        // V1–V5: Vergleich mit den Original-Bildschirmfotos (Fensterausschnitt „V…_F.png“ und Maße aller Tabellen als „MASS“-Zeilen)
+        void Vergleich(string name, Form f, Size ausschnitt)
+        {
+            Warten(600);
+            f.Refresh();
+            var r = f.RectangleToScreen(f.ClientRectangle);
+            if (f.IsMdiChild) r = f.Parent!.RectangleToScreen(f.Bounds);
+            r = new Rectangle(r.Location, new Size(Math.Min(r.Width, ausschnitt.Width), Math.Min(r.Height, ausschnitt.Height)));
+            using (var bmp = new Bitmap(r.Width, r.Height))
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, name + "_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Alle(x)));
+            foreach (var g in Alle(f).OfType<DataGridView>().Where(g => g.Visible))
+            {
+                var spalten = g.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).OrderBy(c => c.DisplayIndex).Select(c => $"{c.HeaderText}={c.Width}");
+                var schrift = g.DefaultCellStyle.Font ?? g.Font;
+                log.Add($"MASS  {name} {g.Name}: Kopf {g.ColumnHeadersHeight}, Zeile {g.RowTemplate.Height} ({(g.Rows.Count > 0 ? g.Rows[0].Height : -1)}), Schrift {schrift.Name} {schrift.SizeInPoints}, Spalten {string.Join(" | ", spalten)}");
+            }
+        }
+        Schritt("V0_Schriften", () =>
+        {
+            // Probetexte in den in Frage kommenden Schriften (zum Ausmessen gegen die Original-Bildschirmfotos)
+            var texte = new[] { "Entfall", "Anrechnung", "Vtr-Nr.", "Vertr. von", "Name", "Stundenblock", "Lehr., Fa., Rm.", "Stundenplan", "Absenztage",
+                "Offene Vertretungen", "Klasse(n)", "329 Tage", "Vertretungsvorschläge (16)", "Auch besetzte Räume anzeigen" };
+            var schriften = new[] { ("Segoe UI", 8.25f), ("Segoe UI", 9f), ("Tahoma", 8.25f), ("Tahoma", 9f), ("Microsoft Sans Serif", 8.25f), ("Arial", 8.25f), ("Arial", 9f) };
+            using var bmp = new Bitmap(texte.Length * 180, schriften.Length * 20);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.White);
+                for (var z = 0; z < schriften.Length; z++)
+                {
+                    using var f = new Font(schriften[z].Item1, schriften[z].Item2);
+                    for (var s = 0; s < texte.Length; s++)
+                        TextRenderer.DrawText(g, texte[s], f, new Point(s * 180 + 4, z * 20 + 2), Color.Black, Color.White, TextFormatFlags.NoPadding);
+                    log.Add($"MASS  V0 {schriften[z].Item1} {schriften[z].Item2}: Höhe {f.Height}");
+                }
+            }
+            bmp.Save(Path.Combine(ordner, "V0_Schriften_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+        }, -1);
+        Schritt("V1_Absenzen", () => Vergleich("V1_Absenzen", Max(FensterOeffnen("abw")!), new Size(800, 300)), -1);
+        Schritt("V2_Vertretungen", () => Vergleich("V2_Vertretungen", Max(FensterOeffnen("vertr")!), new Size(800, 330)), -1);
+        Form VorschlagNormal(int reiter)
+        {
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var f = FensterOeffnen("vorschlag") as VertretungsvorschlagFenster ?? throw new InvalidOperationException("Vorschlagsfenster fehlt");
+            f.WindowState = FormWindowState.Normal;
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            f.Bounds = new Rectangle(Math.Max(0, mdi.Width - 450), 0, 450, Math.Min(770, mdi.Height));
+            f.SelbsttestReiter(reiter);
+            return f;
+        }
+        Schritt("V3_Vorschlag", () => Vergleich("V3_Vorschlag", VorschlagNormal(0), new Size(450, 520)), -1);
+        Schritt("V4_Vorschlag_Raeume", () => Vergleich("V4_Vorschlag_Raeume", VorschlagNormal(2), new Size(450, 520)), -1);
+        Schritt("V5_Kleiner_Stundenplan", () =>
+        {
+            // kleiner Klassenplan mit Stundenplanlupe (Format „Kla1 - Klasse 1“) in der Größe des Originals
+            var f = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(100, 0, 272, 567);
+            Vergleich("V5_Kleiner_Stundenplan", f, new Size(272, 567));
+        }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
         Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);
@@ -2306,8 +2369,8 @@ public sealed partial class HauptFenster
             AppZustand.VertretungWaehlen(v);
             Warten(300);
             var spalten = f.SelbsttestSpalten();
-            // Reihenfolge wie in den Handbuch-Bildern: Name, Merker zur Stunde, Stundenplan, danach Klasse und Fach
-            R3cPruefen(spalten.Take(5).SequenceEqual(new[] { "Name", "Merker zur Stunde", "Stundenplan", "Klasse", "Fach" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
+            // Reihenfolge wie im Original-Bildschirmfoto: Name, Stundenplan, Merker zur Stunde, Vertr., Entfall, Zähler
+            R3cPruefen(spalten.Take(6).SequenceEqual(new[] { "Name", "Stundenplan", "Merker zur Stunde", "Vertr.", "Entfall", "Zähler" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
             var k = f.SelbsttestKandidaten();
             R3cPruefen(k.Count > 0, "Vertretungsvorschlag ohne Kandidaten");
             var l = k[0].Lehrer;
