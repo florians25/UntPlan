@@ -1,6 +1,6 @@
 // Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
-// (Symbol, Titel, Beschreibung, rechts Anzeigen/PDF/CSV); Parameter im Seitenpanel. Vorschau oberhalb der Liste.
-import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, lade, pdfAusrichtung, druckenMitAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
+// (Symbol, Titel, Beschreibung, rechts PDF/CSV); Parameter im Seitenpanel. Keine Vorschau – Berichte nur als PDF bzw. CSV.
+import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, pdfAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
@@ -102,7 +102,6 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         ${zeitbereichFeld(von, bis, sjK)}
       </div>
     </div>
-    <div data-vorschau class="br-vorschau-bereich">${art ? lade() : ''}</div>
     <div class="br-raster nicht-drucken" data-raster></div>
     <p class="br-fussnote nicht-drucken"><i class="bi bi-info-circle"></i> Notfallliste, BAföG- und Fahrkostenbescheinigungen benötigen Adress- bzw. Kontaktdaten, die UntPlan nicht überträgt.</p>
   </div>`;
@@ -132,7 +131,6 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
         ${a.parameter ? `<span class="s-label">${e(a.parameter.replace('{n1}', vorgabe(a, 1)).replace('{n2}', vorgabe(a, 2)))}</span>` : ''}
         ${zeilenOptionen(a)}</span>
       <span class="br-reihe-aktionen">
-        <button type="button" class="br-knopf" data-anzeigen="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Anzeigen"><i class="bi bi-eye"></i><span>Anzeigen</span></button>
         <button type="button" class="br-knopf" data-pdf="${a.id}" ${fehltKlasse ? 'disabled' : ''} title="Als PDF herunterladen"><i class="bi bi-file-earmark-pdf"></i><span>PDF</span></button>
         <button type="button" class="br-knopf" data-csv="${a.id}" ${fehltKlasse || NUR_PDF.includes(a.id) ? 'disabled' : ''} title="Als CSV herunterladen"><i class="bi bi-filetype-csv"></i><span>CSV</span></button>
       </span></div>`;
@@ -145,7 +143,6 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
       : `<div class="br-liste" role="list">${sicht.map(karte).join('')}</div>`)
       : `<div class="s-leer"><span class="s-leer-symbol"><i class="bi bi-search"></i></span><b>Kein Bericht gefunden</b><p>Für „${e(suche)}“ gibt es keinen passenden Bericht.</p></div>`;
     raster.querySelectorAll('[data-panel]').forEach(b => b.onclick = () => panel(arten.find(a => a.id === b.dataset.panel)));
-    raster.querySelectorAll('[data-anzeigen]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.anzeigen); anzeigen(a, standard(a)); });
     raster.querySelectorAll('[data-pdf]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.pdf); exportieren(a, standard(a), 'pdf', b); });
     raster.querySelectorAll('[data-csv]').forEach(b => b.onclick = () => { const a = arten.find(x => x.id === b.dataset.csv); exportieren(a, standard(a), 'csv', b); });
     raster.querySelectorAll('[data-abschluss]').forEach(b => b.onclick = abschluss);
@@ -203,21 +200,8 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     kontext.navigieren(ziel(art, f('klasse') || '-', f('von') || von, f('bis') || bis, x.matches('[data-klasse]') ? '' : f('schueler'))));
   zeitbereichBinden(seite.querySelector('.br-filter'), sjK, (v, b) => kontext.navigieren(ziel(art, f('klasse') || '-', v, b, f('schueler'))));
 
-  function anzeigen(a, p) {
-    if (a.klasseNoetig && !p.klasse) { kontext.fehler(new Error('Für diesen Bericht bitte eine Klasse wählen.')); return; }
-    document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
-    kontext.navigieren(ziel(a.id, p.klasse, p.von, p.bis, p.schueler, a.parameter ? p.n1 : 0, a.parameter ? p.n2 : 0));
-  }
   async function exportieren(a, p, format, knopf) {
     if (a.klasseNoetig && !p.klasse) { kontext.fehler(new Error('Für diesen Bericht bitte eine Klasse wählen.')); return; }
-    if (a.id === 'entschuldigungsschreiben') {
-      // Entschuldigungsschreiben: Druckansicht (je Schüler*in eine Seite)
-      document.querySelector('.br-dialog')?.closest('.kbd-overlay')?.remove();
-      if (a.id === art) { druckenMitAusrichtung('hoch', 'entschuldigungsschreiben'); return; }
-      sessionStorage.setItem('untplan:berichtdruck', '1');
-      kontext.navigieren(ziel(a.id, p.klasse, p.von, p.bis, p.schueler, p.n1, p.n2));
-      return;
-    }
     // PDF: Hoch- oder Querformat wählen
     const ausrichtung = format === 'pdf' ? await pdfAusrichtung('quer', 'bericht') : null;
     if (format === 'pdf' && !ausrichtung) return;
@@ -253,8 +237,7 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
             : `<select class="form-select form-select-sm" data-opt="${e(o.name)}" aria-label="${e(o.titel)}">${o.werte.map(w => `<option value="${e(w.wert)}" ${w.wert === optWahl(a, o) ? 'selected' : ''}>${e(w.text)}</option>`).join('')}</select>`).join('')}</div></div>` : ''}
         </div>`,
       fuss: `<button type="button" class="nl-knopf" data-p-csv ${NUR_PDF.includes(a.id) ? 'disabled' : ''}><i class="bi bi-filetype-csv"></i>CSV</button>
-        <button type="button" class="nl-knopf" data-p-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button>
-        <button type="button" class="nl-knopf nw-primaer" data-p-anzeigen><i class="bi bi-eye"></i>Anzeigen</button>` });
+        <button type="button" class="nl-knopf nw-primaer" data-p-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button>` });
     const q = x => h.querySelector(x);
     window.addEventListener('hashchange', () => h.schliessen(), { once: true });
     const schuelerLaden = async () => {
@@ -276,54 +259,11 @@ export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonPara
     const werte = () => (optMerken(a, Object.fromEntries([...h.querySelectorAll('[data-opt]')].map(x => [x.dataset.opt, x.type === 'checkbox' ? (x.checked ? '1' : '0') : x.value]))), {
       klasse: q('[data-p-klasse]').value, schueler: q('[data-p-schueler]').value, von: q('[data-p-von]').value || von, bis: q('[data-p-bis]').value || bis,
       n1: Number(q('[data-p-n1]')?.value) || p.n1, n2: Number(q('[data-p-n2]')?.value) || p.n2 });
-    q('[data-p-anzeigen]').onclick = () => anzeigen(a, werte());
     q('[data-p-pdf]').onclick = ev => exportieren(a, werte(), 'pdf', ev.currentTarget);
     q('[data-p-csv]').onclick = ev => exportieren(a, werte(), 'csv', ev.currentTarget);
     setTimeout(() => q('[data-p-klasse]').focus(), 50);
   }
 
-  if (!art) return;
-  const vorschau = seite.querySelector('[data-vorschau]');
-  const a = arten.find(x => x.id === art);
-  const p = { klasse, schueler, von, bis, n1: vorgabe(a, 1), n2: vorgabe(a, 2) };
-  let r;
-  try { r = await holen(`/api/app/berichte/erstellen/${art}?${abfrage(p)}${optQuery(a)}`); }
-  catch (err) { vorschau.innerHTML = `<div class="br-vorschau s-karte p-3">${e(err.message)}</div>`; return; }
-  const kopf = `<div class="br-druckkopf"><b>${e(kontext.sitzung.schule.name || '')}</b> · ${e(r.titel)}${klasse ? ` · Klasse ${e(klasse)}` : ''} · ${datumDe(r.von)} – ${datumDe(r.bis)}</div>`;
-  const g = GRUPPEN[a.gruppe] ?? GRUPPEN.Weitere;
-  const vkopf = zusatz => `<header class="br-vkopf nicht-drucken"><span class="br-symbol ${g.farbe}"><i class="bi bi-${g.symbol}"></i></span>
-      <div><h2>${e(r.titel)}</h2><span>${klasse ? `Klasse ${e(klasse)} · ` : ''}${datumDe(r.von)} – ${datumDe(r.bis)} · ${zusatz}</span></div>
-      <div class="br-vaktionen">${art !== 'entschuldigungsschreiben' ? '<button type="button" class="btn btn-outline-secondary s-knopf" data-v-pdf><i class="bi bi-file-earmark-pdf"></i>PDF</button><button type="button" class="btn btn-outline-secondary s-knopf" data-v-csv><i class="bi bi-filetype-csv"></i>CSV</button>' : ''}
-        <button type="button" class="btn btn-outline-secondary s-knopf" data-v-drucken>${icon('drucken')}Drucken</button>
-        <a class="br-vzu" href="${ziel(null)}" title="Vorschau schließen" aria-label="Vorschau schließen"><i class="bi bi-x-lg"></i></a></div></header>`;
-  // gegliederte Berichte (r.arten): Gruppenkopf über die ganze Breite, Zwischensumme je Schüler*in, Summe je Klasse; Zahlenspalten rechtsbündig
-  const zeilenArten = r.arten ?? null;
-  const zahlSpalte = r.spalten.map((_, i) => r.zeilen.some((z, n) => !zeilenArten?.[n] && z[i] !== '' && z[i] != null)
-    && r.zeilen.every((z, n) => zeilenArten?.[n] || z[i] === '' || z[i] == null || typeof z[i] === 'number'));
-  const tabelle = zeilen => `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle mb-0 br-tabelle ${zeilenArten ? 'br-gegliedert' : ''}"><thead><tr>${r.spalten.map((s, i) => `<th class="${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(s)}</th>`).join('')}</tr></thead><tbody>
-    ${zeilen.map((z, n) => ['gruppe', 'block'].includes(zeilenArten?.[n])
-      ? `<tr class="br-gruppe"><td colspan="${r.spalten.length}">${e(String(z[0] ?? '').replace(/\t/g, ' ').replace(/\n/g, ' · '))}</td></tr>`
-      : `<tr class="${zeilenArten?.[n] ? `br-${zeilenArten[n]}` : ''}">${z.map((x, i) => `<td class="${i === 0 || r.spalten[i] === 'Schüler*in' ? 'fw-semibold' : ''} ${zeilenArten && zahlSpalte[i] ? 'text-end' : ''}">${e(x ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
-  if (art === 'entschuldigungsschreiben') {
-    // je Schüler*in eine Seite mit Unterschriftsfeld
-    const proSchueler = new Map();
-    r.zeilen.forEach(z => proSchueler.set(z[0], [...(proSchueler.get(z[0]) ?? []), z]));
-    vorschau.innerHTML = `<div class="br-vorschau s-karte">${vkopf(`${proSchueler.size} Schüler*innen`)}
-      ${proSchueler.size ? [...proSchueler].map(([name, zeilen]) => `<div class="p-3 br-seite border-bottom">${kopf}<h3 class="h6 fw-bold mt-2">Entschuldigung für ${e(name)} (${e(zeilen[0][1])})</h3>
-        <p class="small mb-2">Hiermit entschuldige ich das Fehlen meines Kindes zu folgenden Zeiten:</p>
-        <table class="table table-sm mb-3"><thead><tr><th>Datum</th><th>Stunden</th><th>Fächer</th><th>Grund</th></tr></thead><tbody>${zeilen.map(z => `<tr><td>${e(z[2])}</td><td>${e(z[3])}</td><td>${e(z[4])}</td><td>${e(z[5])}</td></tr>`).join('')}</tbody></table>
-        <div class="d-flex gap-4 small pt-4"><span class="border-top pt-1 flex-fill">Datum</span><span class="border-top pt-1 flex-fill">Unterschrift Erziehungsberechtigte</span></div></div>`).join('')
-        : leer('Keine offenen Fehlstunden im Zeitraum.', 'check2-circle')}</div>`;
-  } else {
-    const datenzeilen = zeilenArten ? zeilenArten.filter(x => !x).length : r.zeilen.length;
-    vorschau.innerHTML = `<div class="br-vorschau s-karte">${kopf}${vkopf(`${datenzeilen} ${datenzeilen === 1 ? 'Zeile' : 'Zeilen'}`)}
-      ${r.hinweis ? `<div class="br-vhinweis"><i class="bi bi-info-circle"></i> ${e(r.hinweis)}</div>` : ''}
-      ${r.zeilen.length ? tabelle(r.zeilen) : leer('Keine Daten für diese Auswahl.', 'file-earmark')}</div>`;
-    vorschau.querySelector('[data-v-pdf]').onclick = ev => exportieren(a, p, 'pdf', ev.currentTarget);
-    vorschau.querySelector('[data-v-csv]').onclick = ev => exportieren(a, p, 'csv', ev.currentTarget);
-  }
-  // Druck im Hoch- bzw. Querformat (Entschuldigungsschreiben als Brief hoch, Tabellen quer)
-  const druck = () => druckenMitAusrichtung(art === 'entschuldigungsschreiben' ? 'hoch' : 'quer', art === 'entschuldigungsschreiben' ? 'entschuldigungsschreiben' : 'bericht-druck');
-  vorschau.querySelector('[data-v-drucken]').onclick = druck;
-  if (sessionStorage.getItem('untplan:berichtdruck')) { sessionStorage.removeItem('untplan:berichtdruck'); setTimeout(druck, 300); }
+  // Adresse mit Bericht (z. B. aus „Berichte ▾“ anderer Seiten): keine Vorschau, sondern Parameter und Export des Berichts
+  if (art) panel(arten.find(x => x.id === art));
 }
