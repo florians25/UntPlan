@@ -252,12 +252,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Breiten wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): 43 bzw. 67 Pixel, auch „Text“ (rechts bleibt die Fläche frei);
         // zu lange Überschriften werden am Spaltenrand abgeschnitten („Klasse(“, „Vertrete“)
         Ui.BreitenWieOriginal(_g);
-        // mehrere Klassen untereinander (Zeilenhöhe passt sich an)
+        // mehrere Klassen untereinander umbrechen (bei fester Zeilenhöhe sichtbar, sobald die Zeile höher gezogen wird)
         _g.Columns["Klassen"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         if (_g.Columns["AKlassen"] is { } ak) ak.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         // Text wie im Original einzeilig (am Spaltenrand abgeschnitten), damit die Zeilen gleich hoch bleiben
         _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
-        _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
+        // wie im Original-Bildschirmfoto: alle Zeilen gleich hoch (19 Pixel samt Linie) – keine automatische Zeilenhöhe
+        _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
         // „Standard wiederherstellen“ (Spaltenmenü) bzw. „Standardansicht“: auch die Felder der Ansicht auf den Standard zurücksetzen
         Steuerelemente.TabellenFormate.BeimStandard(_g, () =>
         {

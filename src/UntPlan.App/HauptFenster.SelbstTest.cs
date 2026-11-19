@@ -810,6 +810,26 @@ public sealed partial class HauptFenster
                 log.Add($"MASS  {name} {g.Name}: Kopf {g.ColumnHeadersHeight}, Zeile {g.RowTemplate.Height} ({(g.Rows.Count > 0 ? g.Rows[0].Height : -1)}), Schrift {schrift.Name} {schrift.SizeInPoints}, Spalten {string.Join(" | ", spalten)}");
             }
         }
+        Schritt("V0_Schriften", () =>
+        {
+            // Probetexte in den in Frage kommenden Schriften (zum Ausmessen gegen die Original-Bildschirmfotos)
+            var texte = new[] { "Entfall", "Anrechnung", "Vtr-Nr.", "Vertr. von", "Name", "Stundenblock", "Lehr., Fa., Rm.", "Stundenplan", "Absenztage",
+                "Offene Vertretungen", "Klasse(n)", "329 Tage", "Vertretungsvorschläge (16)", "Auch besetzte Räume anzeigen" };
+            var schriften = new[] { ("Segoe UI", 8.25f), ("Segoe UI", 9f), ("Tahoma", 8.25f), ("Tahoma", 9f), ("Microsoft Sans Serif", 8.25f), ("Arial", 8.25f), ("Arial", 9f) };
+            using var bmp = new Bitmap(texte.Length * 180, schriften.Length * 20);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.White);
+                for (var z = 0; z < schriften.Length; z++)
+                {
+                    using var f = new Font(schriften[z].Item1, schriften[z].Item2);
+                    for (var s = 0; s < texte.Length; s++)
+                        TextRenderer.DrawText(g, texte[s], f, new Point(s * 180 + 4, z * 20 + 2), Color.Black, Color.White, TextFormatFlags.NoPadding);
+                    log.Add($"MASS  V0 {schriften[z].Item1} {schriften[z].Item2}: Höhe {f.Height}");
+                }
+            }
+            bmp.Save(Path.Combine(ordner, "V0_Schriften_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+        }, -1);
         Schritt("V1_Absenzen", () => Vergleich("V1_Absenzen", Max(FensterOeffnen("abw")!), new Size(800, 300)), -1);
         Schritt("V2_Vertretungen", () => Vergleich("V2_Vertretungen", Max(FensterOeffnen("vertr")!), new Size(800, 330)), -1);
         Form VorschlagNormal(int reiter)

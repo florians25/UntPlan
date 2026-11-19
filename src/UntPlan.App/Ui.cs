@@ -21,6 +21,7 @@ public static partial class Ui
 
     /// <summary>Tabellenschrift der Originale (Absenzen, Vertretungen): Tahoma 8,25 – Windows-Systemschrift, fehlt sie, ersetzt Windows sie.</summary>
     public static readonly Font TabellenSchrift = new("Tahoma", 8.25f);
+    public static readonly Font TabellenSchriftFett = new("Tahoma", 8.25f, FontStyle.Bold);
 
     /// <summary>Tabellenschrift des Vertretungsvorschlags im Original: Tahoma 9 bei 21 Pixel hohen Zeilen und Überschriften.</summary>
     public static readonly Font VorschlagSchrift = new("Tahoma", 9f);

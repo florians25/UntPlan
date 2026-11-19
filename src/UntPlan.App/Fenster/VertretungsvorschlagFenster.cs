@@ -35,7 +35,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     /// <summary>Spalte „Stundenplan“ (früher drei Spalten S1–S3; zeigt jetzt so viele Stunden, wie Platz ist).</summary>
     private static readonly string[] Stundenplanspalten = { "S1" };
     /// <summary>Breite einer Stunde in der Spalte „Stundenplan“ (per Ziehen an einer Stundengrenze änderbar).</summary>
-    private static int _zellBreite = 42;
+    private static int _zellBreite = 53;
 
     private readonly Klappleiste _kopfLeiste = new(false) { Text = "" };
     private readonly Label _kopfDetails = new() { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 3, 4, 0), BackColor = Color.White, Visible = false };
@@ -246,6 +246,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         FormClosed += (_, _) => _planTimer.Dispose();
 
         _reiter.Gewechselt += ReiterGewechselt;
+        // Reiter wie im Original-Bildschirmfoto: Tahoma 8,25, Leiste 22 Pixel hoch
+        _reiter.Font = Ui.TabellenSchrift;
+        _reiter.Height = 22;
         _inhalt.Controls.Add(_vorschlag);
         _inhalt.Controls.Add(_betreuung);
         _inhalt.Controls.Add(_raeume);
@@ -254,7 +257,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         StundenplanZiehenEinrichten(_betreuung);
         LayoutUmstellen();
 
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell };
+        // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Tahoma 8,25 (die Tabellen haben ihre eigene Schrift)
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell, Font = Ui.TabellenSchrift };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
@@ -315,7 +319,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     }
 
     /// <summary>Zeilen- und Überschriftenhöhe wie im Original-Bildschirmfoto (Tahoma 9, 100 %): 21 Pixel samt Rasterlinie, bei größerer Schrift höher.</summary>
-    private static int ZeilenHoehe(Font schrift) => Math.Max(21, schrift.Height + 7);
+    private static int ZeilenHoehe(Font schrift) => Math.Max(21, schrift.Height + 6);
 
     /// <summary>
     /// Höchste Höhe des Vorziehungsbereichs: Werte bis 100 sind wie in der Vorlage ein Prozentsatz der Fensterhöhe („Max. Prozentsatz der
@@ -785,7 +789,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     }
 
     /// <summary>Anzahl der Stunden, die in die Spalte „Stundenplan“ passen (Handbuch Kap. 7.3.2: so viele, wie Platz ist).</summary>
-    private static int PlanAnzahl(int spaltenBreite) => Math.Max(1, (spaltenBreite - 2) / Math.Max(12, _zellBreite));
+    private static int PlanAnzahl(int spaltenBreite) => Math.Max(1, (spaltenBreite - 1) / Math.Max(12, _zellBreite));
 
     /// <summary>Angezeigte Stunden einer Zeile in der Spalte „Stundenplan“ (Ausschnitt aus allen Stunden des Tages).</summary>
     private List<StundenplanZelle>? PlanZellen(DataGridView g, int zeile)
@@ -1461,7 +1465,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             Dock = unten ? DockStyle.Bottom : DockStyle.Top;
             // wie im Bild 20 Pixel hoch; übereinanderliegende Leisten teilen sich die Trennlinie
             Height = 20;
-            Font = Ui.SchriftFett;
+            // wie im Original-Bildschirmfoto: Tahoma 8,25 fett
+            Font = Ui.TabellenSchriftFett;
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }
