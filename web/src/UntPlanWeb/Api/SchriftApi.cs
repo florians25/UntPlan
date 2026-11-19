@@ -22,14 +22,18 @@ public static partial class SchriftApi
     /// <summary>Gewicht und Stil aus dem Dateinamen (AvenirNextLTPro-DemiIt.otf → 600 kursiv).</summary>
     public static (int Gewicht, bool Kursiv) Schnitt(string datei)
     {
-        var n = Path.GetFileNameWithoutExtension(datei).ToLowerInvariant();
-        var teil = n.Contains('-') ? n[(n.LastIndexOf('-') + 1)..] : n;
-        var kursiv = teil.EndsWith("it") || teil.Contains("italic");
-        teil = teil.Replace("italic", "");
-        if (teil.EndsWith("it")) teil = teil[..^2];
+        // Wörter des Namens (Trenner „-“, „_“ oder Leerzeichen): „AvenirNextLTPro-DemiIt“, „Avenir Next Bold Italic“, „Avenir-Next-Ultra-Light“
+        var w = Regex.Split(Path.GetFileNameWithoutExtension(datei).ToLowerInvariant(), "[-_ ]+").Where(x => x.Length > 0).ToList();
+        var kursiv = false;
+        if (w.Count > 1 && w[^1] is "italic" or "it" or "oblique") { kursiv = true; w.RemoveAt(w.Count - 1); }
+        var teil = w.Count > 0 ? w[^1] : "";
+        if (teil.EndsWith("italic")) { kursiv = true; teil = teil[..^6]; }
+        else if (teil.Length > 2 && teil.EndsWith("it")) { kursiv = true; teil = teil[..^2]; }
+        // „Ultra Light“ bzw. „Extra Bold“ als zwei Wörter
+        if (w.Count > 1 && w[^2] is "ultra" or "extra") teil = w[^2] + teil;
         var gewicht = teil switch
         {
-            var t when t.StartsWith("ultlt") || t.StartsWith("ultralight") || t.StartsWith("thin") => 200,
+            var t when t.StartsWith("ultlt") || t.StartsWith("ultralight") || t.StartsWith("extralight") || t.StartsWith("thin") => 200,
             var t when t.StartsWith("light") => 300,
             var t when t.StartsWith("medium") => 500,
             var t when t.StartsWith("demi") || t.StartsWith("semibold") => 600,
@@ -143,7 +147,10 @@ public static partial class SchriftApi
             var n = 0;
             foreach (var f in form.Files)
             {
-                var name = Path.GetFileName(f.FileName);
+                // Namen mit Leerzeichen (z. B. „Avenir Next Bold.woff2“) als „Avenir-Next-Bold.woff2“ ablegen
+                var name = Regex.Replace(Path.GetFileName(f.FileName).Trim(), @"\s+", "-");
+                // schmale Schnitte (Condensed) gehören zu einer anderen Familie und würden die normalen Schnitte überschreiben
+                if (name.Contains("condensed", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"„{name}“ ist ein schmaler Schnitt (Condensed) – bitte nur die normalen Schnitte hochladen.");
                 if (!Dateiname().IsMatch(name)) throw new ArgumentException($"„{name}“ ist keine zulässige Schriftdatei.");
                 if (f.Length > 5 * 1024 * 1024) throw new ArgumentException($"„{name}“ ist zu groß (höchstens 5 MB).");
                 await using var ziel = File.Create(Path.Combine(Ordner(k), name));

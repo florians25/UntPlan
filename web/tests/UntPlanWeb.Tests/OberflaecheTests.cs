@@ -497,6 +497,19 @@ public class OberflaecheTests
 
     // ------------------------------------------------------------------ Schrift (UW-04)
 
+    [Theory]
+    [InlineData("AvenirNextLTPro-DemiIt.otf", 600, true)]
+    [InlineData("AvenirNextPro-Regular.woff2", 400, false)]
+    [InlineData("Avenir-Next-Bold.woff2", 700, false)]
+    [InlineData("Avenir-Next-Bold-Italic.woff2", 700, true)]
+    [InlineData("Avenir-Next-Demi.woff2", 600, false)]
+    [InlineData("Avenir-Next-Medium-Italic.woff2", 500, true)]
+    [InlineData("Avenir-Next-Ultra-Light.woff2", 200, false)]
+    [InlineData("Avenir-Next-Italic.woff2", 400, true)]
+    [InlineData("Avenir-Next-Heavy.woff2", 800, false)]
+    public void Schriftschnitt_aus_Dateinamen_auch_mit_Leerzeichen_bzw_Bindestrichen(string datei, int gewicht, bool kursiv)
+        => Assert.Equal((gewicht, kursiv), SchriftApi.Schnitt(datei));
+
     [Fact]
     public void Schrift_wird_nur_mit_vorhandenen_Dateien_eingebunden()
     {
