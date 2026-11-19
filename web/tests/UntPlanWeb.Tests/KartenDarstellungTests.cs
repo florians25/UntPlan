@@ -116,7 +116,16 @@ public class KartenDarstellungTests
         // Zeilen etwas enger
         Assert.Contains(".std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }", css);
         Assert.Contains(".std .z2 { font-weight: 400; }", css);
-        Assert.Contains(".std .z1:has(.lbl) { margin-bottom: 0; }", css);
+        // Label im Kopf verschiebt die folgenden Zeilen nicht (Vorlage 279); Label weiter unten 2px unter der Zeilenoberkante
+        Assert.DoesNotContain(".std .z1:has(.lbl) { margin-bottom: 0; }", css);
+        Assert.Contains(".std .z2 .lbl { position: relative; top: 2px; line-height: 15px; padding-bottom: 1px; }", css);
+        Assert.Contains(".std .z2:has(.lbl) { padding-bottom: 2px; margin-bottom: -2px; }", css);
+        var nl = Datei("css", "nl-design.css");
+        Assert.Contains(".tt .std { border-radius: 4px; padding: 7px 24px 6px 18px; }", nl);
+        Assert.Contains(".std .zt { color: var(--u-grau-2); font-weight: 400; }", nl);
+        Assert.Contains(".std.vergangen .z1, .std.vergangen .z2 { color: #67747e; }", nl);
+        // Uhrzeiten auf den Karten: keine Uhrzeit an der ersten Linie der Achse
+        Assert.DoesNotContain("tt-zeit erste", js);
         Assert.Contains(".std .z2 + .z2 { margin-top: 0; }", css);
         Assert.Contains("font-variant-numeric: lining-nums;", css);
     }

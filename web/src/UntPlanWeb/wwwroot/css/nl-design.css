@@ -81,14 +81,15 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .tt-achse + .tt-spalte .tt-linie, .tt-achse + .tt-spalte .tt-jetzt:not(.heute) { left: 0; }
 .tt-tag.letzter ~ .tt-spalte:last-child .tt-linie, .tt-spalte:last-child .tt-linie { right: 0; }
 
-/* Karten wie im Original: weiß, Radius 4px, Innenabstand 6px; Farbbalken 4px breit mit Radius 2px (oben/unten/links 6px), Text 8px
-   rechts vom Balken; erste Zeile 14px Medium, weitere Zeilen 12px Medium dunkelgrau; Uhrzeiten 10px grau links vor dem Balken */
-.tt .std { border-radius: 4px; padding: 8px 24px 6px 18px; }
+/* Karten wie im Original: weiß, Radius 4px, Innenabstand oben 7px; Farbbalken 4px breit mit Radius 2px (oben/unten/links 6px), Text 8px
+   rechts vom Balken (Schnitte und Zeilenlagen in karten.css); Uhrzeiten 10px Regular grau links vor dem Balken, die obere 1px über
+   dem Balkenanfang (nachgemessen an Bild 279) */
+.tt .std { border-radius: 4px; padding: 7px 24px 6px 18px; }
 .tt .std::before { left: 6px; top: 6px; bottom: 6px; width: 4px; border-radius: 2px; background: var(--fach, #bfc8cf); }
 .tt .std.mit-zeit { padding-left: 45px; }
 .tt .std.mit-zeit::before { left: 33px; }
 .tt .std .zt { left: 3px; font-size: 10px; color: var(--u-grau-2); }
-.tt .std .zt.o { top: 6px; line-height: 12px; }
+.tt .std .zt.o { top: 5px; line-height: 12px; }
 .tt .std .zt.u { bottom: 6px; line-height: 7px; }
 .std .lbl { border-radius: 1.5px; }
 /* Bereitschaft und abwesende Lehrkraft: gestrichelter Rand 1,5px wie im Original */
@@ -102,10 +103,10 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
 .std .z2 { font-size: 12px; font-weight: 500; line-height: 16px; color: #414d55; }
 .std .z2 + .z2 { margin-top: 1px; }
 .std .lbl + .lbl { margin-left: 2px; }
-.std .zt { color: var(--u-grau-2); font-weight: 600; }
+.std .zt { color: var(--u-grau-2); font-weight: 400; }
 .std .lbl { font-weight: 600; }
-/* vergangene Stunden: Fläche leicht grau, Schrift bleibt gleich kräftig */
-.std.vergangen .z1, .std.vergangen .z2 { color: #414d55; }
+/* vergangene Stunden: Fläche leicht grau, Schrift etwas heller (#67747e wie im Original, Bild 279), gleicher Schnitt */
+.std.vergangen .z1, .std.vergangen .z2 { color: #67747e; }
 
 /* Symbole oben rechts: Entfall rotes Dreieck, Prüfung gelber Punkt, Änderung grünes Quadrat mit Plus */
 .std .mks { top: 8px; right: 9px; }
