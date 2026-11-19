@@ -321,7 +321,7 @@ public class MdiFenster : Form
         {
             it.Overflow = ToolStripItemOverflow.Always;
             it.Alignment = ToolStripItemAlignment.Left;
-            if (it.DisplayStyle == ToolStripItemDisplayStyle.Image && it.Text.Length > 0) it.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
+            if (it.DisplayStyle == ToolStripItemDisplayStyle.Image && !string.IsNullOrEmpty(it.Text)) it.DisplayStyle = ToolStripItemDisplayStyle.ImageAndText;
             leiste.Items.Add(it);
         }
         leiste.ResumeLayout();
