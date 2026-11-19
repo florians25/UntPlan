@@ -309,9 +309,10 @@ struct KachelView: View {
     /// Fläche wie eine Karte (künftig #5e7382, vergangen #323c45), Ecken 3,33 pt (2bb77419: Rundung 10 px); lila Balken 4 pt breit, 4 pt vom linken Rand,
     /// oben und unten 1 pt Luft; Ort 12 pt Semibold wie die erste Kartenzeile, Textbeginn 12,67 pt von der Kante.
     /// Abgegebene Aufsicht: durchsichtig mit Eckklammern, Balken halb deckend, grünes „⋮“-Feld (14 pt) unten rechts
-    /// (1 pt vom unteren, 2,33 pt vom rechten Rand). Aufsicht vor der 1. Stunde („STD-früh“): 11 pt hoch, Ort 8 pt.
+    /// (1 pt vom unteren, 2,33 pt vom rechten Rand). Aufsicht vor der 1. Stunde („STD-früh“) ohne Dauer im Zeitraster: 11 pt hoch, Ort 8 pt.
     private func pille(_ a: Kachelaussehen) -> some View {
-        let klein = kachel.vorErsterStunde && kachel.art == .aufsicht
+        // klein nur die Frühaufsicht ohne Dauer im Zeitraster (11-pt-Pille); mit Dauer so groß wie die Aufsichten in den Pausen
+        let klein = kachel.vorErsterStunde && kachel.art == .aufsicht && !kachel.fruehaufsichtMitZeit
         let mitFeld = kachel.art == .aufsicht && (kachel.aufsichtsstand == .vertretung || kachel.aufsichtsstand == .abgegeben)
         return HStack(spacing: klein ? 4.33 : 4.0) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)

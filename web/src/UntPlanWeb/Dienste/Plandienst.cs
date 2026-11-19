@@ -1,3 +1,4 @@
+using System.Globalization;
 using UntPlan.Web.Contracts;
 
 namespace UntPlanWeb.Dienste;
@@ -1770,6 +1771,25 @@ public sealed class Plandienst
     }
 
     /// <summary>
+    /// Beginn und Ende der Pause nach Stunde <paramref name="nach"/> laut Zeitraster aus UntPlan: zwischen zwei Stunden vom Ende der einen
+    /// bis zum Beginn der nächsten; vor der ersten Stunde (Frühaufsicht, „nach der 0. Stunde“) bzw. nach der letzten Stunde mit der im
+    /// Raster gepflegten Pausendauer. Ohne Stunde bzw. ohne Pausendauer bleibt die fehlende Uhrzeit leer (keine erfundenen Zeiten).
+    /// </summary>
+    public static (string Beginn, string Ende) PausenZeit(WebZeitraster raster, int nach)
+    {
+        var vor = raster.Stunden.FirstOrDefault(z => z.Nr == nach);
+        var danach = raster.Stunden.FirstOrDefault(z => z.Nr == nach + 1);
+        var dauer = raster.Pausen.FirstOrDefault(p => p.NachStunde == nach)?.Minuten ?? 0;
+        static TimeOnly? Zeit(string t) => TimeOnly.TryParseExact(t.Trim(), "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var x) ? x : null;
+        static string Text(TimeOnly t) => t.ToString("HH:mm", CultureInfo.InvariantCulture);
+        var beginn = vor?.Ende ?? "";
+        var ende = danach?.Beginn ?? "";
+        if (vor is null && dauer > 0 && Zeit(ende) is { } b && b.Hour * 60 + b.Minute >= dauer) beginn = Text(b.AddMinutes(-dauer));
+        if (danach is null && dauer > 0 && Zeit(beginn) is { } e && e.Hour * 60 + e.Minute + dauer < 24 * 60) ende = Text(e.AddMinutes(dauer));
+        return (beginn, ende);
+    }
+
+    /// <summary>
     /// Pausenaufsichten einer Lehrkraft an einem Tag (regelmäßige und Vertretungen). Status: regulaer, vertreten (jemand anderes bzw.
     /// noch niemand – „???“ – übernimmt), vertretung (zusätzlich übernommen), offen (noch ungeplant: Lehrkraft abwesend bzw. bei einer
     /// Veranstaltung, keine Aufsichtsvertretung eingetragen – Grund in <see cref="Aufsicht.Grund"/>), entfall (nur ausdrücklich: Vertretung
@@ -1779,8 +1799,7 @@ public sealed class Plandienst
     {
         var res = new List<Aufsicht>();
         if (Frei(s, d).Frei) return res;
-        var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
-        (string, string) Pause(int nach) => (zeiten.TryGetValue(nach, out var a) ? a.Ende : "", zeiten.TryGetValue(nach + 1, out var b) ? b.Beginn : "");
+        (string, string) Pause(int nach) => PausenZeit(s.Paket.Zeitraster, nach);
         string GangName(string g) => s.Gaenge.TryGetValue(g, out var x) && x.Name.Length > 0 ? x.Name : g;
         var woche = Woche(s, d);
         var t = TagIndex(d);

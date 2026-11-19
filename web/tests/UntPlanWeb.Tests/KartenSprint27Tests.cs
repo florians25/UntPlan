@@ -350,7 +350,8 @@ public class KartenSprint27Tests
         // keine „Raum gesperrt“/„Klasse abwesend“ über dem Tag
         Assert.Contains("!/^(abwesend|raum gesperrt|klasse abwesend)\\b/i.test(h)", js);
         // Aufsichten wie die Stundenkarten bis an die Linie
-        Assert.Contains("top:${aufbau.pause.get(nach) + 1}px;height:${PAUSE - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)", js);
+        // (Höhe der Pausenzeile aus der Pausendauer im Zeitraster, siehe RasterZeitenTests)
+        Assert.Contains("top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)", js);
         var css = Datei("css", "karten.css");
         Assert.Contains(".u-hover-label.rot { background: #f44336;", css);
         Assert.Contains(".u-hover-label.klein { font-size: 13px;", css);

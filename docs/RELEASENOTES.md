@@ -106,6 +106,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Stundenplan: Höhen im Raster richten sich nach den Zeiten des Zeitrasters aus UntPlan – Stunden und Blöcke im Verhältnis ihrer Dauer, Pausenzeilen mit Aufsicht im Maßstab ihrer Pausenlänge (z. B. 15 und 25 Minuten unterschiedlich hoch, statt fest 30 px), Frühaufsicht vor der 1. Stunde und Aufsichten nach der letzten Stunde mit der im Raster gepflegten Pausendauer; für das bisherige Raster (45-Minuten-Stunden, 20-Minuten-Pausen) bleibt die Darstellung pixelgleich.
 - Stundenplan: Zusatzstunden (z. B. Sondereinsatz) zeigen ihren Raum als hinzugefügt („+B003“, darunter das Änderungssymbol), ohne Fach im Klassenplan Lehrkraft – Bezeichnung – Raum; Info-Symbol mit „Information zur Stunde:“ und dem Text darunter, Hinweis grau mittig über dem Symbol; Labels kürzen mit „…“ im grünen Kasten („+B…“).
 - Kopfleiste des Wochenplans: feine Pfeile mit dünnem Kreis beim Überfahren dicht am Zeitraum, „Heute“ etwas flacher, Tageszeile größer, Beginn der ersten Stunde an der ersten Linie.
 - Bericht „Abwesenheiten“: jede Verspätung bzw. jedes vorzeitige Gehen als eigene Zeile (auch reine Verspätungen ohne Abwesenheit) mit Uhrzeit, „verspätet x Min.“, Fach, Lehrkraft, Grund, Status und Text, je Schüler*in eine Summenzeile „Verspätungen“ (Anzahl, Minuten) – in PDF und CSV; „Aufgestanden“ steht nur noch in der Tabelle „Abwesende Schüler*innen“.
@@ -215,6 +216,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Stundenplan: Frühaufsicht vor der 1. Stunde mit ihrer Dauer aus dem Zeitraster von UntPlan (bisher fest 11 pt bzw. 15 Minuten angenommen) – füllt wie die Aufsichten in den Pausen ihren Zeitraum bis zur Linie der 1. Stunde, in Woche und Tag; keine erfundenen Pausenlängen nach der letzten Stunde mehr.
 - Schülerliste: neuer Abschnitt „Abwesende Schüler*innen“ unter der Liste (Name, Zeit, Art, Status, Grund) mit „Aufgestanden“ und „Bearbeiten“; das Bett-Symbol erscheint nur noch dort.
 - Schülerliste: „Aufgestanden“ (Bett mit Pfeil nach oben) setzt abwesende Schüler*innen in der laufenden Stunde ab jetzt auf anwesend, mit Verspätung von Stundenbeginn bis jetzt.
 - Verspätungen genau: Minuten, Uhrzeit von–bis, Stunde, Fach und Status in Schülerliste, Abwesenheitsliste und Entschuldigungen.
