@@ -204,7 +204,8 @@ public sealed class Ribbon : Control
                 {
                     // wie im Vorbild: Datumsfeld unter dem großen Kalenderknopf (der Knopf wird etwas niedriger)
                     var bx = ueber.Bounds.X;
-                    var w = Math.Max(136, ueber.Bounds.Width);
+                    // Datumsfeld wie auf dem Original-Bildschirmfoto: 92 Pixel breit
+                    var w = Math.Max(92, ueber.Bounds.Width);
                     ueber.Bounds = new Rectangle(bx, y, w, Inhalt - 28);
                     if (ueber.PfeilBounds != Rectangle.Empty) ueber.PfeilBounds = new Rectangle(bx, y + Inhalt - 42, w, 14);
                     e.Bounds = new Rectangle(bx, y + Inhalt - 26, w, 22);
@@ -215,7 +216,8 @@ public sealed class Ribbon : Control
                 if (e.GrossDargestellt)
                 {
                     if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
-                    var w = Math.Max(44, (int)g.MeasureString(e.Text, Font).Width + 10);
+                    // große Knöpfe eng wie auf dem Original-Bildschirmfoto: Beschriftung + 4 Pixel, 2 Pixel Abstand (Text zu Text 6–7 Pixel)
+                    var w = Math.Max(40, TextRenderer.MeasureText(e.Text, Font).Width + 4);
                     e.Bounds = new Rectangle(x, y, w, Inhalt - 22);
                     e.PfeilBounds = e.Menue != null || e.MenueErzeugen != null || e.PfeilKalender ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
                     x += w + 2;
@@ -325,24 +327,27 @@ public sealed class Ribbon : Control
         }
     }
 
-    private static Rectangle DatumLinks(RibbonEintrag it) => new(it.Bounds.Right - 34, it.Bounds.Y + 3, 16, 16);
-    private static Rectangle DatumRechts(RibbonEintrag it) => new(it.Bounds.Right - 17, it.Bounds.Y + 3, 16, 16);
+    private static readonly Color DatumBlau = Color.FromArgb(100, 150, 200);
+    private static Rectangle DatumLinks(RibbonEintrag it) => new(it.Bounds.Right - 30, it.Bounds.Y + 4, 14, 14);
+    private static Rectangle DatumRechts(RibbonEintrag it) => new(it.Bounds.Right - 15, it.Bounds.Y + 4, 14, 14);
 
     private void DatumZeichnen(Graphics g, RibbonEintrag it)
     {
-        var box = new Rectangle(it.Bounds.X + 2, it.Bounds.Y + 2, it.Bounds.Width - 4, 18);
-        g.FillRectangle(Brushes.White, box);
-        using (var p = new Pen(Ui.HoverRand)) g.DrawRectangle(p, box);
+        // wie auf dem Original-Bildschirmfoto: blaue Fläche (100,150,200) mit weißem Datum „T.M.JJJJ“, rechts zwei weiße Felder ‹ ›
+        var box = new Rectangle(it.Bounds.X, it.Bounds.Y + 3, it.Bounds.Width, 16);
+        using (var b = new SolidBrush(DatumBlau)) g.FillRectangle(b, box);
         var datum = AppZustand.Datum;
-        TextRenderer.DrawText(g, $"{Core.Planung.Planungsdienst.TageKurz[((int)datum.DayOfWeek + 6) % 7]} {datum:dd.MM.yyyy}", Font, new Rectangle(box.X + 3, box.Y, box.Width - 38, box.Height), Color.Black, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
-        var l = DatumLinks(it);
-        var r = DatumRechts(it);
-        var modus = g.SmoothingMode;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var p2 = new Pen(Ui.Blau, 2f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round, LineJoin = System.Drawing.Drawing2D.LineJoin.Round };
-        g.DrawLines(p2, new[] { new PointF(l.X + 10, l.Y + 4), new PointF(l.X + 6, l.Y + 8), new PointF(l.X + 10, l.Y + 12) });
-        g.DrawLines(p2, new[] { new PointF(r.X + 6, r.Y + 4), new PointF(r.X + 10, r.Y + 8), new PointF(r.X + 6, r.Y + 12) });
-        g.SmoothingMode = modus;
+        TextRenderer.DrawText(g, $"{datum.Day}.{datum.Month}.{datum.Year}", Ui.DialogSchrift, new Rectangle(box.X + 4, box.Y, box.Width - 36, box.Height), Color.White,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding);
+        foreach (var (r, links) in new[] { (DatumLinks(it), true), (DatumRechts(it), false) })
+        {
+            g.FillRectangle(Brushes.White, r);
+            // kleines schwarzes Dreieck ‹ bzw. › (3 Pixel hoch)
+            var mx = r.X + r.Width / 2;
+            var my = r.Y + r.Height / 2;
+            for (var i = 0; i < 3; i++)
+                g.FillRectangle(Brushes.Black, links ? mx - 1 + i : mx + 1 - i, my - i, 1, 2 * i + 1);
+        }
     }
 
     private void DatumWaehlen(RibbonEintrag it, Point p)
