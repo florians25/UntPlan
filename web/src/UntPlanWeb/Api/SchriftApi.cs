@@ -71,8 +71,8 @@ public static partial class SchriftApi
         return res;
     }
 
-    /// <summary>Schriftstapel mit metrisch ähnlichen Ersatzschriften (Avenir Next unter macOS/iOS, Nunito Sans, Segoe UI …).</summary>
-    public const string Stapel = "\"" + Familie + "\", \"Avenir Next\", \"Nunito Sans\", \"Segoe UI\", system-ui, -apple-system, Roboto, \"Helvetica Neue\", Arial, sans-serif";
+    /// <summary>Schriftstapel mit metrisch ähnlichen Ersatzschriften (Avenir Next unter macOS/iOS, Lato, Segoe UI …).</summary>
+    public const string Stapel = "\"" + Familie + "\", \"Avenir Next\", \"Lato\", \"Segoe UI\", system-ui, -apple-system, Roboto, \"Helvetica Neue\", Arial, sans-serif";
 
     /// <summary>
     /// Einheitliche Darstellung: keine künstlichen Fett-/Kursivschnitte. Bewusst KEIN -webkit-font-smoothing/-moz-osx-font-smoothing:

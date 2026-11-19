@@ -515,7 +515,7 @@ public class OberflaecheTests
             Assert.Contains("font-weight: 600", css);
             Assert.Contains("font-weight: 700; font-style: italic", css);
             Assert.DoesNotContain("fremd", css);
-            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Nunito Sans\"", css);
+            Assert.Contains("--u-schrift: \"AvenirNextPro\", \"Avenir Next\", \"Lato\"", css);
             // wie im Original: 100–400 → Regular, 500 → Medium (fehlt: Demi), 600–900 → Demi
             Assert.Equal(new[] { (100, 400), (200, 400), (300, 400), (400, 400), (500, 600), (600, 600), (700, 600), (800, 600), (900, 600) }, SchriftApi.Zuordnung(new[] { 400, 600 }));
             var mitMedium = SchriftApi.Zuordnung(new[] { 300, 400, 500, 600, 700 });

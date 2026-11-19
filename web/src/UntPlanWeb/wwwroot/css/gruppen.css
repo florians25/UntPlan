@@ -82,7 +82,7 @@
 /* Zugriff sperren: derselbe Schalter wie „Findet online statt“ (graue Spur aus, orange an, weißer Knopf) */
 .wt-schalter input { width: 36px; height: 20px; border-radius: 10px; background: #c9d0d6; transition: background-color .2s ease; }
 .wt-schalter input::after { top: 2px; left: 2px; width: 16px; height: 16px; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .2s ease; }
-.wt-schalter:hover input { background: #bcc4cb; }
+.wt-schalter:hover input { background: var(--u-graustufe-5); }
 .wt-schalter input:checked { background: var(--u-akzent); }
 .wt-schalter:hover input:checked { background: var(--u-akzent-dunkel); }
 .wt-schalter input:checked::after { left: 2px; transform: translateX(16px); }

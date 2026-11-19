@@ -1,4 +1,4 @@
-/* UntPlanWeb – Erscheinungsbild im Stil des Vorbilds (Original-Icons aus dem Paket des Kollegen unter img/wu, freie Schrift Nunito Sans, eigenes Logo).
+/* UntPlanWeb – Erscheinungsbild im Stil des Vorbilds (Original-Icons aus dem Paket des Kollegen unter img/wu, Hausschrift Avenir Next per Upload, freie Ersatzschrift Lato, eigenes Logo).
    Aufbau: Farben & Maße · Grundlagen · Bootstrap-Bausteine · Hülle (Navigation, Konto) · Seitenaufbau & Werkzeugleiste · Heute ·
    Listen, Tabellen & Filter · Anmeldung · Stundenplan · Legende · Tagesübersicht · Vertretungsplan · Stundendetails · Mitteilungen ·
    Klassenbuch · Verwaltung · Monitor · Druck · Schmale Bildschirme */
@@ -7,22 +7,38 @@
 
 :root {
   --bs-body-font-weight: 400;
+
+  /* Grundpalette des Gestaltungsleitfadens. Vorrang haben die an den Referenzbildern gemessenen Werte darunter
+     (z. B. Akzent #f56b2a, Titel #24323d, Grau #8a96a1); die Palette füllt nur Lücken und ersetzt Messwerte, die höchstens ±2 abweichen. */
+  --u-primaer: #ff6033;        /* Primärfarbe; gemessen #fe6033 im aktiven Menüpunkt */
+  --u-dunkelblau: #26396a;
+  --u-tuerkis: #98d7e4;
+  --u-graustufe-1: #293035;
+  --u-graustufe-2: #414d55;
+  --u-graustufe-3: #67747e;
+  --u-graustufe-4: #919da6;
+  --u-graustufe-5: #bfc8cf;
+  --u-graustufe-6: #dcdfe5;
+  /* Linien-Icons: 24 × 24 px, gleich starke Striche, grau */
+  --u-icon: 24px;
+  --u-icon-farbe: var(--u-graustufe-3);
+
   --u-verlauf: linear-gradient(165deg, #f6f7f9 0%, #eef0f3 45%, #e2e5e9 100%);
   --u-akzent: #f56b2a;
   --u-akzent-dunkel: #dd5718;
   --u-akzent-hell: #fff1ea;
   --u-akzent-rgb: 245, 107, 42;
   --u-titel: #24323d;
-  --u-text: #414d55;
-  --u-grau: #67747e;
+  --u-text: var(--u-graustufe-2);
+  --u-grau: var(--u-graustufe-3);
   --u-grau-2: #8a96a1;
-  --u-grau-3: #bfc8cf;
-  --u-linie: #dcdfe5;
+  --u-grau-3: var(--u-graustufe-5);
+  --u-linie: var(--u-graustufe-6);
   --u-linie-2: #e9ecef;
   --u-grund: #f3f5f7;
   --u-flaeche: #fff;
   --u-hover: #f3f5f7;
-  --u-dunkel: #67747e;
+  --u-dunkel: var(--u-graustufe-3);
   --u-dunkel-2: #545f68;
   --u-gruen: #1f9d55;
   --u-gruen-hell: #dcf5e8;
@@ -41,7 +57,7 @@
   --u-leiste-zu: 76px;
   --u-kopf: 56px;
   --u-zeile: 80px;
-  --u-schrift: "Avenir Next", "Nunito Sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --u-schrift: "AvenirNextPro", "Avenir Next", "Lato", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 
   /* Bootstrap auf die eigenen Farben stellen */
   --bs-primary: var(--u-akzent);
@@ -324,7 +340,7 @@ tr[role=button] { cursor: pointer; }
 .u-kontomenue { position: absolute; left: 12px; right: 12px; bottom: calc(100% - 46px); background: #fff; border-radius: 8px; box-shadow: var(--u-schatten-hoch); padding: 6px 0; z-index: 5; }
 .u-kontomenue a, .u-kontomenue button { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: none; padding: 8px 14px; color: var(--u-titel); font-weight: 600; font-size: .9rem; text-align: left; text-decoration: none !important; }
 .u-kontomenue a:hover, .u-kontomenue button:hover { background: var(--u-hover); }
-.u-kontomenue .u-sym { width: 22px; height: 22px; color: var(--u-grau-2); }
+.u-kontomenue .u-sym { width: var(--u-icon); height: var(--u-icon); color: var(--u-icon-farbe); }
 .u-kontokopf { font-size: .72rem; font-weight: 600; color: var(--u-grau-2); text-transform: uppercase; letter-spacing: .04em; padding: 8px 14px 2px; border-top: 1px solid var(--u-linie-2); margin-top: 4px; }
 .u-konto { display: flex; align-items: center; }
 .u-konto > button:first-child { flex: 1; min-width: 0; }
@@ -367,7 +383,7 @@ body.gescrollt .u-werkzeug { box-shadow: 0 6px 10px -10px rgba(0, 5, 10, .35); }
 @media (max-width: 991.98px) { .u-werkzeug { top: var(--u-kopf); } }
 .u-werkzeug { background: #fff; border-bottom: 1px solid #e5e8ec; min-height: 82px; display: flex; align-items: center; gap: 16px; padding: 0 32px 0 96px; flex-wrap: wrap; }
 .u-suche { display: flex; align-items: center; gap: 8px; background: #f3f5f7; border-radius: 999px; height: 42px; padding: 0 8px 0 14px; min-width: 300px; flex: 0 1 480px; }
-.u-suche > .u-sym { width: 20px; height: 20px; color: var(--u-grau); }
+.u-suche > .u-sym { width: var(--u-icon); height: var(--u-icon); color: var(--u-icon-farbe); }
 .u-suche > .bi { font-size: 18px; color: var(--u-grau); -webkit-text-stroke: .2px; }
 .u-suche input { border: 0; background: transparent; outline: 0; flex: 1; min-width: 60px; font-size: .95rem; color: var(--u-titel); }
 .u-suche input::placeholder { color: var(--u-grau-2); }
@@ -390,7 +406,7 @@ body.gescrollt .u-werkzeug { box-shadow: 0 6px 10px -10px rgba(0, 5, 10, .35); }
 .u-panel { background: var(--u-flaeche); border-radius: var(--u-radius); box-shadow: var(--u-schatten); }
 .u-panel > header { display: flex; align-items: center; gap: .6rem; padding: .85rem 1.1rem; border-bottom: 1px solid var(--u-linie-2); }
 .u-panel > header h2 { font-size: 1rem; margin: 0; font-weight: 600; }
-.u-panel > header .u-sym, .u-panel > header .bi { color: var(--u-grau-2); font-size: 1.15rem; width: 22px; height: 22px; }
+.u-panel > header .u-sym, .u-panel > header .bi { color: var(--u-icon-farbe); font-size: 1.15rem; width: var(--u-icon); height: var(--u-icon); }
 .u-panel > header .u-mehr { margin-left: auto; font-size: .8125rem; font-weight: 600; }
 .u-panel-rumpf { padding: 1rem 1.1rem; }
 
@@ -790,7 +806,7 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 .sd-kachel.da { background: #f2f4f6; }
 .sd-kachel.befreit { background: #fff; outline: 1px dashed var(--u-grau-3); outline-offset: -1px; }
 .sd-kachel.gewaehlt { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
-.sd-kachel .sd-avatar { grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid #dde2e7; color: #8d99a3; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 600; align-self: start; }
+.sd-kachel .sd-avatar { grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 1px solid var(--u-graustufe-6); color: #8d99a3; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 600; align-self: start; }
 .sd-kachel .sd-name { display: flex; flex-direction: column; font-size: .875rem; line-height: 1.2; color: var(--u-titel); min-width: 0; }
 .sd-kachel .sd-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sd-kachel .sd-statusbild.frueh { border-radius: 50%; background: #8e6bd1; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 9px; }
@@ -868,7 +884,7 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 /* Sitzplan: eigene Stildatei css/sitzplan.css (von js/ansichten/sitzplan.js geladen) */
 .br-gruppe { margin-bottom: 1.4rem; }
 .br-gruppe h3 { font-size: .98rem; font-weight: 600; margin: 0 0 .5rem; display: flex; align-items: center; gap: .5rem; }
-.br-gruppe h3 .u-sym { width: 22px; height: 22px; color: var(--u-grau-2); }
+.br-gruppe h3 .u-sym { width: var(--u-icon); height: var(--u-icon); color: var(--u-icon-farbe); }
 .br-zeile { display: flex; align-items: center; gap: 1rem; padding: .55rem 1rem; background: #fff; border-bottom: 1px solid var(--u-linie-2); }
 .br-zeile:first-of-type { border-radius: 2px 2px 0 0; }
 .br-zeile .name { flex: 1; font-weight: 600; color: var(--u-titel); }
@@ -881,7 +897,7 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 
 .monitor { background: #0f1c26; color: #e7edf1; min-height: 100vh; padding: 1.5rem 0; font-size: 1.15rem; }
 .monitor-kopf { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.25rem; }
-.monitor-kopf .logo { width: 48px; height: 48px; color: #c3ccd3; }
+.monitor-kopf .logo { width: 48px; height: 48px; color: var(--u-graustufe-5); }
 .monitor-kopf h1 { font-size: 1.8rem; margin: 0; font-weight: 600; color: #fff; }
 .monitor-kopf .uhr { margin-left: auto; font-size: 2.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .monitor .card { background: #16283a; --bs-card-bg: #16283a; --bs-card-border-color: #24394d; --bs-card-cap-bg: #1b3046; color: #e7edf1; box-shadow: none; }
@@ -1202,7 +1218,7 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
   .u-app.offen .u-schleier { z-index: 1061; }
 }
 
-/* UW-04: Schrift überall aus --u-schrift (AvenirNextPro, sonst Nunito Sans) – auch in Dialogen, Tabellen und Eingaben */
+/* UW-04: Schrift überall aus --u-schrift (AvenirNextPro, sonst Lato) – auch in Dialogen, Tabellen und Eingaben */
 button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-label { font-family: var(--u-schrift); }
 
 /* UW-17: Hover nur auf Labels und Symbolen unten rechts – grünes Label „B070 → C197“ über dem geänderten Wert */
@@ -1427,7 +1443,7 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 .pk-raster th { font-weight: 600; padding: 2px; text-align: center; border: 1px solid #c9ced4; background: #fff; }
 .pk-raster tbody th { width: 26px; text-align: right; padding-right: 4px; }
 .pk-raster td { border: 1px solid #c9ced4; padding: 1px 3px; height: 17px; background: #fff; white-space: nowrap; }
-.pk-raster td.leer { background: #6b737b; }
+.pk-raster td.leer { background: var(--u-graustufe-3); }
 .pk-raster td.we { background: #d4d8dc; color: #e03131; }
 .pk-raster td.ferien { background: #9aa1a8; color: #fff; }
 .pk-raster td.heute { outline: 2px solid var(--u-akzent); outline-offset: -2px; }
@@ -1583,11 +1599,11 @@ a.u-abmelden, a.u-abmelden:hover, a.u-abmelden:focus { text-decoration: none !im
 /* Schriftstärken und -größen wie in der Vorlage (Avenir: 400 = Regular, 500/600 = Medium – keine Demi-/Bold-Schnitte):
    Navigation kleiner und kräftiger, Kartenkopf Medium, Kartenzeilen Regular, Stundendetails-Kopf und Reiter Medium */
 .u-nav-punkt { font-size: .9rem; font-weight: 600; min-height: 50px; color: #67747e; }
-/* Vorlage bei 100 % nachgemessen: Text #67747e ab 77 px, Symbol 21 px breit ab 26 px, aktiver Punkt #fe6033 */
+/* Vorlage bei 100 % nachgemessen: Text #67747e ab 77 px, Symbol 21 px breit ab 26 px, aktiver Punkt #fe6033 (= Primärfarbe #ff6033) */
 .u-nav-punkt { padding-left: 19.5px; }
 .u-nav-sym .u-sym { width: 27.5px; height: 27.5px; }
-.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover, .u-nav-punkt.aktiv .u-nav-sym { color: #fe6033; }
-.u-nav-punkt.aktiv::before { background: #fe6033; }
+.u-nav-punkt.aktiv, .u-nav-punkt.aktiv:hover, .u-nav-punkt.aktiv .u-nav-sym { color: var(--u-primaer); }
+.u-nav-punkt.aktiv::before { background: var(--u-primaer); }
 .u-nav-unter .u-nav-punkt { font-size: .875rem; }
 .u-nav-kompakt .u-nav-punkt { font-weight: 600; }
 /* Zeilenabstand wie in der Plan-Vorlage: Kopf und Zeilen je 15px (Versalien 118/133/148 px bei Kartenoberkante 108) */
@@ -1907,7 +1923,7 @@ body:has(.u-app[data-ansicht="plan"]) .ic-panel { bottom: 140px; }
 .ic-meta .ic-datum + .ic-punkt { margin-left: 0; }
 .ic-meta .nw-werkzeuge { margin-left: 8px; }
 .ic-leer { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 0; color: var(--u-grau); font-size: .9rem; }
-.ic-leer .bi { font-size: 56px; color: #c3c9ce; line-height: 1; }
+.ic-leer .bi { font-size: 56px; color: var(--u-graustufe-5); line-height: 1; }
 .ic-hinweis { position: fixed; right: 84px; bottom: 22px; z-index: 1037; display: flex; align-items: center; gap: 4px; max-width: 320px; background: var(--u-titel); color: #fff;
   border-radius: 12px; padding: 8px 8px 8px 14px; box-shadow: 0 6px 18px rgba(0, 5, 10, .22); animation: ic-auf .2s ease-out; }
 body:has(.u-app[data-ansicht="plan"]) .ic-hinweis { bottom: 80px; }
@@ -2048,7 +2064,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 /* Menüpunkte der Seitenleiste wie in der Vorlage: grau (#67747e) und Medium statt dunkel und fett; aktiv orange */
 .u-leiste .u-nav .u-nav-punkt { color: #67747e; font-weight: 500; }
 .u-leiste .u-nav .u-nav-punkt .u-nav-sym { color: #67747e; }
-.u-leiste .u-nav .u-nav-punkt.aktiv, .u-leiste .u-nav .u-nav-punkt.aktiv .u-nav-sym { color: #fe6033; }
+.u-leiste .u-nav .u-nav-punkt.aktiv, .u-leiste .u-nav .u-nav-punkt.aktiv .u-nav-sym { color: var(--u-primaer); }
 .u-leiste .u-nav .u-nav-punkt:hover, .u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
 
 /* Startseite „Mein nächster Unterricht“ auf kleineren Monitoren: die Lehrstoff-Spalte nimmt nur den Restplatz und kürzt mit „…“

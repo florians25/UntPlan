@@ -106,6 +106,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Erscheinungsbild vereinheitlicht: benannte Farbpalette (Primärfarbe, Dunkelblau, Türkis, sechs Grautöne) – nachgemessene Werte aus der Vorlage bleiben, nahe Grautöne folgen der Palette; freie Ersatzschrift Lato (Light, Regular, Bold, Black, SIL OFL) statt Nunito Sans, solange keine Hausschrift hochgeladen ist; Seiten-Icons im Linienstil einheitlich 24 px in Palettengrau.
 - Stundenplan: Höhen im Raster richten sich nach den Zeiten des Zeitrasters aus UntPlan – Stunden und Blöcke im Verhältnis ihrer Dauer, Pausenzeilen mit Aufsicht im Maßstab ihrer Pausenlänge (z. B. 15 und 25 Minuten unterschiedlich hoch, statt fest 30 px), Frühaufsicht vor der 1. Stunde und Aufsichten nach der letzten Stunde mit der im Raster gepflegten Pausendauer; für das bisherige Raster (45-Minuten-Stunden, 20-Minuten-Pausen) bleibt die Darstellung pixelgleich.
 - Stundenplan: Zusatzstunden (z. B. Sondereinsatz) zeigen ihren Raum als hinzugefügt („+B003“, darunter das Änderungssymbol), ohne Fach im Klassenplan Lehrkraft – Bezeichnung – Raum; Info-Symbol mit „Information zur Stunde:“ und dem Text darunter, Hinweis grau mittig über dem Symbol; Labels kürzen mit „…“ im grünen Kasten („+B…“).
 - Kopfleiste des Wochenplans: feine Pfeile mit dünnem Kreis beim Überfahren dicht am Zeitraum, „Heute“ etwas flacher, Tageszeile größer, Beginn der ersten Stunde an der ersten Linie.
