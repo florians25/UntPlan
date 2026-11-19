@@ -668,7 +668,7 @@ public class PlanKorrekturenEndeZuEndeTests
         Assert.True(volle > 0 && start > volle, "Startseite nach der Regel für volle Breite");
         // links ausgerichtet (nicht zentriert): der freie Platz bleibt rechts
         Assert.DoesNotContain("data-ansicht=\"heute\"] #seitenkopf { max-width: var(--u-start-max); margin-left: auto", css);
-        Assert.Contains(":root { --u-start-max: 1100px; }", css);
+        Assert.Contains(":root { --u-start-max: 992px; }", css);
         // alle anderen Seiten bleiben volle Breite
         Assert.Contains(":root { --u-seite-max: none; --u-seite-mittel: none; --u-seite-schmal: none; }", css);
         Assert.DoesNotContain("data-ansicht=\"plan\"] #seite { max-width", css);
