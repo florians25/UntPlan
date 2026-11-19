@@ -53,6 +53,8 @@
 .u-hover-label { font-weight: 500; }
 /* Labels und Verlegung: eine Zeile („09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15“) */
 .u-hover-label:not(.dunkel):not(.pillen) { white-space: nowrap; max-width: none; }
+/* grünes Hover-Label „C007 → C103“ wie Vorlage: Schrift 14 px, Innenabstand 7/9 px, Ecken 2 px */
+.u-hover-label:not(.dunkel):not(.pillen):not(.rot):not(.klein):not(.zeile):not(.grau) { font-size: 14px; padding: 7px 9px; border-radius: 2px; }
 .u-hover-label.rot { background: #f44336; color: #fff; font-size: 15px; font-weight: 500; padding: 7px 12px; border-radius: 3px; }
 /* Verlegung (grün bzw. rot): etwas kleiner */
 .u-hover-label.klein { font-size: 13px; line-height: 1.2; padding: 5px 9px; border-radius: 3px; }
