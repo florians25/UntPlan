@@ -118,7 +118,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Diagnose – Vertretungs-Diagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis)));
         ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(new ToolStripButton("Entfall", Symbole.Get("loeschen", 16), (_, _) => Entfall())
+        // wie auf dem Original-Bildschirmfoto: „Entfall“ als rotes X an dritter Stelle der Leiste
+        ts.Items.Insert(2, new ToolStripButton("Entfall", Symbole.Get("entfall", 16), (_, _) => Entfall())
         {
             // wie in der Vorlage: Titel „Entfall“, darunter „Unterricht entfällt“
             ToolTipText = "Entfall\nUnterricht entfällt\n(Taste - beim Vertreter; erneut klicken macht wieder eine offene Vertretung daraus)", DisplayStyle = ToolStripItemDisplayStyle.Image,
@@ -189,6 +190,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _offen.Location = new Point(10, 22);
         _kollisionen.Location = new Point(10, 43);
         _offen.Padding = _kollisionen.Padding = Padding.Empty;
+        Ui.FlacheKaestchen(_offen, _kollisionen);
         ansicht.Controls.Add(_offen);
         ansicht.Controls.Add(_kollisionen);
         filter.Controls.Add(ansicht);
@@ -260,6 +262,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.Columns["Text"]!.DefaultCellStyle.WrapMode = DataGridViewTriState.False;
         // wie im Original-Bildschirmfoto: alle Zeilen gleich hoch (19 Pixel samt Linie) – keine automatische Zeilenhöhe
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+        // breitere bzw. schmalere Klassenspalte: Zeilenhöhen neu berechnen
+        _g.ColumnWidthChanged += (_, e) => { if (e.Column.Name is "Klassen" or "AKlassen") foreach (DataGridViewRow r in _g.Rows) ZeilenHoeheSetzen(r); };
         // „Standard wiederherstellen“ (Spaltenmenü) bzw. „Standardansicht“: auch die Felder der Ansicht auf den Standard zurücksetzen
         Steuerelemente.TabellenFormate.BeimStandard(_g, () =>
         {
@@ -1252,6 +1256,25 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             if ((zelle.Value?.ToString() ?? "") != (neu?.ToString() ?? "")) zelle.Value = neu;
             ZelleSperren(zeile, i, v);
         }
+        ZeilenHoeheSetzen(zeile);
+    }
+
+    /// <summary>
+    /// Zeilenhöhe wie auf dem Original-Bildschirmfoto: 19 Pixel je Textzeile – mehrere Klassen („10A, 10C“) brechen in der schmalen
+    /// Spalte um und machen die Zeile entsprechend höher (2 Klassen = 38 Pixel).
+    /// </summary>
+    private void ZeilenHoeheSetzen(DataGridViewRow zeile)
+    {
+        var zeilen = 1;
+        foreach (var name in new[] { "Klassen", "AKlassen" })
+        {
+            if (_g.Columns[name] is not { Visible: true } spalte || zeile.Cells[spalte.Index].Value?.ToString() is not { Length: > 0 } text) continue;
+            var schrift = _g.DefaultCellStyle.Font ?? _g.Font;
+            var hoehe = TextRenderer.MeasureText(text, schrift, new Size(Math.Max(10, spalte.Width - 4), int.MaxValue), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+            zeilen = Math.Max(zeilen, Math.Max(1, (int)Math.Round(hoehe / (double)schrift.Height)));
+        }
+        var soll = zeilen * _g.RowTemplate.Height;
+        if (zeile.Height != soll) zeile.Height = soll;
     }
 
     /// <summary>

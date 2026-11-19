@@ -32,6 +32,8 @@ jobs:
       - name: Gewählte Selbsttest-Schritte
         shell: pwsh
         run: |
+          # Bildschirm wie beim Original-Bildschirmfoto (Vollbild ca. 1920 × 1080, 100 %), falls der Runner das zulässt
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Output "Auflösung nicht änderbar: $_" }
           $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(16_Vertretungsmodus|V[0-9])' }
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
           # sobald der Selbsttest „ENDE“ meldet, nicht auf das Schließen des Programms warten (höchstens 15 Minuten)

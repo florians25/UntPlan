@@ -109,8 +109,9 @@ public static partial class Ui
     public static Color Blau => Vertretungsmodus ? Color.FromArgb(56, 112, 90) : Color.FromArgb(38, 110, 165);
     public static Color BlauHell => Vertretungsmodus ? Color.FromArgb(199, 222, 213) : Color.FromArgb(196, 224, 246);
     public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(229, 239, 233) : Color.FromArgb(223, 239, 248);
-    public static Color Titel => Vertretungsmodus ? Color.FromArgb(83, 137, 110) : Color.FromArgb(81, 155, 205);
-    public static Color MdiHintergrund => Dialoge.Einstellungsseiten.Hintergrund(Vertretungsmodus, Vertretungsmodus ? Color.FromArgb(179, 228, 204) : Color.FromArgb(221, 239, 254));
+    // Vertretungsmodus: Grün und MDI-Hintergrund wie auf dem Original-Bildschirmfoto (Vollbild, 100 %)
+    public static Color Titel => Vertretungsmodus ? Color.FromArgb(88, 150, 125) : Color.FromArgb(81, 155, 205);
+    public static Color MdiHintergrund => Dialoge.Einstellungsseiten.Hintergrund(Vertretungsmodus, Vertretungsmodus ? Color.FromArgb(175, 223, 204) : Color.FromArgb(221, 239, 254));
     public static Color Kopf => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 243, 251);
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(236, 241, 243);
     public static Color Hover => Vertretungsmodus ? Color.FromArgb(214, 236, 226) : Color.FromArgb(212, 233, 250);
@@ -192,6 +193,17 @@ public static partial class Ui
             TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
         e.Handled = true;
     };
+
+    /// <summary>Kontrollkästchen flach wie auf den Original-Bildschirmfotos: weißes Kästchen mit grauem 1-Pixel-Rand (171,171,171).</summary>
+    public static void FlacheKaestchen(params CheckBox[] kaestchen)
+    {
+        foreach (var k in kaestchen)
+        {
+            k.FlatStyle = FlatStyle.Flat;
+            k.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
+            k.FlatAppearance.CheckedBackColor = Color.White;
+        }
+    }
 
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {

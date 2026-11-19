@@ -179,8 +179,8 @@ public partial class HauptFenster
         }
     }
 
-    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % (vorher ca. 26 px) – kompakt: 16-px-Symbole mit knappem Rand.</summary>
-    internal const int KopfHoeheLogisch = 23;
+    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % wie auf dem Original-Bildschirmfoto: 36 Pixel.</summary>
+    internal const int KopfHoeheLogisch = 36;
 
     /// <summary>Feste, DPI-skalierte Höhe des Programmkopfs; Symbole, Titel und Fensterknöpfe stehen vertikal mittig.</summary>
     private void KopfHoeheSetzen()
