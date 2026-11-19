@@ -252,9 +252,8 @@ input.sd-eingabe { min-height: 56px; }
 /* ------------------------------------------------------------------ Info-Symbol und Information zur Stunde (Vorlage 265)
 
    Dunkler Hinweis über dem Info-Symbol: Grau #67747e, Ecken 4px, weiße Schrift 13px Demi, Zeilenabstand 1,6 („Information zur Stunde:“
-   und darunter der Text), mittig über dem Symbol. Beim Überfahren steht das „i“ ohne Kreis grau auf etwas dunklerem Grund. */
+   und darunter der Text), mittig über dem Symbol. Das „i“ selbst ändert sich beim Überfahren nicht. */
 .u-hover-label.dunkel { background: #67747e; border-radius: 4px; line-height: 1.6; padding: 6px 10px; }
-.std .ecke .ecke-info:hover { content: url("../img/wu/exact/info-hover.svg"); }
 
 /* Labels (z. B. hinzugefügter Raum „+B003“) kürzen wie der Text ihrer Zeile: „+B…“ im grünen Kasten */
 .std :is(.z1, .z2) .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; box-sizing: border-box; }
