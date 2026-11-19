@@ -94,7 +94,7 @@ public static class Symbole
         ["rueckgaengig"] = "undo",
         ["wiederholen"] = "redo",
         ["aktualisieren"] = "arrow_refresh_small",
-        ["sortieren"] = "sort",
+        ["sortieren"] = "sort_asc_az",
         ["filter"] = "filter",
         ["suchen"] = "find",
         ["import"] = "table_import",
