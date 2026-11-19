@@ -266,14 +266,14 @@ input.sd-eingabe { min-height: 56px; }
    Überfahren ein dünner grauer Kreis (32px, kein weißer Grund). „Heute“ 31px hoch, 14px Demi. Tageszeile 17px Demi (wie überall nur bis 600 – kein Bold-Schnitt), heute #414d55.
    Links an der ersten Linie der Beginn der ersten Stunde (wenn die Uhrzeiten auf den Karten stehen). */
 .planleiste .mitte { gap: 0; }
-.planleiste .zeitraum.kal-pille { font-size: 14px; font-weight: 600; color: #414d55; letter-spacing: 0; font-variant-numeric: lining-nums proportional-nums; }
+.planleiste .zeitraum.kal-pille { font-size: 14px; font-weight: 500; color: #414d55; letter-spacing: 0; font-variant-numeric: lining-nums proportional-nums; }
 .planleiste .rundknopf.woche-pfeil { width: 32px; height: 32px; color: #8a96a1; background: transparent; border: 1px solid transparent; }
 .planleiste .rundknopf.woche-pfeil:hover, .planleiste .rundknopf.woche-pfeil:focus-visible { background: transparent; color: #8a96a1; border-color: #8a96a1; }
 .planleiste .woche-pfeil-sym { width: 7px; height: 14px; display: block; }
-.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; font-family: "AvenirNextProFett", "AvenirNextPro", "Avenir Next", 'Lato Fett', 'Lato', sans-serif; }
+.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; } /* Demi wie Original (nachgemessen an Bild 279: gleiche Breite, gleiche Strichmenge) */
 /* Legende unten (Entfall, Prüfung, Änderung): in der Vorlage fett wie „Heute“ */
-.u-legende-pille { font-family: "AvenirNextProFett", "AvenirNextPro", "Avenir Next", 'Lato Fett', 'Lato', sans-serif; }
-.tt-tag { font-size: 17px; font-weight: 600; font-family: "AvenirNextPro", "Avenir Next", 'Lato Fett', 'Lato', sans-serif; font-variant-numeric: lining-nums proportional-nums; }
+/* Legende: Demi wie Original (Bild 279), kein Bold-Schnitt */
+.tt-tag { font-size: 16px; font-weight: 500; font-variant-numeric: lining-nums proportional-nums; } /* Tageszeile wie Original (Bild 279): 16 px Medium, heute Demi */
 .tt-tag.heute { font-weight: 600; color: #414d55; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
