@@ -80,7 +80,8 @@ public sealed class Ribbon : Control
         GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.None, AutoSize = true, Padding = new Padding(0),
         ImageScalingSize = new Size(16, 16), CanOverflow = false, Renderer = new LeistenRenderer(),
     };
-    private const int Inhalt = 94;
+    // Fläche unter der Registerleiste wie auf dem Original-Bildschirmfoto: 91 Pixel samt Trennlinie oben
+    private const int Inhalt = 92;
     private readonly ToolTip _tip = new() { InitialDelay = 600 };
     private RibbonEintrag? _hover;
     private RibbonSeite? _hoverTab;

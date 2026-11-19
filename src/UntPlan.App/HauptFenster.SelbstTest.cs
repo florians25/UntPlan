@@ -852,6 +852,23 @@ public sealed partial class HauptFenster
             f.Bounds = new Rectangle(100, 0, 272, 567);
             Vergleich("V5_Kleiner_Stundenplan", f, new Size(272, 567));
         }, -1);
+        Schritt("V6_Gesamt", () =>
+        {
+            // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts
+            AppZustand.VertretungWaehlen(OffeneVertretung());
+            var mdi = Controls.OfType<MdiClient>().First().ClientSize;
+            var rechts = Math.Max(300, mdi.Width - 450);
+            Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
+            Lage(FensterOeffnen("abw")!, new Rectangle(33, 21, rechts - 33, Math.Min(225, mdi.Height / 3)));
+            var vorschlag = Lage(FensterOeffnen("vorschlag")!, new Rectangle(rechts, 20, 450, Math.Min(770, mdi.Height - 20)));
+            var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(0, Math.Min(250, mdi.Height / 3 + 25), rechts, Math.Max(200, mdi.Height - Math.Min(250, mdi.Height / 3 + 25) - 25)));
+            vertr.Activate();
+            vorschlag.Activate();
+            Warten(600);
+            var b = Screen.PrimaryScreen?.Bounds ?? Bounds;
+            log.Add($"MASS  V6_Gesamt: Bildschirm {b.Width}×{b.Height}, MDI {mdi.Width}×{mdi.Height}, Kopf {_schnell.Height}, Menüband {_ribbon.Height}, Statusleiste {_status.Height}");
+            Foto(Path.Combine(ordner, "V6_Gesamt_F.png"));
+        }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
         Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);

@@ -8,7 +8,8 @@ namespace UntPlan.App.Steuerelemente;
 /// </summary>
 public sealed class FensterTitel : Control
 {
-    public const int Hoehe = 26;
+    // wie auf dem Original-Bildschirmfoto: Titelleiste der Arbeitsfenster 30 Pixel samt Rand
+    public const int Hoehe = 28;
     private const int KnopfBreite = 34;
     private readonly Form _form;
     private int _hover = -1;

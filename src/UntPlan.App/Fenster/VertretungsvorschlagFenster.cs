@@ -34,6 +34,23 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static readonly Color Klassenlehrergruen = Color.FromArgb(150, 240, 150);
     /// <summary>Spalte „Stundenplan“ (früher drei Spalten S1–S3; zeigt jetzt so viele Stunden, wie Platz ist).</summary>
     private static readonly string[] Stundenplanspalten = { "S1" };
+    private ToolStrip? _leiste;
+    private ToolStripItem[] _sichtbareKnoepfe = Array.Empty<ToolStripItem>();
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        if (_leiste is null) return;
+        foreach (ToolStripItem it in _leiste.Items)
+        {
+            if (_sichtbareKnoepfe.Contains(it)) continue;
+            it.Overflow = ToolStripItemOverflow.Always;
+            if (it.Alignment == ToolStripItemAlignment.Right) it.Alignment = ToolStripItemAlignment.Left;
+        }
+        // Einstellungen direkt hinter „Vertreter übernehmen“
+        _leiste.Items.Remove(_sichtbareKnoepfe[1]);
+        _leiste.Items.Insert(1, _sichtbareKnoepfe[1]);
+    }
     /// <summary>Breite einer Stunde in der Spalte „Stundenplan“ (per Ziehen an einer Stundengrenze änderbar).</summary>
     private static int _zellBreite = 53;
 
@@ -93,8 +110,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(_weiter);
         ts.Items.Add(_alle);
-        ts.Items.Add(Knopf("Einstellungen", "einstellungen", () => { if (VorschlagEinstellungenDialog.Zeigen(this)) { SchriftAnwenden(); Neuaufbau(); } }));
+        var einstellungen = Knopf("Einstellungen", "einstellungen", () => { if (VorschlagEinstellungenDialog.Zeigen(this)) { SchriftAnwenden(); Neuaufbau(); } });
+        ts.Items.Add(einstellungen);
+        // wie auf dem Original-Bildschirmfoto: sichtbar nur „Vertreter übernehmen“ und „Einstellungen“, alles Weitere (auch „Spalten“)
+        // über den Überlaufpfeil rechts in der Leiste
+        _leiste = ts;
+        _sichtbareKnoepfe = new ToolStripItem[] { ts.Items[0], einstellungen };
         _alle.CheckedChanged += (_, _) => Neuaufbau();
+        Ui.FlacheKaestchen(_block, _disloz, _dauer, _nahe, _besetzt, _zusatzRaum, _vorzSpaeter);
         foreach (var c in new[] { _block, _disloz, _dauer, _nahe, _besetzt })
             c.CheckedChanged += (_, _) => Neuaufbau();
 
@@ -177,6 +200,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         // Spaltenbreiten wie im Original-Bildschirmfoto (Reiter „Räume“, 100 %): Rm. 75 | Kap. 33 | Ausw-Rm. 75 | Ausw-Sr. 75 | Besetzt 33 („Bese“) |
         // Raumgruppe 75 – zu lange Überschriften werden abgeschnitten
         Ui.BreitenWieOriginal(_raeume.Raster);
+        // wie auf dem Original-Bildschirmfoto: nur die aktuelle Zelle hell orange (keine ganze Zeile markiert)
+        _raeume.Raster.SelectionMode = DataGridViewSelectionMode.CellSelect;
+        _raeume.Raster.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+        _raeume.Raster.DefaultCellStyle.SelectionForeColor = Color.Black;
         foreach (var (n, b) in new[] { ("Rm", 75), ("Kap", 33), ("AR", 75), ("SR", 75), ("B", 33), ("RG", 75) })
             if (_raeume.Raster.Columns[n] is { } rc) rc.Width = b;
         _raeume.Gewaehlt += _ => Raum();
@@ -1505,12 +1532,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             using (var p = new Pen(Color.FromArgb(160, 160, 160))) e.Graphics.DrawRectangle(p, r);
             // Pfeil: oben ▲ = aufgeklappt, unten ▲ = zugeklappt (klappt nach oben auf)
             var hoch = _unten ? !_offen : _offen;
-            // kleiner grauer Pfeil wie im Bild (4 × 2 Pixel bei x = 13 … 16)
-            var m = new Point(r.X + 10, r.Y + 10);
-            var pfeil = hoch
-                ? new[] { new Point(m.X - 2, m.Y + 1), new Point(m.X + 2, m.Y + 1), new Point(m.X, m.Y - 1) }
-                : new[] { new Point(m.X - 2, m.Y - 1), new Point(m.X + 2, m.Y - 1), new Point(m.X, m.Y + 1) };
-            using (var pb = new SolidBrush(Color.FromArgb(130, 130, 130))) e.Graphics.FillPolygon(pb, pfeil);
+            // schwarzes Dreieck ▼ bzw. ▲ wie auf dem Original-Bildschirmfoto (8 × 4 Pixel ab x = 6)
+            var x0 = r.X + 6;
+            var y0 = r.Y + (r.Height - 4) / 2;
+            for (var i = 0; i < 4; i++)
+            {
+                var zeile = hoch ? 3 - i : i;
+                e.Graphics.FillRectangle(Brushes.Black, x0 + i, y0 + zeile, 8 - 2 * i, 1);
+            }
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(r.X + 18, r.Y, r.Width - 20, 20), Color.Black,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
