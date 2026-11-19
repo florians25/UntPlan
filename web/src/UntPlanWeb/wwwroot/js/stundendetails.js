@@ -238,7 +238,7 @@ export function karteDialog(karte, kontext = {}) {
       : [['details', 'Details'], ...(mitSchuelerliste() ? [['schueler', 'Schüler*innen']] : [])];
     // Original: roter Balken „ENTFÄLLT“ ganz oben über dem Titel, darunter Kopf und Reiter grau
     return `${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}<div class="sd-kopf ${leiste ? 'grau' : ''}">
-        <div class="sd-titel"><h2>${titel.join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${k.unbestaetigt && !istEntfall() ? '<span class="sd-statuspille">Zusätzlicher Unterricht</span>' : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
+        <div class="sd-titel"><h2>${titel.map(t => `<span class="sd-tteil">${t}</span>`).join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${k.unbestaetigt && !istEntfall() ? '<span class="sd-statuspille">Zusätzlicher Unterricht</span>' : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe">${istBlock() && !reiter?.match(/^(pruefung|raum)$/) ? blockWahl()
           : '<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>'}
