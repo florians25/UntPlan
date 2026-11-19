@@ -866,6 +866,9 @@ public sealed partial class HauptFenster
             var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(0, Math.Min(250, mdi.Height / 3 + 25), rechts, Math.Max(200, mdi.Height - Math.Min(250, mdi.Height / 3 + 25) - 25)));
             vertr.Activate();
             vorschlag.Activate();
+            // erst nach dem Aktivieren wählen: die Vertretungsliste wählt beim Aktivieren ihre aktuelle Zeile
+            if (AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == AppZustand.Datum && v.Offen && v.Art == VertretungsArt.Vertretung) is { } offen)
+                AppZustand.VertretungWaehlen(offen);
             Warten(600);
             var b = Screen.PrimaryScreen?.Bounds ?? Bounds;
             log.Add($"MASS  V6_Gesamt: Bildschirm {b.Width}×{b.Height}, MDI {mdi.Width}×{mdi.Height}, Kopf {_schnell.Height}, Menüband {_ribbon.Height}, Statusleiste {_status.Height}");
