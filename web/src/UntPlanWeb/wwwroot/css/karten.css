@@ -269,8 +269,8 @@ input.sd-eingabe { min-height: 56px; }
 .planleiste .rundknopf.woche-pfeil { width: 32px; height: 32px; color: #8a96a1; background: transparent; border: 1px solid transparent; }
 .planleiste .rundknopf.woche-pfeil:hover, .planleiste .rundknopf.woche-pfeil:focus-visible { background: transparent; color: #8a96a1; border-color: #8a96a1; }
 .planleiste .woche-pfeil-sym { width: 7px; height: 14px; display: block; }
-.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; }
-.tt-tag { font-size: 17px; font-weight: 600; font-variant-numeric: lining-nums proportional-nums; }
+.planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; font-family: 'Nunito Sans Fett', 'Nunito Sans', sans-serif; }
+.tt-tag { font-size: 17px; font-weight: 600; font-family: 'Nunito Sans Fett', 'Nunito Sans', sans-serif; font-variant-numeric: lining-nums proportional-nums; }
 .tt-tag.heute { font-weight: 600; color: #414d55; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
@@ -287,7 +287,7 @@ body.plan-gescrollt .tt-zeit.erste { visibility: hidden; }
      Ältere Browser ohne text-box: Text um ~0,04em nach unten.
    - Durchstreichung als Linie auf halber Versalhöhe (Unterstreichung mit negativem Abstand zur Grundlinie, ohne Aussparungen). */
 html:root.is-mac .std .lbl, html:root.is-mac .aufsicht .lbl, html:root.is-mac .std .abw-label, html:root.is-mac .sd-lbl-weg, html:root.is-mac .std-lbl { --lbl-h: 15px; }
-html:root.is-mac .std .z1 .lbl { --lbl-h: 18px; }
+html:root.is-mac .std .z1 .lbl { --lbl-h: 16px; }
 html:root.is-mac .aufsicht .lbl, html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
 html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
   padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em);
