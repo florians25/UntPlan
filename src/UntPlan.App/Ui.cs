@@ -19,12 +19,19 @@ public static partial class Ui
     /// </summary>
     public static int ZeilenHoehe(Font? schrift = null) => Math.Max(19, (schrift ?? Schrift).Height + 3);
 
-    /// <summary>Tabellenschrift der Originale (Absenzen, Vertretungen): Tahoma 8,25 – Windows-Systemschrift, fehlt sie, ersetzt Windows sie.</summary>
-    public static readonly Font TabellenSchrift = new("Tahoma", 8.25f);
-    public static readonly Font TabellenSchriftFett = new("Tahoma", 8.25f, FontStyle.Bold);
+    // Schriften nach den Original-Bildschirmfotos (100 %), ermittelt über die Textbreiten unter Windows (Selbsttest „V0_Schriften“):
+    // Tabellen Arial 9 (Vertretungen, Vorschlag, Stundenplanlupe), Absenzentabelle Segoe UI 8,25, Häkchen/Beschriftungen/Reiter
+    // Microsoft Sans Serif 8,25 – alles Windows-Systemschriften (fehlt eine, ersetzt Windows sie)
 
-    /// <summary>Tabellenschrift des Vertretungsvorschlags im Original: Tahoma 9 bei 21 Pixel hohen Zeilen und Überschriften.</summary>
-    public static readonly Font VorschlagSchrift = new("Tahoma", 9f);
+    /// <summary>Tabellenschrift der Originale (Vertretungen, Vertretungsvorschlag, Stundenplanlupe): Arial 9.</summary>
+    public static readonly Font TabellenSchrift = new("Arial", 9f);
+
+    /// <summary>Tabellenschrift der Absenzen im Original: Segoe UI 8,25.</summary>
+    public static readonly Font AbsenzSchrift = new("Segoe UI", 8.25f);
+
+    /// <summary>Schrift der Häkchen, Beschriftungen und Reiter in den Originalfenstern: Microsoft Sans Serif 8,25 (Windows-Standard).</summary>
+    public static readonly Font DialogSchrift = new("Microsoft Sans Serif", 8.25f);
+    public static readonly Font DialogSchriftFett = new("Microsoft Sans Serif", 8.25f, FontStyle.Bold);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
     /// <summary>
@@ -178,6 +185,11 @@ public static partial class Ui
         g.ColumnHeadersDefaultCellStyle.Font = Schrift;
         g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Kopf;
         g.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+        // wie auf den Original-Bildschirmfotos: Überschriften ohne Linie oben (direkt unter dem Rahmen), Trennlinien rechts und unten
+        g.AdvancedColumnHeadersBorderStyle.Top = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedColumnHeadersBorderStyle.Left = DataGridViewAdvancedCellBorderStyle.None;
+        g.AdvancedColumnHeadersBorderStyle.Right = DataGridViewAdvancedCellBorderStyle.Single;
+        g.AdvancedColumnHeadersBorderStyle.Bottom = DataGridViewAdvancedCellBorderStyle.Single;
         g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         // Höhen nach der tatsächlichen Schrift (größere Windows-Schrift/Skalierung: nichts abgeschnitten), mindestens wie bisher
         var zeilenSchrift = g.DefaultCellStyle.Font ?? g.Font;

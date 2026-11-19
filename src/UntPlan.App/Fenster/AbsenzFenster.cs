@@ -15,7 +15,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
 {
     private static readonly string[] Reiter = { "Lehrer", "Klassen", "Räume" };
     /// <summary>Schrift der Absenzliste wie in den Handbuch-Bildern (Segoe UI 8,25 statt 9).</summary>
-    private static Font TabellenSchrift => Ui.TabellenSchrift;
+    private static Font TabellenSchrift => Ui.AbsenzSchrift;
     private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -120,7 +120,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern
         _g.RowHeadersVisible = false;
         _g.BorderStyle = BorderStyle.Fixed3D;
-        // wie im Original-Bildschirmfoto (Absenzen / Standard, 100 %): Tabellenschrift Tahoma 8,25, Zeilen und Überschrift 19 Pixel hoch (samt Linie)
+        // wie im Original-Bildschirmfoto (Absenzen / Standard, 100 %): Tabellenschrift Segoe UI 8,25, Zeilen und Überschrift 19 Pixel hoch (samt Linie)
         _g.Font = TabellenSchrift;
         _g.DefaultCellStyle.Font = TabellenSchrift;
         _g.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
@@ -221,7 +221,10 @@ public sealed class AbwesenheitenFenster : MdiFenster
         };
         // Kopf wie im Vorbild: Rahmen „Von-Bis“ (Von, Schloss, Bis – darunter Wochentag und Pfeile), rechts daneben der
         // Kalenderknopf und darunter die Anzahl der Tage („329 Tage“)
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 6, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
+        // Beschriftungen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (Reiterleiste 24 Pixel hoch)
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 6, 0, 2), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
+        _tabs.Font = Ui.DialogSchrift;
+        _tabs.Height = 24;
         var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
         _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);

@@ -246,8 +246,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         FormClosed += (_, _) => _planTimer.Dispose();
 
         _reiter.Gewechselt += ReiterGewechselt;
-        // Reiter wie im Original-Bildschirmfoto: Tahoma 8,25, Leiste 22 Pixel hoch
-        _reiter.Font = Ui.TabellenSchrift;
+        // Reiter wie im Original-Bildschirmfoto: Microsoft Sans Serif 8,25, Leiste 22 Pixel hoch
+        _reiter.Font = Ui.DialogSchrift;
         _reiter.Height = 22;
         _inhalt.Controls.Add(_vorschlag);
         _inhalt.Controls.Add(_betreuung);
@@ -257,8 +257,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         StundenplanZiehenEinrichten(_betreuung);
         LayoutUmstellen();
 
-        // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Tahoma 8,25 (die Tabellen haben ihre eigene Schrift)
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell, Font = Ui.TabellenSchrift };
+        // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (die Tabellen haben ihre eigene Schrift)
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
@@ -308,7 +308,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     /// <summary>Schrift aus den Einstellungen („Schrift“) auf die Tabellen anwenden.</summary>
     private void SchriftAnwenden()
     {
-        var schrift = VorschlagEinstellungenDialog.Schrift(D.Vertretungseinstellungen.Vorschlag.Schrift) ?? Ui.VorschlagSchrift;
+        var schrift = VorschlagEinstellungenDialog.Schrift(D.Vertretungseinstellungen.Vorschlag.Schrift) ?? Ui.TabellenSchrift;
         foreach (var g in new[] { _vorschlag, _betreuung, _vorziehung, _vorziehung2, _pause, _raeume.Raster })
         {
             g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = schrift;
@@ -318,7 +318,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         }
     }
 
-    /// <summary>Zeilen- und Überschriftenhöhe wie im Original-Bildschirmfoto (Tahoma 9, 100 %): 21 Pixel samt Rasterlinie, bei größerer Schrift höher.</summary>
+    /// <summary>Zeilen- und Überschriftenhöhe wie im Original-Bildschirmfoto (Arial 9, 100 %): 21 Pixel samt Rasterlinie, bei größerer Schrift höher.</summary>
     private static int ZeilenHoehe(Font schrift) => Math.Max(21, schrift.Height + 6);
 
     /// <summary>
@@ -380,10 +380,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.RowHeadersVisible = false;
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.MultiSelect = false;
-        // wie im Original-Bildschirmfoto: Tahoma 9, Überschrift und Zeilen 21 Pixel hoch, Spaltenbreiten fest (Überschriften abgeschnitten)
-        g.Font = g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = Ui.VorschlagSchrift;
-        g.ColumnHeadersHeight = ZeilenHoehe(Ui.VorschlagSchrift);
-        g.RowTemplate.Height = ZeilenHoehe(Ui.VorschlagSchrift);
+        // wie im Original-Bildschirmfoto: Arial 9, Überschrift und Zeilen 21 Pixel hoch, Spaltenbreiten fest (Überschriften abgeschnitten)
+        g.Font = g.DefaultCellStyle.Font = g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
+        g.ColumnHeadersHeight = ZeilenHoehe(Ui.TabellenSchrift);
+        g.RowTemplate.Height = ZeilenHoehe(Ui.TabellenSchrift);
         Ui.BreitenWieOriginal(g);
         // Überschrift der Spalte mit der aktuellen Zelle hell orange: beim Zellwechsel die Kopfzeile neu zeichnen
         g.CurrentCellChanged += (_, _) => g.Invalidate(new Rectangle(0, 0, g.Width, g.ColumnHeadersHeight));
@@ -1465,8 +1465,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             Dock = unten ? DockStyle.Bottom : DockStyle.Top;
             // wie im Bild 20 Pixel hoch; übereinanderliegende Leisten teilen sich die Trennlinie
             Height = 20;
-            // wie im Original-Bildschirmfoto: Tahoma 8,25 fett
-            Font = Ui.TabellenSchriftFett;
+            // wie im Original-Bildschirmfoto: Microsoft Sans Serif 8,25 fett
+            Font = Ui.DialogSchriftFett;
             Cursor = Cursors.Hand;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }

@@ -229,6 +229,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         Ui.RasterGestalten(_lupe, false);
         _lupe.ColumnHeaderMouseClick += (_, e) => { if (e.Button == MouseButtons.Right) LupeKopfMenue(_lupe.PointToClient(Cursor.Position)); };
         _lupe.RowHeadersVisible = false;
+        Ui.BreitenWieOriginal(_lupe);
         LupeSpalten(false);
 
         _pool.DragEnter += (_, e) => e.Effect = (e.Data?.GetData(DataFormats.Text) as string) is string x && (x.StartsWith("plan:") || (_plan.Tagesmodus && x.StartsWith("tag:"))) ? DragDropEffects.Move : DragDropEffects.None;
@@ -1385,7 +1386,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _lupe.Rows.Clear();
         _lupe.Columns.Clear();
         // Vorbild: dieselbe Unterrichtsliste im Stunden- und im Vertretungsmodus (U-Nr, „Lehr., Fa., Rm.“, Kla., Zeit, Schulwoche …)
-        var spalten = new[] { ("U", "U-Nr", 48), ("LFR", "Lehr., Fa., Rm.", 130), ("K", "Kla.", 50), ("Z", "Zeit", 40), ("W", "Schulwoche", 76), ("S", "Studt", 44), ("T", "Sondertext", 80), ("B", "Band", 40), ("Z2", "ZeilenText-2", 84), ("G", "Schülergruppe", 90) };
+        // Breiten wie im Original-Bildschirmfoto (kleiner Plan, 100 %): U-Nr 38 | Lehr., Fa., Rm. 94 | Kla. 33 | Zeit 32 | Schulwoche …
+        var spalten = new[] { ("U", "U-Nr", 38), ("LFR", "Lehr., Fa., Rm.", 94), ("K", "Kla.", 33), ("Z", "Zeit", 32), ("W", "Schulwoche", 76), ("S", "Studt", 44), ("T", "Sondertext", 80), ("B", "Band", 40), ("Z2", "ZeilenText-2", 84), ("G", "Schülergruppe", 90) };
         foreach (var (n, t, w) in spalten)
             _lupe.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = t, Width = w, SortMode = DataGridViewColumnSortMode.NotSortable });
         _lupe.Columns[0].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
@@ -1399,8 +1401,14 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private void LupeSpaltenSichtbarkeit()
     {
         foreach (DataGridViewColumn c in _lupe.Columns) c.Visible = c.Index == 0 || !_plan.Format.LupeAusgeblendet.Contains(c.Name);
-        var groesse = Ui.Schrift.Size * Math.Clamp(_plan.Format.LupeSchriftProzent, 50, 300) / 100f;
-        if (Math.Abs((_lupe.DefaultCellStyle.Font?.Size ?? 0f) - groesse) > 0.1f) _lupe.DefaultCellStyle.Font = new Font(Ui.Schrift.FontFamily, groesse);
+        // Schrift wie im Original-Bildschirmfoto: Arial 9 (100 %), Überschrift und Zeilen 21 Pixel hoch
+        var groesse = Ui.TabellenSchrift.Size * Math.Clamp(_plan.Format.LupeSchriftProzent, 50, 300) / 100f;
+        if (Math.Abs((_lupe.DefaultCellStyle.Font?.Size ?? 0f) - groesse) > 0.1f || _lupe.DefaultCellStyle.Font?.Name != Ui.TabellenSchrift.Name)
+        {
+            _lupe.DefaultCellStyle.Font = new Font(Ui.TabellenSchrift.FontFamily, groesse);
+            _lupe.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
+            _lupe.RowTemplate.Height = _lupe.ColumnHeadersHeight = Math.Max(21, _lupe.DefaultCellStyle.Font.Height + 6);
+        }
     }
 
     /// <summary>Vorbild: Kontextmenü der Überschriftszeile der Lupe – Spalten ein- bzw. ausblenden (wird im Format gespeichert).</summary>

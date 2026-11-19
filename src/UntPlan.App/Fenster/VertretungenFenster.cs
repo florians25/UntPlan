@@ -170,7 +170,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
         // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
         // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false };
+        // Beschriftungen und Häkchen wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
         var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 2, 6, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
         _element.Margin = new Padding(2, 0, 0, 0);
         Ui.KlassischeDarstellung(_element);
@@ -219,7 +220,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         links.Dock = DockStyle.Left;
 
         Ui.RasterGestalten(_g, true);
-        // wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): Tahoma 8,25, Überschrift und Zeilen 19 Pixel hoch (samt Linie)
+        // wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): Arial 9, Überschrift und Zeilen 19 Pixel hoch (samt Linie)
         _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
         _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.TabellenSchrift);
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen
