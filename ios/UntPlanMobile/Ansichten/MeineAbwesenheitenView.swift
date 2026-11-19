@@ -1,44 +1,57 @@
 import SwiftUI
 
-/// „Meine Abwesenheiten“ für Schüler*innen und Erziehungsberechtigte im Grunddesign von „Meine Termine“: Kopf mit Zurück,
-/// Titel und Zeitraum, rechts der Filter (Zeitraum, Status, bei mehreren Kindern das Kind). Die Abwesenheiten nach Datum
-/// gruppiert („Do., 15.10.2026“), je Abwesenheit eine dunkle Karte mit dem Status-Symbol links (entschuldigt grün, offen
-/// orange, nicht entschuldigt rot) und den Zeilen Art, Uhrzeit, Grund, Bemerkung (nur wenn vorhanden) und Status.
+/// „Meine Abwesenheiten“ für Schüler*innen und Erziehungsberechtigte genau wie die Vorlage 82e54208 (Dunkelmodus, 3 px/pt):
+/// Kopf mit rundem Zurück-Knopf, Mitte „Meine Abwesenheiten“ (15 pt semibold, grau) und darunter der Zeitraum (12 pt), rechts
+/// ein runder Knopf mit Trichter (Filter). Darunter je Abwesenheit eine dunkelgraue Karte (16 pt Rand, 16 pt Abstand, neueste
+/// zuerst, keine Datumsköpfe): Datum („15. Okt. - 16. Okt.“), Uhrzeit, Grund, Status.
 struct MeineAbwesenheitenView: View {
     @EnvironmentObject var zustand: AppZustand
     @State private var daten: FamilieAbwesenheiten? = nil
     @State private var gruende: [String: String] = [:]
     @State private var kinder: [Kind] = []
-    @State private var filter = Abwesenheitsfilter()
+    @State private var kind: Int? = nil
     @State private var zeigeFilter = false
     @State private var fehler: String? = nil
     @State private var laedt = false
-    @Environment(\.horizontalSizeClass) private var groessenklasse
+    // Filter (bleiben gespeichert): Startzeitraum und „Nicht entschuldigte“
+    @AppStorage("meineAbwesenheiten.startzeitraum") private var startzeitraum = Startzeitraum.schuljahr.rawValue
+    @AppStorage("meineAbwesenheiten.nichtEntschuldigte") private var nichtEntschuldigte = false
+    @AppStorage("meineAbwesenheiten.eigenVon") private var eigenVon = ""
+    @AppStorage("meineAbwesenheiten.eigenBis") private var eigenBis = ""
 
-    private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
+    /// Zeitraum laut Startzeitraum (Schuljahr aus der Sitzung, sonst die Vorgabe des Servers).
+    private var zeitraum: (von: String, bis: String)? {
+        Startzeitraum.zeitraum(startzeitraum, schuljahr: zustand.sitzung?.schuljahr, eigenVon: eigenVon, eigenBis: eigenBis)
+    }
+
+    /// Neueste zuerst; mit „Nicht entschuldigte“ nur offene und nicht entschuldigte.
+    private var zeilen: [Abwesenheitszeitraum] {
+        (daten?.zeilen ?? []).filter { !nichtEntschuldigte || $0.status != "entschuldigt" }
+            .sorted { ($0.vonDatum, $0.vonZeit) > ($1.vonDatum, $1.vonZeit) }
+    }
+
+    private var untertitel: String {
+        let z = zeitraum ?? daten.map { ($0.von, $0.bis) }
+        guard let z, !z.0.isEmpty else { return "" }
+        return "\(Datumsformat.anzeige(z.0, "dd.MM.yyyy")) - \(Datumsformat.anzeige(z.1, "dd.MM.yyyy"))"
+    }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            // Vorlage: Karten 16 pt vom Rand und 16 pt auseinander, erste Karte 26 pt unter dem Kopf
+            LazyVStack(alignment: .leading, spacing: 16) {
                 if let fehler {
                     Fehlerhinweis(text: fehler)
                 }
-                if let daten {
-                    // Oben bewusst keine Box mit Summen bzw. Statistik (der Server liefert summen weiter) – nur die Liste
-                    if daten.zeilen.isEmpty {
-                        Text(filter.status.isEmpty ? "Keine Abwesenheiten im gewählten Zeitraum." : "Keine Abwesenheiten mit diesem Status.")
+                if daten != nil {
+                    if zeilen.isEmpty {
+                        Text(nichtEntschuldigte ? "Keine nicht entschuldigten Abwesenheiten im Zeitraum." : "Keine Abwesenheiten im Zeitraum.")
                             .font(.system(size: 15))
                             .foregroundStyle(Farben.gedaempft)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 8)
                     }
-                    ForEach(Datumsgruppe.bilden(daten.zeilen, datum: \.vonDatum)) { g in
-                        VStack(alignment: .leading, spacing: 12) {
-                            Datumsgruppenkopf(text: Datumsgruppenkopf.text(g.datum))
-                            ForEach(g.eintraege) { z in
-                                Abwesenheitskarte(zeile: z, grund: gruendeName(z.grund))
-                            }
-                        }
+                    ForEach(zeilen) { z in
+                        Abwesenheitskarte(titel: Abwesenheitskarte.titel(von: z.vonDatum, bis: z.bisDatum), zeilen: kartenzeilen(z))
                     }
                 } else if laedt {
                     ProgressView()
@@ -46,8 +59,8 @@ struct MeineAbwesenheitenView: View {
                         .padding(.top, 40)
                 }
             }
-            .padding(.horizontal, rand)
-            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 26)
             .padding(.bottom, 28)
             .zentriert(maxBreite: 736)
         }
@@ -59,33 +72,43 @@ struct MeineAbwesenheitenView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Listentitel(titel: "Meine Abwesenheiten",
-                            untertitel: daten.map { $0.von.isEmpty ? "" : "\(Datumsformat.anzeige($0.von, "dd.MM.yyyy")) - \(Datumsformat.anzeige($0.bis, "dd.MM.yyyy"))" })
+                Listentitel(titel: "Meine Abwesenheiten", untertitel: untertitel)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     zeigeFilter = true
                 } label: {
-                    Glasknopf {
-                        Image(systemName: filter.aktiv ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
-                            .font(.system(size: 17, weight: .regular))
-                    }
+                    Glasknopf { TrichterSymbol() }
                 }
                 .accessibilityLabel("Filter")
             }
         }
-        .blattPraesentation(isPresented: $zeigeFilter, breit: groessenklasse == .regular) {
-            AbwesenheitsfilterView(filter: $filter, kinder: kinder) {
-                Task { await laden() }
-            }
+        .navigationDestination(isPresented: $zeigeFilter) {
+            AbwesenheitsfilterView(startzeitraum: $startzeitraum, nichtEntschuldigte: $nichtEntschuldigte, eigenVon: $eigenVon, eigenBis: $eigenBis,
+                                   kinder: kinder, kind: $kind)
         }
+        .onChange(of: startzeitraum) { _, _ in Task { await laden() } }
+        .onChange(of: eigenVon) { _, _ in Task { await laden() } }
+        .onChange(of: eigenBis) { _, _ in Task { await laden() } }
+        .onChange(of: kind) { _, _ in Task { await laden() } }
         .task {
             if daten == nil {
-                vorbelegen()
                 await stammdatenLaden()
                 await laden()
             }
         }
+    }
+
+    /// Wie die Vorlage nur Zeit und Art: Uhrzeit (bei Verspätung z. B. „7:45 - 7:57“), Abwesenheitsgrund, Text (nur wenn vorhanden),
+    /// Status – ohne „Verspätung“ und Minuten (die stehen in den Berichten und Details).
+    private func kartenzeilen(_ z: Abwesenheitszeitraum) -> [Abwesenheitskartenzeile] {
+        var l = [Abwesenheitskartenzeile(symbol: "clock", text: Abwesenheitskarte.uhrzeit(vonDatum: z.vonDatum, vonZeit: z.vonZeit, bisDatum: z.bisDatum, bisZeit: z.bisZeit))]
+        let grund = gruendeName(z.grund)
+        if !grund.isEmpty { l.append(Abwesenheitskartenzeile(symbol: "info.circle", text: grund)) }
+        let text = z.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { l.append(Abwesenheitskartenzeile(symbol: "text.bubble", text: text)) }
+        l.append(Abwesenheitskarte.status(z.statusGemischt ? "offen" : z.status))
+        return l
     }
 
     private func gruendeName(_ kurz: String) -> String {
@@ -93,19 +116,11 @@ struct MeineAbwesenheitenView: View {
         return gruende.first { $0.key.caseInsensitiveCompare(kurz) == .orderedSame }?.value ?? kurz
     }
 
-    /// Zeitraum: ganzes Schuljahr (falls bekannt), sonst die Vorgabe des Servers.
-    private func vorbelegen() {
-        guard filter.von == nil, let sj = zustand.sitzung?.schuljahr,
-              let von = Datumsformat.datum(sj.von), let bis = Datumsformat.datum(sj.bis) else { return }
-        filter.von = von
-        filter.bis = bis
-    }
-
     private func stammdatenLaden() async {
         if let g = try? await zustand.api.familieGruende() { gruende = g }
         if let k = try? await zustand.api.familieKinder() {
             kinder = k
-            if filter.kind == nil { filter.kind = k.first?.id }
+            if kind == nil { kind = k.first?.id }
         }
     }
 
@@ -113,9 +128,8 @@ struct MeineAbwesenheitenView: View {
         laedt = true
         defer { laedt = false }
         do {
-            daten = try await zustand.api.familieAbwesenheiten(
-                schueler: filter.kind, von: filter.von.map { Datumsformat.iso($0) }, bis: filter.bis.map { Datumsformat.iso($0) },
-                status: filter.status)
+            let z = zeitraum
+            daten = try await zustand.api.familieAbwesenheiten(schueler: kind, von: z?.von, bis: z?.bis, status: nil)
             fehler = nil
         } catch {
             if let text = zustand.fehlertext(error) { fehler = text }
@@ -123,66 +137,40 @@ struct MeineAbwesenheitenView: View {
     }
 }
 
-/// Filter der Abwesenheiten: Kind, Zeitraum und Status (leer = alle).
-struct Abwesenheitsfilter: Equatable {
-    var kind: Int? = nil
-    var von: Date? = nil
-    var bis: Date? = nil
-    var status = ""
+/// Startzeitraum von „Meine Abwesenheiten“ (Vorlage afe1b12a); „eigen“ = über die Lupe gewählter Zeitraum.
+enum Startzeitraum: String, CaseIterable, Identifiable {
+    case woche1, wochen2, monat1, monate3, schuljahr, eigen
 
-    var aktiv: Bool { !status.isEmpty }
-}
+    var id: String { rawValue }
 
-/// Karte einer Abwesenheit im Grunddesign von „Meine Termine“: Status-Symbol links, Überschrift (Abwesenheit, Verspätung bzw.
-/// vorzeitig gegangen), darunter Uhrzeit (mehrtägig mit Datum), Grund, Bemerkung (nur wenn vorhanden) und der Status.
-struct Abwesenheitskarte: View {
-    let zeile: Abwesenheitszeitraum
-    let grund: String
-
-    private var mehrtaegig: Bool { !zeile.bisDatum.isEmpty && zeile.bisDatum.prefix(10) != zeile.vonDatum.prefix(10) }
-
-    /// „Abwesenheit“, „Verspätung (12 min)“ bzw. „Vorzeitig gegangen (20 min)“.
-    private var titel: String {
-        switch zeile.art {
-        case "verspaetet": return zeile.minuten > 0 ? "Verspätung (\(zeile.minuten) min)" : "Verspätung"
-        case "vorzeitig": return zeile.minuten > 0 ? "Vorzeitig gegangen (\(zeile.minuten) min)" : "Vorzeitig gegangen"
-        default: return mehrtaegig ? "Abwesenheit (mehrere Tage)" : "Abwesenheit"
+    var text: String {
+        switch self {
+        case .woche1: return "1 Woche"
+        case .wochen2: return "2 Wochen"
+        case .monat1: return "1 Monat"
+        case .monate3: return "3 Monate"
+        case .schuljahr: return "Aktuelles Schuljahr"
+        case .eigen: return "Eigener Zeitraum"
         }
     }
 
-    /// „07:45 - 13:00“ bzw. über mehrere Tage „Do., 15.10., 07:45 - Fr., 16.10., 21:00“, dahinter die Fehlstunden.
-    private var zeit: String {
-        let stunden = zeile.fehlstunden > 0 ? " (\(zeile.fehlstunden) \(zeile.fehlstunden == 1 ? "Fehlstunde" : "Fehlstunden"))" : ""
-        if !mehrtaegig {
-            return "\(Detailmass.uhrzeit(zeile.vonZeit)) - \(Detailmass.uhrzeit(zeile.bisZeit))" + stunden
+    /// Von–bis (ISO): bis heute zurück bzw. das ganze Schuljahr bzw. der eigene Zeitraum.
+    static func zeitraum(_ wert: String, schuljahr: Schuljahr?, eigenVon: String, eigenBis: String, heute: Date = Date()) -> (von: String, bis: String)? {
+        let k = Datumsformat.kalender
+        let h = Datumsformat.iso(heute)
+        func zurueck(_ teil: Calendar.Component, _ n: Int) -> (String, String) {
+            (Datumsformat.iso(k.date(byAdding: teil, value: -n, to: heute) ?? heute), h)
         }
-        return "\(Datumsformat.anzeige(zeile.vonDatum, "EE, dd.MM.")), \(zeile.vonZeit) - \(Datumsformat.anzeige(zeile.bisDatum, "EE, dd.MM.")), \(zeile.bisZeit)" + stunden
-    }
-
-    private var status: (text: String, symbol: String, farbe: Color) {
-        // einzelne Stunden entschuldigt (z. B. von Fachlehrkräften), andere nicht: „teilweise entschuldigt“ mit Anzahl
-        if zeile.statusGemischt {
-            return ("teilweise entschuldigt (\(zeile.entschuldigt)/\(zeile.fehlstunden))", "circle.lefthalf.filled", Farben.orange)
+        switch Startzeitraum(rawValue: wert) ?? .schuljahr {
+        case .woche1: return zurueck(.day, 7)
+        case .wochen2: return zurueck(.day, 14)
+        case .monat1: return zurueck(.month, 1)
+        case .monate3: return zurueck(.month, 3)
+        case .eigen where !eigenVon.isEmpty && !eigenBis.isEmpty: return (eigenVon, eigenBis)
+        default:
+            guard let sj = schuljahr, !sj.von.isEmpty else { return nil }
+            return (String(sj.von.prefix(10)), String(sj.bis.prefix(10)))
         }
-        switch zeile.status {
-        case "entschuldigt": return ("entschuldigt", "checkmark.circle", Farben.gruen)
-        case "unentschuldigt": return ("nicht entschuldigt", "xmark.circle", Farben.entfallRand)
-        default: return ("offen", "clock.badge.questionmark", Farben.orange)
-        }
-    }
-
-    /// Zeilen unter der Überschrift: Uhrzeit, Grund, Bemerkung (nur wenn vorhanden), Status.
-    private var zeilen: [Listenkartenzeile] {
-        var z = [Listenkartenzeile(text: zeit)]
-        if !grund.isEmpty { z.append(Listenkartenzeile(text: grund)) }
-        let bemerkung = zeile.bemerkung.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !bemerkung.isEmpty { z.append(Listenkartenzeile(text: bemerkung, farbe: Farben.tinte2)) }
-        z.append(Listenkartenzeile(text: status.text, farbe: status.farbe))
-        return z
-    }
-
-    var body: some View {
-        Listenkarte(symbol: status.symbol, symbolFarbe: status.farbe, titel: titel, zeilen: zeilen)
     }
 }
 
@@ -190,37 +178,30 @@ struct Abwesenheitskarte: View {
 /// Datum gruppiert, je Meldung eine dunkle Karte mit Symbol links (Status) und den Zeilen Zeitraum, Grund, Bemerkung, Status.
 struct EigeneAbwesenheitenView: View {
     @EnvironmentObject var zustand: AppZustand
-    @Environment(\.horizontalSizeClass) private var groessenklasse
     @State private var meldungen: [Meldung]? = nil
     @State private var fehler: String? = nil
 
-    private var rand: CGFloat { groessenklasse == .compact ? 16 : 18 }
-
-    private var gruppen: [Datumsgruppe<Meldung>] {
-        Datumsgruppe.bilden((meldungen ?? []).filter(\.istAbwesenheit)) { $0.von ?? $0.erstellt }
+    /// Neueste zuerst (wie die Vorlage), ohne Datumsköpfe.
+    private var liste: [Meldung] {
+        (meldungen ?? []).filter(\.istAbwesenheit).sorted { ($0.von ?? $0.erstellt) > ($1.von ?? $1.erstellt) }
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: 16) {
                 if let fehler {
                     Fehlerhinweis(text: fehler)
                 }
                 if meldungen != nil {
-                    if gruppen.isEmpty {
+                    if liste.isEmpty {
                         Text("Keine Abwesenheiten gemeldet.")
                             .font(.system(size: 15))
                             .foregroundStyle(Farben.gedaempft)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, 8)
                     }
-                    ForEach(gruppen) { g in
-                        VStack(alignment: .leading, spacing: 12) {
-                            Datumsgruppenkopf(text: Datumsgruppenkopf.text(g.datum))
-                            ForEach(g.eintraege) { m in
-                                karte(m)
-                            }
-                        }
+                    ForEach(liste) { m in
+                        karte(m)
                     }
                 } else if fehler == nil {
                     ProgressView()
@@ -228,8 +209,8 @@ struct EigeneAbwesenheitenView: View {
                         .padding(.top, 40)
                 }
             }
-            .padding(.horizontal, rand)
-            .padding(.top, 4)
+            .padding(.horizontal, 16)
+            .padding(.top, 26)
             .padding(.bottom, 28)
             .zentriert(maxBreite: 736)
         }
@@ -249,16 +230,15 @@ struct EigeneAbwesenheitenView: View {
 
     private func karte(_ m: Meldung) -> some View {
         let offen = m.status == "offen"
-        let statusText = offen ? "Offen" : (m.status == "quittiert" ? "Bestätigt" : m.status)
-        var zeilen = [Listenkartenzeile(text: zeitraum(m))]
+        let von = m.von ?? m.erstellt
+        var zeilen = [Abwesenheitskartenzeile(symbol: "clock", text: zeitraum(m))]
         let grund = (m.grund ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !grund.isEmpty { zeilen.append(Listenkartenzeile(text: grund)) }
-        // Bemerkung bzw. Text als eigene Zeile – nur wenn vorhanden
+        if !grund.isEmpty { zeilen.append(Abwesenheitskartenzeile(symbol: "info.circle", text: grund)) }
         let bemerkung = (m.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !bemerkung.isEmpty { zeilen.append(Listenkartenzeile(text: bemerkung, farbe: Farben.tinte2)) }
-        zeilen.append(Listenkartenzeile(text: statusText, farbe: offen ? Farben.orange : Farben.gruen))
-        return Listenkarte(symbol: offen ? "clock.badge.questionmark" : "checkmark.circle", symbolFarbe: offen ? Farben.orange : Farben.gruen,
-                           titel: "Abwesenheit", zeilen: zeilen)
+        if !bemerkung.isEmpty { zeilen.append(Abwesenheitskartenzeile(symbol: "text.bubble", text: bemerkung)) }
+        zeilen.append(offen ? Abwesenheitskartenzeile(symbol: "questionmark.circle", text: "offen", symbolFarbe: Farben.orange)
+                            : Abwesenheitskartenzeile(symbol: "checkmark.circle", text: m.status == "quittiert" ? "bestätigt" : m.status, symbolFarbe: Farben.abwGruen))
+        return Abwesenheitskarte(titel: Abwesenheitskarte.titel(von: von, bis: m.bis ?? von), zeilen: zeilen)
     }
 
     /// „ganztägig“ bzw. „2.–4. Stunde“, mehrtägig „bis Fr., 16.10.2026“.
@@ -289,61 +269,179 @@ struct EigeneAbwesenheitenView: View {
     }
 }
 
-/// Filter-Blatt: Kind (bei mehreren), Zeitraum von–bis und Status.
+/// Seite „Filter“ wie die Vorlage 039642d4: Zurück-Knopf und Titel „Filter“ (18 pt semibold), darunter durch 1 pt Linien
+/// (#2A2A2C, 16 pt eingerückt) getrennte Zeilen von 69 pt: „Startzeitraum“ (17 pt) mit dem Wert (13 pt) und ›, „Nicht
+/// entschuldigte“ mit Schalter; bei mehreren Kindern zusätzlich „Kind“.
 struct AbwesenheitsfilterView: View {
-    @Binding var filter: Abwesenheitsfilter
+    @Binding var startzeitraum: String
+    @Binding var nichtEntschuldigte: Bool
+    @Binding var eigenVon: String
+    @Binding var eigenBis: String
     let kinder: [Kind]
-    let anwenden: () -> Void
-    @Environment(\.dismiss) private var systemSchliessen
-    @Environment(\.blattSchliessen) private var blattSchliessen
+    @Binding var kind: Int?
 
-    /// Randloses iPhone-Blatt mit eigener Animation schließen, sonst das Systemblatt.
-    private func schliessen() {
-        if let blattSchliessen { blattSchliessen() } else { systemSchliessen() }
+    private var wert: String {
+        let s = Startzeitraum(rawValue: startzeitraum) ?? .schuljahr
+        guard s == .eigen, !eigenVon.isEmpty else { return s.text }
+        return "\(Datumsformat.anzeige(eigenVon, "dd.MM.yy")) - \(Datumsformat.anzeige(eigenBis, "dd.MM.yy"))"
     }
-    @State private var entwurf = Abwesenheitsfilter()
 
     var body: some View {
-        NavigationStack {
-            DetailSeitenRahmen(titel: "Filter", untertitel: nil, symbol: "xmark", zurueck: { schliessen() }) {
-            Form {
-                if kinder.count > 1 {
-                    Section("Kind") {
-                        Picker("Kind", selection: Binding(get: { entwurf.kind ?? kinder.first?.id ?? 0 }, set: { entwurf.kind = $0 })) {
-                            ForEach(kinder) { k in
-                                Text(k.anzeige).tag(k.id)
+        VStack(spacing: 0) {
+            Filterlinie()
+            NavigationLink {
+                StartzeitraumView(startzeitraum: $startzeitraum, eigenVon: $eigenVon, eigenBis: $eigenBis)
+            } label: {
+                HStack(spacing: 0) {
+                    Text("Startzeitraum")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.tinte)
+                    Spacer(minLength: 12)
+                    Text(wert)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Farben.abwText)
+                        .padding(.trailing, 26)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 17, weight: .light))
+                        .foregroundStyle(Farben.abwSymbol)
+                        .padding(.trailing, 9)
+                }
+                .frame(height: 68)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Filterlinie()
+            Toggle(isOn: $nichtEntschuldigte) {
+                Text("Nicht entschuldigte")
+                    .font(.system(size: 17))
+                    .foregroundStyle(Farben.tinte)
+            }
+            .tint(Farben.gruen)
+            .frame(height: 68)
+            Filterlinie()
+            if kinder.count > 1 {
+                Picker(selection: Binding(get: { kind ?? kinder.first?.id ?? 0 }, set: { kind = $0 })) {
+                    ForEach(kinder) { k in Text(k.anzeige).tag(k.id) }
+                } label: {
+                    Text("Kind")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Farben.tinte)
+                }
+                .pickerStyle(.navigationLink)
+                .frame(height: 68)
+                Filterlinie()
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: 736)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Farben.grund.ignoresSafeArea())
+        .navigationTitle("Filter")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Filter")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Farben.tinte2)
+            }
+        }
+    }
+}
+
+/// Trennlinie der Filterseite: 1 pt, #2A2A2C im Dunkelmodus.
+struct Filterlinie: View {
+    var body: some View {
+        Rectangle().fill(Farben.abwLinie).frame(height: 1)
+    }
+}
+
+/// Seite „Startzeitraum“ wie die Vorlage afe1b12a: Zurück-Knopf, Titel (18 pt semibold), rechts die Lupe; darunter ohne Linien
+/// die Auswahl (17 pt, 52 pt Zeilenabstand) mit Häkchen rechts bei der gewählten Zeile. Die Lupe öffnet einen eigenen Zeitraum
+/// (Von/Bis); er gilt, sobald beide Daten gewählt sind.
+struct StartzeitraumView: View {
+    @Binding var startzeitraum: String
+    @Binding var eigenVon: String
+    @Binding var eigenBis: String
+    @State private var eigenZeigen = false
+    @Environment(\.dismiss) private var schliessen
+
+    private var auswahl: [Startzeitraum] { [.woche1, .wochen2, .monat1, .monate3, .schuljahr] + (startzeitraum == Startzeitraum.eigen.rawValue ? [.eigen] : []) }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach(auswahl) { s in
+                    Button {
+                        startzeitraum = s.rawValue
+                        schliessen()
+                    } label: {
+                        HStack {
+                            Text(s.text)
+                                .font(.system(size: 17))
+                                .foregroundStyle(Farben.tinte)
+                            Spacer()
+                            if startzeitraum == s.rawValue {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 20, weight: .light))
+                                    .foregroundStyle(Farben.tinte)
+                                    .padding(.trailing, 2)
+                                    .accessibilityLabel("ausgewählt")
                             }
                         }
+                        .frame(height: 52)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
-                Section("Zeitraum") {
-                    DatePicker("Von", selection: Binding(get: { entwurf.von ?? Datumsformat.tage(-90, nach: Date()) }, set: { entwurf.von = $0 }),
-                               displayedComponents: .date)
-                    DatePicker("Bis", selection: Binding(get: { entwurf.bis ?? Date() }, set: { entwurf.bis = $0 }),
-                               displayedComponents: .date)
-                }
-                Section("Status") {
-                    Picker("Status", selection: $entwurf.status) {
-                        Text("Alle").tag("")
-                        Text("Offen").tag("offen")
-                        Text("Entschuldigt").tag("entschuldigt")
-                        Text("Nicht entschuldigt").tag("unentschuldigt")
+                if eigenZeigen {
+                    VStack(spacing: 0) {
+                        Filterlinie()
+                        DatePicker("Von", selection: datum($eigenVon, vorgabe: Datumsformat.tage(-30, nach: Date())), displayedComponents: .date)
+                            .frame(height: 52)
+                        DatePicker("Bis", selection: datum($eigenBis, vorgabe: Date()), displayedComponents: .date)
+                            .frame(height: 52)
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
+                    .font(.system(size: 17))
+                    .foregroundStyle(Farben.tinte)
+                    .environment(\.locale, Locale(identifier: "de_DE"))
                 }
             }
-            .environment(\.locale, Locale(identifier: "de_DE"))
-            .scrollContentBackground(.hidden)
-            .background(Farben.grund)
-            } rechts: {
-                SichernKnopf(speichert: false, aktiv: true, beschriftung: "Anwenden") {
-                    filter = entwurf
-                    anwenden()
-                    schliessen()
-                }
-            }
-            .onAppear { entwurf = filter }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .frame(maxWidth: 736)
+            .frame(maxWidth: .infinity)
         }
+        .background(Farben.grund.ignoresSafeArea())
+        .navigationTitle("Startzeitraum")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Startzeitraum")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Farben.tinte2)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    withAnimation { eigenZeigen.toggle() }
+                } label: {
+                    Glasknopf {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 19, weight: .regular))
+                    }
+                }
+                .accessibilityLabel("Eigener Zeitraum")
+            }
+        }
+    }
+
+    /// Datum als ISO-Text; Ändern wählt den eigenen Zeitraum.
+    private func datum(_ text: Binding<String>, vorgabe: Date) -> Binding<Date> {
+        Binding(get: { Datumsformat.datum(text.wrappedValue) ?? vorgabe }, set: {
+            text.wrappedValue = Datumsformat.iso($0)
+            if eigenVon.isEmpty { eigenVon = Datumsformat.iso(Datumsformat.tage(-30, nach: Date())) }
+            if eigenBis.isEmpty { eigenBis = Datumsformat.iso(Date()) }
+            startzeitraum = Startzeitraum.eigen.rawValue
+        })
     }
 }

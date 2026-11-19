@@ -295,6 +295,12 @@ final class ApiClient: @unchecked Sendable {
         let _: BeliebigeAntwort = try await anfrage("POST", "/klassenbuch/abwesenheit/loeschen", koerper: try encoder.encode(daten))
     }
 
+    /// POST /klassenbuch/abwesenheit/aufgestanden – „Aufgestanden“: Abwesenheit endet jetzt, anwesend ab der aktuellen Uhrzeit,
+    /// Verspätung von Stundenbeginn bis jetzt (wie im Web).
+    func aufgestanden(_ daten: AbwesenheitEntfernenDaten) async throws -> AufgestandenAntwort {
+        try await anfrage("POST", "/klassenbuch/abwesenheit/aufgestanden", koerper: try encoder.encode(daten))
+    }
+
     /// POST /abwesenheiten/loeschen – ganze Abwesenheiten (Fehlzeit-IDs) löschen (Klassenleitung).
     func abwesenheitenLoeschen(_ ids: [Int]) async throws {
         let _: BeliebigeAntwort = try await anfrage("POST", "/abwesenheiten/loeschen", koerper: try encoder.encode(IdsDaten(ids: ids)))

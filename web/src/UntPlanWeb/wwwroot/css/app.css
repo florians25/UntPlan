@@ -1847,6 +1847,15 @@ a .lbl:hover, a:hover .lbl, a:hover .u-chip, a:hover .fz-label, tr:hover .lbl, t
 .sd-umschalten { color: #b3bcc4; font-size: 17px; }
 .sd-umschalten:hover, .sd-umschalten:focus-visible { color: #c96a6a; }
 .sd-kachel:not(.da) .sd-umschalten:hover, .sd-kachel:not(.da) .sd-umschalten:focus-visible { color: #3f9a6c; }
+/* „Aufgestanden“: Bett mit Pfeil nach oben (Abwesenheit endet jetzt) */
+.sd-bett { width: 1.25em; height: 1em; fill: none; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.sd-bett .bett { stroke: #8a6a3a; stroke-width: 1.3; }
+.sd-bett .pfeil { stroke: #d64545; stroke-width: 1.7; }
+.sd-aufgestanden { position: absolute; top: 5px; right: 5px; border: 1px solid #e3e7eb; background: #fff; border-radius: 6px; padding: 3px 4px; font-size: 17px; line-height: 1; cursor: pointer; z-index: 1; }
+.sd-aufgestanden:hover, .sd-aufgestanden:focus-visible { border-color: #d64545; background: #fff6f6; }
+.sd-aufgestanden:disabled { opacity: .5; }
+.sd-aufgestanden-rund { margin-right: 4px; font-size: 15px; }
+.sd-aufgestanden-rund .sd-bett { margin: auto; }
 .sd-kachel .sd-statusbild.weg { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #fff; color: #cf6b6b; font-size: 16px; }
 
 /* ===== Infocenter (runder Knopf unten rechts mit Panel) ===== */

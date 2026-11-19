@@ -200,8 +200,10 @@ struct Abwesenheitsstunde: Decodable, Identifiable, Sendable, Hashable {
     var lehrer: String
     var status: String
     var entschuldigung: Stundenentschuldigung?
+    /// Verspätung bzw. vorzeitiges Gehen in dieser Stunde, z. B. „verspätet 08:00–08:12 (12 Min.)“ (leer = ganze Fehlstunde)
+    var verspaetung: String
 
-    enum CodingKeys: String, CodingKey { case id, datum, stunde, beginn, ende, fach, lehrer, status, entschuldigung }
+    enum CodingKeys: String, CodingKey { case id, datum, stunde, beginn, ende, fach, lehrer, status, entschuldigung, verspaetung }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -214,6 +216,7 @@ struct Abwesenheitsstunde: Decodable, Identifiable, Sendable, Hashable {
         lehrer = c.text(.lehrer)
         status = c.textOderNil(.status) ?? "offen"
         entschuldigung = c.optional(.entschuldigung)
+        verspaetung = c.text(.verspaetung)
     }
 
     var stand: Entschuldigungsstatus { Entschuldigungsstatus(text: status) }
@@ -242,12 +245,14 @@ struct EntschuldigungsAbwesenheit: Decodable, Identifiable, Sendable, Hashable {
     var lehrerBearbeitet: Int
     var darf: Bool
     var stunden: [Abwesenheitsstunde]
+    /// Minuten der Verspätung bzw. des vorzeitigen Gehens (Art verspaetet/vorzeitig)
+    var minuten: Int
 
     var id: String { schluessel }
 
     enum CodingKeys: String, CodingKey {
         case schluessel, ids, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, grund, status
-        case mehrdeutig, text, fehlstunden, nachweis, entschuldigtAm, lehrerGesamt, lehrerBearbeitet, darf, stunden
+        case mehrdeutig, text, fehlstunden, nachweis, entschuldigtAm, lehrerGesamt, lehrerBearbeitet, darf, stunden, minuten
     }
 
     init(from decoder: Decoder) throws {
@@ -273,6 +278,7 @@ struct EntschuldigungsAbwesenheit: Decodable, Identifiable, Sendable, Hashable {
         lehrerBearbeitet = c.zahl(.lehrerBearbeitet) ?? 0
         darf = c.wahr(.darf)
         stunden = c.liste(.stunden)
+        minuten = c.zahl(.minuten) ?? 0
     }
 
     var stand: Entschuldigungsstatus { Entschuldigungsstatus(text: status) }

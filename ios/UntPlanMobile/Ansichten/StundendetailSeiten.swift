@@ -408,6 +408,17 @@ final class Stundendaten: ObservableObject {
         try await abwesenheitSpeichern(s, von: beginn, bis: bis, grund: grund, text: f.text, eltern: false, ersetzen: [f.id])
     }
 
+    /// „Aufgestanden“ (Bett mit Pfeil nach oben): die abwesende Person ist ab jetzt anwesend – der Server beendet die Abwesenheit
+    /// minutengenau zur aktuellen Uhrzeit; aus der Stunde wird eine Verspätung von Stundenbeginn bis jetzt (Grund, Text, Status bleiben).
+    @discardableResult
+    func aufgestandenSetzen(_ s: Schueler) async throws -> AufgestandenAntwort? {
+        guard let u = karte.unterricht, fehlzeit(s) != nil else { return nil }
+        let antwort = try await api.aufgestanden(AbwesenheitEntfernenDaten(datum: karte.datum, stunde: karte.von, unterricht: u, schuelerIds: [s.id],
+                                                                           einzelstunde: einzelstunde))
+        await anwesenheitLaden()
+        return antwort
+    }
+
     /// Wischgeste nach links: abwesend für den ganzen Block (minutengenau von Beginn bis Ende).
     func abwesendSetzen(_ s: Schueler) async throws {
         guard let u = karte.unterricht, fehlzeit(s) == nil else { return }
@@ -2107,6 +2118,17 @@ struct SchuelerSeite: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // „Aufgestanden“: nur bei abwesend erfassten Schüler*innen in der laufenden Stunde
+            if bearbeitbar, let f, f.art == "fehlt", daten.laeuftGerade {
+                WischKnopf {
+                    Task { await ausfuehren(s) { _ = try await daten.aufgestandenSetzen(s) } }
+                } label: {
+                    AufgestandenSymbol()
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Aufgestanden")
+                .accessibilityHint("\(s.anzeige) ist ab jetzt anwesend, die Verspätung wird von Stundenbeginn bis jetzt eingetragen")
+            }
             WischKnopf {
                 eintrag = Eintragsvorlage(schueler: [s])
             } label: {
@@ -2171,6 +2193,23 @@ struct SchuelerSeite: View {
         } catch {
             fehler = zustand.fehlertext(error)
         }
+    }
+}
+
+/// „Aufgestanden“: Bett mit Pfeil nach oben (Vorlage absence-end, Gegenstück zum Bett mit Pfeil nach unten) als SF-Symbol-Kombination.
+struct AufgestandenSymbol: View {
+    var body: some View {
+        Image(systemName: "bed.double")
+            .font(.system(size: 20, weight: .light))
+            .foregroundStyle(Color(hexWert: 0x8A6A3A))
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Color(hexWert: 0xD64545))
+                    .background(Circle().fill(Farben.blatt).frame(width: 15, height: 15))
+                    .offset(x: 3, y: -6)
+            }
+            .frame(width: 32, height: 30)
     }
 }
 

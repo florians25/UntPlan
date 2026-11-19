@@ -228,6 +228,10 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
     var elternInformiert: Bool
     /// Fehlzeit dieser Stunde (Eintrag aus der Stunde ohne Zeitraum) – zum Entschuldigen
     var fehlzeitId: Int? = nil
+    /// Verspätung bzw. vorzeitiges Gehen mit Minuten und Uhrzeit, Stunde · Fach · Lehrkraft und Entschuldigungsstatus
+    var verspaetung = ""
+    var unterricht = ""
+    var status = ""
 
     init(_ f: Fehlzeiteintrag, datum: String) {
         id = "stunde:\(f.schuelerId):\(f.id)"
@@ -240,6 +244,10 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
         ids = []
         elternInformiert = false
         fehlzeitId = f.id
+        let zeit = f.beginn.isEmpty || f.ende.isEmpty ? "" : " (\(Detailmass.uhrzeit(f.beginn))–\(Detailmass.uhrzeit(f.ende)))"
+        verspaetung = f.art == "verspaetet" ? "Verspätung \(f.minuten) Min.\(zeit)" : f.art == "vorzeitig" ? "Vorzeitig gegangen \(f.minuten) Min.\(zeit)" : ""
+        unterricht = f.stunden.isEmpty ? "" : f.stunden.map { "\($0)." }.joined(separator: ", ") + " Std."
+        status = f.status
     }
 
     init(_ z: Abwesenheitszeitraum) {
@@ -252,6 +260,19 @@ struct AbwesenheitsEintrag: Identifiable, Hashable {
         text = z.text
         ids = z.ids
         elternInformiert = z.elternInformiert
+        verspaetung = z.verspaetungstext
+        unterricht = z.unterrichtstext
+        status = z.statusGemischt ? "" : z.status
+    }
+
+    /// „offen“, „entschuldigt“ bzw. „nicht entschuldigt“.
+    var statustext: String {
+        switch status {
+        case "entschuldigt": return "entschuldigt"
+        case "unentschuldigt": return "nicht entschuldigt"
+        case "": return ""
+        default: return "offen"
+        }
     }
 
     /// „8:00 - 11:57“ bzw. über mehrere Tage „Di., 08:00 - Mi., 11:57“.
@@ -391,6 +412,20 @@ struct SchuelerAbwesenheitenView: View {
                     }
                     .font(.system(size: 15))
                     .foregroundStyle(Farben.tinte)
+                }
+                // Verspätung genau: Minuten, Uhrzeit von–bis, Stunde · Fach · Lehrkraft, Entschuldigungsstatus
+                let genau = [e.verspaetung, e.unterricht, e.statustext].filter { !$0.isEmpty }.joined(separator: " · ")
+                if !genau.isEmpty {
+                    HStack(spacing: 12) {
+                        Image(systemName: e.verspaetung.isEmpty ? "list.bullet" : "clock.arrow.circlepath")
+                            .font(.system(size: 13, weight: .light))
+                            .foregroundStyle(e.verspaetung.isEmpty ? Farben.gedaempft : Color(hexWert: 0xF2B705))
+                            .frame(width: 18)
+                        Text(genau)
+                            .font(.system(size: 15))
+                            .foregroundStyle(Farben.tinte)
+                            .lineLimit(2)
+                    }
                 }
                 let grund = [daten.grundName(e.grund), e.text].filter { !$0.isEmpty }.joined(separator: " – ")
                 if !grund.isEmpty {

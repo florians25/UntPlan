@@ -38,7 +38,7 @@ const BESCHREIBUNG = {
   fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse – geeignet für Konferenzen und Zeugnisse.',
   fehlzeiten_fach: 'Fehlstunden aufgeschlüsselt nach Fächern.',
   fehltage_klasse: 'Fehltage je Klasse und Schüler*in mit Datum, Stunden und Status, Summen je Schüler*in (mit Schultagen) und je Klasse.',
-  verspaetungen: 'Alle Verspätungen und vorzeitigen Abgänge mit Minuten.',
+  verspaetungen: 'Jede Verspätung und jedes vorzeitige Gehen mit Uhrzeit, Minuten, Fach, Lehrkraft und Status; Summen je Schüler*in und Klasse.',
   verspaetungen_auffaellig: 'Schüler*innen, die im Zeitraum auffällig oft zu spät kamen.',
   abwesenheitsueberschreitung: 'Wer in einem gleitenden Zeitraum mehr Fehlstunden als erlaubt hat.',
   abwesenheiten: 'Abwesenheiten als Zeiträume mit Grund, Text und Status.',

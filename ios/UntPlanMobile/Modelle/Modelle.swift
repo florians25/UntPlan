@@ -1453,16 +1453,17 @@ struct Fehlzeiteintrag: Decodable, Sendable {
         text = c.text(.text)
     }
 
-    /// Wie in der Vorlage: „Abwesend (fehlt)“, bei Verspätung „gekommen um 10:35 (fehlt)“, bei vorzeitigem Gehen
-    /// „gegangen um 12:20 (fehlt)“ – die Uhrzeit ist das Ende bzw. der Beginn der Abwesenheit in dieser Stunde.
+    /// Wie in der Vorlage: „Abwesend (fehlt)“, bei Verspätung „gekommen um 10:35 (verspätet 12 Min.)“, bei vorzeitigem Gehen
+    /// „gegangen um 12:20 (vorzeitig 25 Min.)“ – die Uhrzeit ist das Ende bzw. der Beginn der Abwesenheit in dieser Stunde.
     var statustext: String {
+        let min = minuten > 0 ? " \(minuten) Min." : ""
         switch art {
         case "verspaetet":
             let z = Self.uhrzeit(ende)
-            return z.isEmpty ? "Abwesend (verspätet)" : "gekommen um \(z) (fehlt)"
+            return z.isEmpty ? "Abwesend (verspätet\(min))" : "gekommen um \(z) (verspätet\(min))"
         case "vorzeitig":
             let z = Self.uhrzeit(beginn)
-            return z.isEmpty ? "Abwesend (vorzeitig)" : "gegangen um \(z) (fehlt)"
+            return z.isEmpty ? "Abwesend (vorzeitig\(min))" : "gegangen um \(z) (vorzeitig\(min))"
         default: return "Abwesend (fehlt)"
         }
     }
@@ -1563,6 +1564,22 @@ struct AbwesenheitEntfernenDaten: Encodable, Sendable {
     var einzelstunde: Int? = nil
 }
 
+/// Antwort auf POST /klassenbuch/abwesenheit/aufgestanden: Ankunft („HH:mm“), Minuten der Verspätung und Stunde.
+struct AufgestandenAntwort: Decodable, Sendable {
+    var ankunft: String
+    var minuten: Int
+    var stunde: Int
+
+    enum CodingKeys: String, CodingKey { case ankunft, minuten, stunde }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        ankunft = c.text(.ankunft)
+        minuten = c.zahl(.minuten) ?? 0
+        stunde = c.zahl(.stunde) ?? 0
+    }
+}
+
 /// POST /api/app/abwesenheiten/loeschen
 struct IdsDaten: Encodable, Sendable {
     var ids: [Int]
@@ -1628,8 +1645,33 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
     var statusGemischt: Bool = false
     /// Davon entschuldigte Fehlstunden (bei gemischtem Status)
     var entschuldigt: Int = 0
+    /// Unterrichtsstunden (Nummern), Fächer und Lehrkräfte der Abwesenheit
+    var stunden: [Int] = []
+    var faecher: [String] = []
+    var lehrer: [String] = []
 
     var id: String { schluessel }
+
+    /// „3. Std.“ bzw. „3.–4. Std.“ (leer ohne Angabe bzw. über mehrere Tage).
+    var stundentext: String {
+        guard let a = stunden.min(), let b = stunden.max(), bisDatum.isEmpty || bisDatum == vonDatum else { return "" }
+        return a == b ? "\(a). Std." : "\(a).–\(b). Std."
+    }
+
+    /// „Verspätung 12 Min. (08:00–08:12)“ bzw. „Vorzeitig gegangen 20 Min. (12:00–12:20)“; leer bei ganzer Abwesenheit.
+    var verspaetungstext: String {
+        let zeit = vonZeit.isEmpty || bisZeit.isEmpty ? "" : " (\(Detailmass.uhrzeit(vonZeit))–\(Detailmass.uhrzeit(bisZeit)))"
+        switch art {
+        case "verspaetet": return "Verspätung \(minuten) Min.\(zeit)"
+        case "vorzeitig": return "Vorzeitig gegangen \(minuten) Min.\(zeit)"
+        default: return ""
+        }
+    }
+
+    /// „3. Std. · M · LAN“
+    var unterrichtstext: String {
+        ([stundentext] + [faecher.joined(separator: ", "), lehrer.joined(separator: ", ")]).filter { !$0.isEmpty }.joined(separator: " · ")
+    }
 
     /// Bemerkung bzw. Text der Abwesenheit (leer = keine).
     var bemerkung: String { bemerkungRoh.isEmpty ? text : bemerkungRoh }
@@ -1638,6 +1680,7 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
         case schluessel, schuelerId, schueler, klasse, vonDatum, vonZeit, bisDatum, bisZeit, art, minuten, grund, status, text, ids, verwalten, elternInformiert
         case bemerkung, notiz
         case fehlstunden, statusGemischt, entschuldigt
+        case stunden, faecher, lehrer
     }
 
     init(from decoder: Decoder) throws {
@@ -1662,6 +1705,9 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
         fehlstunden = c.zahl(.fehlstunden) ?? 0
         statusGemischt = c.wahr(.statusGemischt)
         entschuldigt = c.zahl(.entschuldigt) ?? 0
+        stunden = c.liste(.stunden)
+        faecher = c.liste(.faecher)
+        lehrer = c.liste(.lehrer)
     }
 }
 

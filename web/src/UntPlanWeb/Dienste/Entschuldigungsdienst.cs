@@ -15,12 +15,20 @@ public sealed record FachlehrerZeile(int Id, int SchuelerId, string Schueler, st
     List<Entschuldigungstext> Texte, bool Darf, bool Gesperrt, string Hinweis);
 
 /// <summary>Stunde einer Abwesenheit in der Klassenleitungs-Sicht (Seitenleiste „Fehlzeiten“).</summary>
-public sealed record AbwesenheitsStunde(int Id, string Datum, int Stunde, string Beginn, string Ende, string Fach, string Lehrer, string Status, StundenEntschuldigung? Entschuldigung);
+public sealed record AbwesenheitsStunde(int Id, string Datum, int Stunde, string Beginn, string Ende, string Fach, string Lehrer, string Status, StundenEntschuldigung? Entschuldigung)
+{
+    /// <summary>Verspätung bzw. vorzeitiges Gehen in der Stunde, z. B. „verspätet 08:00–08:12 (12 Min.)“ (leer = ganze Fehlstunde).</summary>
+    public string Verspaetung { get; init; } = "";
+}
 
 /// <summary>Abwesenheit mit Stand der Fachlehrer-Entschuldigungen („2/3 Lehrer bearbeitet“, mehrdeutig).</summary>
 public sealed record EntschuldigungsAbwesenheit(string Schluessel, List<int> Ids, int SchuelerId, string Schueler, string Klasse, string VonDatum, string VonZeit,
     string BisDatum, string BisZeit, string Art, string Grund, string Status, bool Mehrdeutig, string Text, int Fehlstunden, string Nachweis, string EntschuldigtAm,
-    int LehrerGesamt, int LehrerBearbeitet, bool Darf, List<AbwesenheitsStunde> Stunden);
+    int LehrerGesamt, int LehrerBearbeitet, bool Darf, List<AbwesenheitsStunde> Stunden)
+{
+    /// <summary>Minuten der Verspätung bzw. des vorzeitigen Gehens (Art verspaetet/vorzeitig).</summary>
+    public int Minuten { get; init; }
+}
 
 /// <summary>
 /// Fachlehrer-Entschuldigungen (Klassenbuch | Einstellungen „Fachlehrer-Entschuldigungen“, Recht „Fehlstunden im eigenen Unterricht entschuldigen“):
@@ -171,12 +179,13 @@ public sealed class Entschuldigungsdienst
             var stunden = z.Ids.Where(fz.ContainsKey).Select(i => fz[i]).OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).Select(f =>
             {
                 var zl = zeilen.GetValueOrDefault(f.Id);
-                return new AbwesenheitsStunde(f.Id, f.Datum, f.Stunde, zl?.Beginn ?? "", zl?.Ende ?? "", f.Fach, zl?.Lehrer ?? f.Lehrer, f.Status, ent.GetValueOrDefault((f.SchuelerId, f.Datum, f.Stunde)));
+                return new AbwesenheitsStunde(f.Id, f.Datum, f.Stunde, zl?.Beginn ?? "", zl?.Ende ?? "", f.Fach, zl?.Lehrer ?? f.Lehrer, f.Status, ent.GetValueOrDefault((f.SchuelerId, f.Datum, f.Stunde)))
+                    { Verspaetung = Klassenbuchverwaltung.Spaet(s, f)?.Lang ?? "" };
             }).ToList();
             var proLehrer = stunden.Where(x => x.Lehrer.Length > 0).GroupBy(x => x.Lehrer, Ci).ToList();
             return new EntschuldigungsAbwesenheit(z.Schluessel, z.Ids, z.SchuelerId, z.Schueler, z.Klasse, z.VonDatum, z.VonZeit, z.BisDatum, z.BisZeit, z.Art, z.Grund,
                 z.Status, z.StatusGemischt, z.Text, z.Fehlstunden, z.Nachweis, z.EntschuldigtAm, proLehrer.Count, proLehrer.Count(g => g.All(x => x.Status != "offen")),
-                z.Verwalten, stunden);
+                z.Verwalten, stunden) { Minuten = z.Minuten };
         }).ToList();
     }
 
