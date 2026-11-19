@@ -15,7 +15,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
 {
     private static readonly string[] Reiter = { "Lehrer", "Klassen", "Räume" };
     /// <summary>Schrift der Absenzliste wie in den Handbuch-Bildern (Segoe UI 8,25 statt 9).</summary>
-    private static readonly Font TabellenSchrift = new("Segoe UI", 9f);
+    private static Font TabellenSchrift => Ui.TabellenSchrift;
     private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
@@ -120,30 +120,32 @@ public sealed class AbwesenheitenFenster : MdiFenster
         // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen unter den Reitern
         _g.RowHeadersVisible = false;
         _g.BorderStyle = BorderStyle.Fixed3D;
-        // Handbuch-Bilder (Kap. 3.2/5.2, auf 96 dpi umgerechnet): Tabellenschrift Segoe UI 8,25, Zeilen 16, Überschrift 17 Pixel hoch
+        // wie im Original-Bildschirmfoto (Absenzen / Standard, 100 %): Tabellenschrift Tahoma 8,25, Zeilen und Überschrift 19 Pixel hoch (samt Linie)
         _g.Font = TabellenSchrift;
         _g.DefaultCellStyle.Font = TabellenSchrift;
         _g.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
-        _g.RowTemplate.Height = Ui.ZeilenHoehe();
-        _g.ColumnHeadersHeight = 17;
+        _g.RowTemplate.Height = Ui.ZeilenHoehe(TabellenSchrift);
+        _g.ColumnHeadersHeight = Ui.ZeilenHoehe(TabellenSchrift);
         Ui.ZeilenmarkeErsteSpalte(_g);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
-        // Überschriften und Breiten wie in der Vorlage (96 dpi): AbsNr. 47 | Lehrer 70 | Von TT.MM. 69 | ab St. 40 | Bis TT.MM. 64 |
-        // bis St. 42 | Grund 54 | Text 33 – rechts davon bleibt die Fläche frei (keine Spalte füllt das Fenster)
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 47, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 70, Array.Empty<string>()));
-        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 69), ("SV", "ab St.", 40), ("B", "Bis TT.MM.", 64), ("SB", "bis St.", 42) })
+        // Überschriften und Breiten wie im Original-Bildschirmfoto (Absenzen / Standard, 100 %): AbsNr. 43 | Lehrer 80 | Von TT.MM. 43 |
+        // ab St. 67 | Bis TT.MM. 43 | bis St. 67 | Grund 67 | Text 67 | Anrechnung 67 | Entfalltage 66 | Absenztage 72 – zu lange
+        // Überschriften werden abgeschnitten („Von TT“), rechts davon bleibt die Fläche frei (keine Spalte füllt das Fenster)
+        Ui.BreitenWieOriginal(_g);
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 43, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 80, Array.Empty<string>()));
+        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 43), ("SV", "ab St.", 67), ("B", "Bis TT.MM.", 43), ("SB", "bis St.", 67) })
             _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 54, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 200, AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("G", "Grund", 67, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 67 });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Beg", HeaderText = "Begleitlehrer", Width = 100 });
-        // weitere Felder sind wie im Vorbild (Kap. 15.8) zunächst ausgeblendet und werden über „Felder der Ansicht“ eingeblendet
+        // weitere Felder sind zunächst ausgeblendet und werden über „Felder der Ansicht“ eingeblendet
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true, Visible = false });
-        // wie im Vorbild: Anrechnung, Entfalltage und Absenztage (Unterrichtstage im Zeitraum)
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 80, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 75, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 75, ReadOnly = true, Visible = false, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        // wie im Original sichtbar: Anrechnung, Entfalltage und Absenztage (Unterrichtstage im Zeitraum)
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 67, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 66, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 72, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         // Reihenfolge wie im Vorbild: … Grund, Text, Anrechnung, Entfalltage, Absenztage, dann die weiteren Spalten
         var nachText = _g.Columns["T"]!.DisplayIndex;
         _g.Columns["Anr"]!.DisplayIndex = nachText + 1;
@@ -516,9 +518,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
                 nurLesen = true;
                 break;
             default:
-                // leere Eingabezeile
+                // leere Eingabezeile: wie im Original weiß
                 werte = new object?[] { "", "", "", "", "", "", "", "", "", "", "", "", "" };
-                hinter = Color.FromArgb(255, 228, 190);
                 break;
         }
         zeile.Tag = eintrag == EingabeZeile ? null : eintrag;

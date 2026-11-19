@@ -34,7 +34,13 @@ jobs:
         run: |
           $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(16_Vertretungsmodus|V[0-9])' }
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
-          if (-not $p.WaitForExit(900000)) { $p.Kill() }
+          # sobald der Selbsttest „ENDE“ meldet, nicht auf das Schließen des Programms warten (höchstens 15 Minuten)
+          $ende = (Get-Date).AddMinutes(15)
+          while (-not $p.HasExited -and (Get-Date) -lt $ende) {
+            Start-Sleep -Seconds 5
+            if ((Test-Path artifacts/fotos/selbsttest.log) -and (Select-String -Path artifacts/fotos/selbsttest.log -Pattern '^ENDE$' -Quiet)) { Start-Sleep -Seconds 2; break }
+          }
+          if (-not $p.HasExited) { $p.Kill() }
           Get-Content artifacts/fotos/selbsttest.log
 
       # Bilder zusätzlich als Text im Protokoll (zum Abruf ohne Artefakt-Download)

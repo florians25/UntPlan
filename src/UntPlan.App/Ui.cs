@@ -13,8 +13,17 @@ public static partial class Ui
     public static readonly Font SchriftKlein = new("Segoe UI", 8f);
     public static readonly Font SchriftKursiv = new("Segoe UI", 9f, FontStyle.Italic);
 
-    /// <summary>Einheitliche Zeilenhöhe aller Tabellen: 22 Pixel (luftiger als die 17 Pixel des Handbuchs, Nutzerwunsch), bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.</summary>
-    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(22, (schrift ?? Schrift).Height + 6);
+    /// <summary>
+    /// Einheitliche Zeilenhöhe aller Tabellen: 19 Pixel samt Rasterlinie wie auf den Original-Bildschirmfotos (Absenzen, Vertretungen, 100 %),
+    /// bei größerer Schrift/Skalierung so hoch, dass nichts abgeschnitten wird.
+    /// </summary>
+    public static int ZeilenHoehe(Font? schrift = null) => Math.Max(19, (schrift ?? Schrift).Height + 3);
+
+    /// <summary>Tabellenschrift der Originale (Absenzen, Vertretungen): Tahoma 8,25 – Windows-Systemschrift, fehlt sie, ersetzt Windows sie.</summary>
+    public static readonly Font TabellenSchrift = new("Tahoma", 8.25f);
+
+    /// <summary>Tabellenschrift des Vertretungsvorschlags im Original: Tahoma 9 bei 21 Pixel hohen Zeilen und Überschriften.</summary>
+    public static readonly Font VorschlagSchrift = new("Tahoma", 9f);
     public static readonly Font SchriftGross = new("Segoe UI", 11f, FontStyle.Bold);
 
     /// <summary>
@@ -150,6 +159,12 @@ public static partial class Ui
     /// <summary>Für ein Eingabefeld ungeeignete Hintergrundfarbe: leer, durchsichtig oder Schwarz (so zeichnet Windows „leer“).</summary>
     private static bool Ungueltig(Color c) => c.IsEmpty || c.A < 255 || c.ToArgb() == Color.Black.ToArgb();
 
+    /// <summary>Tabellen mit Spaltenbreiten wie im Original: Überschriften werden am Spaltenrand abgeschnitten statt die Spalte zu verbreitern.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, object> FesteBreiten = new();
+
+    /// <summary>Spaltenbreiten der Tabelle nicht an die Überschriften anpassen (Breiten wie im Original, z. B. „Von TT“ abgeschnitten).</summary>
+    public static void BreitenWieOriginal(DataGridView g) => FesteBreiten.AddOrUpdate(g, new object());
+
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
         RasterFarben(g);
@@ -165,7 +180,7 @@ public static partial class Ui
         g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         // Höhen nach der tatsächlichen Schrift (größere Windows-Schrift/Skalierung: nichts abgeschnitten), mindestens wie bisher
         var zeilenSchrift = g.DefaultCellStyle.Font ?? g.Font;
-        g.ColumnHeadersHeight = Math.Max(22, zeilenSchrift.Height + 7);
+        g.ColumnHeadersHeight = Math.Max(19, zeilenSchrift.Height + 3);
         g.RowHeadersDefaultCellStyle.BackColor = Erste;
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
         g.RowHeadersWidth = 22;
@@ -177,7 +192,7 @@ public static partial class Ui
             var kopfSchrift = g.ColumnHeadersDefaultCellStyle.Font ?? g.Font;
             foreach (DataGridViewColumn c in g.Columns)
             {
-                if (c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
+                if (!FesteBreiten.TryGetValue(g, out _) && c.Visible && c.HeaderText.Length > 0 && c.AutoSizeMode is DataGridViewAutoSizeColumnMode.None or DataGridViewAutoSizeColumnMode.NotSet)
                     c.Width = Math.Max(c.Width, TextRenderer.MeasureText(c.HeaderText, kopfSchrift).Width + 8);
                 // Einstellungen | Anpassen: „Tooltips mit Spaltenbeschreibungen einblenden“
                 if (AppZustand.Einstellungen.SpaltenTooltips && c.ToolTipText.Length == 0 && c.HeaderText.Length > 0) c.ToolTipText = c.HeaderText;

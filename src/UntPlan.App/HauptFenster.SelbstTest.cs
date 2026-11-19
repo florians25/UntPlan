@@ -826,7 +826,8 @@ public sealed partial class HauptFenster
         Schritt("V4_Vorschlag_Raeume", () => Vergleich("V4_Vorschlag_Raeume", VorschlagNormal(2), new Size(450, 520)), -1);
         Schritt("V5_Kleiner_Stundenplan", () =>
         {
-            var f = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false);
+            // kleiner Klassenplan mit Stundenplanlupe (Format „Kla1 - Klasse 1“) in der Größe des Originals
+            var f = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
             f.WindowState = FormWindowState.Normal;
             f.Bounds = new Rectangle(100, 0, 272, 567);
             Vergleich("V5_Kleiner_Stundenplan", f, new Size(272, 567));
@@ -2348,8 +2349,8 @@ public sealed partial class HauptFenster
             AppZustand.VertretungWaehlen(v);
             Warten(300);
             var spalten = f.SelbsttestSpalten();
-            // Reihenfolge wie in den Handbuch-Bildern: Name, Merker zur Stunde, Stundenplan, danach Klasse und Fach
-            R3cPruefen(spalten.Take(5).SequenceEqual(new[] { "Name", "Merker zur Stunde", "Stundenplan", "Klasse", "Fach" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
+            // Reihenfolge wie im Original-Bildschirmfoto: Name, Stundenplan, Merker zur Stunde, Vertr., Entfall, Zähler
+            R3cPruefen(spalten.Take(6).SequenceEqual(new[] { "Name", "Stundenplan", "Merker zur Stunde", "Vertr.", "Entfall", "Zähler" }), "Spalten des Vorschlags: " + string.Join(" | ", spalten));
             var k = f.SelbsttestKandidaten();
             R3cPruefen(k.Count > 0, "Vertretungsvorschlag ohne Kandidaten");
             var l = k[0].Lehrer;
