@@ -173,6 +173,26 @@ public static partial class Ui
     /// <summary>Spaltenbreiten der Tabelle nicht an die Überschriften anpassen (Breiten wie im Original, z. B. „Von TT“ abgeschnitten).</summary>
     public static void BreitenWieOriginal(DataGridView g) => FesteBreiten.AddOrUpdate(g, new object());
 
+    /// <summary>
+    /// Zu lange Zelltexte wie auf den Original-Bildschirmfotos am Spaltenrand abschneiden statt mit „…“ zu kürzen. Nach den eigenen
+    /// Zellzeichnern des Fensters anmelden: bereits gezeichnete Zellen (e.Handled) und andere Zellarten bleiben unberührt.
+    /// </summary>
+    public static void OhneAuslassungspunkte(DataGridView g) => g.CellPainting += (_, e) =>
+    {
+        if (e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || e.Graphics is null || e.CellStyle is null) return;
+        if (g.Rows[e.RowIndex].Cells[e.ColumnIndex] is not DataGridViewTextBoxCell || e.FormattedValue is not string text || text.Length == 0) return;
+        if (e.CellStyle.WrapMode == DataGridViewTriState.True) return;
+        var schrift = e.CellStyle.Font ?? g.Font;
+        var r = Rectangle.FromLTRB(e.CellBounds.Left + 2, e.CellBounds.Top, e.CellBounds.Right - 2, e.CellBounds.Bottom - 1);
+        if (TextRenderer.MeasureText(e.Graphics, text, schrift, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width <= r.Width) return;
+        e.Paint(e.ClipBounds, e.PaintParts & ~DataGridViewPaintParts.ContentForeground);
+        var farbe = (e.State & DataGridViewElementStates.Selected) != 0 ? e.CellStyle.SelectionForeColor : e.CellStyle.ForeColor;
+        var rechts = e.CellStyle.Alignment is DataGridViewContentAlignment.MiddleRight or DataGridViewContentAlignment.TopRight or DataGridViewContentAlignment.BottomRight;
+        TextRenderer.DrawText(e.Graphics, text, schrift, r, farbe, (rechts ? TextFormatFlags.Right : TextFormatFlags.Left) |
+            TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+        e.Handled = true;
+    };
+
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
         RasterFarben(g);

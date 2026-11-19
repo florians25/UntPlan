@@ -130,7 +130,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
         // Überschriften und Breiten wie im Original-Bildschirmfoto (Absenzen / Standard, 100 %): AbsNr. 43 | Lehrer 80 | Von TT.MM. 43 |
-        // ab St. 67 | Bis TT.MM. 43 | bis St. 67 | Grund 67 | Text 67 | Anrechnung 67 | Entfalltage 66 | Absenztage 72 – zu lange
+        // ab St. 67 | Bis TT.MM. 43 | bis St. 67 | Grund 67 | Text 67 | Anrechnung 67 | Entfalltage 65 | Absenztage 72 – zu lange
         // Überschriften werden abgeschnitten („Von TT“), rechts davon bleibt die Fläche frei (keine Spalte füllt das Fenster)
         Ui.BreitenWieOriginal(_g);
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 43, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
@@ -144,7 +144,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "O", HeaderText = "offen", Width = 45, ReadOnly = true, Visible = false });
         // wie im Original sichtbar: Anrechnung, Entfalltage und Absenztage (Unterrichtstage im Zeitraum)
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Anr", HeaderText = "Anrechnung", Width = 67, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 66, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ent", HeaderText = "Entfalltage", Width = 65, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Abs", HeaderText = "Absenztage", Width = 72, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         // Reihenfolge wie im Vorbild: … Grund, Text, Anrechnung, Entfalltage, Absenztage, dann die weiteren Spalten
         var nachText = _g.Columns["T"]!.DisplayIndex;
@@ -162,6 +162,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
             if (el is Lehrer l) return new Steuerelemente.ListenStil(Color.White, Color.Black, l.Langname.Length > 0 ? l.Langname : l.VollerName, Symbole.Get("unterricht", 16));
             return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el.Langname);
         });
+        // zu lange Texte wie im Original abgeschnitten, ohne „…“
+        Ui.OhneAuslassungspunkte(_g);
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellBeginEdit += (_, e) => { if (e.RowIndex >= 0 && _g.Rows[e.RowIndex].Tag is Veranstaltung) e.Cancel = true; };
         _g.RowValidated += (_, e) => { if (e.RowIndex == _entwurfZeile) EntwurfUebernehmen(); };

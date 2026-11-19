@@ -1081,8 +1081,9 @@ public sealed partial class PlanAnsicht : Control
         g.FillRectangle(mint, ecke);
         g.DrawRectangle(linie, ecke.X, ecke.Y, ecke.Width, ecke.Height);
         // Vorbild: „Nvpl Std.“ mit nicht verplanten / allen Stunden oben links (große Pläne)
-        // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: „Nvpl“ über „2/28“ (Arial 8) in der 41 × 37 px großen Ecke
-        if (Ecke.Length > 0 && (!klein || PlanKleinVorbild) && !druck)
+        // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: „Nvpl“ über „2/28“ (Arial 8) in der 41 × 37 px großen Ecke;
+        // im Vertretungsmodus bleibt die Ecke des kleinen Plans wie im Original-Bildschirmfoto leer
+        if (Ecke.Length > 0 && (!klein || (PlanKleinVorbild && !AppZustand.Vertretungsmodus)) && !druck)
         {
             var f = Schriftcache.Holen(Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
             var eckText = klein ? string.Join("\n", Ecke.Split('\n').Select((z, i) => i == 0 ? z.Split(' ')[0] : z)) : Ecke;

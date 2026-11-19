@@ -271,6 +271,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellEndEdit += ZelleGeaendert;
         _g.CellFormatting += Formatieren;
         _g.CellPainting += KollisionZeichnen;
+        // zu lange Texte wie im Original abgeschnitten, ohne „…“ (nach den eigenen Zellzeichnern)
+        Ui.OhneAuslassungspunkte(_g);
         _g.CellBeginEdit += (_, e) =>
         {
             if (e.RowIndex < 0 || _g.Rows[e.RowIndex].Tag is not Vertretung v) return;
