@@ -43,6 +43,7 @@ public static class Symbole
         ["o"] = 0xE5832A,   // Orange
         ["ho"] = 0xFAD7B0,  // Hellorange
         ["r"] = 0xC9372C,   // Rot
+        ["xr"] = 0xEE4040,  // helles Signalrot (Entfall-X)
         ["y"] = 0xF2BE2E,   // Gelb
         ["hy"] = 0xFBE7A6,  // Hellgelb
         ["gy"] = 0xD49A1A,  // Ocker (Ordnerrückseite)
@@ -97,7 +98,8 @@ public static class Symbole
         ["vertretung@16"] = "H 2 12 14 gr; H 16 12 14 b; V 8 10 12 5 20 5 23 9 g w3 h",
         ["abwesenheit"] = "H 2 3 20 gr; E 17 17 13 13 r; L 20.5 23.5 26.5 23.5 w w3",
         ["absenz"] = "=abwesenheit",
-        ["entfall"] = "P 6 3 21 3 26 8 26 29 6 29 w; P 21 3 21 8 26 8 hg; L 11 13 21 23 r w3.5 h & L 21 13 11 23 r w3.5 h",
+        // Entfall: kräftiges rotes X mit dunklem Saum wie auf dem Original-Bildschirmfoto (Symbolleiste der Vertretungen)
+        ["entfall"] = "L 5 5 27 27 xr w8 h & L 27 5 5 27 xr w8 h",
         ["bereitschaft"] = "E 13 23 6 6 dk; C 8 5 16 16 180 180 o & R 8 13 16 8 o & P 4 25 28 25 24 20 8 20 o & E 14.5 3 3 3 o",
         ["sondereinsatz"] = "P 20 2 7 18 15 18 12 30 25 13 17 13 23 2 o",
         ["pausenaufsicht"] = "P 16 3 28 7 27 19 16 29 5 19 4 7 b; L 10 16 15 21 23 11 w w3",
@@ -187,7 +189,6 @@ public static class Symbole
         ["vertretung"] = "arrow_switch",
         ["abwesenheit"] = "user_delete",
         ["absenz"] = "user_red",
-        ["entfall"] = "cancel",
         ["bereitschaft"] = "bell",
         ["sondereinsatz"] = "star",
         ["pausenaufsicht"] = "eye",

@@ -855,7 +855,9 @@ public sealed partial class HauptFenster
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts
-            AppZustand.VertretungWaehlen(OffeneVertretung());
+            // (offene Vertretung einer Unterrichtsstunde, Eingabeassistent ausgeblendet wie im Original)
+            AppZustand.VertretungWaehlen(AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == AppZustand.Datum && v.Offen && v.Art == VertretungsArt.Vertretung) ?? OffeneVertretung());
+            if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
             var mdi = Controls.OfType<MdiClient>().First().ClientSize;
             var rechts = Math.Max(300, mdi.Width - 450);
             Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }

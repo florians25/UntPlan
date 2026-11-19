@@ -250,7 +250,12 @@ public sealed class Ribbon : Control
         using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
         // Menüband flach in der hellen Modusfarbe wie im Vorbild (kein Verlauf)
         using (var b = new SolidBrush(Ui.BlauSehrHell)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
-        using (var p = new Pen(Color.FromArgb(198, 205, 216))) g.DrawLine(p, 0, Height - 1, Width, Height - 1);
+        // Trennlinien oben und unten wie auf dem Original-Bildschirmfoto: hellgrau (213,213,213)
+        using (var p = new Pen(Color.FromArgb(213, 213, 213)))
+        {
+            g.DrawLine(p, 0, TabHoehe, Width, TabHoehe);
+            g.DrawLine(p, 0, Height - 1, Width, Height - 1);
+        }
         if (Rechts.BackColor != Ui.Titel) Rechts.BackColor = Ui.Titel;
         // Datei wie die übrigen Registerkarten (Vorbild 2026): weiße Schrift, beim Überfahren aufgehellt
         if (_hoverDatei) using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, _dateiBounds);

@@ -118,7 +118,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ts.Items.Add(Knopf("Diagnose – Vertretungs-Diagnose", "diagnose", () => VertretungsDiagnoseDialog.Zeigen(this, Von, Bis)));
         ts.Items.Add(new ToolStripButton("Nächste offene", Steuerelemente.PfeilKnopf.Bild(true), (_, _) => NaechsteOffene()) { ToolTipText = "Zur nächsten offenen Vertretung springen (F3)", DisplayStyle = ToolStripItemDisplayStyle.Image });
         ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(new ToolStripButton("Entfall", Symbole.Get("loeschen", 16), (_, _) => Entfall())
+        // wie auf dem Original-Bildschirmfoto: „Entfall“ als rotes X an dritter Stelle der Leiste
+        ts.Items.Insert(2, new ToolStripButton("Entfall", Symbole.Get("entfall", 16), (_, _) => Entfall())
         {
             // wie in der Vorlage: Titel „Entfall“, darunter „Unterricht entfällt“
             ToolTipText = "Entfall\nUnterricht entfällt\n(Taste - beim Vertreter; erneut klicken macht wieder eine offene Vertretung daraus)", DisplayStyle = ToolStripItemDisplayStyle.Image,
