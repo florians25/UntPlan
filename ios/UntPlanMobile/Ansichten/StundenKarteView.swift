@@ -306,7 +306,7 @@ struct KachelView: View {
     // MARK: - Pille (Aufsicht, ganztägiger Termin)
 
     /// Pille (Aufsicht, ganztägiger Termin), nachgemessen an den Vorlagen dunkel 6a2e7724/da72165b/eedec6e2 (3 px/pt):
-    /// Fläche wie eine Karte (künftig #5e7382, vergangen #323c45), Ecken 4 pt; lila Balken 4 pt breit, 4 pt vom linken Rand,
+    /// Fläche wie eine Karte (künftig #5e7382, vergangen #323c45), Ecken 3,33 pt (2bb77419: Rundung 10 px); lila Balken 4 pt breit, 4 pt vom linken Rand,
     /// oben und unten 1 pt Luft; Ort 12 pt Semibold wie die erste Kartenzeile, Textbeginn 12,67 pt von der Kante.
     /// Abgegebene Aufsicht: durchsichtig mit Eckklammern, Balken halb deckend, grünes „⋮“-Feld (14 pt) unten rechts
     /// (1 pt vom unteren, 2,33 pt vom rechten Rand). Aufsicht vor der 1. Stunde („STD-früh“): 11 pt hoch, Ort 8 pt.
@@ -346,11 +346,13 @@ struct KachelView: View {
         .padding(.leading, 4)
         .padding(.trailing, mitFeld ? 2.33 : 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: klein ? 3 : 4, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: klein ? 3 : 4, style: .continuous))
+        .background(a.hintergrund, in: RoundedRectangle(cornerRadius: klein ? 3 : 3.33, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: klein ? 3 : 3.33, style: .continuous))
         .contentShape(Rectangle())
         .overlay { rahmen(a) }
-        .shadow(color: a.schatten == .keiner ? .clear : Farben.kartenSchattenFlach, radius: a.schatten == .keiner ? 0 : 1.5, y: a.schatten == .keiner ? 0 : 1)
+        // Dunkel ohne Schatten (2bb77419: Rastergrund und Linie direkt unter der Pille unverändert)
+        .shadow(color: a.schatten == .keiner || dunkel ? .clear : Farben.kartenSchattenFlach,
+                radius: a.schatten == .keiner || dunkel ? 0 : 1.5, y: a.schatten == .keiner || dunkel ? 0 : 1)
     }
 
     private var aufsichtHinweis: String? {

@@ -2018,10 +2018,10 @@ struct RasterSeite: View, Equatable {
         let oben = mass.yEnde(beginn) + 1
         let unten = mass.y(ende)
         let luecke = max(0, unten - oben)
-        // Vorlagen 6a2e7724/da72165b (15-Minuten-Pause, 3 px/pt): Pille 17,5 pt hoch bei 18,67 pt Lücke, 0,83 pt unter der
-        // Linie davor – höchstens 17,5 pt, sonst Lücke − 1,17 pt, leicht nach unten versetzt
-        let h = max(12, min(17.5, luecke - 1.17))
-        return (bildpunkt(oben + (luecke - h) / 2 + 0.25), h)
+        // Vorlagen 2bb77419 und 6a2e7724 (3 px/pt): die Pille füllt die Lücke zwischen den Linien bis auf je 1,5 px oben und
+        // unten (Lücke 52 px → Pille 49 px, Lücke 55,5 px → 52,5 px), Abstand oben und unten gleich
+        let h = max(12, luecke - 1)
+        return (bildpunkt(oben + (luecke - h) / 2), h)
     }
 
     /// Auf ganze Bildpunkte runden (3x: Drittel-Punkte).

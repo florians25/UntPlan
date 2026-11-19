@@ -104,6 +104,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Hinweis: Sprechtage aus dem bisherigen Modul werden nicht übernommen.
 
 ### Web
+- Bericht „Abwesenheiten“: jede Verspätung bzw. jedes vorzeitige Gehen als eigene Zeile (auch reine Verspätungen ohne Abwesenheit) mit Uhrzeit, „verspätet x Min.“, Fach, Lehrkraft, Grund, Status und Text, je Schüler*in eine Summenzeile „Verspätungen“ (Anzahl, Minuten) – in PDF und CSV; „Aufgestanden“ steht nur noch in der Tabelle „Abwesende Schüler*innen“.
 - Klassenbuch-Berichte dokumentieren jede Verspätung und jedes vorzeitige Gehen genau (PDF und CSV): Datum, Stunde, Uhrzeit von–bis, Minuten, Fach, Lehrkraft, Grund, Text und Status; Summen mit Anzahl und Minuten (Verspätungen, Fehlzeiten pro Schüler*in/Klasse/Fach, Abwesenheiten, Statusübersicht, Anwesenheiten, Auffällige Verspätungen, Lehrnachweis, Tagesübersicht, Unterrichtsberichte, Fehlstundenmatrix „V12“/„G10“).
 - Haken „Fehlzeiten“ und „Verspätungen“ über der Berichtsliste wirken in allen Abwesenheitsberichten.
 - Schülerliste der Stundendetails: Symbol „Aufgestanden“ (Bett mit Pfeil nach oben) bei abwesenden Schüler*innen in der laufenden Stunde – anwesend ab jetzt, Verspätung von Stundenbeginn bis jetzt.
@@ -210,6 +211,7 @@ Ohne Installation: `UntPlan-portabel.zip` entpacken und `UntPlan.exe` starten.
 - Klassenbucheinträge: Kategorien Erzieherische Maßnahme, Trainingsraum, Konsequenzmodell, Filter Schüler*in und Kategoriegruppe „Maßnahme“, Knopf „Bericht“ (PDF je Schüler*in zur Dokumentation oder Beratung).
 
 ### iOS
+- Schülerliste: neuer Abschnitt „Abwesende Schüler*innen“ unter der Liste (Name, Zeit, Art, Status, Grund) mit „Aufgestanden“ und „Bearbeiten“; das Bett-Symbol erscheint nur noch dort.
 - Schülerliste: „Aufgestanden“ (Bett mit Pfeil nach oben) setzt abwesende Schüler*innen in der laufenden Stunde ab jetzt auf anwesend, mit Verspätung von Stundenbeginn bis jetzt.
 - Verspätungen genau: Minuten, Uhrzeit von–bis, Stunde, Fach und Status in Schülerliste, Abwesenheitsliste und Entschuldigungen.
 - Meine Abwesenheiten wie die Vorlage: Karten ohne Datumsköpfe (Datum, Uhrzeit, Grund, Status; bei Verspätung nur Zeit und Art), Filter-Seite mit Startzeitraum (1 Woche bis Aktuelles Schuljahr, Lupe für eigenen Zeitraum) und „Nicht entschuldigte“ (gespeichert).

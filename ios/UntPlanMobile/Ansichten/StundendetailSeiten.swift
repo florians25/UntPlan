@@ -1803,6 +1803,8 @@ private struct EintragLabelStil: LabelStyle {
 /// „Abwesend (fehlt)“ oder der Hinweis „War in Vorstunde abwesend!“, rechts Buch mit Plus (neuer Klassenbucheintrag)
 /// und Uhr (Abwesenheiten der Person). Wischen von links nach rechts: anwesend (grün), von rechts nach links: abwesend (rot)
 /// bzw. bei abwesenden Schüler*innen „Entschuldigen“ (runde Pill, öffnet den Entschuldigungsdialog).
+/// Unter der Liste (wie im Web) der Abschnitt „Abwesende Schüler*innen“: Name, Zeit und Art bzw. Status, rechts
+/// „Aufgestanden“ (Bett mit Pfeil nach oben, nur in der laufenden Stunde) und „Bearbeiten“ (Stift).
 struct SchuelerSeite: View {
     enum Filter: Hashable {
         case alle
@@ -1824,6 +1826,8 @@ struct SchuelerSeite: View {
     @State private var fehler: String? = nil
     @State private var eintrag: Eintragsvorlage? = nil
     @State private var abwesenheitenVon: Schueler? = nil
+    /// „Abwesenheit bearbeiten“ aus dem Abschnitt „Abwesende Schüler*innen“
+    @State private var bearbeitung: Bearbeitungsziel? = nil
     /// Entschuldigungsdialog (Wischen nach links bei abwesenden Schüler*innen)
     @State private var entschuldigung: Entschuldigungsauftrag? = nil
     @State private var rechte = Entschuldigungsrechte()
@@ -1845,6 +1849,18 @@ struct SchuelerSeite: View {
         case .abwesend: return alle.filter { daten.fehlzeit($0) != nil }
         case .anwesend: return alle.filter { daten.fehlzeit($0) == nil }
         }
+    }
+
+    /// Abwesenheit einer Schülerin bzw. eines Schülers dieser Stunde zum Bearbeiten.
+    struct Bearbeitungsziel: Hashable, Identifiable {
+        let id = UUID()
+        let schueler: Schueler
+        let eintrag: AbwesenheitsEintrag
+    }
+
+    /// Abwesend erfasste Schüler*innen dieser Stunde (Abschnitt unter der Liste), nach Name wie die Liste.
+    private var abwesendeListe: [Schueler] {
+        (liste?.schueler ?? []).filter { daten.fehlzeit($0) != nil }
     }
 
     private struct Gruppe: Identifiable {
@@ -1882,13 +1898,22 @@ struct SchuelerSeite: View {
                 .environmentObject(zustand)
                 .environment(\.unterblatt, false)
         }
+        .navigationDestination(item: $bearbeitung) { z in
+            AbwesenheitBearbeitenView(schueler: z.schueler, eintrag: z.eintrag)
+                .environmentObject(daten)
+                .environmentObject(zustand)
+        }
         .detailPraesentation(item: $entschuldigung, breit: Geraet.istPad, art: .formular) { a in
             EntschuldigenView(auftrag: a) {
                 Task { await daten.anwesenheitLaden() }
             }
             .environmentObject(zustand)
         }
-        .task { rechte = await zustand.entschuldigungsrechteLaden() }
+        .task {
+            rechte = await zustand.entschuldigungsrechteLaden()
+            // Abwesenheitsgründe für den Abschnitt „Abwesende Schüler*innen“
+            await daten.gruendeLaden()
+        }
         .alert("Speichern fehlgeschlagen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -2011,6 +2036,34 @@ struct SchuelerSeite: View {
                             }
                             .id(gruppe.buchstabe)
                         }
+                        // Wie im Web: unter der Schülerliste die abwesenden Schüler*innen – nur hier „Aufgestanden“
+                        if filter != .anwesend && !abwesendeListe.isEmpty {
+                            Section {
+                                ForEach(abwesendeListe) { s in
+                                    abwesendZeile(s)
+                                        .padding(.leading, 16)
+                                        .padding(.trailing, 26)
+                                        .listRowInsets(EdgeInsets())
+                                        .listRowBackground(Farben.blatt)
+                                        .listRowSeparator(.hidden)
+                                }
+                            } header: {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text("Abwesende Schüler*innen (\(abwesendeListe.count))")
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundStyle(Farben.gedaempft)
+                                        .padding(.top, 18)
+                                        .padding(.bottom, 10)
+                                    Rectangle()
+                                        .fill(Farben.trennlinie)
+                                        .frame(height: 1)
+                                }
+                                .padding(.trailing, 4)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                                .accessibilityAddTraits(.isHeader)
+                            }
+                            .id("abwesende")
+                        }
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
@@ -2118,17 +2171,6 @@ struct SchuelerSeite: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // „Aufgestanden“: nur bei abwesend erfassten Schüler*innen in der laufenden Stunde
-            if bearbeitbar, let f, f.art == "fehlt", daten.laeuftGerade {
-                WischKnopf {
-                    Task { await ausfuehren(s) { _ = try await daten.aufgestandenSetzen(s) } }
-                } label: {
-                    AufgestandenSymbol()
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Aufgestanden")
-                .accessibilityHint("\(s.anzeige) ist ab jetzt anwesend, die Verspätung wird von Stundenbeginn bis jetzt eingetragen")
-            }
             WischKnopf {
                 eintrag = Eintragsvorlage(schueler: [s])
             } label: {
@@ -2149,6 +2191,91 @@ struct SchuelerSeite: View {
         }
         .frame(minHeight: 60)
         .contentShape(Rectangle())
+    }
+
+    /// Zeit der Abwesenheit in dieser Stunde: „8:00 – 8:45“ (minutengenau, sonst die Stunde).
+    private func abwesenheitszeit(_ f: Fehlzeiteintrag) -> String {
+        func hm(_ wert: String) -> String {
+            let teil = wert.split(separator: "T").last.map(String.init) ?? wert
+            return Detailmass.uhrzeit(String(teil.prefix(5)))
+        }
+        let von = hm(f.vonZeit.isEmpty ? (f.beginn.isEmpty ? daten.blockBeginn : f.beginn) : f.vonZeit)
+        let bis = hm(f.bisZeit.isEmpty ? (f.ende.isEmpty ? daten.blockEnde : f.ende) : f.bisZeit)
+        return von.isEmpty || bis.isEmpty ? "" : "\(von) – \(bis)"
+    }
+
+    /// Zeile im Abschnitt „Abwesende Schüler*innen“: Name, darunter Zeit · Art (fehlt, verspätet, vorzeitig) · Status;
+    /// rechts „Aufgestanden“ (nur abwesend erfasst und in der laufenden Stunde) und „Bearbeiten“.
+    @ViewBuilder
+    private func abwesendZeile(_ s: Schueler) -> some View {
+        if let f = daten.fehlzeit(s) {
+            let status = f.status == "entschuldigt" ? "entschuldigt" : f.status == "unentschuldigt" ? "nicht entschuldigt" : "offen"
+            let unter = [abwesenheitszeit(f), f.statustext, status].filter { !$0.isEmpty }.joined(separator: " · ")
+            HStack(spacing: 14) {
+                Group {
+                    if speichert == s.id {
+                        ProgressView()
+                    } else if f.art == "verspaetet" || f.art == "vorzeitig" {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .foregroundStyle(Color(hexWert: 0xF2B705))
+                    } else {
+                        Image(systemName: "clock")
+                            .foregroundStyle(Farben.entfallRand)
+                    }
+                }
+                .font(.system(size: 22, weight: .light))
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.anzeige)
+                        .font(.system(size: 18))
+                        .foregroundStyle(Farben.tinte)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(unter)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Farben.gedaempft)
+                        .lineLimit(2)
+                    let text = [daten.grundName(f.grund), f.text].filter { !$0.isEmpty }.joined(separator: " – ")
+                    if !text.isEmpty {
+                        Text(text)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Farben.gedaempft)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                // „Aufgestanden“: nur hier, bei abwesend erfassten Schüler*innen in der laufenden Stunde
+                if bearbeitbar, f.art == "fehlt", daten.laeuftGerade {
+                    Button {
+                        Task { await ausfuehren(s) { _ = try await daten.aufgestandenSetzen(s) } }
+                    } label: {
+                        AufgestandenSymbol()
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(speichert != nil)
+                    .accessibilityLabel("Aufgestanden: \(s.anzeige)")
+                    .accessibilityHint("Ist ab jetzt anwesend, die Verspätung wird von Stundenbeginn bis jetzt eingetragen")
+                }
+                if bearbeitbar {
+                    Button {
+                        bearbeitung = Bearbeitungsziel(schueler: s, eintrag: AbwesenheitsEintrag(f, datum: daten.karte.datum))
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(Farben.tinte2)
+                            .frame(width: 30, height: 30)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Abwesenheit von \(s.anzeige) bearbeiten")
+                }
+            }
+            .frame(minHeight: 60)
+            .contentShape(Rectangle())
+        }
     }
 
     /// Entschuldigen: Klassenleitung der Klasse oder Fachlehrkraft dieser Stunde (Modul aktiv).

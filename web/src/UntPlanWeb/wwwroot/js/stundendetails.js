@@ -346,7 +346,6 @@ export function karteDialog(karte, kontext = {}) {
         ${status}
         <span class="sd-avatar"><img src="${W}avatar-default-white.svg" alt=""></span>
         <span class="sd-name">${sitz.nameHtml(s, nameW)}</span>
-        ${darf && st === 'weg' && laeuftJetzt() ? `<button type="button" class="sd-aufgestanden" data-aufgestanden="${s.id}" title="Aufgestanden" aria-label="Aufgestanden: ${e(`${s.name} ${s.vorname}`)} ab jetzt anwesend">${BETT_AUF}</button>` : ''}
         ${darf && daten.anwesenheit?.einstellungen?.direkteEingabe !== false ? `<button type="button" class="sd-umschalten" data-umschalten="${s.id}" title="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}" aria-label="${st === 'da' ? 'Als abwesend markieren' : 'Als anwesend markieren'}">${st === 'da' ? KREUZ : HAKEN}</button>` : ''}
       </div>`;
     };
