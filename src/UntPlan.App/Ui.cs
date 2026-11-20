@@ -111,6 +111,15 @@ public static partial class Ui
     public static Color BlauSehrHell => Vertretungsmodus ? Color.FromArgb(229, 239, 233) : Color.FromArgb(223, 239, 248);
     // Vertretungsmodus: Grün und MDI-Hintergrund wie auf dem Original-Bildschirmfoto (Vollbild, 100 %)
     public static Color Titel => Vertretungsmodus ? Color.FromArgb(88, 150, 125) : Color.FromArgb(81, 155, 205);
+    /// <summary>
+    /// Fläche des Menübands und der gewählten Registerkarte wie in der Vorlage: Vertretungsmodus nachgemessen (229,239,235),
+    /// Stundenplanmodus sehr helles Graublau.
+    /// </summary>
+    public static Color Menueband => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(240, 244, 248);
+    /// <summary>Eingedrückter großer Menübandknopf (z. B. „Vertretungsplanung“): kräftige helle Modusfarbe, Rand in <see cref="Titel"/>.</summary>
+    public static Color MenuebandGedrueckt => Vertretungsmodus ? Color.FromArgb(149, 208, 185) : Color.FromArgb(160, 202, 236);
+    /// <summary>Linien des Menübands (oben, unten, Gruppentrenner) wie in der Vorlage.</summary>
+    public static readonly Color MenuebandLinie = Color.FromArgb(213, 213, 213);
     public static Color MdiHintergrund => Dialoge.Einstellungsseiten.Hintergrund(Vertretungsmodus, Vertretungsmodus ? Color.FromArgb(175, 223, 204) : Color.FromArgb(221, 239, 254));
     public static Color Kopf => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(232, 243, 251);
     public static Color RibbonTab => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(236, 241, 243);

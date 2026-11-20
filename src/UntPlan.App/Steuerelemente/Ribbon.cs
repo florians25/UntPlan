@@ -70,8 +70,21 @@ public sealed class RibbonSeite
 /// <summary>Menüband im Stil klassischer Office-/Windows-Anwendungen.</summary>
 public sealed class Ribbon : Control
 {
-    /// <summary>Registerleiste wie im Vorbild 2026: schmal, in der Modusfarbe, durchgehend mit der Titelzeile darüber.</summary>
-    public const int TabHoehe = 24;
+    /// <summary>
+    /// Registerleiste wie in der Vorlage, in der Modusfarbe und durchgehend mit der Titelzeile darüber: 27 Pixel, die
+    /// Registerkarten selbst 24 Pixel hoch und unten bündig (oben 3 Pixel Abstand zur Titelzeile, Kopf gesamt 33 + 27 = 60 Pixel).
+    /// </summary>
+    public const int TabHoehe = 27;
+    /// <summary>Höhe einer Registerkarte (Oberkante bis Menüband).</summary>
+    private const int KartenHoehe = 24;
+    /// <summary>Oberkante der großen Knöpfe und der ersten Zeile kleiner Knöpfe unter der Menübandlinie (Vorlage: 5 Pixel).</summary>
+    private const int KnopfOben = 5;
+    /// <summary>Großer Knopf: 66 Pixel hoch (Symbol 32 Pixel 2 Pixel unter der Oberkante, Beschriftung ab 36, Pfeil ab 55).</summary>
+    private const int GrossHoehe = 66;
+    /// <summary>Kleine Knöpfe: drei Zeilen zu je 22 Pixeln.</summary>
+    private const int KleinHoehe = 22;
+    /// <summary>Abstand Gruppentrenner → erster Knopf bzw. letzter Knopf → Gruppentrenner (Vorlage: 7 bzw. 5 Pixel).</summary>
+    private const int GruppeLinks = 7, GruppeRechts = 5;
     /// <summary>Schrift der Registerkarten (Datei, Start, …) – klein und weiß wie im Vorbild.</summary>
     private static readonly Font TabSchrift = new("Segoe UI", 9f);
     /// <summary>Kleine Knöpfe rechts in der Registerleiste (Fensteranordnungen 1–8).</summary>
@@ -82,7 +95,8 @@ public sealed class Ribbon : Control
     };
     // Fläche unter der Registerleiste wie auf dem Original-Bildschirmfoto: 91 Pixel samt Trennlinie oben
     private const int Inhalt = 92;
-    private readonly ToolTip _tip = new() { InitialDelay = 600 };
+    /// <summary>Erweiterte Kurzinfo wie in der Vorlage (Symbol, fette Überschrift, Beschreibung, „Mit F1 erhalten Sie Hilfe.“).</summary>
+    private readonly SuperTipp _tip = new();
     private RibbonEintrag? _hover;
     private RibbonSeite? _hoverTab;
     private Rectangle _dateiBounds;
@@ -102,10 +116,17 @@ public sealed class Ribbon : Control
         Rechts.SizeChanged += (_, _) => RechtsPlatzieren();
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _tip.Dispose();
+        base.Dispose(disposing);
+    }
+
     private void RechtsPlatzieren()
     {
         var w = Rechts.PreferredSize.Width;
-        Rechts.SetBounds(Math.Max(0, Width - w - 6), 1, w, TabHoehe - 2);
+        // wie in der Vorlage: kleine Symbole 3 Pixel vor dem rechten Rand, senkrecht mittig auf den Registerkarten
+        Rechts.SetBounds(Math.Max(0, Width - w - 3), 0, w, KartenHoehe);
         Rechts.BackColor = Ui.Titel;
     }
 
@@ -132,7 +153,7 @@ public sealed class Ribbon : Control
     private void Layout2(Graphics g)
     {
         var x = 4;
-        _dateiBounds = new Rectangle(x, 2, (int)g.MeasureString("Datei", TabSchrift).Width + 22, TabHoehe - 2);
+        _dateiBounds = new Rectangle(x, TabHoehe - KartenHoehe, (int)g.MeasureString("Datei", TabSchrift).Width + 22, KartenHoehe);
         x = _dateiBounds.Right + 2;
         if (!(Seiten.ElementAtOrDefault(AktiveSeite)?.IstSichtbar ?? false))
             AktiveSeite = Math.Max(0, Seiten.FindIndex(x => x.IstSichtbar));
@@ -140,7 +161,7 @@ public sealed class Ribbon : Control
         {
             if (!s.IstSichtbar) { s.TabBounds = Rectangle.Empty; continue; }
             var w = (int)g.MeasureString(s.Text, TabSchrift).Width + 24;
-            s.TabBounds = new Rectangle(x, 2, w, TabHoehe - 2);
+            s.TabBounds = new Rectangle(x, TabHoehe - KartenHoehe, w, KartenHoehe);
             x += w + 1;
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
@@ -175,72 +196,89 @@ public sealed class Ribbon : Control
         return (seite.Gruppen[^1].Bounds.Right, seite.Gruppen.Count(x => x.Stufe == 1), seite.Gruppen.Count(x => x.Stufe == 2));
     }
 
-    /// <summary>Gruppen der Seite nach ihrer Verkleinerungsstufe anordnen; liefert den rechten Rand der letzten Gruppe.</summary>
+    /// <summary>Gruppen der Seite nach ihrer Verkleinerungsstufe anordnen; liefert den rechten Rand der letzten Gruppe (Trennlinie).</summary>
     private int GruppenAnordnen(Graphics g, RibbonSeite seite)
     {
-        var x = 6;
+        // Maße wie in der Vorlage (100 %): Trennlinie → Knopf 7 Pixel, Knopf → Trennlinie 5 Pixel; Gruppen mit Datumsfeld
+        // (Kalender) enger: Feld 4 Pixel nach dem linken Rand, Trennlinie 3 Pixel danach
+        var oben = TabHoehe + KnopfOben;
+        var trenner = 0;
         foreach (var gr in seite.Gruppen)
         {
+            var mitDatum = gr.Stufe < 2 && gr.Eintraege.Any(e => e.IstDatum);
+            var x = trenner + (mitDatum ? 4 : GruppeLinks);
+            var start = x;
+            var ende = x;
             foreach (var e in gr.Eintraege) e.KleinDargestellt = gr.Stufe == 1 && e.Gross && !e.PfeilKalender && !e.ImmerGross;
             if (gr.Stufe >= 2)
             {
                 var sammel = gr.Sammel;
-                var sw = Math.Max(48, (int)g.MeasureString(sammel.Text, Font).Width + 12);
-                sammel.Bounds = new Rectangle(x, TabHoehe + 3, sw, Inhalt - 22);
-                sammel.PfeilBounds = new Rectangle(x, TabHoehe + 3 + Inhalt - 36, sw, 14);
+                var sw = Math.Max(48, TextRenderer.MeasureText(sammel.Text, Font).Width + 4);
+                sammel.Bounds = new Rectangle(x, oben, sw, GrossHoehe);
+                sammel.PfeilBounds = new Rectangle(x, oben + 52, sw, 14);
                 foreach (var e in gr.Eintraege) e.Bounds = e.PfeilBounds = Rectangle.Empty;
-                gr.Bounds = new Rectangle(x - 3, TabHoehe + 1, sw + 4, Inhalt - 2);
-                x += sw + 6;
-                continue;
+                ende = x + sw;
             }
-            var start = x;
-            var y = TabHoehe + 3;
-            var spaltenBreite = 0;
-            var zeile = 0;
-            for (var i = 0; i < gr.Eintraege.Count; i++)
+            else
             {
-                var e = gr.Eintraege[i];
-                if (e.IstDatum && i > 0 && gr.Eintraege[i - 1] is { GrossDargestellt: true } ueber && zeile == 0)
+                var spaltenBreite = 0;
+                var zeile = 0;
+                for (var i = 0; i < gr.Eintraege.Count; i++)
                 {
-                    // wie im Vorbild: Datumsfeld unter dem großen Kalenderknopf (der Knopf wird etwas niedriger)
-                    var bx = ueber.Bounds.X;
-                    // Datumsfeld wie auf dem Original-Bildschirmfoto: 92 Pixel breit
-                    var w = Math.Max(92, ueber.Bounds.Width);
-                    ueber.Bounds = new Rectangle(bx, y, w, Inhalt - 28);
-                    if (ueber.PfeilBounds != Rectangle.Empty) ueber.PfeilBounds = new Rectangle(bx, y + Inhalt - 42, w, 14);
-                    e.Bounds = new Rectangle(bx, y + Inhalt - 26, w, 22);
-                    e.PfeilBounds = Rectangle.Empty;
-                    x = bx + w + 2;
-                    continue;
-                }
-                if (e.GrossDargestellt)
-                {
-                    if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
-                    // große Knöpfe eng wie auf dem Original-Bildschirmfoto: Beschriftung + 4 Pixel, 2 Pixel Abstand (Text zu Text 6–7 Pixel)
-                    var w = Math.Max(40, TextRenderer.MeasureText(e.Text, Font).Width + 4);
-                    e.Bounds = new Rectangle(x, y, w, Inhalt - 22);
-                    e.PfeilBounds = e.Menue != null || e.MenueErzeugen != null || e.PfeilKalender ? new Rectangle(x, y + Inhalt - 36, w, 14) : Rectangle.Empty;
-                    x += w + 2;
-                }
-                else
-                {
-                    var w = e.IstDatum ? 136 : (int)g.MeasureString(e.Text, Font).Width + 26 + (e.Menue != null || e.MenueErzeugen != null ? 10 : 0);
-                    spaltenBreite = Math.Max(spaltenBreite, w);
-                    e.Bounds = new Rectangle(x, y + zeile * 23, w, 22);
-                    e.PfeilBounds = (e.Menue != null || e.MenueErzeugen != null) && e.Klick != null ? new Rectangle(e.Bounds.Right - 12, e.Bounds.Y, 12, 22) : Rectangle.Empty;
-                    zeile++;
-                    if (zeile == 3) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
+                    var e = gr.Eintraege[i];
+                    if (e.IstDatum && i > 0 && gr.Eintraege[i - 1] is { GrossDargestellt: true } ueber && zeile == 0)
+                    {
+                        // wie in der Vorlage: Datumsfeld (92 × 16 Pixel) unter dem großen Kalenderknopf (der Knopf wird etwas niedriger)
+                        var bx = ueber.Bounds.X;
+                        var w = Math.Max(92, ueber.Bounds.Width);
+                        ueber.Bounds = new Rectangle(bx, oben, w, GrossHoehe - 4);
+                        if (ueber.PfeilBounds != Rectangle.Empty) ueber.PfeilBounds = new Rectangle(bx, oben + 50, w, 12);
+                        e.Bounds = new Rectangle(bx, TabHoehe + 69, w, 22);
+                        e.PfeilBounds = Rectangle.Empty;
+                        x = bx + w;
+                        ende = Math.Max(ende, x);
+                        continue;
+                    }
+                    if (e.GrossDargestellt)
+                    {
+                        if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
+                        // große Knöpfe eng wie in der Vorlage: Beschriftung + 4 Pixel, 2 Pixel Abstand (Text zu Text 6 Pixel)
+                        var w = Math.Max(40, TextRenderer.MeasureText(e.Text, Font).Width + 4);
+                        e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
+                        e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
+                        ende = x + w;
+                        x += w + 2;
+                    }
+                    else
+                    {
+                        // kleiner Knopf wie in der Vorlage: Symbol 3 Pixel eingerückt, Text 3 Pixel nach dem Symbol, Pfeil 5 Pixel nach dem Text
+                        var tw = TextBreite(e.Text);
+                        var w = e.IstDatum ? 136 : KleinText + tw + (HatMenue(e) ? 14 : 4);
+                        spaltenBreite = Math.Max(spaltenBreite, w);
+                        e.Bounds = new Rectangle(x, oben + zeile * KleinHoehe, w, KleinHoehe);
+                        e.PfeilBounds = HatMenue(e) && e.Klick != null ? Rectangle.FromLTRB(x + KleinText + tw + 2, e.Bounds.Y, e.Bounds.Right, e.Bounds.Bottom) : Rectangle.Empty;
+                        ende = Math.Max(ende, e.Bounds.Right);
+                        zeile++;
+                        if (zeile == 3) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
+                    }
                 }
             }
-            if (zeile > 0) x += spaltenBreite + 4;
-            // Breite der Kleinbuttons in einer Spalte angleichen
-            var textBreite = (int)g.MeasureString(gr.Text, Ui.SchriftKlein).Width + 10;
-            if (x - start < textBreite) x = start + textBreite;
-            gr.Bounds = new Rectangle(start - 3, TabHoehe + 1, x - start + 4, Inhalt - 2);
-            x += 6;
+            // Gruppe mindestens so breit wie ihre Beschriftung
+            var textBreite = TextRenderer.MeasureText(gr.Text, Ui.SchriftKlein).Width + 6;
+            if (ende - start < textBreite) ende = start + textBreite;
+            var rechts = ende + (mitDatum ? 3 : GruppeRechts);
+            gr.Bounds = Rectangle.FromLTRB(trenner, TabHoehe + 1, rechts, TabHoehe + Inhalt - 1);
+            trenner = rechts;
         }
-        return x - 6;
+        return trenner;
     }
+
+    /// <summary>Kleiner Knopf: Beginn des Texts (Symbol bei 3, 16 Pixel breit, 3 Pixel Abstand).</summary>
+    private const int KleinText = 22;
+
+    private int TextBreite(string text) => TextRenderer.MeasureText(text, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+
+    private static bool HatMenue(RibbonEintrag e) => e.Menue != null || e.MenueErzeugen != null;
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -250,52 +288,73 @@ public sealed class Ribbon : Control
         Layout2(g);
         // Registerleiste in der Modusfarbe (durchgehend mit Titel- und Schnellzugriffsleiste)
         using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
-        // Menüband flach in der hellen Modusfarbe wie im Vorbild (kein Verlauf)
-        using (var b = new SolidBrush(Ui.BlauSehrHell)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
-        // Trennlinien oben und unten wie auf dem Original-Bildschirmfoto: hellgrau (213,213,213)
-        using (var p = new Pen(Color.FromArgb(213, 213, 213)))
+        // Menüband flach in der hellen Modusfarbe wie in der Vorlage (kein Verlauf)
+        using (var b = new SolidBrush(Ui.Menueband)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
+        // Trennlinien oben und unten wie in der Vorlage: hellgrau (213,213,213)
+        using (var p = new Pen(Ui.MenuebandLinie))
         {
             g.DrawLine(p, 0, TabHoehe, Width, TabHoehe);
             g.DrawLine(p, 0, Height - 1, Width, Height - 1);
         }
         if (Rechts.BackColor != Ui.Titel) Rechts.BackColor = Ui.Titel;
-        // Datei wie die übrigen Registerkarten (Vorbild 2026): weiße Schrift, beim Überfahren aufgehellt
+        // Text der Registerkarten wie in der Vorlage: Großbuchstaben senkrecht mittig auf der 24 Pixel hohen Karte
+        static Rectangle TextFlaeche(Rectangle r) => new(r.X, r.Y, r.Width, r.Height - 2);
+        // Datei wie die übrigen Registerkarten (Vorlage): weiße Schrift, beim Überfahren aufgehellt
         if (_hoverDatei) using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, _dateiBounds);
-        TextRenderer.DrawText(g, "Datei", TabSchrift, _dateiBounds, Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        TextRenderer.DrawText(g, "Datei", TabSchrift, TextFlaeche(_dateiBounds), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         for (var i = 0; i < Seiten.Count; i++)
         {
             var s = Seiten[i];
             if (!s.IstSichtbar) continue;
             var aktiv = i == AktiveSeite;
+            var tb = s.TabBounds;
             if (aktiv)
             {
-                // gewählte Registerkarte hell, geht nahtlos in das Menüband über; oben eine dünne helle Akzentlinie
-                using (var b = new SolidBrush(Ui.BlauSehrHell)) g.FillRectangle(b, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, s.TabBounds.Height + 2);
-                using var akzent = new SolidBrush(Akzent);
-                g.FillRectangle(akzent, s.TabBounds.X, s.TabBounds.Y, s.TabBounds.Width, 3);
+                // gewählte Registerkarte wie in der Vorlage: Menübandfarbe mit hellgrauem Rand oben und seitlich, geht unten
+                // nahtlos in das Menüband über; oben die dünne helle Akzentlinie
+                using (var b = new SolidBrush(Ui.Menueband)) g.FillRectangle(b, tb.X, tb.Y, tb.Width, tb.Height + 1);
+                g.SmoothingMode = SmoothingMode.None;
+                using (var p = new Pen(Ui.MenuebandLinie))
+                {
+                    g.DrawLine(p, tb.X, tb.Y, tb.X, tb.Bottom);
+                    g.DrawLine(p, tb.Right - 1, tb.Y, tb.Right - 1, tb.Bottom);
+                }
+                using (var akzent = new SolidBrush(Akzent)) g.FillRectangle(akzent, tb.X, tb.Y, tb.Width, 3);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
             }
             else if (_hoverTab == s)
-                using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, s.TabBounds);
-            TextRenderer.DrawText(g, s.Text, TabSchrift, Rectangle.FromLTRB(s.TabBounds.X, s.TabBounds.Y + 2, s.TabBounds.Right, s.TabBounds.Bottom), aktiv ? Color.FromArgb(40, 44, 48) : Color.White,
+                using (var b = new SolidBrush(Color.FromArgb(45, Color.White))) g.FillRectangle(b, tb);
+            TextRenderer.DrawText(g, s.Text, TabSchrift, TextFlaeche(tb), aktiv ? Color.Black : Color.White,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;
         foreach (var gr in seite.Gruppen)
         {
-            using (var p = new Pen(Color.FromArgb(215, 220, 228))) g.DrawLine(p, gr.Bounds.Right, gr.Bounds.Y + 4, gr.Bounds.Right, gr.Bounds.Bottom - 4);
-            // Vertretungsmodus wie im Vorbild: nur die Gruppe „Stundenpläne“ trägt eine Beschriftung
+            // Gruppentrenner wie in der Vorlage: 1 Pixel hellgrau, 1 Pixel unter der Menübandlinie bis 3 Pixel über dem Gruppenende
+            g.SmoothingMode = SmoothingMode.None;
+            using (var p = new Pen(Ui.MenuebandLinie)) g.DrawLine(p, gr.Bounds.Right, gr.Bounds.Y + 1, gr.Bounds.Right, gr.Bounds.Bottom - 3);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            // Vertretungsmodus wie in der Vorlage: nur die Gruppe „Stundenpläne“ trägt eine Beschriftung (Unterkante 8 Pixel über der Menübandunterkante)
             if (!Ui.Vertretungsmodus || gr.Text == "Stundenpläne")
-                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 16, gr.Bounds.Width, 14), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(110, 115, 125),
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
+                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 19, gr.Bounds.Width, 15), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(90, 95, 105),
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             foreach (var it in gr.Angezeigt)
             {
                 var aktiv = it.Aktiviert?.Invoke() ?? true;
                 var gedrueckt = it.Gedrueckt?.Invoke() == true;
-                if ((it == _hover && aktiv) || gedrueckt)
+                if (gedrueckt)
+                {
+                    // eingedrückt wie „Vertretungsplanung“ in der Vorlage: eckig, kräftige helle Modusfarbe, Rand in der Titelfarbe
+                    g.SmoothingMode = SmoothingMode.None;
+                    using (var b = new SolidBrush(Ui.MenuebandGedrueckt)) g.FillRectangle(b, it.Bounds);
+                    using (var p = new Pen(it == _hover && aktiv ? Ui.HoverRand : Ui.Titel)) g.DrawRectangle(p, it.Bounds.X, it.Bounds.Y, it.Bounds.Width - 1, it.Bounds.Height - 1);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                }
+                else if (it == _hover && aktiv)
                 {
                     using var path = Ui.AbgerundetesRechteck(it.Bounds, 3);
-                    using var b = new SolidBrush(gedrueckt ? Ui.BlauHell : Ui.Hover);
+                    using var b = new SolidBrush(Ui.Hover);
                     using var p = new Pen(Ui.HoverRand);
                     g.FillPath(b, path);
                     g.DrawPath(p, path);
@@ -308,20 +367,22 @@ public sealed class Ribbon : Control
                 var farbe = aktiv ? Color.FromArgb(30, 30, 30) : Color.FromArgb(160, 160, 160);
                 if (it.GrossDargestellt)
                 {
+                    // Symbol 32 Pixel, 2 Pixel unter der Knopfoberkante; Beschriftung ab 36; Pfeil „˅“ ab 55 (Vorlage)
                     var img = Symbole.Get(it.Symbol, 32);
-                    if (aktiv) g.DrawImage(img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, 32, 32);
-                    else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 4, Color.Transparent);
-                    var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 38, it.Bounds.Width, 30);
+                    if (aktiv) g.DrawImage(img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 2, 32, 32);
+                    else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 2, Color.Transparent);
+                    var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 36, it.Bounds.Width, 30);
                     TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                    if (it.Menue != null || it.MenueErzeugen != null || it.PfeilKalender) DreieckUnten(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Bottom - 6, farbe);
+                    if (HatMenue(it) || it.PfeilKalender) Pfeil(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Y + 55, farbe);
                 }
                 else
                 {
                     var img = Symbole.Get(it.Symbol, 16);
                     if (aktiv) g.DrawImage(img, it.Bounds.X + 3, it.Bounds.Y + 3, 16, 16);
                     else ControlPaint.DrawImageDisabled(g, img, it.Bounds.X + 3, it.Bounds.Y + 3, Color.Transparent);
-                    TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + 22, it.Bounds.Y, it.Bounds.Width - 22, it.Bounds.Height), farbe, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix);
-                    if (it.Menue != null || it.MenueErzeugen != null) DreieckUnten(g, it.Bounds.Right - 6, it.Bounds.Y + 11, farbe);
+                    TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + KleinText, it.Bounds.Y, it.Bounds.Width - KleinText, it.Bounds.Height - 1), farbe,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
+                    if (HatMenue(it)) Pfeil(g, it.Bounds.X + KleinText + TextBreite(it.Text) + 8, it.Bounds.Y + 9, farbe);
                 }
             }
         }
@@ -370,10 +431,14 @@ public sealed class Ribbon : Control
         dd.Show(this, p);
     }
 
-    private static void DreieckUnten(Graphics g, int x, int y, Color c)
+    /// <summary>Schmaler Aufklapppfeil „˅“ wie in der Vorlage: 6 Pixel breit, 4 Pixel hoch, Spitze unten (x = Mitte, y = Oberkante).</summary>
+    private static void Pfeil(Graphics g, int x, int y, Color c)
     {
-        using var b = new SolidBrush(c);
-        g.FillPolygon(b, new[] { new Point(x - 3, y - 1), new Point(x + 4, y - 1), new Point(x, y + 3) });
+        var alt = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using var p = new Pen(Color.FromArgb(200, c), 1.3f);
+        g.DrawLines(p, new[] { new PointF(x - 3f, y + .5f), new PointF(x, y + 3.5f), new PointF(x + 3f, y + .5f) });
+        g.SmoothingMode = alt;
     }
 
     private IEnumerable<RibbonEintrag> Sichtbare() => Seiten.ElementAtOrDefault(AktiveSeite)?.Gruppen.SelectMany(g => g.Angezeigt) ?? Enumerable.Empty<RibbonEintrag>();
@@ -388,7 +453,8 @@ public sealed class Ribbon : Control
             _hover = h;
             _hoverTab = t;
             _hoverDatei = d;
-            _tip.SetToolTip(this, h is null ? "" : string.IsNullOrEmpty(h.Hinweis) ? h.Text : $"{h.Text}\n{h.Hinweis}");
+            if (h is null) _tip.Setzen(this, "");
+            else _tip.Setzen(this, h.Text, h.Hinweis, string.IsNullOrEmpty(h.Symbol) ? null : Symbole.Get(h.Symbol, 16));
             Invalidate();
         }
         Cursor = h != null || t != null || d ? Cursors.Hand : Cursors.Default;

@@ -19,6 +19,7 @@ public partial class HauptFenster
     private readonly ToolStripButton _knopfMax = new() { Alignment = ToolStripItemAlignment.Right, ToolTipText = "Maximieren" };
     private readonly ToolStripButton _knopfZu = new() { Alignment = ToolStripItemAlignment.Right, ToolTipText = "Schließen" };
     private static readonly Font KopfSchrift = new("Segoe UI", 8.25f);
+    private readonly Steuerelemente.SuperTipp _kopfTipp = new();
 
     /// <summary>Text in der Mitte des Programmkopfs (für den Selbsttest).</summary>
     internal string KopfTitel => Text;
@@ -111,7 +112,12 @@ public partial class HauptFenster
         _knopfZu.MouseLeave += (_, _) => _knopfZu.BackColor = Color.Transparent;
         // rechtsbündige Einträge werden von rechts nach links angeordnet: Schließen ganz rechts
         _schnell.Items.AddRange(new ToolStripItem[] { _knopfZu, _knopfMax, _knopfMin });
-        _schnell.Padding = new Padding(4, 0, 0, 0);
+        // Schnellzugriff wie in der Vorlage: erstes Symbol 13 Pixel vom linken Rand, Symbole im Abstand von 24 Pixeln
+        _schnell.Padding = new Padding(9, 0, 0, 0);
+        // Kurzinfos wie in der Vorlage (Symbol, fette Überschrift, Beschreibung, „Mit F1 erhalten Sie Hilfe.“)
+        _kopfTipp.FuerLeiste(_schnell);
+        _kopfTipp.FuerLeiste(_ribbon.Rechts);
+        FormClosed += (_, _) => _kopfTipp.Dispose();
         KopfHoeheSetzen();
         DpiChanged += (_, _) => { KopfHoeheSetzen(); BeginInvoke(FensterlagePruefen); };
         Shown += (_, _) => FensterlagePruefen();
@@ -179,8 +185,17 @@ public partial class HauptFenster
         }
     }
 
-    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % wie die Windows-Titelleiste: 30 Pixel.</summary>
-    internal const int KopfHoeheLogisch = 30;
+    /// <summary>
+    /// Höhe der Titel-/Schnellzugriffsleiste bei 100 % wie in der Vorlage: 33 Pixel (Fensterknöpfe 46 × 33, Symbolmitte bei 16,
+    /// darunter die 27 Pixel hohe Registerleiste – Kopf gesamt 60 Pixel bis zur Menübandlinie).
+    /// </summary>
+    internal const int KopfHoeheLogisch = 33;
+
+    /// <summary>
+    /// Schnellzugriffssymbole stehen wie in der Vorlage etwas über der Mitte der Titelleiste (Symbolmitte bei 13 von 33 Pixeln):
+    /// unterer Abstand der Einträge, um den sie nach oben rücken.
+    /// </summary>
+    private const int SchnellUntenLogisch = 6;
 
     /// <summary>Feste, DPI-skalierte Höhe des Programmkopfs; Symbole, Titel und Fensterknöpfe stehen vertikal mittig.</summary>
     private void KopfHoeheSetzen()
@@ -190,10 +205,11 @@ public partial class HauptFenster
         _schnell.Height = h;
         foreach (ToolStripItem i in _schnell.Items)
         {
-            if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), LogicalToDeviceUnits(3), LogicalToDeviceUnits(2), LogicalToDeviceUnits(3));
-            else if (i.Alignment == ToolStripItemAlignment.Left) { i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), 0); i.Padding = new Padding(LogicalToDeviceUnits(1), 0, LogicalToDeviceUnits(1), 0); }
+            // Vorlage: Trennstrich 3–23 Pixel, Symbole 16 Pixel im Raster von 24 Pixeln (Knopf 23 + 1 Pixel Abstand)
+            if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), 0, LogicalToDeviceUnits(2), LogicalToDeviceUnits(SchnellUntenLogisch));
+            else if (i.Alignment == ToolStripItemAlignment.Left) { i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), LogicalToDeviceUnits(SchnellUntenLogisch)); i.Padding = Padding.Empty; }
         }
-        // Fensterknöpfe in Windows-Standardgröße: 46 × 30 Pixel bei 100 %
+        // Fensterknöpfe in Windows-Standardbreite über die ganze Höhe des Kopfs: 46 × 33 Pixel bei 100 %
         var groesse = new Size(LogicalToDeviceUnits(46), h);
         foreach (var k in new[] { _knopfZu, _knopfMax, _knopfMin })
         {
@@ -451,9 +467,9 @@ public partial class HauptFenster
     private static Bitmap KnopfBild(int art, bool dunkel, Size groesse)
     {
         // nur das Symbol (quadratisch) – der Knopf zentriert es selbst, so steht es exakt mittig in der Titelleiste.
-        // Wie die Windows-Fensterknöpfe: Symbol 10 × 10 Pixel, Strich 1 Pixel bei 100 % (Titelleiste 30 Pixel hoch)
-        var faktor = groesse.Height / 30f;
-        var e = Math.Max(4, (int)Math.Round(5 * faktor));
+        // Wie in der Vorlage: Symbol 9 × 9 Pixel, Strich 1 Pixel bei 100 % (Titelleiste 33 Pixel hoch)
+        var faktor = groesse.Height / (float)KopfHoeheLogisch;
+        var e = Math.Max(4, (int)Math.Round(4 * faktor));
         var seite = 2 * e + 3;
         var bmp = new Bitmap(seite, seite);
         using var g = Graphics.FromImage(bmp);
