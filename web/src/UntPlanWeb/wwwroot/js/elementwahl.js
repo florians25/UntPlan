@@ -107,7 +107,14 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
   if (raster) raster.addEventListener('click', ev => { const b = ev.target.closest('[data-k]'); if (b) beiWahl(b.dataset.k); });
   rasterZeichnen();
 
-  // schmale Bildlaufleiste über der Liste (wie im Original, nimmt keinen Platz weg)
+  // schmale Bildlaufleiste über der Liste (wie im Original, nimmt keinen Platz weg): erscheint beim Blättern
+  // (auch beim Öffnen, wenn das gewählte Element in Sicht rückt) und verschwindet nach 3 s wieder
+  let balkenUhr = 0;
+  const balkenZeigen = () => {
+    daumen.parentElement.classList.add('zeigt');
+    clearTimeout(balkenUhr);
+    balkenUhr = setTimeout(() => daumen.parentElement.classList.remove('zeigt'), 3000);
+  };
   const balken = () => {
     const h = liste.clientHeight, s = liste.scrollHeight;
     daumen.parentElement.hidden = s <= h + 1;
@@ -116,7 +123,7 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
     daumen.style.height = `${dh}px`;
     daumen.style.transform = `translateY(${liste.offsetTop + (h - dh) * liste.scrollTop / (s - h)}px)`;
   };
-  liste.addEventListener('scroll', balken, { passive: true });
+  liste.addEventListener('scroll', () => { balken(); balkenZeigen(); }, { passive: true });
 
   const sichtbarMachen = i => {
     const o = liste.querySelector(`[data-i="${i}"]`);
@@ -153,11 +160,14 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
     // beim Öffnen steht das gewählte Element in Sicht (unten, wenn es weiter hinten steht)
     sichtbarMachen(sichtbar.indexOf(aktuell));
     balken();
+    if (liste.scrollTop > 0) balkenZeigen();
   };
   const schliessen = () => {
     if (!offen) return;
     offen = false;
     menue.hidden = true;
+    clearTimeout(balkenUhr);
+    daumen.parentElement.classList.remove('zeigt');
     wurzel.classList.remove('offen', 'tippt');
     eingabe.value = '';
     eingabe.setAttribute('aria-expanded', 'false');
