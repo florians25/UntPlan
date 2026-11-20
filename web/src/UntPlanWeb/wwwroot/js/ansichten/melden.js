@@ -1,16 +1,16 @@
-// Melden im Portal-Design: Übersicht der Meldearten als Kacheln (Abwesenheit melden, Wieder anwesend, Prüfung eintragen, Raum buchen, Meine Meldungen)
+// Melden im Portal-Design: Übersicht der Meldearten als Kacheln (Abwesenheit melden, Prüfung eintragen, Raum buchen, Meine Meldungen)
 // mit den letzten Meldungen, einheitliche Formulare (Karte mit Kopf, Feldraster, Fuß mit Abbrechen/Absenden, Auswahlen über die
 // gemeinsame Auswahl-Komponente, Raumwahl mit Belegung) und „Meine Meldungen“ mit Suche, Status- und Art-Filter, Status-Pills und
 // leeren Zuständen. Raum buchen führt in das Buchungsmodul.
 import { e, holen, senden, api, toast, bestaetigen, dialog, heuteIso, plusTage, meldungText, datumLang, datumKurz, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
 import { raumwahl, raumTokens } from '../raumwahl.js';
 
-const BEREICHE = ['uebersicht', 'abwesenheit', 'anwesend', 'klausur', 'meine'];
-const TITEL = { uebersicht: 'Melden', abwesenheit: 'Abwesenheit melden', anwesend: 'Wieder anwesend', klausur: 'Prüfung eintragen', meine: 'Meine Meldungen' };
+const BEREICHE = ['uebersicht', 'abwesenheit', 'klausur', 'meine'];
+const TITEL = { uebersicht: 'Melden', abwesenheit: 'Abwesenheit melden', klausur: 'Prüfung eintragen', meine: 'Meine Meldungen' };
 const GRUENDE = ['Krankheit', 'Fortbildung', 'Dienstlicher Termin', 'Klassenfahrt / Exkursion', 'Sonderurlaub', 'Sonstiges'];
 const STATUS = { offen: { text: 'offen', klasse: 'offen' }, quittiert: { text: 'übernommen', klasse: 'ok' }, abgelehnt: { text: 'abgelehnt', klasse: 'nein' } };
 const ART = {
-  absenz: { text: 'Abwesenheit', symbol: 'person-dash' }, anwesend: { text: 'Wieder anwesend', symbol: 'person-check' }, klausur: { text: 'Prüfung', symbol: 'journal-check' }, klausurloeschen: { text: 'Prüfung löschen', symbol: 'journal-x' },
+  absenz: { text: 'Abwesenheit', symbol: 'person-dash' }, klausur: { text: 'Prüfung', symbol: 'journal-check' }, klausurloeschen: { text: 'Prüfung löschen', symbol: 'journal-x' },
   raumbuchung: { text: 'Raumbuchung', symbol: 'door-open' }, buchungstorno: { text: 'Storno', symbol: 'x-circle' }, nachricht: { text: 'Nachricht', symbol: 'chat-left-text' },
 };
 const artVon = m => ART[m.typ] ?? ART.nachricht;
@@ -67,7 +67,6 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       <p class="mf-einleitung">Was möchten Sie melden? Meldungen gehen an die Planung und erscheinen nach der Übernahme im Stundenplan.</p>
       <div class="mf-kacheln">
         ${kachel('#/melden/abwesenheit', 'person-dash', 'Abwesenheit melden', 'Krankheit, Fortbildung oder Termin – ganztägig oder für einzelne Stunden')}
-        ${kachel('#/melden/anwesend', 'person-check', 'Wieder anwesend', 'Früher zurück? Vertretungen und Verlegungen werden rückgängig gemacht')}
         ${kachel('#/melden/klausur', 'journal-check', 'Prüfung eintragen', 'Klassenarbeit, Klausur oder Test mit Raum und Aufsicht')}
         ${kachel('#/buchen/raum', 'door-open', 'Raum buchen', 'Freien Raum für eine Stunde oder als Serie buchen')}
         ${kachel('#/melden/meine', 'list-check', 'Meine Meldungen', 'Status verfolgen, offene Meldungen zurückziehen', offen ? `<span class="mf-zaehler" title="offene Meldungen">${offen}</span>` : '')}
@@ -129,54 +128,6 @@ export async function zeigen(seite, kontext, [bereichParam]) {
           stundeVon: ganz ? null : Number(form.stundeVon.value), stundeBis: ganz ? null : Number(form.stundeBis.value),
         });
         toast('Abwesenheit gemeldet.');
-        kontext.navigieren('#/melden/meine');
-      });
-    };
-  }
-
-  // ---------------------------------------------------------------- Wieder anwesend (früher zurück)
-
-  if (bereich === 'anwesend') {
-    ziel.innerHTML = karte('person-check', 'Wieder anwesend', 'Sie sind früher zurück als gemeldet? Die Planung verkürzt Ihre Abwesenheit und macht Vertretungen, Entfälle und Verlegungen ab diesem Zeitpunkt rückgängig.', `
-      <div class="mf-raster">
-        ${feld('Wieder da ab', `<input type="date" class="form-control" name="ab" value="${heuteIso()}" min="${plusTage(heuteIso(), -7)}" required>`)}
-        ${feld('Ab Stunde', stundenAuswahl(stunden, 'stunde', 1))}
-        ${feld('Bemerkung', '<input class="form-control" name="text" maxlength="500" placeholder="z. B. ab der 3. Stunde wieder in der Schule">', { klasse: 'breit', optional: true })}
-      </div>
-      <div class="mf-zusammenfassung" data-zf></div>
-      <div data-vorschau></div>
-      ${fussLeiste('Wieder anwesend melden')}`);
-    const form = ziel.querySelector('form');
-    let vorschau = null, abruf = 0;
-    // Vorschau: welche Vertretungen die Planung rückgängig macht (aus dem aktuellen Plan)
-    const laden = async () => {
-      const nr = ++abruf;
-      const box = form.querySelector('[data-vorschau]');
-      const zf = form.querySelector('[data-zf]');
-      vorschau = null;
-      if (!form.ab.value) { box.innerHTML = zf.innerHTML = ''; return; }
-      try {
-        const v = await holen(`/api/app/meldungen/anwesenheit/vorschau?ab=${encodeURIComponent(form.ab.value)}&stunde=${Number(form.stunde.value)}`);
-        if (nr !== abruf) return;
-        vorschau = v;
-        zf.innerHTML = `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${e(datumLang(v.ab))}, ab der ${v.stunde}. Stunde · ${e(v.hinweis)}</span>`;
-        box.innerHTML = anwesendListe(v);
-      } catch (err) {
-        if (nr !== abruf) return;
-        zf.innerHTML = `<i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${e(err.message ?? String(err))}</span>`;
-        box.innerHTML = '';
-      }
-    };
-    form.ab.onchange = form.stunde.onchange = laden;
-    laden();
-    form.onsubmit = ev => {
-      ev.preventDefault();
-      if (!vorschau) { toast('Für diesen Zeitpunkt ist keine Abwesenheit eingetragen.', true); return; }
-      absenden(form, kontext, async () => {
-        if (!await anwesendBestaetigen(vorschau)) return;
-        const r = await senden('/api/app/meldungen/anwesenheit', { ab: form.ab.value, stunde: Number(form.stunde.value), text: form.text.value });
-        const n = r.vorschau?.eintraege?.length ?? 0;
-        toast(n ? `Rückkehr gemeldet – ${n === 1 ? '1 Vertretung wird' : `${n} Vertretungen werden`} nach der Übernahme rückgängig gemacht.` : 'Rückkehr gemeldet.');
         kontext.navigieren('#/melden/meine');
       });
     };
@@ -284,25 +235,3 @@ function meldungZeile(m, mitAktionen) {
       ${mitAktionen ? `<div class="mp-aktion">${aktion}</div>` : ''}</li>`;
 }
 
-/** Liste der Vertretungszeilen, die nach „wieder anwesend“ rückgängig gemacht werden (Vorschau). */
-function anwesendListe(v) {
-  if (!v.eintraege.length) return '';
-  const zeile = x => `<li class="mp-zeile">
-      <span class="mp-symbol anwesend"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></span>
-      <div class="mp-text"><div class="mp-titel">${e(datumKurz(x.datum))}, ${x.stunde}. Std. ${e([x.klassen, x.fach].filter(Boolean).join(' '))}</div>
-        <div class="mp-unter"><span>${e(x.art || 'Vertretung')}</span>${x.vertreter ? `<span>Vertretung: ${e(x.vertreter)} (wird wieder frei)</span>` : ''}${x.nach ? `<span>verlegt nach ${e(x.nach)}</span>` : ''}</div></div></li>`;
-  return `<section class="mf-block"><header><h2>Wird rückgängig gemacht (${v.eintraege.length})</h2></header><ul class="mp-liste kompakt">${v.eintraege.map(zeile).join('')}</ul></section>`;
-}
-
-/** Rückfrage mit Liste vor dem Melden (true = melden). */
-function anwesendBestaetigen(v) {
-  return new Promise(ok => {
-    let antwort = false;
-    const box = dialog({
-      titel: 'Wieder anwesend melden', breit: v.eintraege.length > 0,
-      inhalt: `<p>${e(`Sie melden sich ab ${datumLang(v.ab)}, ${v.stunde}. Stunde, wieder anwesend.`)}</p><p class="mb-2">${e(v.hinweis)}</p>${anwesendListe(v)}`,
-      knoepfe: [{ text: 'Abbrechen' }, { text: 'Wieder anwesend melden', art: 'haupt', aktion: () => { antwort = true; } }],
-    });
-    box.closest('.modal').addEventListener('hidden.bs.modal', () => ok(antwort));
-  });
-}

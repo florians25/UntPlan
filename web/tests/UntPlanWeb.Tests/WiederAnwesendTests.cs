@@ -96,14 +96,12 @@ public class WiederAnwesendTests
     }
 
     [Fact]
-    public void Oberflaeche_bietet_Wieder_anwesend_mit_Vorschau_und_Rueckfrage()
+    public void Oberflaeche_hat_keine_Kachel_Wieder_anwesend()
     {
+        // Wunsch: keine eigene Kachel – nach dem Verkürzen der Absenz in der Planung erscheint der Unterricht einfach wieder normal
         var js = File.ReadAllText(Path.Combine(Wurzel(), "src", "UntPlanWeb", "wwwroot", "js", "ansichten", "melden.js"));
-        Assert.Contains("#/melden/anwesend", js);
-        Assert.Contains("/api/app/meldungen/anwesenheit/vorschau", js);
-        Assert.Contains("anwesendBestaetigen", js);
-        var ui = File.ReadAllText(Path.Combine(Wurzel(), "src", "UntPlanWeb", "wwwroot", "js", "ui.js"));
-        Assert.Contains("case 'anwesend'", ui);
+        Assert.DoesNotContain("#/melden/anwesend", js);
+        Assert.DoesNotContain("Wieder anwesend", js);
     }
 
     private static string Wurzel()
