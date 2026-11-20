@@ -300,6 +300,10 @@ input.sd-eingabe { min-height: 56px; }
 .planleiste .rundknopf.woche-pfeil:hover, .planleiste .rundknopf.woche-pfeil:focus-visible { background: transparent; color: #8a96a1; border-color: #8a96a1; }
 .planleiste .woche-pfeil-sym { width: 7px; height: 14px; display: block; }
 .planleiste .heute-pill { height: 31px; font-size: 14px; font-weight: 600; } /* Demi wie Original (nachgemessen an Bild 279: gleiche Breite, gleiche Strichmenge) */
+/* „Heute“ außerhalb der aktuellen Woche wie Vorlage (Bilder 298/299): weiß ohne Schatten, Schrift #67747e; beim Überfahren
+   grau gefüllt (#dce0e5) ohne Rand */
+.planleiste .heute-pill:not(.aktuell) { background: #fff; color: #67747e; box-shadow: none; }
+.planleiste .heute-pill:not(.aktuell):hover { background: #dce0e5; color: #67747e; box-shadow: none; }
 /* Legende unten (Entfall, Prüfung, Änderung): in der Vorlage fett wie „Heute“ */
 /* Legende: Demi wie Original (Bild 279), kein Bold-Schnitt */
 .tt-tag { font-size: 16px; font-weight: 500; font-variant-numeric: lining-nums proportional-nums; } /* Tageszeile wie Original (Bild 279): 16 px Medium, heute Demi */
