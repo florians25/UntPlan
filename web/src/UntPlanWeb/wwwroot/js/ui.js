@@ -204,6 +204,7 @@ export function meldungText(m) {
     case 'absenz': return `Abwesenheit ${datumKurz(m.von)}${m.bis && m.bis !== m.von ? ' – ' + datumKurz(m.bis) : ''}${std}${m.grund ? ' · ' + m.grund : ''}`;
     case 'raumbuchung': return `Raumbuchung ${m.raum} am ${datumKurz(m.von)}${std}${m.titel ? ' · ' + m.titel : ''}`;
     case 'klausur': return `Klausur ${(m.klassen || []).join(', ')} am ${datumKurz(m.von)}${std}${m.titel ? ' · ' + m.titel : ''}`;
+    case 'anwesend': return `Wieder anwesend ab ${datumKurz(m.von)}${m.stundeVon > 1 ? ` (${m.stundeVon}. Std.)` : ''}`;
     case 'klausurloeschen': return `Prüfung löschen: ${(m.klassen || []).join(', ')} am ${datumKurz(m.von)}${std}${m.titel ? ' · ' + m.titel : ''}`;
     default: return `Nachricht ${m.von ? datumKurz(m.von) : ''}: ${m.text ?? ''}`;
   }

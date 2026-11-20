@@ -17,6 +17,12 @@ public sealed record Meldung(string Id, string Typ, string Erstellt, int? Benutz
     };
 }
 
+/// <summary>Vertretungszeile, die UntPlan nach „wieder anwesend“ rückgängig macht (Vorschau für die Lehrkraft).</summary>
+public sealed record AnwesenheitsEintrag(int Id, string Datum, int Stunde, string Art, string Klassen, string Fach, string Vertreter, string Nach);
+
+/// <summary>Vorschau „wieder anwesend ab“: Zeitpunkt, gedeckte Abwesenheiten, betroffene Vertretungszeilen und Hinweistext.</summary>
+public sealed record AnwesenheitsVorschau(string Ab, int Stunde, List<WebAbsenz> Absenzen, List<AnwesenheitsEintrag> Eintraege, string Hinweis);
+
 /// <summary>
 /// Rückmeldungen an UntPlan: Lehrkräfte melden Abwesenheiten, buchen Räume und tragen Klausuren ein. UntPlan holt offene
 /// Rückmeldungen ab (GET …/rueckmeldungen), übernimmt sie und quittiert sie. Bis dahin erscheinen Buchungen und Klausuren
@@ -139,6 +145,60 @@ public sealed class Rueckmeldungsdienst
             Von = Plandienst.Iso(von), Bis = Plandienst.Iso(bis), StundeVon = stundeVon, StundeBis = stundeBis,
             Grund = string.IsNullOrWhiteSpace(grund) ? "Krankheit" : grund.Trim(), Text = text?.Trim(),
         });
+    }
+
+    /// <summary>
+    /// Vorschau „wieder anwesend ab“: die Abwesenheiten der Lehrkraft aus UntPlan, die den Zeitpunkt decken, und die Vertretungszeilen
+    /// ihres Unterrichts ab diesem Zeitpunkt (Vertretungen, Entfälle, Verlegungen), die UntPlan bei der Übernahme rückgängig macht.
+    /// Ohne Abwesenheit zu diesem Zeitpunkt: Fehler (eine noch nicht übernommene eigene Meldung wird stattdessen zurückgezogen).
+    /// </summary>
+    public AnwesenheitsVorschau WiederAnwesendVorschau(Stand s, Benutzer b, DateOnly ab, int? stunde)
+    {
+        if (b.LehrerKuerzel is not string k) throw new ArgumentException("Nur Lehrkräfte mit Kürzel können sich wieder anwesend melden.");
+        var (st, _) = Stunden(s, stunde, stunde);
+        static bool Deckt(WebAbsenz a, DateOnly t, int std)
+        {
+            if (!DateOnly.TryParse(a.Von, out var von) || !DateOnly.TryParse(a.Bis, out var bis) || t < von || t > bis) return false;
+            var sv = t == von && a.StundeVon > 0 ? a.StundeVon : 1;
+            var sb = t == bis && a.StundeBis > 0 ? a.StundeBis : 99;
+            return std >= sv && std <= sb;
+        }
+        var lehrerAbsenzen = s.Paket.Absenzen.Where(a => a.Art == "lehrer").ToList();
+        var eigene = lehrerAbsenzen.Where(a => Ci.Equals(a.Element, k) && Deckt(a, ab, st)).ToList();
+        if (eigene.Count == 0 && lehrerAbsenzen.Count > 0)
+        {
+            var offen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = @t AND benutzer_id = @b", Lesen, Db.P("@t", WebRueckmeldungsTypen.Absenz), Db.P("@b", b.Id))
+                .Any(m => Deckt(new WebAbsenz { Von = m.Von ?? "", Bis = string.IsNullOrEmpty(m.Bis) ? m.Von ?? "" : m.Bis, StundeVon = m.StundeVon ?? 0, StundeBis = m.StundeBis ?? 0 }, ab, st));
+            throw new ArgumentException(offen
+                ? "Ihre Abwesenheitsmeldung wurde noch nicht übernommen – ziehen Sie sie unter „Meine Meldungen“ zurück."
+                : $"Am {ab:dd.MM.yyyy} ({st}. Stunde) ist in der Planung keine Abwesenheit von Ihnen eingetragen.");
+        }
+        var ende = eigene.Select(a => DateOnly.TryParse(a.Bis, out var x) ? x : ab).DefaultIfEmpty(ab).Max();
+        string[] Kuerzel(string text) => text.Split(new[] { ',', ' ', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var eintraege = s.Paket.Vertretungen
+            .Where(v => DateOnly.TryParse(v.Datum, out var t) && (t, v.Stunde).CompareTo((ab, st)) >= 0 && t <= ende && eigene.Any(a => Deckt(a, t, v.Stunde))
+                        && Kuerzel(v.Lehrer).Contains(k, Ci) && v.Veranstaltung is null)
+            .OrderBy(v => v.Datum).ThenBy(v => v.Stunde)
+            .Select(v => new AnwesenheitsEintrag(v.Id, v.Datum, v.Stunde, v.Art, string.Join(",", v.Klassen), v.Fach,
+                string.IsNullOrWhiteSpace(v.Vertreter) || Kuerzel(v.Vertreter).Contains(k, Ci) ? "" : v.Vertreter, v.Nach))
+            .ToList();
+        var hinweis = eintraege.Count == 0
+            ? "Nach der Übernahme durch die Vertretungsplanung gilt die Abwesenheit ab diesem Zeitpunkt nicht mehr."
+            : $"Nach der Übernahme durch die Vertretungsplanung {(eintraege.Count == 1 ? "wird 1 Vertretung bzw. Verlegung" : $"werden {eintraege.Count} Vertretungen, Entfälle bzw. Verlegungen")} " +
+              "rückgängig gemacht – Ihr Unterricht findet dann wieder regulär statt.";
+        return new AnwesenheitsVorschau(Plandienst.Iso(ab), st, eigene, eintraege, hinweis);
+    }
+
+    /// <summary>
+    /// Lehrkraft meldet sich früher wieder anwesend (ab Datum und Stunde): UntPlan verkürzt bzw. löscht die Abwesenheit und macht die
+    /// Vertretungen, Entfälle und Verlegungen der frei gewordenen Zeit rückgängig (Hinweis in UntPlan).
+    /// </summary>
+    public (Meldung Meldung, AnwesenheitsVorschau Vorschau) WiederAnwesend(Stand s, Benutzer b, DateOnly ab, int? stunde, string text)
+    {
+        if (ab < _uhr.Heute.AddDays(-7)) throw new ArgumentException("Die Rückkehr kann höchstens eine Woche rückwirkend gemeldet werden.");
+        var v = WiederAnwesendVorschau(s, b, ab, stunde);
+        var m = Speichern(Neu(WebRueckmeldungsTypen.Anwesend, b) with { Von = v.Ab, StundeVon = v.Stunde, Text = string.IsNullOrWhiteSpace(text) ? null : text.Trim() });
+        return (m, v);
     }
 
     public Meldung Nachricht(Benutzer b, DateOnly datum, string text)

@@ -899,7 +899,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
             && (Folgt(b, a) || Folgt(a, b)));
     }
 
-    private void Speichern(IReadOnlyList<Abwesenheit> neu, IReadOnlyList<Abwesenheit> alt, string text)
+    /// <param name="bestaetigt">Rückfrage zu rückgängig gemachten Maßnahmen schon gestellt (Löschen fragt mit der Liste).</param>
+    private void Speichern(IReadOnlyList<Abwesenheit> neu, IReadOnlyList<Abwesenheit> alt, string text, bool bestaetigt = false)
     {
         if (neu.Count == 1 && Anschluss(neu[0], alt) is { } andere)
         {
@@ -923,11 +924,21 @@ public sealed class AbwesenheitenFenster : MdiFenster
                 text = "Absenzen zusammenfassen";
             }
         }
+        // Lehrkraft früher wieder anwesend (Absenz verkürzt bzw. gelöscht): Vertretungen, Entfälle, Verlegungen und Vorziehungen der frei
+        // gewordenen Zeit werden rückgängig gemacht – vorher mit Liste nachfragen; Nein lässt die Absenz unverändert
+        if (!bestaetigt && alt.Count > 0 && Absenzverkuerzung.Ermitteln(D, neu, alt) is { } rueck && rueck.Wesentlich.Any()
+            && !Ui.Frage(rueck.HinweisText(D, vorschau: true) + "\n\nSoll die Absenz trotzdem geändert werden?", "UntPlan - Frage", this))
+        {
+            Neuaufbau();
+            return;
+        }
         // Hinweis: eingeplante Vertreter, die durch die neue Absenz abwesend werden
         var betroffen = neu.SelectMany(a => Vertretungen.BetroffeneVertreter(D, a)).Distinct().ToList();
         List<Abwesenheit> gespeichert = new();
         _letzteGespeicherte = null;
-        if (!Aendern(text, AenderungsArt.Vertretung, d => gespeichert = AbsenzVerwaltung.Speichern(d, neu, alt))) return;
+        Absenzverkuerzung.Ergebnis? rueckgaengig = null;
+        if (!Aendern(text, AenderungsArt.Vertretung, d => (gespeichert, rueckgaengig) = Absenzverkuerzung.Speichern(d, neu, alt))) return;
+        if (rueckgaengig is { } rg && rg.Wesentlich.Any()) Ui.Statushinweis(rg.Zusammenfassung(D, vorschau: false));
         if (gespeichert.Count == 1) _springeZu = gespeichert[0].Id;
         _letzteGespeicherte = gespeichert.Count == 1 ? gespeichert[0] : null;
         if (neu.Count > 0 && gespeichert.Count == 0 && alt.Count == 0) Ui.Info("Diese Absenz ist bereits vorhanden.");
@@ -965,8 +976,11 @@ public sealed class AbwesenheitenFenster : MdiFenster
     {
         EntwurfSofortUebernehmen();
         var liste = Markierte();
-        if (!Ui.LoeschenBestaetigen(liste.Count, "Absenz", "Absenzen", zusatz: "Daraus entstandene Vertretungen werden entfernt.")) return;
-        Speichern(Array.Empty<Abwesenheit>(), liste, "Absenz löschen");
+        // Maßnahmen der Absenz (Vertretungen, Entfälle, Verlegungen) werden rückgängig gemacht: in der Rückfrage auflisten
+        var rueck = liste.Count > 0 ? Absenzverkuerzung.Ermitteln(D, Array.Empty<Abwesenheit>(), liste) : null;
+        var zusatz = rueck is { } r && r.Wesentlich.Any() ? r.HinweisText(D, vorschau: true) : "Daraus entstandene Vertretungen werden entfernt.";
+        if (!Ui.LoeschenBestaetigen(liste.Count, "Absenz", "Absenzen", zusatz: zusatz)) return;
+        Speichern(Array.Empty<Abwesenheit>(), liste, "Absenz löschen", bestaetigt: true);
     }
 
     // ----------------------------------------------------------------------------------------------

@@ -152,8 +152,15 @@ public sealed class AbsenzKalenderDialog : Dialog
         _offen.Clear();
         if (neu.Count > 0 || alt.Count > 0)
         {
+            // gelöschte Tage: Vertretungen, Entfälle und Verlegungen der frei gewordenen Zeit werden rückgängig gemacht – mit Liste nachfragen
+            if (alt.Count > 0 && Absenzverkuerzung.Ermitteln(d, neu, alt) is { } rueck && rueck.Wesentlich.Any()
+                && !Ui.Frage(rueck.HinweisText(d, vorschau: true) + "\n\nSollen die Absenzen trotzdem geändert werden?", "UntPlan - Frage", this))
+            {
+                _raster.Invalidate();
+                return;
+            }
             List<Abwesenheit> gespeichert = new();
-            if (Aendern("Absenzen im Schuljahreskalender", x => gespeichert = AbsenzVerwaltung.Speichern(x, neu, alt)))
+            if (Aendern("Absenzen im Schuljahreskalender", x => gespeichert = Absenzverkuerzung.Speichern(x, neu, alt).Gespeichert))
                 AbwesenheitenFenster.VeranstaltungenPruefen(this, gespeichert, (t, aktion) => Aendern(t, aktion));
         }
         _raster.Invalidate();

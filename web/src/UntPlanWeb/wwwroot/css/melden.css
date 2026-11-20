@@ -61,6 +61,7 @@
 .mp-zeile + .mp-zeile { border-top: 1px solid #eef1f3; }
 .mp-symbol { display: inline-grid; place-content: center; width: 40px; height: 40px; border-radius: 10px; background: #f1f4f6; color: #52606b; font-size: 1.05rem; }
 .mp-symbol.absenz { background: #eef4fb; color: #2f6aa3; }
+.mp-symbol.anwesend { background: #edf7ef; color: #2e7d46; }
 .mp-symbol.klausur, .mp-symbol.klausurloeschen { background: #f3eefc; color: #6a4bb0; }
 .mp-symbol.raumbuchung { background: #fff3ec; color: var(--u-akzent-dunkel); }
 .mp-text { min-width: 0; }

@@ -473,11 +473,13 @@ public static class UntPlanWebExport
     /// <item>Nachrichten als Tagestext für das Kollegium.</item>
     /// <item>Raumbuchungen als Vertretungszeilen der Art Raumbuchung, je Stunde eine.</item>
     /// <item>Klausuren in die Klausurliste.</item>
+    /// <item>„Wieder anwesend“: Absenzen der Lehrkraft verkürzen bzw. löschen und die Maßnahmen der frei gewordenen Zeit rückgängig machen
+    /// (<see cref="Absenzverkuerzung"/>); der Hinweis dazu kommt in <paramref name="hinweise"/>.</item>
     /// </list>
     /// Abgelehnt werden Rückmeldungen mit unbekannten Elementen, ungültigem Datum oder (bei Raumbuchungen) belegtem Raum.
     /// Betroffene Tage werden neu berechnet.
     /// </summary>
-    public static (List<string> Uebernommen, List<string> Abgelehnt) Uebernehmen(Schuldatei d, IEnumerable<WebRueckmeldung> liste)
+    public static (List<string> Uebernommen, List<string> Abgelehnt) Uebernehmen(Schuldatei d, IEnumerable<WebRueckmeldung> liste, List<string>? hinweise = null)
     {
         var ok = new List<string>();
         var nein = new List<string>();
@@ -499,8 +501,10 @@ public static class UntPlanWebExport
         var alle = liste.GroupBy(m => m.Id).Select(g => g.First()).ToList();
         // Löschungen zuerst; im selben Import neu angelegte Prüfungen (neuer Termin einer verlegten Prüfung) sind vor ihnen geschützt
         var neueIds = alle.Where(m => m.Typ == WebRueckmeldungsTypen.Klausur).Select(m => m.Id).ToHashSet();
+        var anwesend = new List<WebRueckmeldung>();
         foreach (var m in alle.OrderBy(m => StundenplanAenderungen.IstLoeschung(m) ? 0 : 1))
         {
+            if (m.Typ == WebRueckmeldungsTypen.Anwesend) { anwesend.Add(m); continue; }
             if (!StundenplanAenderungen.Typen.Contains(m.Typ)) { rest.Add(m); continue; }
             // schon über den Dialog „Stundenplanänderungen“ übernommen bzw. ignoriert: nicht noch einmal anwenden
             if (StundenplanAenderungen.Erledigt(protokoll, m) is { } erledigt) { if (erledigt.Uebernommen) ok.Add(m.Id); else nein.Add(m.Id); continue; }
@@ -557,6 +561,20 @@ public static class UntPlanWebExport
         }
         var meldungen = rest.Select(m => new Portal.Meldung(m.Id, m.Typ == WebRueckmeldungsTypen.Absenz ? "abwesenheit" : m.Typ, m.Erstellt, m.Absender, m.Lehrer, m.Von, m.Bis, m.StundeVon, m.StundeBis, m.Grund, m.Text));
         var (ok2, nein2) = Portal.MeldungenUebernehmen(d, meldungen);
+        // „wieder anwesend“ nach den Absenzmeldungen desselben Abrufs (zeitlich nach der Krankmeldung gemeldet)
+        foreach (var m in anwesend.OrderBy(m => m.Erstellt))
+        {
+            if (Id(ElementTyp.Lehrer, m.Lehrer ?? m.Absender) is not int lehrer
+                || !DateOnly.TryParse(m.Von, System.Globalization.CultureInfo.InvariantCulture, out var ab)) { nein.Add(m.Id); continue; }
+            var (neuA, altA) = Absenzverkuerzung.WiederAnwesend(d, lehrer, ab, m.StundeVon ?? 1);
+            ok.Add(m.Id);
+            if (altA.Count == 0) continue;
+            var (_, e) = Absenzverkuerzung.Speichern(d, neuA, altA);
+            var kurz = ix.KLehrer(lehrer);
+            hinweise?.Add(e.Leer
+                ? $"{kurz} ist laut UntPlanWeb ab {ab:dd.MM.} {m.StundeVon ?? 1}. Std. wieder anwesend – die Absenz wurde angepasst."
+                : $"{kurz} ist laut UntPlanWeb wieder anwesend – die Absenz wurde angepasst.\n" + e.HinweisText(d, vorschau: false));
+        }
         foreach (var t in tage) Vertretungen.Aktualisieren(d, t);
         return (ok.Concat(ok2).ToList(), nein.Concat(nein2).ToList());
     }
