@@ -179,8 +179,8 @@ public partial class HauptFenster
         }
     }
 
-    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % wie auf dem Original-Bildschirmfoto: 36 Pixel.</summary>
-    internal const int KopfHoeheLogisch = 36;
+    /// <summary>Höhe der Titel-/Schnellzugriffsleiste bei 100 % wie die Windows-Titelleiste: 30 Pixel.</summary>
+    internal const int KopfHoeheLogisch = 30;
 
     /// <summary>Feste, DPI-skalierte Höhe des Programmkopfs; Symbole, Titel und Fensterknöpfe stehen vertikal mittig.</summary>
     private void KopfHoeheSetzen()
@@ -193,7 +193,8 @@ public partial class HauptFenster
             if (i is ToolStripSeparator) i.Margin = new Padding(LogicalToDeviceUnits(2), LogicalToDeviceUnits(3), LogicalToDeviceUnits(2), LogicalToDeviceUnits(3));
             else if (i.Alignment == ToolStripItemAlignment.Left) { i.Margin = new Padding(0, 0, LogicalToDeviceUnits(1), 0); i.Padding = new Padding(LogicalToDeviceUnits(1), 0, LogicalToDeviceUnits(1), 0); }
         }
-        var groesse = new Size(LogicalToDeviceUnits(44), h);
+        // Fensterknöpfe in Windows-Standardgröße: 46 × 30 Pixel bei 100 %
+        var groesse = new Size(LogicalToDeviceUnits(46), h);
         foreach (var k in new[] { _knopfZu, _knopfMax, _knopfMin })
         {
             k.Size = groesse;
@@ -449,13 +450,15 @@ public partial class HauptFenster
     /// <summary>Schlanke weiße Fensterknöpfe wie Windows 11 / Vorbild 2026 (0 = minimieren, 1 = maximieren, 2 = schließen, 3 = wiederherstellen).</summary>
     private static Bitmap KnopfBild(int art, bool dunkel, Size groesse)
     {
-        // nur das Symbol (quadratisch) – der Knopf zentriert es selbst, so steht es exakt mittig in der Titelleiste
-        var e = Math.Max(4, (int)Math.Round(groesse.Height * 5 / 23.0));
+        // nur das Symbol (quadratisch) – der Knopf zentriert es selbst, so steht es exakt mittig in der Titelleiste.
+        // Wie die Windows-Fensterknöpfe: Symbol 10 × 10 Pixel, Strich 1 Pixel bei 100 % (Titelleiste 30 Pixel hoch)
+        var faktor = groesse.Height / 30f;
+        var e = Math.Max(4, (int)Math.Round(5 * faktor));
         var seite = 2 * e + 3;
         var bmp = new Bitmap(seite, seite);
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = art == 2 ? System.Drawing.Drawing2D.SmoothingMode.AntiAlias : System.Drawing.Drawing2D.SmoothingMode.None;
-        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, Math.Max(1f, groesse.Height / 23f));
+        using var p = new Pen(dunkel ? Color.FromArgb(40, 40, 40) : Color.White, Math.Max(1f, (float)Math.Round(faktor)));
         int cx = seite / 2, cy = seite / 2;
         var d = Math.Max(2, e * 2 / 5);
         switch (art)
