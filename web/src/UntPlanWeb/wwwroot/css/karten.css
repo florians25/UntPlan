@@ -18,8 +18,10 @@
 .std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }
 .std .z2 { font-weight: 400; }
 .std .z2 .lbl { font-weight: 500; }
-/* Windows (eigenes Rendering 294 gegen Vorlage 295, beide 100 %): Strichstärke ohne Zusatzkontur wie Vorlage (Kopf ~1,4 px,
-   Zeilen ~1,2 px); nur das Label im Kopf sitzt dort 1px zu tief (Luft bis Zeile 2 sonst 1 statt 2 px) */
+/* Windows (eigenes Rendering 293/294 gegen Vorlage 295, beide 100 %, senkrechte Striche gemessen): mit den hochgeladenen
+   Avenir-Next-Dateien zeichnet Windows ~30 % fetter als die Vorlage (Kopf 2,27 statt 1,75 px) – Kopf dort Medium statt Demi (~1,8 px);
+   das Label im Kopf sitzt dort 1px zu tief (Luft bis Zeile 2 sonst 1 statt 2 px) */
+html:root.is-win .std .z1 { font-weight: 500; }
 html:root.is-win .std .z1 .lbl { position: relative; top: -1px; -webkit-text-stroke: 0; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
