@@ -76,7 +76,8 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
   [data-ansicht="plan"] .tt { --tt-spalt: 16px; grid-template-columns: 44px repeat(var(--tage), minmax(0, 1fr)); }
 }
 .tt-zeit { left: 3px; font-size: 14px; font-weight: 600; color: var(--u-grau-2); }
-.tt-nr { left: 12px; color: #a3adb6; }
+/* Stundennummern links wie Vorlage 279/284: 12px Regular #8a96a1, 9px vom Rand, Schwerpunkt 38,5px unter der Linie */
+.tt-nr { left: 9px; color: #8a96a1; font-weight: 400; transform: translateY(29px); }
 .tt-linie, .tt-pause { left: calc(var(--tt-spalt, 16px) / -2); right: calc(var(--tt-spalt, 16px) / -2); }
 .tt-achse + .tt-spalte .tt-linie, .tt-achse + .tt-spalte .tt-jetzt:not(.heute) { left: 0; }
 .tt-tag.letzter ~ .tt-spalte:last-child .tt-linie, .tt-spalte:last-child .tt-linie { right: 0; }

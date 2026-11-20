@@ -7,5 +7,18 @@
     var plattform = (uad && uad.platform) || navigator.platform || '';
     var mac = /^mac/i.test(plattform) || (!plattform && /Macintosh/.test(navigator.userAgent || ''));
     if (mac) document.documentElement.classList.add('is-mac');
+    // Browser-Zoom bzw. Skalierung zwischen 100 % und 200 % (nicht macOS): --dpr = Pixelverhältnis. Damit bleibt der Farbbalken der
+    // Stundenkarten wie in der Vorlage 4 Bildschirmpixel breit (Bild 279 bei 100 %, Bild 284 bei 125 %: je 4 px).
+    if (!mac) {
+      var dpr = function () {
+        var d = window.devicePixelRatio || 1, st = document.documentElement.style;
+        if (d > 1 && d < 2) st.setProperty('--dpr', String(d)); else st.removeProperty('--dpr');
+        if (window.matchMedia) {
+          var mq = window.matchMedia('(resolution: ' + d + 'dppx)');
+          if (mq.addEventListener) mq.addEventListener('change', dpr, { once: true });
+        }
+      };
+      dpr();
+    }
   } catch (e) { /* ohne Erkennung: Standarddarstellung */ }
 })();

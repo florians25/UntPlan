@@ -124,6 +124,11 @@ public class KartenDarstellungTests
         Assert.Contains(".tt .std { border-radius: 4px; padding: 7px 24px 6px 18px; }", nl);
         Assert.Contains(".std .zt { color: var(--u-grau-2); font-weight: 400; }", nl);
         Assert.Contains(".std.vergangen .z1, .std.vergangen .z2 { color: #67747e; }", nl);
+        // Bild 284 (125 %): kein Zusatzabstand unter einem Label im Kopf, Farbbalken 4 Bildschirmpixel, Stundennummern Regular grau
+        Assert.DoesNotContain(".std .z1:has(.lbl) + .z2", css);
+        Assert.Contains(".tt .std::before { width: calc(4px / var(--dpr, 1)); }", css);
+        Assert.Contains("st.setProperty('--dpr', String(d))", Datei("js", "plattform.js"));
+        Assert.Contains(".tt-nr { left: 9px; color: #8a96a1; font-weight: 400; transform: translateY(29px); }", nl);
         // Uhrzeiten auf den Karten: keine Uhrzeit an der ersten Linie der Achse
         Assert.DoesNotContain("tt-zeit erste", js);
         Assert.Contains(".std .z2 + .z2 { margin-top: 0; }", css);

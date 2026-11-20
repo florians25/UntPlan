@@ -29,6 +29,9 @@
 .std.lehrer-abwesend .z2 .lbl.weg { padding-bottom: 1px; }
 .std .abw-label { font-size: 12px; line-height: 15px; padding: 0 3px; margin-top: 1px; border-radius: 1.5px; }
 
+/* Farbbalken links: 4 Bildschirmpixel breit, auch bei 125 % Zoom (Vorlage 279 und 284; --dpr aus js/plattform.js, sonst 4px) */
+.tt .std::before { width: calc(4px / var(--dpr, 1)); }
+
 /* Info-Symbol unten rechts: Kreis 10px über der Kartenunterkante und 9px vor der rechten Kante (Vorlage 279) */
 .std .ecke .ecke-info { position: relative; top: -1px; }
 
@@ -292,9 +295,6 @@ input.sd-eingabe { min-height: 56px; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
 
-
-/* Label in Zeile 1: die Zeile darunter 1 px tiefer, damit unter dem grünen Kasten wie im Original etwas Luft bleibt (Bild 279: 2 px) */
-.std .z1:has(.lbl) + .z2 { margin-top: 1px; }
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
