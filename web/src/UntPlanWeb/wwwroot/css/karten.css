@@ -12,11 +12,12 @@
 /* nachgemessen an der Plan-Vorlage (Bild 279, Windows, gleicher Zoom): Versalien +10, +24 und +40 px unter der Kartenkante
    (Innenabstand oben 7px in nl-design.css); Kopf Demi ohne zusätzliche Kontur, Zeilen Regular, Kopf 1px höher und 2px näher an
    den Zeilen */
-/* nachgemessen an Vorlage 291 (gleiche Texte „PZ / POL / C103“, Zoom 1:1): Kopf 1px tiefer (Versalien +13 statt +12),
-   Zeilen Medium (Strichstärke und dunkelster Pixel wie Vorlage), Label-Schrift mit feiner Kontur (weiße Tinte wie Vorlage) */
-.std .z1 { margin: 0 0 -3px; -webkit-text-stroke: 0; }
-.std .z2 { font-weight: 500; }
-.std .z2 .lbl { -webkit-text-stroke: .2px currentColor; }
+/* nachgemessen an Vorlage 291 gegen das eigene Windows-Rendering 292 (gleicher Zoom, senkrechte Striche je Spalte):
+   Zeilen Regular (Strich wie Vorlage), Kopf Demi mit feiner Kontur (sonst ~12 % zu dünn), Label-Schrift Medium (Demi ~15 % zu kräftig);
+   Positionen stimmen bereits pixelgenau */
+.std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: .15px currentColor; }
+.std .z2 { font-weight: 400; }
+.std .z2 .lbl { font-weight: 500; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }

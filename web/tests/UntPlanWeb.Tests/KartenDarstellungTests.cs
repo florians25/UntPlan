@@ -114,8 +114,8 @@ public class KartenDarstellungTests
         Assert.DoesNotContain(".mks .mk-verlegung.von {", css);
         Assert.DoesNotContain("M12.5 8h-9M7 4.5 3.5 8 7 11.5", css);   // Sprint 27: auch die Zielstunde mit Pfeil nach rechts
         // Zeilen etwas enger
-        Assert.Contains(".std .z1 { margin: 0 0 -3px; -webkit-text-stroke: 0; }", css);
-        Assert.Contains(".std .z2 { font-weight: 500; }", css);
+        Assert.Contains(".std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: .15px currentColor; }", css);
+        Assert.Contains(".std .z2 { font-weight: 400; }", css);
         // Label im Kopf verschiebt die folgenden Zeilen nicht (Vorlage 279); Label weiter unten 2px unter der Zeilenoberkante
         Assert.DoesNotContain(".std .z1:has(.lbl) { margin-bottom: 0; }", css);
         Assert.Contains(".std .z2 .lbl { position: relative; top: 2px; line-height: 15px; padding-bottom: 1px; }", css);
