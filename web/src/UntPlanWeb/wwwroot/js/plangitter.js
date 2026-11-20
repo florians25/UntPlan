@@ -703,7 +703,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
         // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
         const label = aufsichtLabel(a);
-        const vorbei = a.datum < heute || (a.datum === heute && a.ende && minuten(a.ende) <= jetzt);
+        // vorbei, sobald die Pause zu Ende ist – ohne eigene Endzeit gilt der Beginn der nächsten Stunde laut Zeitraster
+        const ende = a.ende || plan.zeitraster.find(z => z.nr > nach && z.beginn)?.beginn;
+        const vorbei = a.datum < heute || (a.datum === heute && !!ende && minuten(ende) <= jetzt);
         const pOben = aufbau.pause.get(nach), pHoehe = aufbau.pauseHoehe.get(nach);
         belegt.push([pOben, pOben + pHoehe, j * breite, breite]);
         // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
