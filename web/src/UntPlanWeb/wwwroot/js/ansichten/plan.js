@@ -2,9 +2,9 @@
 // Datumsbereich als Pille mit eigenem Kalender (Wochenauswahl mit KW-Spalte), weißer „Heute“-Knopf rechts,
 // Raster mit Zeitspalte und Jetzt-Linie, Legende als schwebende Pillenleiste mit Menü „⋮“ (Symbole anzeigen, Abwesenheiten,
 // Drucken, Öffentlichen Link kopieren), Hilfe unten rechts. Keine A/B-Woche im Kopf.
-import { e, icon, holen, heuteIso, plusTage, montag, lade, dialog, toast, druckenMitAusrichtung } from '../ui.js';
+import { e, holen, heuteIso, plusTage, montag, lade, dialog, toast, druckenMitAusrichtung } from '../ui.js';
 import { wochenGitter, tagAuswahl, kartenBinden, karteDialog } from '../plangitter.js';
-import { elementWahl } from '../elementwahl.js';
+import { kopfWahl } from '../elementwahl.js';
 
 const TYPEN = { klasse: 'Klasse', lehrer: 'Lehrkraft', raum: 'Raum' };
 
@@ -195,9 +195,9 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   seite.innerHTML = `
     <div class="planleiste nicht-drucken ${istMein ? 'mein' : ''}">
       <div class="links">${istMein ? '' : `
-        <button type="button" class="rundknopf" data-element="-1" title="Vorheriges Element (Alt+←)" aria-label="Vorheriges Element" ${pos <= 0 ? 'disabled' : ''}>${icon('links')}</button>
+        <button type="button" class="rundknopf woche-pfeil kw-pfeil" data-element="-1" title="Vorheriges Element (Alt+←)" aria-label="Vorheriges Element" ${pos <= 0 ? 'disabled' : ''}>${WOCHE_PFEIL('M7 1 1 7l6 6')}</button>
         <span class="element-pill"><span data-wahl></span></span>
-        <button type="button" class="rundknopf" data-element="1" title="Nächstes Element (Alt+→)" aria-label="Nächstes Element" ${pos < 0 || pos >= liste.length - 1 ? 'disabled' : ''}>${icon('rechts')}</button>`}
+        <button type="button" class="rundknopf woche-pfeil kw-pfeil" data-element="1" title="Nächstes Element (Alt+→)" aria-label="Nächstes Element" ${pos < 0 || pos >= liste.length - 1 ? 'disabled' : ''}>${WOCHE_PFEIL('M1 1l6 6-6 6')}</button>`}
       </div>
       <div class="mitte">
         <button type="button" class="rundknopf woche-pfeil" data-woche="-7" title="Vorherige Woche" aria-label="Vorherige Woche">${WOCHE_PFEIL('M7 1 1 7l6 6')}</button>
@@ -205,11 +205,13 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
         <button type="button" class="rundknopf woche-pfeil" data-woche="7" title="Nächste Woche" aria-label="Nächste Woche">${WOCHE_PFEIL('M1 1l6 6-6 6')}</button>
       </div>
       <div class="rechts"><button type="button" class="heute-pill${mo === montag(heuteIso()) ? ' aktuell' : ''}" data-woche="0">Heute</button></div>
+      ${istMein ? '' : '<div class="kw-raster" data-raster hidden></div>'}
     </div>
     <div data-inhalt>${lade()}</div>`;
 
-  seite.querySelector('[data-wahl]')?.replaceWith(elementWahl({
-    eintraege: liste, wert: element, platzhalter: `${TYPEN[typ]} wählen`, info: x => elementInfo(typ, x),
+  // Elementwahl wie im Original: Pille als Suchfeld, Menü mit „Alle anzeigen“ (alle Elemente als Pillen unter dem Kopf)
+  seite.querySelector('[data-wahl]')?.replaceWith(kopfWahl({
+    eintraege: liste, wert: element, bezeichnung: TYPEN[typ], info: x => elementInfo(typ, x), raster: seite.querySelector('[data-raster]'),
     beiWahl: x => kontext.navigieren(ziel(typ, x, gemerkterTag || datum)),
   }));
   // anderes Element: gleiche Woche und gleicher Tag (Tagesansicht)
