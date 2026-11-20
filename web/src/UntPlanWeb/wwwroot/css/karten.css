@@ -69,7 +69,7 @@
 /* Labels und Verlegung: eine Zeile („09.10.2026 | 11:30 - 13:00 → 13.10.2026 | 12:15“) */
 .u-hover-label:not(.dunkel):not(.pillen) { white-space: nowrap; max-width: none; }
 /* grünes Hover-Label „C007 → C103“ wie Vorlage: Schrift 14 px, Innenabstand 7/9 px, Ecken 2 px */
-.u-hover-label:not(.dunkel):not(.pillen):not(.rot):not(.klein):not(.zeile):not(.grau) { font-size: 14px; padding: 7px 9px; border-radius: 2px; }
+.u-hover-label:not(.dunkel):not(.pillen):not(.rot):not(.klein):not(.zeile):not(.grau) { font-size: 14px; font-weight: 600; padding: 7px 9px; border-radius: 2px; }
 .u-hover-label.rot { background: #f44336; color: #fff; font-size: 15px; font-weight: 500; padding: 7px 12px; border-radius: 3px; }
 /* Verlegung (grün bzw. rot): etwas kleiner */
 .u-hover-label.klein { font-size: 13px; line-height: 1.2; padding: 5px 9px; border-radius: 3px; }
@@ -113,7 +113,7 @@
 .sd-schalter input:checked + .sd-schalter-spur::after { transform: translateX(16px); }
 .sd-schalter input:focus-visible + .sd-schalter-spur { box-shadow: 0 0 0 3px rgba(var(--u-akzent-rgb), .3); }
 .sd-schalter:has(input:disabled) { cursor: default; }
-.sd-schalter input:disabled + .sd-schalter-spur { opacity: .55; }
+.sd-schalter input:disabled + .sd-schalter-spur { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .sd-schalter-spur, .sd-schalter-spur::after { transition: none; } }
 .sd-online-link-sym { width: 20px; height: 20px; margin: -2px 0 -2px -4px; color: #fff; }
 
@@ -295,6 +295,55 @@ input.sd-eingabe { min-height: 56px; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
 
+
+/* ------------------------------------------------------------------ Elementwahl im Kopf des Wochenplans (Vorlagen 285–289)
+
+   Die Pille ist das Suchfeld: Kürzel 14px Demi mit Info-„i“, ohne Rahmen; beim Überfahren und Fokus 1px-Rahmen #bfc8cf auf Weiß,
+   der Textcursor steht links vor dem Kürzel. Pfeile ‹ › wie die Wochenpfeile direkt neben der Pille (Kreis beim Überfahren).
+   Menü 4px unter der Pille, linksbündig, schmal (Schatten, Ecken 4px): oben „Alle anzeigen“ mit Schalter (aus grau #8c8c8c, an
+   orange #fe6033), darunter die Kürzel (Zeile ~31px, gewählt #dcdfe5, Zeiger #f1f5f8, Bildlaufleiste 8px über der Liste),
+   ohne Treffer „Keine Ergebnisse“ hellgrau. „Alle anzeigen“: alle Elemente als Pillen zwischen Kopf und Tageszeile, gewählt dunkel. */
+.planleiste .links { gap: 0; margin-left: 11.5px; }
+.planleiste .rundknopf.kw-pfeil { width: 30.6px; height: 30.6px; flex: none; }
+.planleiste .rundknopf.kw-pfeil:disabled { opacity: .35; border-color: transparent; }
+.kopfwahl { position: relative; min-width: 0; }
+.kw-pille { position: relative; display: flex; align-items: center; height: 30.6px; padding: 0 22px; border: 1px solid transparent; border-radius: 999px; cursor: text;
+  font-size: 13.5px; font-weight: 600; color: #414d55; white-space: nowrap; }
+.kw-pille:hover, .kopfwahl:focus-within .kw-pille, .kopfwahl.offen .kw-pille { border-color: #bfc8cf; background: linear-gradient(#fff 55%, #fafafa); }
+.kw-wert { position: relative; top: -1px; display: inline-flex; align-items: center; gap: 6.7px; pointer-events: none; }
+.kw-wert .wahl-info { pointer-events: auto; z-index: 1; width: 15.3px; height: 15.3px; top: .5px; }
+.kw-wert .wahl-info img { width: 15.3px; height: 15.3px; opacity: 1; }
+.kopfwahl.tippt .kw-wert { visibility: hidden; }
+.kw-eingabe { position: absolute; top: 9.5px; left: 0; width: 100%; height: 11.5px; padding: 0 22px 0 15px; border: 0; background: transparent; outline: 0;
+  font: inherit; line-height: 11.5px; color: #24323d; caret-color: #24323d; }
+.kw-menue { position: absolute; top: calc(100% + 4px); left: 0; z-index: 1000; width: 191.4px; max-height: 374px; display: flex; flex-direction: column;
+  padding: 0 0 3.8px; background: #fff; border-radius: 4px; box-shadow: 0 3px 14px rgba(0, 5, 10, .16); text-align: left; }
+.kw-menue[hidden] { display: none; }
+.kw-alle { display: flex; justify-content: space-between; align-items: flex-start; flex: none; height: 39.2px; margin: 0; padding: 10.5px 11.5px 0 11px; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; color: #293035; }
+.kw-alle input { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 42.1px; height: 20.6px; margin: 1px 0 0; border-radius: 999px; background: #8c8c8c; cursor: pointer; outline: 0; }
+.kw-alle input::after { content: ""; position: absolute; top: 1.7px; left: 1.9px; width: 17.2px; height: 17.2px; border-radius: 50%; background: #fff; transition: left .12s ease; }
+.kw-alle input:checked { background: #fe6033; }
+.kw-alle input:checked::after { left: 23px; }
+.kw-alle input:focus-visible { box-shadow: 0 0 0 2px rgba(254, 96, 51, .35); }
+.kw-liste { position: relative; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 0 3.8px; }
+.kw-liste::-webkit-scrollbar { display: none; }
+.kw-option { height: 30.6px; line-height: 30.6px; padding: 0 0 0 15px; border-radius: 4px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: #293035; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kw-option.aktiv, .kw-option:hover { background: #f1f5f8; }
+.kw-option.gewaehlt { background: #dcdfe5; }
+.kw-leer { height: 30.6px; line-height: 30.6px; padding-left: 15px; font-size: 13.5px; font-weight: 500; color: #bfbfbf; }
+.kw-balken { position: absolute; top: 0; right: 3.8px; width: 7.7px; pointer-events: none; }
+.kw-balken[hidden] { display: none; }
+.kw-balken i { display: block; width: 100%; border-radius: 4px; background: #bfc8cf; }
+.kw-raster { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 9.6px 6.2px; margin: 2.9px 0 1px 36.4px; }
+.kw-raster[hidden] { display: none; }
+.kw-chip { height: 24.9px; padding: 0 7.7px; border: 0; border-radius: 999px; background: transparent; font-size: 13.2px; font-weight: 600; color: #67747e; white-space: nowrap; }
+.kw-chip:hover { background: rgba(255, 255, 255, .7); color: #414d55; }
+.kw-chip.aktiv { background: #414d55; color: #fff; }
+@media (max-width: 767.98px) { .kw-raster { display: none; } }
+
+/* Pfeil im grünen Hover-Label wie Vorlage: klein und fein, Luft links ca. 0,57 em, rechts ca. 0,7 em */
+.u-hover-label .u-hover-pfeil { display: inline-block; width: .64em; height: .36em; margin: 0 .7em 0 .57em; vertical-align: .14em; overflow: visible; }
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 

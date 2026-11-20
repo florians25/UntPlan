@@ -40,6 +40,8 @@ const istOnline = (k, typ) => !!k.online && !istEntfall(k, typ) && k.status !== 
 export const ZUSATZ_TEXT = 'Zusätzl. Unterrichtsstunde';
 
 /** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“, auch bei Lehrkräften „LAN → ILK“ (erscheint nur beim Überfahren des Labels). */
+/** Pfeil im Hover „alt → neu“: 0,64 em breit, 0,36 em hoch, Strich etwa 1,5 px (Vorlage). */
+const HOVER_PFEIL = '<svg class="u-hover-pfeil" viewBox="0 0 9 5" aria-hidden="true"><path d="M0 2.5H8.3M6.2 0.4L8.4 2.5L6.2 4.6" fill="none" stroke="currentColor" stroke-width="1.15"/></svg><span class="visually-hidden"> → </span>';
 const wechsel = (alt, neu) => `${alt} → ${neu}`;
 /** Hover-Attribute eines geänderten Werts: „alt → neu“ (ohne Durchstreichung). */
 const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu))}" data-hover-alt="${e(alt)}"`;
@@ -765,7 +767,9 @@ function hoverZeigen(ziel, anker = ziel) {
   const art = zeile ? 'zeile' : ziel.dataset.hoverArt || '';
   if (pillen) hoverEl.innerHTML = pillen.map(p => `<span class="${p.a ? 'p-' + e(p.a) : ''}">${e(p.t)}</span>`).join('');
   // „alt → neu“ ohne Durchstreichung; um den Pfeil etwas mehr Luft wie in der Vorlage (schmale Leerzeichen nur in der Anzeige)
-  else hoverEl.textContent = zeile ? (ziel.dataset.voll || ziel.textContent.trim()) : (ziel.dataset.hover || '').replace(/ → /g, ' \u2009→\u2009 ');
+  else if (zeile) hoverEl.textContent = ziel.dataset.voll || ziel.textContent.trim();
+  // „alt → neu“ wie im Original: kleiner, feiner Pfeil (gezeichnet statt Schriftzeichen) mit etwas Luft links und rechts
+  else hoverEl.innerHTML = (ziel.dataset.hover || '').split(' → ').map(t => e(t)).join(HOVER_PFEIL);
   hoverEl.classList.toggle('dunkel', art === 'dunkel');
   hoverEl.classList.toggle('grau', art === 'grau' && !pillen);
   hoverEl.classList.toggle('zeile', art === 'zeile' && !pillen);
