@@ -114,7 +114,7 @@ public class KartenDarstellungTests
         Assert.DoesNotContain(".mks .mk-verlegung.von {", css);
         Assert.DoesNotContain("M12.5 8h-9M7 4.5 3.5 8 7 11.5", css);   // Sprint 27: auch die Zielstunde mit Pfeil nach rechts
         // Zeilen etwas enger
-        Assert.Contains(".std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: .15px currentColor; }", css);
+        Assert.Contains(".std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }", css);
         Assert.Contains(".std .z2 { font-weight: 400; }", css);
         // Label im Kopf verschiebt die folgenden Zeilen nicht (Vorlage 279); Label weiter unten 2px unter der Zeilenoberkante
         Assert.DoesNotContain(".std .z1:has(.lbl) { margin-bottom: 0; }", css);
@@ -124,8 +124,10 @@ public class KartenDarstellungTests
         Assert.Contains(".tt .std { border-radius: 4px; padding: 7px 24px 6px 18px; }", nl);
         Assert.Contains(".std .zt { color: var(--u-grau-2); font-weight: 400; }", nl);
         Assert.Contains(".std.vergangen .z1, .std.vergangen .z2 { color: #67747e; }", nl);
-        // unter einem Label im Kopf 1px mehr Luft (Wunsch), Farbbalken 4 Bildschirmpixel, Stundennummern Regular grau
-        Assert.Contains(".std .z1:has(.lbl) + .z2 { margin-top: 1px; }", css);
+        // kein Zusatzabstand unter einem Label im Kopf (unter Windows rückt das Label 1px hoch), Farbbalken 4 Bildschirmpixel
+        Assert.DoesNotContain(".std .z1:has(.lbl) + .z2", css);
+        Assert.Contains("html:root.is-win .std .z1 .lbl { position: relative; top: -1px; -webkit-text-stroke: 0; }", css);
+        Assert.Contains("classList.add('is-win')", Datei("js", "plattform.js"));
         Assert.Contains(".tt .std::before { width: calc(4px / var(--dpr, 1)); }", css);
         Assert.Contains("st.setProperty('--dpr', String(d))", Datei("js", "plattform.js"));
         Assert.Contains(".tt-nr { left: 9px; color: #8a96a1; font-weight: 400; transform: translateY(29px); }", nl);
