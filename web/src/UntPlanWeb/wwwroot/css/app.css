@@ -1222,7 +1222,7 @@ html:not(.is-mac) .std.entfall :is(.z1, .z2, .zt) {
 button, input, select, textarea, .modal, .tooltip, .dropdown-menu, .u-hover-label { font-family: var(--u-schrift); }
 
 /* UW-17: Hover nur auf Labels und Symbolen unten rechts – grünes Label „B070 → C197“ über dem geänderten Wert */
-.std .lbl[data-hover], .std .ecke [data-hover] { cursor: default; }
+.std .lbl[data-hover], .std .ecke [data-hover] { cursor: inherit; }
 .u-hover-label {
   position: fixed; z-index: 2000; display: none; pointer-events: none; background: #1d9a5c; color: #fff; font-weight: 600; font-size: 15px; line-height: 1.2;
   padding: 7px 12px; border-radius: 3px; box-shadow: 0 2px 8px rgba(0, 5, 10, .25); white-space: pre-line; max-width: 360px;
