@@ -343,7 +343,7 @@ input.sd-eingabe { min-height: 56px; }
 @media (max-width: 767.98px) { .kw-raster { display: none; } }
 
 /* Pfeil im grünen Hover-Label wie Vorlage: klein und fein, Luft links ca. 0,57 em, rechts ca. 0,7 em */
-.u-hover-label .u-hover-pfeil { display: inline-block; width: .64em; height: .36em; margin: 0 .7em 0 .57em; vertical-align: .14em; overflow: visible; }
+.u-hover-label .u-hover-pfeil { display: inline-block; width: .64em; height: .5em; margin: 0 .55em 0 .5em; vertical-align: 0; overflow: visible; }
 
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
