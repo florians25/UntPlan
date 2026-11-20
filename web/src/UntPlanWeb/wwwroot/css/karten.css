@@ -26,7 +26,8 @@ html:root.is-win .std .z1 .lbl { position: relative; top: -1px; -webkit-text-str
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
-.std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; }
+/* Label im Kopf genauso kräftig wie der Kopf ohne Label (übernimmt dessen Schnitt, auch die Windows-Korrektur) */
+.std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; font-weight: inherit; }
 .std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
 /* Label in einer weiteren Zeile (z. B. Raum „C103“): Kasten 16px, 2px unter der Oberkante der Zeile (Kasten +38 bis +53 unter der
    Kartenkante, Versalien der Zeile ohne Label +40 bis +48), Schrift im Kasten mittig (3px Luft oben und unten) */

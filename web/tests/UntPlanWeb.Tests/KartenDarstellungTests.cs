@@ -127,6 +127,7 @@ public class KartenDarstellungTests
         // kein Zusatzabstand unter einem Label im Kopf (unter Windows rückt das Label 1px hoch), Farbbalken 4 Bildschirmpixel
         Assert.DoesNotContain(".std .z1:has(.lbl) + .z2", css);
         Assert.Contains("html:root.is-win .std .z1 .lbl { position: relative; top: -1px; -webkit-text-stroke: 0; }", css);
+        Assert.Contains(".std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; font-weight: inherit; }", css);
         Assert.Contains("classList.add('is-win')", Datei("js", "plattform.js"));
         Assert.Contains(".tt .std::before { width: calc(4px / var(--dpr, 1)); }", css);
         Assert.Contains("st.setProperty('--dpr', String(d))", Datei("js", "plattform.js"));
