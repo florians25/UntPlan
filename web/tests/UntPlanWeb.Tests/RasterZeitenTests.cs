@@ -100,8 +100,9 @@ public class RasterZeitenTests
             std = lage(html, 'std'); auf = lage(html, 'aufsicht');
             const pausen = lage(html, 'tt-pause');
             if (auf.length !== 4 || pausen.length !== 4) { console.error('Aufsichten/Pausen fehlen', auf.length, pausen.length); fehler++; }
-            // Pausenzeilen im Verhältnis der Dauer (1,5 px je Minute), Aufsicht füllt die Zeile bis auf 1 px
-            [15, 15, 25, 40].forEach((m, i) => { gleich(pausen[i].h, m * 1.5, `Pause ${m} min`); gleich(auf[i].h, pausen[i].h - 1, `Aufsicht ${m} min`); gleich(auf[i].top, pausen[i].top + 1, `Lage Aufsicht ${m} min`); });
+            // Pausenzeilen zwischen den Stunden im Verhältnis der Dauer (1,5 px je Minute); die Frühaufsicht vor der 1. Stunde im Maßstab
+            // der Stunden (15 von 45 Minuten einer 80-px-Stunde = 27 px); Aufsicht füllt die Zeile bis auf 1 px
+            [15, 15, 25, 40].forEach((m, i) => { gleich(pausen[i].h, i === 0 ? Math.round(m * 80 / 45) : m * 1.5, `Pause ${m} min`); gleich(auf[i].h, pausen[i].h - 1, `Aufsicht ${m} min`); gleich(auf[i].top, pausen[i].top + 1, `Lage Aufsicht ${m} min`); });
             const verhaeltnis = (pausen[3].h / pausen[1].h);
             if (Math.abs(verhaeltnis - 40 / 15) > 0.1) { console.error('Pausenverhältnis', verhaeltnis); fehler++; }
             // Frühaufsicht vor der 1. Stunde: oben, danach beginnt die 1. Stunde

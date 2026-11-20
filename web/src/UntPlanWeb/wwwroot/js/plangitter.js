@@ -476,21 +476,24 @@ function zeilenAufbau(zeiten, pausen) {
   const regel = regelDauer(zeiten);
   const oben = [], unten = [], pause = new Map(), pauseHoehe = new Map();
   let y = 0;
-  const neuePause = nach => {
+  // Aufsicht vor der ersten bzw. nach der letzten Stunde (z. B. Frühaufsicht 15 Minuten) liegt außerhalb der Stunden: im Maßstab der
+  // Stunden, damit ihre Dauer laut Zeitraster sichtbar stimmt (15 Minuten = ein Drittel einer 45-Minuten-Stunde); Pausen zwischen
+  // den Stunden behalten ihren knappen eigenen Maßstab
+  const neuePause = (nach, rand = false) => {
     const y0 = Math.round(y);
-    y += pausen.get(nach) * PAUSE_PRO_MINUTE;
+    y += pausen.get(nach) * (rand ? ZEILE / regel : PAUSE_PRO_MINUTE);
     pause.set(nach, y0);
     pauseHoehe.set(nach, Math.round(y) - y0);
   };
   zeiten.forEach((z, i) => {
     const vorher = i === 0 ? z.nr - 1 : zeiten[i - 1].nr;
-    if (pausen.has(vorher)) neuePause(vorher);
+    if (pausen.has(vorher)) neuePause(vorher, i === 0);
     oben.push(Math.round(y));
     y += ZEILE * stundenDauer(z) / regel;
     unten.push(Math.round(y));
   });
   const letzte = zeiten[zeiten.length - 1].nr;
-  if (pausen.has(letzte)) neuePause(letzte);
+  if (pausen.has(letzte)) neuePause(letzte, true);
   return { oben, unten, pause, pauseHoehe, hoehe: Math.round(y) };
 }
 
