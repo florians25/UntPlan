@@ -15,11 +15,15 @@
 /* nachgemessen an Vorlage 291 gegen das eigene Windows-Rendering 292 (gleicher Zoom, senkrechte Striche je Spalte):
    Zeilen Regular (Strich wie Vorlage), Kopf Demi mit feiner Kontur (sonst ~12 % zu dünn), Label-Schrift Medium (Demi ~15 % zu kräftig);
    Positionen stimmen bereits pixelgenau */
-.std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: .15px currentColor; }
+.std .z1 { margin: -1px 0 -2px; -webkit-text-stroke: 0; }
 .std .z2 { font-weight: 400; }
 .std .z2 .lbl { font-weight: 500; }
-/* Wunsch: unter einem Label im Kopf minimal mehr Luft bis zur zweiten Zeile (Vorlage 289: 2px, hier 3px) */
-.std .z1:has(.lbl) + .z2 { margin-top: 1px; }
+/* Windows (eigenes Rendering, Bild 293, gegen Vorlage 289 bei 100 %): Avenir Next zeichnet dort dünner als die Vorlage – senkrechte
+   Striche im Kopf ~1,9 statt 2,5 px, in den Zeilen ~1,5 statt 1,66 px; das Label im Kopf sitzt 1px zu tief (Luft bis Zeile 2 nur 1 statt 2 px) */
+html:root.is-win .std .z1 { -webkit-text-stroke: .3px currentColor; }
+html:root.is-win .std .z2 { -webkit-text-stroke: .1px currentColor; }
+html:root.is-win .std .z1 .lbl { position: relative; top: -1px; -webkit-text-stroke: 0; }
+html:root.is-win .std .z2 .lbl { -webkit-text-stroke: 0; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }

@@ -7,6 +7,8 @@
     var plattform = (uad && uad.platform) || navigator.platform || '';
     var mac = /^mac/i.test(plattform) || (!plattform && /Macintosh/.test(navigator.userAgent || ''));
     if (mac) document.documentElement.classList.add('is-mac');
+    // Windows: eigene Korrekturen der Strichstärke in css/karten.css (nachgemessen am Windows-Rendering gegen die Vorlage)
+    if (/^win/i.test(plattform)) document.documentElement.classList.add('is-win');
     // Browser-Zoom bzw. Skalierung zwischen 100 % und 200 % (nicht macOS): --dpr = Pixelverhältnis. Damit bleibt der Farbbalken der
     // Stundenkarten wie in der Vorlage 4 Bildschirmpixel breit (Bild 279 bei 100 %, Bild 284 bei 125 %: je 4 px).
     if (!mac) {
