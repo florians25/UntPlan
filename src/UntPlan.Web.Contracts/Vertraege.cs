@@ -347,6 +347,12 @@ public static class WebRueckmeldungsTypen
     /// die Buchung. UntPlan entfernt die übernommene Änderung und quittiert die Meldung.
     /// </summary>
     public const string BuchungStorno = "buchungstorno";
+    /// <summary>
+    /// Lehrkraft früher wieder anwesend: <see cref="WebRueckmeldung.Lehrer"/> ist ab <see cref="WebRueckmeldung.Von"/>, Stunde
+    /// <see cref="WebRueckmeldung.StundeVon"/> (fehlt: 1. Stunde) wieder da. UntPlan verkürzt bzw. löscht die Absenzen, die diesen Zeitpunkt
+    /// decken, und macht Vertretungen, Entfälle und Verlegungen der frei gewordenen Zeit rückgängig.
+    /// </summary>
+    public const string Anwesend = "anwesend";
 }
 
 public sealed record WebAntwort(bool Ok, int Revision, string? Meldung);

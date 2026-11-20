@@ -14,6 +14,7 @@ public static class AppApi
     public sealed record EinrichtungsDaten(string Schulname, string Login, string Passwort);
     public sealed record PasswortDaten(string Alt, string Neu);
     public sealed record AbwesenheitDaten(DateOnly Von, DateOnly Bis, int? StundeVon, int? StundeBis, string? Grund, string? Text);
+    public sealed record WiederAnwesendDaten(DateOnly Ab, int? Stunde, string? Text);
     public sealed record BuchungDaten(DateOnly Datum, int? StundeVon, int? StundeBis, string Raum, List<string>? Klassen, string? Titel, string? Text);
     public sealed record KlausurDaten(DateOnly Datum, int? StundeVon, int? StundeBis, List<string> Klassen, List<string>? Raeume, List<string>? Aufsicht, string? Titel, string? Text);
     public sealed record KlausurLoeschenDaten(DateOnly Datum, int StundeVon, int StundeBis, List<string>? Klassen, string? Titel);
@@ -380,6 +381,18 @@ public static class AppApi
             var m = r.Abwesenheit(b, d.Von, d.Bis, d.StundeVon, d.StundeBis, d.Grund ?? "", d.Text ?? "");
             prot.Schreiben(b.Login, "Abwesenheit gemeldet", $"{m.Von} – {m.Bis}");
             return Results.Json(m);
+        });
+
+        // Lehrkraft früher wieder anwesend: Vorschau der Vertretungen, die UntPlan rückgängig macht, und Meldung
+        api.MapGet("/meldungen/anwesenheit/vorschau", (DateOnly ab, int? stunde, HttpContext c, Paketdienst p, Rueckmeldungsdienst r) =>
+            Results.Json(r.WiederAnwesendVorschau(Paket(p), Ich(c), ab, stunde)));
+
+        api.MapPost("/meldungen/anwesenheit", (WiederAnwesendDaten d, HttpContext c, Paketdienst p, Rueckmeldungsdienst r, Protokoll prot) =>
+        {
+            var b = Ich(c);
+            var (m, v) = r.WiederAnwesend(Paket(p), b, d.Ab, d.Stunde, d.Text ?? "");
+            prot.Schreiben(b.Login, "Wieder anwesend gemeldet", $"ab {m.Von} {m.StundeVon}. Std. ({v.Eintraege.Count} Vertretungen)");
+            return Results.Json(new { meldung = m, vorschau = v });
         });
 
         api.MapGet("/meldungen/freieraeume", (DateOnly datum, int von, int bis, int? unterricht, HttpContext c, Paketdienst p, Rueckmeldungsdienst r) =>

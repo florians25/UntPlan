@@ -470,7 +470,8 @@ public sealed class UntPlanWebDialog : Dialog
     private async Task<Action?> AbsenzenImportieren()
     {
         var start = Start;
-        var typen = new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht };
+        // auch „wieder anwesend“: die Absenz wird verkürzt, Vertretungen und Verlegungen der frei gewordenen Zeit rückgängig gemacht
+        var typen = new[] { WebRueckmeldungsTypen.Absenz, WebRueckmeldungsTypen.Nachricht, WebRueckmeldungsTypen.Anwesend };
         Fortschritt(20, "Absenzen: Rückmeldungen werden abgeholt …");
         var liste = (await UntPlanWebExport.RueckmeldungenAsync(P))
             .Where(m => typen.Contains(m.Typ) && (!DateOnly.TryParse(m.Bis ?? m.Von, out var bis) || bis >= start)).ToList();
@@ -482,10 +483,10 @@ public sealed class UntPlanWebDialog : Dialog
             return null;
         }
         Fortschritt(60, $"Absenzen: {liste.Count} Meldungen werden übernommen …");
-        List<string> ok = new(), nein = new();
+        List<string> ok = new(), nein = new(), hinweise = new();
         AppZustand.Doc.Aendern("UntPlanWeb-Rückmeldungen", AenderungsArt.Vertretung, d =>
         {
-            (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste);
+            (ok, nein) = UntPlanWebExport.Uebernehmen(d, liste, hinweise);
             var tage = d.Abwesenheiten.Where(a => a.Text.Contains("Portal-Meldung")).SelectMany(a => Kalender.Tage(a.Von, a.Bis)).Distinct().ToList();
             foreach (var t in tage.Where(t => Kalender.IstUnterrichtstag(d, t))) Core.Vertretungsplanung.Vertretungen.Aktualisieren(d, t);
             d.Einstellungen.Portal.LetzteUebertragung[Absenzen] = jetzt;
@@ -493,6 +494,8 @@ public sealed class UntPlanWebDialog : Dialog
         await UntPlanWebExport.QuittierenAsync(P, ok);
         var text = $"{ok.Count} Absenzen oder Nachrichten übernommen{(nein.Count > 0 ? $", {nein.Count} abgelehnt (unbekannte Elemente oder kein Unterrichtstag)" : "")}.";
         Fortschritt(100, "Absenzen: " + text);
+        // Lehrkräfte wieder anwesend: Hinweis mit den rückgängig gemachten Vertretungen, Entfällen und Verlegungen
+        if (hinweise.Count > 0) return () => Ui.Warnung(text + "\n\n" + string.Join("\n\n", hinweise), "UntPlan - Hinweis", this);
         return () => Ui.Info(text, "UntPlanWeb");
     }
 
