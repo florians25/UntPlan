@@ -40,8 +40,8 @@ const istOnline = (k, typ) => !!k.online && !istEntfall(k, typ) && k.status !== 
 export const ZUSATZ_TEXT = 'Zusätzl. Unterrichtsstunde';
 
 /** Hover-Text eines geänderten Werts wie im Original: „B070 → C197“, auch bei Lehrkräften „LAN → ILK“ (erscheint nur beim Überfahren des Labels). */
-/** Pfeil im Hover „alt → neu“: 0,64 em breit, 0,36 em hoch, Strich etwa 1,5 px (Vorlage). */
-const HOVER_PFEIL = '<svg class="u-hover-pfeil" viewBox="0 0 9 5" aria-hidden="true"><path d="M0 2.5H8.3M6.2 0.4L8.4 2.5L6.2 4.6" fill="none" stroke="currentColor" stroke-width="1.15"/></svg><span class="visually-hidden"> → </span>';
+/** Pfeil im Hover „alt → neu“ wie Vorlage (Bild 290): 9 × 6 px bei 14 px Schrift, Schaft 1 px, Spitze 3 px breit. */
+const HOVER_PFEIL = '<svg class="u-hover-pfeil" viewBox="0 0 9 7" aria-hidden="true"><path d="M0 3.5H8.4M5.6 .7L8.4 3.5L5.6 6.3" fill="none" stroke="currentColor" stroke-width="1.1"/></svg><span class="visually-hidden"> → </span>';
 const wechsel = (alt, neu) => `${alt} → ${neu}`;
 /** Hover-Attribute eines geänderten Werts: „alt → neu“ (ohne Durchstreichung). */
 const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(alt, neu))}" data-hover-alt="${e(alt)}"`;
