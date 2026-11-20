@@ -2046,7 +2046,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-jahr { font-size: 13.8px; font-weight: 600; }
 .u-leiste .u-benutzer b { font-size: 16px; font-weight: 600; }
 .u-leiste .u-benutzer small { font-size: 14px; font-weight: 400; }
-.u-leiste .u-abmelden { font-size: 12px; font-weight: 400; } /* Vorlage (Bild 279): Abmelden grau, Regular */
+.u-leiste .u-abmelden { font-size: 12px; font-weight: 600; } /* Vorlage (Bild 281, gleicher Zoom wie Bild 282): Abmelden grau, Demi */
 
 /* Seitenleiste wie in der Vorlage: Titel mittig neben dem Logo, Schulname in normaler Schreibweise einzeilig darunter */
 .u-leiste .u-marke span { margin-top: -1px; }
