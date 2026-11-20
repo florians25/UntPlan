@@ -194,15 +194,10 @@ public static partial class Ui
         e.Handled = true;
     };
 
-    /// <summary>Kontrollkästchen flach wie auf den Original-Bildschirmfotos: weißes Kästchen mit grauem 1-Pixel-Rand (171,171,171).</summary>
+    /// <summary>Kontrollkästchen im Windows-Standard (Nutzerwunsch): normales Windows-Häkchen statt flachem Kästchen.</summary>
     public static void FlacheKaestchen(params CheckBox[] kaestchen)
     {
-        foreach (var k in kaestchen)
-        {
-            k.FlatStyle = FlatStyle.Flat;
-            k.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
-            k.FlatAppearance.CheckedBackColor = Color.White;
-        }
+        foreach (var k in kaestchen) k.FlatStyle = FlatStyle.Standard;
     }
 
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
