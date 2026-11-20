@@ -120,17 +120,29 @@ public sealed partial class HauptFenster
         }
     }
 
-    /// <summary>Kleines Fenstersymbol mit Nummer (hell = frei).</summary>
-    /// <summary>Schnellknopf als schlichte Ziffer ohne Rahmen (belegt: weiß, sonst gedämpft).</summary>
+    /// <summary>
+    /// Schnellknopf wie in der Vorlage: FatCow-Symbol „überlappende Fenster“ mit der Nummer unten rechts (dunkel mit hellem Rand);
+    /// frei = Symbol blass.
+    /// </summary>
     private static Bitmap SchnellBild(int n, bool belegt)
     {
         var bmp = new Bitmap(16, 16);
         using var g = Graphics.FromImage(bmp);
+        using (var attr = new System.Drawing.Imaging.ImageAttributes())
+        {
+            attr.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix { Matrix33 = belegt ? 1f : .45f });
+            g.DrawImage(Symbole.Get("anordnung", 16), new Rectangle(0, 0, 16, 16), 0, 0, 16, 16, GraphicsUnit.Pixel, attr);
+        }
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        using var f = new Font("Segoe UI", 11f, belegt ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
-        using var t = new SolidBrush(belegt ? Color.White : Color.FromArgb(150, 255, 255, 255));
+        using var f = new Font("Segoe UI", 9f, FontStyle.Bold, GraphicsUnit.Pixel);
+        var text = n.ToString();
+        var r = new RectangleF(8, 5, 9, 12);
         using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        g.DrawString(n.ToString(), f, t, new RectangleF(0, 0, 16, 16), sf);
+        using (var hell = new SolidBrush(Color.FromArgb(belegt ? 255 : 170, Color.White)))
+            foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+                g.DrawString(text, f, hell, new RectangleF(r.X + dx, r.Y + dy, r.Width, r.Height), sf);
+        using var dunkel = new SolidBrush(belegt ? Color.FromArgb(16, 42, 72) : Color.FromArgb(150, 16, 42, 72));
+        g.DrawString(text, f, dunkel, r, sf);
         return bmp;
     }
 

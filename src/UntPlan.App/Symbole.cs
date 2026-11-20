@@ -105,6 +105,7 @@ public static class Symbole
         ["kommentar"] = "comment",
         ["nachricht"] = "email",
         ["rollup"] = "application_cascade",
+        ["anordnung"] = "application_cascade",
         ["nebeneinander"] = "application_tile_horizontal",
         ["schloss"] = "lock",
         ["verknuepft"] = "link",
