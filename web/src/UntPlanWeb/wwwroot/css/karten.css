@@ -291,6 +291,9 @@ input.sd-eingabe { min-height: 56px; }
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
 
 
+/* Label in Zeile 1: die Zeile darunter 1 px tiefer, damit unter dem grünen Kasten wie im Original etwas Luft bleibt (Bild 279: 2 px) */
+.std .z1:has(.lbl) + .z2 { margin-top: 1px; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
