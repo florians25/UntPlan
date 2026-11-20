@@ -2040,7 +2040,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
    Rolle Regular 14 px, Abmelden/Neuigkeiten Demi 12 px */
 .u-leiste .u-nav .u-nav-punkt { font-size: 16px; font-weight: 600; }
 /* Untermenü (z. B. Weitere Stundenpläne: Klasse, Raum, Ressource) wie Original (Bild 279): kleiner und Medium */
-.u-leiste .u-nav-unter .u-nav-punkt { font-size: 14px; font-weight: 500; gap: 23px; } /* Text wie im Original bei x ≈ 99 px, gleicher Abstand Symbol → Text wie im Hauptmenü */
+.u-leiste .u-nav-unter .u-nav-punkt { font-size: 16px; font-weight: 600; gap: 23px; } /* Untermenü wie Hauptmenü im Original (Bild 281): 16 px Demi, Text bei x ≈ 99 px */
 .u-leiste .u-marke b { font-size: 22px; font-weight: 600; }
 .u-leiste .u-marke small { font-size: 14.2px; font-weight: 400; }
 .u-leiste .u-jahr { font-size: 13.8px; font-weight: 600; }
