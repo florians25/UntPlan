@@ -86,7 +86,9 @@
 .aufsicht .lbl[data-hover] { cursor: default; }
 .aufsicht.vergangen, .aufsicht.vergangen.vertretung, .aufsicht.vergangen.vertreten { opacity: 1; filter: none; }
 .aufsicht.vergangen:not(.vertretung):not(.vertreten) { background: #f3f5f7; }
-.aufsicht.vergangen .auf-text { color: inherit; }
+/* vergangene Aufsicht verblasst wie vergangene Stunden: graue Fläche, graue Schrift, blasser Balken */
+.aufsicht.vergangen .auf-text, .aufsicht.vergangen { color: #67747e; }
+.aufsicht.vergangen::before { opacity: .45; }
 
 /* ------------------------------------------------------------------ Stundendetails */
 
