@@ -10,7 +10,7 @@ namespace UntPlanMobile.Tests;
 /// <summary>
 /// „Meine Abwesenheiten“ in der App für Schüler*innen und Erziehungsberechtigte: Summen aus UntPlanWeb (Fehltage laut Stundenplan statt
 /// Kalendertagen, Verspätungen nicht als Tag), Fehlstunden je Abwesenheit, Kinderwahl bei mehreren Kindern, langer Zeitraum („Alles“)
-/// und die Sprechtag-Ankündigung für Eltern und Schüler*innen (Standard an).
+/// und die Sprechtag-Karten der App (Eltern ab der Anmeldephase, Schüler*innen ohne Zugriff).
 /// </summary>
 public class FehlzeitenuebersichtTests
 {
@@ -94,26 +94,55 @@ public class FehlzeitenuebersichtTests
     public async Task Sprechtag_Ankuendigung_fuer_Eltern_und_Schueler_in_der_App()
     {
         await using var u = await Umgebung.StartenAsync();
-        var stand = u.WebDienste.GetRequiredService<Paketdienst>().Aktuell!;
-        var kind = stand.Schueler.First(x => x.Klasse == "5a").Id;
         var admin = await AdminAsync(u);
-        await KontoAsync(admin, "eltern-spt", "eltern", kind);
-        await KontoAsync(admin, "schueler-spt", "schueler", kind);
-        // ohne Optionen angelegt: Anmeldung erst ab 16.10. → angekündigt, für Eltern und Schüler*innen sichtbar
-        var id = Z(await Umgebung.JsonAsync(await admin.PostAsJsonAsync("/api/app/sprechtag", new
+        var id = await Umgebung.SprechtagVeroeffentlichtAsync(admin);
+        // Lehrkraft lädt ein Kind aus ihrem Unterricht ein (Phase „Verwaltung LK“), ein zweites Kind ohne Einladung
+        var fis = await u.WebAngemeldetAsync("fis");
+        var kinder = (await Umgebung.HolenAsync(fis, $"/api/app/sprechtag/{id}/schueler")).AsArray().Select(x => Z(x!, "id")).ToList();
+        Assert.True(kinder.Count >= 2);
+        Assert.Equal(1, Z(await Umgebung.JsonAsync(await fis.PostAsJsonAsync($"/api/app/sprechtag/{id}/einladung", new { schuelerIds = new[] { kinder[0] } })), "anzahl"));
+        await KontoAsync(admin, "eltern-spt", "eltern", kinder[0]);
+        await KontoAsync(admin, "eltern-spt2", "eltern", kinder[1]);
+        await KontoAsync(admin, "schueler-spt", "schueler", kinder[0]);
+        var eltern = await u.AngemeldetAsync("eltern-spt");
+        var andere = await u.AngemeldetAsync("eltern-spt2");
+        var schueler = await u.AngemeldetAsync("schueler-spt");
+
+        // Karten der App: /api/sprechtag/start (weitergereicht an UntPlanWeb) und „sprechtage“ der Startseite
+        async Task<JsonArray> Start(HttpClient c) => (await Umgebung.HolenAsync(c, "/api/sprechtag/start")).AsArray();
+        async Task<JsonArray> Home(HttpClient c) => (await Umgebung.HolenAsync(c, "/api/home?action=home"))["sprechtage"]!.AsArray();
+
+        // Verwaltung LK: Lehrkraft sieht die Ankündigung, Eltern und Schüler*innen noch nicht
+        var lk = Assert.Single(await Start(await u.AngemeldetAsync("fis")))!;
+        Assert.Equal((id, "angekuendigt"), (Z(lk, "id"), lk["status"]!.GetValue<string>()));
+        foreach (var c in new[] { eltern, andere, schueler })
         {
-            name = "Elternsprechtag", datum = "2026-10-21", beginn = "15:00", ende = "17:00", dauer = 10, anmeldungVon = "2026-10-16T08:00", anmeldungBis = "2026-10-20T18:00",
-            sichtbar = true, raumwahl = true, lehrkraefte = new[] { new { lehrer = "FIS", raum = "" } },
-        })), "id");
-        foreach (var login in new[] { "eltern-spt", "schueler-spt" })
-        {
-            var c = await u.AngemeldetAsync(login);
-            var karte = Assert.Single((await Umgebung.HolenAsync(c, "/api/sprechtag/start")).AsArray())!;
-            Assert.Equal((id, "angekuendigt"), (Z(karte, "id"), karte["status"]!.GetValue<string>()));
-            var home = Assert.Single((await Umgebung.HolenAsync(c, "/api/home?action=home"))["sprechtage"]!.AsArray())!;
-            Assert.Equal("angekuendigt", home["status"]!.GetValue<string>());
-            Assert.StartsWith("Angekündigt", home["text"]!.GetValue<string>());
+            Assert.Empty(await Start(c));
+            Assert.Empty(await Home(c));
         }
+
+        // 1. Anmeldephase: eingeladene Eltern sehen die Karte (buchbar über die Einladung), andere Eltern noch nicht
+        u.WebUhr(new DateTime(2026, 10, 16, 10, 0, 0));
+        var karte = Assert.Single(await Start(eltern))!;
+        Assert.Equal((id, "anmeldung", "eltern"), (Z(karte, "id"), karte["status"]!.GetValue<string>(), karte["rolle"]!.GetValue<string>()));
+        Assert.Equal((1, true), (Z(karte, "einladungen"), karte["buchbar"]!.GetValue<bool>()));
+        Assert.Equal(("Elternsprechtag", "2026-10-30", "Fr 30.10.2026", "15:00–17:00"),
+            (karte["name"]!.GetValue<string>(), karte["datum"]!.GetValue<string>(), karte["tagText"]!.GetValue<string>(), karte["zeitText"]!.GetValue<string>()));
+        var home = Assert.Single(await Home(eltern))!;
+        Assert.Equal("Anmeldung bis 28.10. 18:00, 1 Einladung offen", home["text"]!.GetValue<string>());
+        Assert.Equal("Termine wählen", home["knopf"]!.GetValue<string>());
+        Assert.Empty(await Start(andere));
+
+        // 2. Anmeldephase: alle Eltern sehen den Sprechtag und buchen frei
+        u.WebUhr(new DateTime(2026, 10, 22, 10, 0, 0));
+        var frei = Assert.Single(await Home(andere))!;
+        Assert.Equal(("anmeldung", true), (frei["status"]!.GetValue<string>(), frei["buchbar"]!.GetValue<bool>()));
+        Assert.Equal("Anmeldung bis 28.10. 18:00, Noch keine Termine gebucht", frei["text"]!.GetValue<string>());
+
+        // Schüler*innen haben keinen Zugriff auf den Sprechtag (keine Karte, kein Zugriff auf die Daten)
+        Assert.Empty(await Start(schueler));
+        Assert.Empty(await Home(schueler));
+        Assert.False((await schueler.GetAsync($"/api/sprechtag/{id}")).IsSuccessStatusCode);
     }
 
     [Fact]

@@ -158,52 +158,79 @@ public class ProfileUndPushTests
     public async Task Sprechtag_ueber_UntPlanMobile_buchen_und_absagen()
     {
         await using var u = await Umgebung.StartenAsync();
-        using var admin = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = u.WebAdresse };
-        admin.DefaultRequestHeaders.Add("X-UntPlanWeb", "1");
-        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync("/api/app/anmelden", new { login = "admin", passwort = "admin-passwort" })).StatusCode);
-        var schueler = (await Umgebung.HolenAsync(admin, "/api/app/klassenbuch/schueler?klasse=5a"));
-        var liste = schueler is JsonArray a ? a : schueler["schueler"]!.AsArray();
-        var kind = liste.First()!["id"]!.GetValue<int>();
+        var admin = await u.WebAngemeldetAsync("admin", "admin-passwort");
+        var id = await Umgebung.SprechtagVeroeffentlichtAsync(admin);
+        string Url(string pfad = "") => $"/api/app/sprechtag/{id}{pfad}";
+        static JsonContent J(object o) => JsonContent.Create(o);
+
+        // Lehrkraft (iOS-App: direkt an UntPlanWeb) wählt ihre Räume; Schüler*innen ihres Unterrichts
+        var lk = await u.WebAngemeldetAsync("fis");
+        var raum = u.WebDienste.GetRequiredService<UntPlanWeb.Dienste.Paketdienst>().Aktuell!.Paket.Elemente.Raeume[0].Kurz;
+        await Umgebung.JsonAsync(await lk.PutAsync(Url("/raum"), J(new { abschnitt = 0, raum })));
+        await Umgebung.JsonAsync(await lk.PutAsync(Url("/raum"), J(new { abschnitt = 1, raum })));
+        var ansicht = await Umgebung.HolenAsync(lk, Url());
+        Assert.Equal("lehrer", ansicht["rolle"]!.GetValue<string>());
+        Assert.False(ansicht["lehrkraefte"]![0]!["keinRaum"]!.GetValue<bool>());
+        var kind = (await Umgebung.HolenAsync(lk, Url("/schueler"))).AsArray()[0]!["id"]!.GetValue<int>();
         await Umgebung.JsonAsync(await admin.PostAsJsonAsync("/api/app/admin/benutzer", new { login = "eltern", passwort = Umgebung.Passwort, rolle = "eltern", anzeigename = "Familie Test", gesperrt = false, schuelerIds = new[] { kind } }));
-        var tag = await Umgebung.JsonAsync(await admin.PostAsJsonAsync("/api/app/sprechtag", new
-        {
-            name = "Elternsprechtag", datum = "2026-10-21", beginn = "15:00", ende = "16:00", dauer = 15, anmeldungVon = "2026-10-10T08:00", anmeldungBis = "2026-10-20T18:00",
-            sichtbar = true, raumwahl = true, lehrkraefte = new[] { new { lehrer = "FIS", raum = "R101" }, new { lehrer = "SNE", raum = "" } },
-        }));
-        var id = tag["id"]!.GetValue<int>();
+        var eltern = await u.WebAngemeldetAsync("eltern");
 
-        // Eltern: Startkarte, Lehrkräfte des Kindes mit freien Zeitfenstern, buchen
-        var eltern = await u.AngemeldetAsync("eltern");
-        var start = (await Umgebung.HolenAsync(eltern, "/api/sprechtag/start")).AsArray();
-        Assert.Equal("anmeldung", Assert.Single(start)!["phase"]!.GetValue<string>());
-        var e = await Umgebung.HolenAsync(eltern, $"/api/sprechtag/{id}/eltern");
-        var fis = e["kinder"]![0]!["lehrkraefte"]!.AsArray().First(l => l!["kurz"]!.GetValue<string>() == "FIS")!;
-        var fenster = fis["zeitfenster"]!.AsArray().First()!["beginn"]!.GetValue<string>();
-        var r = await eltern.PostAsync($"/api/sprechtag/{id}/buchen", JsonContent.Create(new { lehrer = "FIS", schuelerId = kind, beginn = fenster }));
-        var termin = await Umgebung.JsonAsync(r);
-        Assert.Equal("FIS", termin["lehrer"]!.GetValue<string>());
+        // vor der Anmeldung sehen die Eltern den Sprechtag nicht
+        Assert.Empty((await Umgebung.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray());
+        Assert.False((await eltern.GetAsync(Url())).IsSuccessStatusCode);
 
-        // Lehrkraft: Zeitraster mit gebuchtem Termin, Zeitfenster sperren
-        var lk = await u.AngemeldetAsync("fis");
-        var raster = await Umgebung.HolenAsync(lk, $"/api/sprechtag/{id}/lehrkraft");
-        Assert.Equal("gebucht", raster["zeitfenster"]!.AsArray().First(z => z!["beginn"]!.GetValue<string>() == fenster)!["status"]!.GetValue<string>());
-        var frei = raster["zeitfenster"]!.AsArray().First(z => z!["status"]!.GetValue<string>() == "frei")!["beginn"]!.GetValue<string>();
-        var req = new HttpRequestMessage(HttpMethod.Put, $"/api/sprechtag/{id}/sperren") { Content = JsonContent.Create(new { beginne = new[] { frei }, gesperrt = true }) };
-        await Umgebung.JsonAsync(await lk.SendAsync(req));
-        raster = await Umgebung.HolenAsync(lk, $"/api/sprechtag/{id}/lehrkraft");
-        Assert.Equal("gesperrt", raster["zeitfenster"]!.AsArray().First(z => z!["beginn"]!.GetValue<string>() == frei)!["status"]!.GetValue<string>());
+        // 2. Anmeldephase: Startkarte, Lehrkräfte des Kindes, freie Zeiten, buchen
+        u.WebUhr(new DateTime(2026, 10, 22, 10, 0, 0));
+        var karte = Assert.Single((await Umgebung.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray())!;
+        Assert.Equal(("anmeldung", true, "Termine wählen"), (karte["status"]!.GetValue<string>(), karte["buchbar"]!.GetValue<bool>(), karte["knopf"]!.GetValue<string>()));
+        var e = await Umgebung.HolenAsync(eltern, Url());
+        Assert.Equal(("eltern", true), (e["rolle"]!.GetValue<string>(), e["freiBuchbar"]!.GetValue<bool>()));
+        Assert.Equal(id, e["sprechtag"]!["id"]!.GetValue<int>());
+        Assert.Equal(2, e["sprechtag"]!["abschnitte"]!.AsArray().Count);
+        var k = Assert.Single(e["kinder"]!.AsArray())!;
+        Assert.Equal(kind, k["id"]!.GetValue<int>());
+        Assert.Contains(k["lehrkraefte"]!.AsArray(), l => l!["kurz"]!.GetValue<string>() == "FIS");
+        async Task<List<string>> Frei() => (await Umgebung.HolenAsync(eltern, Url($"/frei?lehrer=FIS&abschnitt=0&schuelerId={kind}"))).AsArray().Select(z => z!["von"]!.GetValue<string>()).ToList();
+        var zeiten = await Frei();
+        Assert.Equal("15:00", zeiten[0]);
+        var termin = (await Umgebung.JsonAsync(await eltern.PostAsync(Url("/buchen"), J(new { lehrer = "FIS", abschnitt = 0, beginn = "15:00", schuelerId = kind }))))["id"]!.GetValue<int>();
+        Assert.DoesNotContain("15:00", await Frei());
+        var gebucht = Assert.Single((await Umgebung.HolenAsync(eltern, Url()))["termine"]!.AsArray())!;
+        Assert.Equal((termin, "FIS", "15:00", "15:10", "Akzeptiert", raum),
+            (gebucht["id"]!.GetValue<int>(), gebucht["lehrer"]!.GetValue<string>(), gebucht["beginn"]!.GetValue<string>(), gebucht["ende"]!.GetValue<string>(),
+             gebucht["statusText"]!.GetValue<string>(), gebucht["raum"]!.GetValue<string>()));
+        Assert.Equal(kind, gebucht["schueler"]!["id"]!.GetValue<int>());
+        karte = Assert.Single((await Umgebung.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray())!;
+        Assert.Equal(1, karte["gebucht"]!.GetValue<int>());
+        Assert.Equal("15:00", Assert.Single(karte["eintraege"]!.AsArray())!["beginn"]!.GetValue<string>());
+        // doppelt gebucht wird nicht
+        Assert.False((await eltern.PostAsync(Url("/buchen"), J(new { lehrer = "FIS", abschnitt = 0, beginn = "15:00", schuelerId = kind }))).IsSuccessStatusCode);
 
-        // Lehrkraft sagt den Termin ab – die Eltern sehen keinen Termin mehr
-        var tid = termin["id"]!.GetValue<int>();
-        await Umgebung.JsonAsync(await lk.PostAsync($"/api/sprechtag/{id}/termine/{tid}/absagen", JsonContent.Create(new { grund = "Krankheit" })));
-        Assert.Empty((await Umgebung.HolenAsync(eltern, $"/api/sprechtag/{id}/eltern"))["termine"]!.AsArray());
+        // Lehrkraft sieht den Termin; die Web-App von UntPlanMobile erhält dieselben Daten über /api/sprechtag/…
+        Assert.Contains((await Umgebung.HolenAsync(lk, Url()))["lehrkraefte"]![0]!["termine"]!.AsArray(), x => x!["id"]!.GetValue<int>() == termin);
+        var mobil = await u.AngemeldetAsync("eltern");
+        Assert.Equal(1, Assert.Single((await Umgebung.HolenAsync(mobil, "/api/sprechtag/start")).AsArray())!["gebucht"]!.GetValue<int>());
+        Assert.Equal(termin, Assert.Single((await Umgebung.HolenAsync(mobil, $"/api/sprechtag/{id}"))["termine"]!.AsArray())!["id"]!.GetValue<int>());
 
-        // Schülerkonten lesen höchstens (Sprint 27: wenn der Sprechtag für Schüler*innen sichtbar ist), buchen nie;
-        // fremde Pfade gibt es nicht
-        var klasse = await u.AngemeldetAsync("5a");
-        var lesen = await klasse.GetAsync($"/api/sprechtag/{id}/eltern");
-        if (lesen.IsSuccessStatusCode) Assert.False((await Umgebung.JsonAsync(lesen))["buchbar"]!.GetValue<bool>());
-        Assert.False((await klasse.PostAsync($"/api/sprechtag/{id}/buchen", JsonContent.Create(new { lehrer = "X", schuelerId = 1, beginn = "15:00" }))).IsSuccessStatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await lk.GetAsync("/api/sprechtag/..%2Fadmin")).StatusCode);
+        // Eltern sagen ab: Termin weg, Zeit wieder frei, die Lehrkraft erhält eine Mitteilung
+        await Umgebung.JsonAsync(await eltern.PostAsync(Url($"/termin/{termin}/absagen"), J(new { grund = "krank" })));
+        Assert.Empty((await Umgebung.HolenAsync(eltern, Url()))["termine"]!.AsArray());
+        Assert.Contains("15:00", await Frei());
+        Assert.Contains((await Umgebung.HolenAsync(lk, "/api/app/mitteilungen")).AsArray(), m => (m!["betreff"]?.GetValue<string>() ?? "").Contains("Termin abgesagt"));
+
+        // erneut buchen (über UntPlanMobile weitergereicht) – die Lehrkraft sagt ab, die Eltern sehen keinen Termin mehr
+        var neu = (await Umgebung.JsonAsync(await mobil.PostAsync($"/api/sprechtag/{id}/buchen", J(new { lehrer = "FIS", abschnitt = 1, beginn = "16:10", schuelerId = kind }))))["id"]!.GetValue<int>();
+        Assert.Single((await Umgebung.HolenAsync(eltern, Url()))["termine"]!.AsArray());
+        await Umgebung.JsonAsync(await lk.PostAsync(Url($"/termin/{neu}/absagen"), J(new { grund = "Krankheit" })));
+        Assert.Empty((await Umgebung.HolenAsync(eltern, Url()))["termine"]!.AsArray());
+        Assert.Equal(0, Assert.Single((await Umgebung.HolenAsync(mobil, "/api/sprechtag/start")).AsArray())!["gebucht"]!.GetValue<int>());
+
+        // Schülerkonten haben keinen Zugriff und buchen nie; fremde Pfade reicht UntPlanMobile nicht weiter
+        var klasse = await u.WebAngemeldetAsync("5a");
+        Assert.Empty((await Umgebung.HolenAsync(klasse, "/api/app/sprechtag/start")).AsArray());
+        Assert.Equal(HttpStatusCode.Forbidden, (await klasse.GetAsync(Url())).StatusCode);
+        Assert.False((await klasse.PostAsync(Url("/buchen"), J(new { lehrer = "FIS", abschnitt = 0, beginn = "15:00", schuelerId = kind }))).IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await mobil.GetAsync("/api/sprechtag/..%2Fadmin")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await mobil.GetAsync($"/api/sprechtag/{id}/plan.pdf")).StatusCode);
     }
 }

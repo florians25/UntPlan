@@ -121,6 +121,45 @@ public sealed class Umgebung : IAsyncDisposable
         return c;
     }
 
+    /// <summary>Client direkt für UntPlanWeb (wie die iOS-App: <c>/api/app/…</c> mit Anmelde-Cookie).</summary>
+    public async Task<HttpClient> WebAngemeldetAsync(string login, string passwort = Passwort)
+    {
+        var c = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = WebAdresse };
+        c.DefaultRequestHeaders.Add("X-UntPlanWeb", "1");
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync("/api/app/anmelden", System.Net.Http.Json.JsonContent.Create(new { login, passwort }))).StatusCode);
+        return c;
+    }
+
+    /// <summary>
+    /// Sprechtag wie in UntPlanWeb angelegt: Schuljahr wählen, Konfiguration speichern (zwei Abschnitte am 30.10.2026, 10 Minuten,
+    /// 1. Anmeldephase 15.–20.10., 2. Anmeldephase 21.–28.10.) und veröffentlichen. Zur Testuhr (14.10.) in der Phase „Verwaltung LK“.
+    /// </summary>
+    public static async Task<int> SprechtagVeroeffentlichtAsync(HttpClient admin, string name = "Elternsprechtag")
+    {
+        var sj = (await HolenAsync(admin, "/api/app/sprechtag"))["schuljahre"]!.AsArray()[0]!["name"]!.GetValue<string>();
+        var id = (await JsonAsync(await admin.PostAsync("/api/app/sprechtag", System.Net.Http.Json.JsonContent.Create(new { schuljahr = sj }))))["id"]!.GetValue<int>();
+        var konfig = new
+        {
+            name, dauer = 10, online = false,
+            abschnitte = new[]
+            {
+                new { name = "1. Sprechtagsabschnitt", datum = "2026-10-30", von = "15:00", bis = "16:00" },
+                new { name = "2. Sprechtagsabschnitt", datum = "2026-10-30", von = "16:10", bis = "17:00" },
+            },
+            phase1Von = "2026-10-15T08:00", phase1Bis = "2026-10-20T18:00", phase2Von = "2026-10-21T08:00", phase2Bis = "2026-10-28T18:00",
+            rechte = new { raeumeWaehlen = true, abwesenheitenEintragen = true, termineBearbeiten = true, termineBuchen = true },
+            regeln = new { },
+        };
+        var k = await JsonAsync(await admin.PutAsync($"/api/app/sprechtag/{id}", System.Net.Http.Json.JsonContent.Create(konfig)));
+        Assert.Empty(k["fehler"]!.AsArray());
+        var v = await JsonAsync(await admin.PostAsync($"/api/app/sprechtag/{id}/veroeffentlichen", System.Net.Http.Json.JsonContent.Create(new { })));
+        Assert.Equal("verwaltung", v["phase"]!.GetValue<string>());
+        return id;
+    }
+
+    /// <summary>Uhr von UntPlanWeb stellen (Phasen des Sprechtags).</summary>
+    public void WebUhr(DateTime zeit) => _web.Services.GetRequiredService<UntPlanWeb.Dienste.Uhr>().Fest = zeit;
+
     public static async Task<JsonNode> JsonAsync(HttpResponseMessage r)
     {
         var text = await r.Content.ReadAsStringAsync();
