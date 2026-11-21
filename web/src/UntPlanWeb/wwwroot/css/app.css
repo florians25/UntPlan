@@ -2073,6 +2073,35 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-nav .u-nav-punkt.aktiv, .u-leiste .u-nav .u-nav-punkt.aktiv .u-nav-sym { color: var(--u-primaer); }
 .u-leiste .u-nav .u-nav-punkt:hover, .u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
 
+/* Seitenleiste mit Untermenü (Stundenpläne) nachgemessen an Vorlage 295 (Windows, 100 %): 279px weiß mit 1px-Kante #dce0e5,
+   Zurück-Knopf 44px (oben 16px) mit kräftigerem Schatten und Pfeil 16 × 8 px in #8a96a1; Schuljahr-Pille 124 × 32 px ab 75/76 px mit
+   1px-Rand #bfc8cf, Schrift #67747e, Winkel 14 × 8 px #8a96a1; erster Menüpunkt mittig bei 148px; aktiver Punkt ohne Fläche (nur
+   beim Überfahren hellorange), Balken 3px breit über die ganze Zeilenhöhe */
+.u-leiste { box-shadow: inset -1px 0 0 #dce0e5; }
+.u-leiste.mit-unter .u-zurueck { position: relative; top: 1px; }
+.u-leiste.mit-unter .u-zurueck { width: 44px; height: 44px; box-shadow: 0 3px 4px rgba(20, 45, 65, .24), 0 4px 12px rgba(20, 45, 65, .12); color: #8a96a1; }
+.u-leiste.mit-unter .u-zurueck .u-sym { width: 27px; height: 27px; }
+.u-leiste.mit-unter .u-jahrzeile { padding-top: 16px; padding-bottom: 16px; padding-left: 75px; }
+.u-leiste.mit-unter .u-jahr.mit-pfeil { height: 32px; padding: 0 9px 0 17px; gap: 3px; border: 1px solid #bfc8cf; color: #67747e; }
+.u-leiste.mit-unter .u-jahr.mit-pfeil .bi { font-size: 17.6px; color: #8a96a1; -webkit-text-stroke: 0; }
+.u-leiste .u-nav-unter .u-nav-punkt.aktiv:not(:hover) { background: none; }
+.u-leiste .u-nav-unter .u-nav-punkt.aktiv::before { width: 3px; border-radius: 0 3px 3px 0; }
+.u-leiste .u-nav-unter .u-nav-punkt:not(.aktiv):not(:hover) .u-nav-sym { color: #8a96a1; } /* Symbole heller als der Text (Vorlage 295) */
+.u-leiste .u-benutzer b { color: #67747e; }
+.u-leiste .u-benutzer .u-avatar { border-color: #bfc8cf; }
+/* Fuß der Seitenleiste wie Vorlage 289/295 (Fenster 947 px hoch, ohne Neuigkeiten): Griff 794/801 px, Avatar 40px bei 846–885 px
+   (links 18px), Abmelden-Text 909 px, Symbol in Originalgröße 28px (Strich 20 × 20 px bei 28/904 px) */
+@media (min-width: 992px) {
+  .u-leiste .u-fuss { padding-bottom: 18px; }
+  .u-leiste .u-griff { margin-bottom: 25px; }
+  .u-leiste .u-griff span, .u-leiste .u-griff span::after { left: calc(50% - 1px); }
+  .u-leiste .u-griff span::after { left: 50%; top: 7px; }
+  .u-leiste .u-benutzer { padding-left: 18px; gap: 19px; margin-bottom: 5px; }
+  .u-leiste .u-benutzer .u-avatar { width: 40px; height: 40px; }
+  .u-leiste .u-abmelden { padding: 2px 12px 2px 24px; gap: 25px; }
+  .u-leiste .u-abmelden .u-sym { width: 28px; height: 28px; }
+}
+
 /* Startseite „Mein nächster Unterricht“ auf kleineren Monitoren: die Lehrstoff-Spalte nimmt nur den Restplatz und kürzt mit „…“
    (vollständig im Hover), alle anderen Spalten bleiben vollständig; im Notfall waagrecht scrollbar statt abgeschnitten */
 .nl-tabelle.heute-unterricht { overflow-x: auto; }
