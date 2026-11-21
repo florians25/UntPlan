@@ -95,6 +95,10 @@ html:root.is-win .std .z1 { font-weight: 500; }
    Ort und Vertretungs-Label in einer Textzeile: Label direkt hinter dem Ort (ein Leerzeichen), wie auf den Stundenkarten (grün,
    Hover „ALT → NEU“), gleiche Schriftgröße wie der Ort. Vergangene Aufsichten verblassen nicht – nur die Fläche wird leicht grau. */
 .aufsicht .auf-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Wunsch: Text der Pausenaufsicht 1:1 wie der oberste Wert einer Stundenkarte (14px Demi, #414d55, Zeile 16px; unter Windows Medium
+   wie der Kartenkopf), auch halbiert neben einem Block */
+.aufsicht .auf-text { font-size: 14px; font-weight: 600; line-height: 16px; color: #414d55; }
+html:root.is-win .aufsicht .auf-text { font-weight: 500; }
 .aufsicht .lbl, .aufsicht .lbl-auf { display: inline-block; overflow: visible; margin: 0; padding: 0 3px; font-size: inherit; line-height: 18px; font-weight: 600; color: #fff;
   background: var(--u-gruen-label); border-radius: 1.5px; vertical-align: baseline; text-decoration: none; }
 .aufsicht .lbl[data-hover] { cursor: inherit; }
