@@ -886,7 +886,8 @@ public sealed partial class HauptFenster
             // zweite Reihe: kleiner Plan mit Stundenplanlupe
             var mitLupe = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.Skip(1).First().Id, false, true);
             mitLupe.Location = new Point(plaene[0].Left, plaene.Max(p => p.Bottom));
-            if (plaene.Any(p => !p.Klein || p.Width > 220)) throw new InvalidOperationException("Kleine Stundenpläne sind nicht klein.");
+            // kleine Pläne nach Vorlage (Bilder 308–312): Raster 247 px, Fenster 271 px, in der Vorlage 286 bis 362 px breit
+            if (plaene.Any(p => !p.Klein || p.Width > 380)) throw new InvalidOperationException("Kleine Stundenpläne sind nicht klein.");
         }, -1);
         Schritt("19a2_Tauschpfeil_Vertretung", () =>
         {
