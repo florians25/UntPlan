@@ -258,9 +258,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
         rechts.Controls.Add(_tage);
         kopf.Controls.Add(rechts);
 
-        Controls.Add(_g);
-        Controls.Add(_summe);
-        Controls.Add(_tabs);
+        // Vorlage: Reiter und Tabelle 9 Pixel vom linken und rechten Fensterrand eingerückt (Fensterfläche ringsum)
+        var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 9), BackColor = Ui.Kopf };
+        tabellenFlaeche.Controls.Add(_g);
+        tabellenFlaeche.Controls.Add(_summe);
+        tabellenFlaeche.Controls.Add(_tabs);
+        Controls.Add(tabellenFlaeche);
         Controls.Add(kopf);
         Controls.Add(ts);
         AppZustand.DatumGewechselt += DatumGewechselt;

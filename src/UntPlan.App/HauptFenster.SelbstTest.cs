@@ -133,7 +133,9 @@ public sealed partial class HauptFenster
             if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie im Vorbild: " + Text);
             using var bild = new Bitmap(_ribbon.Width, _ribbon.Height);
             _ribbon.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));
-            var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb());
+            // gewählte Registerkarte: Akzentlinie bzw. im Vertretungsmodus (Vorlage) das dunkle Kontextband über „Vertretungsplanung“
+            var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb() ||
+                (Ui.Vertretungsmodus && bild.GetPixel(x, 1).ToArgb() == Steuerelemente.Ribbon.KontextDunkel.ToArgb()));
             if (!akzentGefunden) throw new InvalidOperationException("Gewählte Registerkarte ohne Akzentlinie");
             log.Add($"INFO  Kopf ({modus}): „{Text}“ mittig bei {mitte}/{_schnell.Width}, Farbe {Ui.Titel.R},{Ui.Titel.G},{Ui.Titel.B}");
         }

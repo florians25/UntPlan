@@ -66,7 +66,7 @@ public sealed class FensterTitel : Control
         var x = 7;
         if (_form.Icon != null)
         {
-            try { g.DrawIcon(_form.Icon, new Rectangle(x, (Height - 16) / 2, 16, 16)); } catch { /* Symbol nicht darstellbar */ }
+            try { g.DrawIcon(_form.Icon, new Rectangle(x, (Height - 16) / 2 + 1, 16, 16)); } catch { /* Symbol nicht darstellbar */ }
             x += 22;
         }
         var rechts = Knopf(0).X - 4;
@@ -76,7 +76,7 @@ public sealed class FensterTitel : Control
             else rechts = Schalter(0).X - 4;
             for (var i = 0; i < 2; i++) SchalterZeichnen(g, Schalter(i), i == 1, _schalterHover == i);
         }
-        TextRenderer.DrawText(g, _form.Text, TitelSchrift, new Rectangle(x, 0, Math.Max(0, rechts - x), Height), text,
+        TextRenderer.DrawText(g, _form.Text, TitelSchrift, new Rectangle(x - 1, 1, Math.Max(0, rechts - x + 1), Height), text,
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         for (var i = 0; i < 3; i++)
         {

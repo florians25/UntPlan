@@ -79,6 +79,9 @@ public static class Auswahlbreite
 
     private static Point Hover(DataGridView g) => HoverZelle.TryGetValue(g, out var b) ? b.Value : new Point(-1, -1);
 
+    /// <summary>Liegt die Maus über dieser Zelle (für selbst gezeichnete Zellen mit fester Hintergrundfarbe)?</summary>
+    public static bool IstHover(DataGridView g, int spalte, int zeile) => Hover(g) is var h && h.X == spalte && h.Y == zeile;
+
     private static void HoverSetzen(DataGridView g, int spalte, int zeile)
     {
         var alt = Hover(g);

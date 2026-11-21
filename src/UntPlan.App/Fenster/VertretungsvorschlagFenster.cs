@@ -955,13 +955,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var clip = e.Graphics.Clip;
             e.Graphics.SetClip(new Rectangle(r.X, r.Y, r.Width - 1, r.Height));
             // Vorlage: Stundenzellen immer weiß (auch in markierten und abwechselnd getönten Zeilen), je 52 Pixel mit dunkelgrauer Trennlinie
-            e.Graphics.FillRectangle(Brushes.White, r.X, r.Y, r.Width - 1, r.Height - 1);
+            var weiss = Steuerelemente.Auswahlbreite.IstHover(g, e.ColumnIndex, e.RowIndex) ? Ui.ZelleHover : Color.White;
+            using (var grund = new SolidBrush(weiss)) e.Graphics.FillRectangle(grund, r.X, r.Y, r.Width - 1, r.Height - 1);
             using var linie = new Pen(Color.FromArgb(90, 90, 90));
             for (var k = 0; k < z.Count; k++)
             {
                 var zelle = z[k];
                 var zr = new Rectangle(r.X + k * w, r.Y, w - 1, r.Height - 1);
-                var hg = Color.White;
+                var hg = weiss;
                 if (zelle.Hintergrund != 0 && !zelle.Entfallen)
                 {
                     hg = Ui.Farbe(zelle.Hintergrund, Color.White);
