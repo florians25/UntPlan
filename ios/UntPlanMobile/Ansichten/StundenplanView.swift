@@ -62,8 +62,6 @@ struct StundenplanView: View {
     /// Geöffnete Stundendetails (mit allen Stunden derselben Zeit als Reiter)
     @State private var detail: Detailauswahl? = nil
     @State private var gewaehlteAufsicht: Aufsicht? = nil
-    /// Zoom des Rasters (mit zwei Fingern einstellbar, bleibt gespeichert; 1 = Tag bis 17 Uhr füllt die Sichthöhe)
-    @AppStorage("rasterZoom") private var rasterZoom: Double = 1
     @State private var zeigeAuswahl = false
     @State private var zeigeHilfe = false
     /// Klassenlehrkräfte je Klasse (Kürzel) aus /api/app/elemente – für das (i) im Kopf von Klassenplänen
@@ -335,7 +333,6 @@ struct StundenplanView: View {
         guard Startsteuerung.aktiv else { return }
         if let p = Startsteuerung.plan { auswahl = p }
         if let d = Startsteuerung.datum { datum = d }
-        if let z = Startsteuerung.zoom { rasterZoom = z }
         ansicht = Startsteuerung.ansicht == "tag" ? .tag : .woche
     }
 
@@ -675,11 +672,10 @@ struct StundenplanView: View {
             .layoutPriority(1)
             .zIndex(1)
 
-            GeometryReader { sicht in
+            GeometryReader { _ in
+            // Feste Höhen wie in der Vorlage (keine Pinch-Geste): Minuten maßstäblich nach dem Zeitraster des Plans
             let rahmen = rahmenSpeicher.rahmen(seiten: daten, typ: typ, element: element, kompakt: kopfRahmen.kompakt,
-                                               tagesansicht: ansicht == .tag, untenFrei: kopfRahmen.untenFrei,
-                                               sichtHoehe: sicht.size.height, dunkel: schema == .dark,
-                                               zoom: CGFloat(rasterZoom)) ?? kopfRahmen
+                                               tagesansicht: ansicht == .tag, untenFrei: kopfRahmen.untenFrei) ?? kopfRahmen
             ScrollViewReader { leser in
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
@@ -719,14 +715,6 @@ struct StundenplanView: View {
                     .frame(width: w, height: rahmen.hoehe, alignment: .topLeading)
                 }
                 .scrollIndicators(.hidden)
-                // Zwei Finger: Raster dichter bzw. weiter (wie im Original, bleibt gespeichert)
-                .simultaneousGesture(
-                    MagnifyGesture()
-                        .onEnded { wert in
-                            let neu = min(2, max(0.8, rasterZoom * Double(wert.magnification)))
-                            withAnimation(.easeOut(duration: 0.2)) { rasterZoom = (neu * 100).rounded() / 100 }
-                        }
-                )
                 // Richtungssperre: beim waagrechten Wischen scrollt das Raster nicht mit
                 .scrollDisabled(senkrechtGesperrt)
                 .modifier(Scrollsperre(sperre: tippsperre))
@@ -1055,7 +1043,7 @@ enum Wochenkopf {
 /// den Kartenfarben bzw. 50 pt grau #1c1c1d, Mitte 49 pt vom Rand), Symbol 24 pt, daneben (15 pt Abstand) Titel 17 pt
 /// halbfett und Beschreibung 15 pt (Zeilen 20,67 pt); unten angeheftet „Los geht’s“ (Kapsel 42 pt #fe5f32, 17 pt fett
 /// weiß), 35 pt über der Tab-Leiste. Der Inhalt blendet oben unter dem Kopf und unten über dem Knopf aus.
-/// „Externe Kalender“ und „Zoom per Pinch-Geste“ fehlen bewusst: beides gibt es in der App (noch) nicht.
+/// „Externe Kalender“ und „Zoom per Pinch-Geste“ fehlen bewusst: Kalender gibt es (noch) nicht, gezoomt wird nicht (feste Höhen).
 struct PlanErklaerungView: View {
     let schliessen: () -> Void
     @Environment(\.openURL) private var oeffnen
@@ -1423,15 +1411,15 @@ final class Rahmenspeicher {
     private var speicher: [String: Rasterrahmen] = [:]
 
     func rahmen(seiten: [Rasterseitendaten], typ: String, element: String, kompakt: Bool, tagesansicht: Bool,
-                untenFrei: CGFloat, sichtHoehe: CGFloat = 0, dunkel: Bool = false, zoom: CGFloat = 1) -> Rasterrahmen? {
+                untenFrei: CGFloat) -> Rasterrahmen? {
         let teile = seiten.map { d in
             "\(d.anfang.timeIntervalSince1970)/\(d.stand)/\(d.nurTage?.joined(separator: ",") ?? "")/\(d.plan?.typ ?? "")/"
                 + "\(d.plan?.element ?? "")/\(d.plan?.montag ?? "-")/\(d.plan?.gesperrt ?? false)/\(d.plan?.karten.count ?? -1)"
         }
-        let schluessel = teile.joined(separator: "|") + "#\(typ)#\(element)#\(kompakt)#\(tagesansicht)#\(untenFrei)#\(sichtHoehe)#\(dunkel)#\(zoom)"
+        let schluessel = teile.joined(separator: "|") + "#\(typ)#\(element)#\(kompakt)#\(tagesansicht)#\(untenFrei)"
         if let r = speicher[schluessel] { return r }
         guard let r = Rasterrahmen(seiten: seiten, mitte: 1, typ: typ, element: element, kompakt: kompakt, tagesansicht: tagesansicht,
-                                   untenFrei: untenFrei, sichtHoehe: sichtHoehe, dunkel: dunkel, zoom: zoom) else { return nil }
+                                   untenFrei: untenFrei) else { return nil }
         if speicher.count > 12 { speicher.removeAll() }
         speicher[schluessel] = r
         return r
@@ -1513,17 +1501,12 @@ struct Rasterrahmen: Equatable {
     /// Stundennummer („1.“) mittig zwischen Beginn und Ende in der Zeitleiste
     let stundenNummern: Bool
 
-    /// Höhe je Minute ohne bekannte Sichthöhe (hell 45 min = 166 px = 55,33 pt) bzw. auf dem iPad (wie die PWA).
-    static let proMinuteStandard: CGFloat = 1.2296
-    static let proMinuteBreit: CGFloat = 1.2704
-    /// iPhone (Woche und Tag) ohne bekannte Sichthöhe: 45 min = 176 px bei 3 px/pt
-    static let proMinuteIphone: CGFloat = 176.0 / 3 / 45
-    /// iPhone: dichtestes Raster (45 min = 171 px bei 3 px/pt)
-    static let proMinuteMindest: CGFloat = 171.0 / 3 / 45
+    /// Nachbau-Standard: feste Höhe je Minute, keine Pinch-Geste. Nachgemessen an den Vorlagen dunkel (iPhone, 1206 × 2622 px,
+    /// 3 px/pt): Linienoberkanten 07:45 bei 514,5 px, 08:30 686, 09:15 857,5, 09:35 933,5 … 15:50 2359,5 px – 485 min auf
+    /// 1845 px = 3,804 px/min = 1,268 pt/min (45 min = 171,2 px = 57,06 pt, Pause 20 min = 76 px = 25,36 pt). Die Höhen der
+    /// Stunden und Pausen folgen damit maßstäblich dem Zeitraster des Plans. iPad gleich.
+    static let proMinuteStandard: CGFloat = 1845.0 / 3 / 485
     static let abstandUnten: CGFloat = 28
-    /// Bis zu dieser Uhrzeit (Minuten) reicht das Raster beim Öffnen genau bis zum unteren Bildschirmrand (Vorlagen hell
-    /// und dunkel nachgemessen: 07:45 bzw. 08:00 bis 17:00 auf der Sichthöhe von 718 pt).
-    static let sichtEnde = 17 * 60
     /// Vorlauf des Lehrerplans vor der 1. Stunde (Minuten)
     static let lehrerVorlauf = 30
     /// Leerer Streifen über der Linie der 1. Stunde, hell und dunkel gleich (Vorlage dc1bcf55: Kopf endet bei 468 px,
@@ -1547,9 +1530,8 @@ struct Rasterrahmen: Equatable {
     var tagesVersatz: CGFloat { kompakt ? 1 : 1.5 }
 
     /// nil, solange keine der Seiten geladen ist.
-    /// `sichtHoehe`: Höhe der Scrollfläche (vom Kopf bis zum unteren Bildschirmrand); 0 = unbekannt.
     init?(seiten: [Rasterseitendaten], mitte: Int, typ: String, element: String, kompakt: Bool, tagesansicht: Bool,
-          untenFrei: CGFloat, sichtHoehe: CGFloat = 0, dunkel: Bool = false, zoom: CGFloat = 1) {
+          untenFrei: CGFloat) {
         let geladen = seiten.compactMap(\.plan)
         let mittelplan = seiten.indices.contains(mitte) ? seiten[mitte].plan : nil
         guard let leitplan = mittelplan ?? geladen.first else { return nil }
@@ -1580,19 +1562,8 @@ struct Rasterrahmen: Equatable {
         // (567a139b, 6d696e75, 0837d301: Linie der 1. Stunde 15,33 pt unter dem Kopf)
         // Frühaufsicht mit Dauer im Zeitraster: das Raster beginnt mindestens mit ihr (maßstäblich wie die Pausen)
         let vorlauf = max(kompakt && typ == "lehrer" ? Self.lehrerVorlauf : 0, fruehMinuten)
-        let proMinute: CGFloat
-        if kompakt && sichtHoehe > 200 {
-            // iPhone wie in den Vorlagen (dunkel, 3 px/pt): vom Rasterbeginn bis 17:00 füllt das Raster die Sichthöhe
-            // (Kopf bis unterer Bildschirmrand, abzüglich 15,33 pt oben) – 6d696e75 (07:45): 171 px je 45 min,
-            // 00e27251 (07:30): 166 px –, mal dem mit zwei Fingern eingestellten Zoom (567a139b 182 px und 6a2e7724
-            // 176 px: beide Faktor 1,0626 gegenüber 171 bzw. 166 px)
-            let spanne = CGFloat(max(Self.sichtEnde - (start - vorlauf), 240))
-            proMinute = min(3, max(0.7, (sichtHoehe - Self.obenAbstand) / spanne * zoom))
-        } else if kompakt {
-            proMinute = Self.proMinuteIphone * zoom
-        } else {
-            proMinute = Self.proMinuteBreit
-        }
+        // Feste Höhe je Minute (Nachbau-Standard, unabhängig von Sichthöhe und Gerät)
+        let proMinute = Self.proMinuteStandard
         let vorErsterPlatz: CGFloat = vorErsterPille ? pille + Self.pillenLuft : 0
         let oben: CGFloat = max(Self.obenAbstand + CGFloat(vorlauf) * proMinute, vorErsterPlatz)
         let mass = Rastermass(oben: oben, start: start, proMinute: proMinute,

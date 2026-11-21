@@ -426,9 +426,6 @@ enum Startsteuerung {
     /// Stundendetails: Karte in dieser Stunde (Nummer) statt der ersten geänderten
     static var stunde: Int? { wert("uiStunde").flatMap { Int($0) } }
 
-    /// Zoom des Stundenplanrasters (1 = Tag bis 17 Uhr füllt die Sichthöhe)
-    static var zoom: Double? { wert("uiZoom").flatMap { Double($0) } }
-
     static var aktiv: Bool { server != nil }
 
     /// Reiter nach der Anmeldung: Termine und Abwesenheiten liegen auf der Startseite.
