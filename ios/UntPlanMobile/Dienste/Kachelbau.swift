@@ -947,7 +947,7 @@ enum Kachelbau {
                     }
                     // wie in der Vorlage: der Raum mit Label steht vorne („[A103], C103“), durch Komma und Leerzeichen getrennt
                     raumTeile = raumTeile.filter { $0.stil == .plakette } + raumTeile.filter { $0.stil != .plakette }
-                    for j in raumTeile.indices { raumTeile[j].trenner = j < raumTeile.count - 1 ? ", " : "" }
+                    for j in raumTeile.indices { raumTeile[j].trenner = j < raumTeile.count - 1 ? "," : "" }
                     zeile.teile = raumTeile
                     hatListe = true
                 } else {

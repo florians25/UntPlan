@@ -337,7 +337,10 @@ public static class SprechtagApi
         api.MapPost("/", (AnlegeDaten daten, HttpContext c, Sprechtagdienst d, Paketdienst p, Uhr uhr, Protokoll prot) =>
         {
             var b = Admin(c);
-            var sj = Schuljahre(p.Aktuell, uhr.Heute).FirstOrDefault(x => x.Name == (daten.Schuljahr ?? "").Trim()) ?? throw new ArgumentException("Bitte ein Schuljahr auswählen.");
+            // ohne Angabe (z. B. aus der App) gilt das aktuelle Schuljahr
+            var jahre = Schuljahre(p.Aktuell, uhr.Heute);
+            var sj = string.IsNullOrWhiteSpace(daten.Schuljahr) ? jahre[0]
+                : jahre.FirstOrDefault(x => x.Name == daten.Schuljahr.Trim()) ?? throw new ArgumentException("Bitte ein Schuljahr auswählen.");
             var t = d.Anlegen(sj.Name, sj.Von, sj.Bis);
             prot.Schreiben(b.Login, "Sprechtag angelegt", $"{t.K.Name} ({t.Schuljahr})");
             return Results.Json(SprechtagJson(d, t));
