@@ -854,6 +854,14 @@ public sealed partial class HauptFenster
             f.Bounds = new Rectangle(100, 0, 272, 567);
             Vergleich("V5_Kleiner_Stundenplan", f, new Size(272, 567));
         }, -1);
+        Schritt("V7_Kalender", () =>
+        {
+            // Kalender in der Größe des Originals (Bild 308: 497 × 297 Pixel samt Rahmen)
+            var f = FensterOeffnen("kal")!;
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(0, 0, 497, 297);
+            Vergleich("V7_Kalender", f, new Size(497, 297));
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts

@@ -25,7 +25,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private readonly GroupBox _datumsBereich = new() { Text = "DatumsBereich", Left = 190, Top = 0, Width = 190, Height = 50 };
     private readonly Label _datumsText = new() { Left = 6, Top = 16, Width = 178, Height = 30 };
     private readonly TabControl _reiter = new() { Dock = DockStyle.Top, Height = 22, Visible = false };
-    private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
+    private readonly ToolStripComboBox _auswahl = new() { DropDownStyle = ComboBoxStyle.DropDownList, AutoSize = false, Width = 100 };
     private readonly ToolStripButton _alleElemente;
     private readonly ToolStripButton _sync;
     private readonly ToolStripButton _wochenansicht;
@@ -181,6 +181,14 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _zeitLeiste.CanOverflow = false;
         var zeitbereich = new ToolStripDropDownButton { DisplayStyle = ToolStripItemDisplayStyle.None, ShowDropDownArrow = true, ToolTipText = "Zeitbereich: Tag, Woche oder Periode", AutoSize = false, Size = new Size(19, 19), Margin = new Padding(5, 0, 11, 6) };
         zeitbereich.DropDownItems.Add("…");
+        // Vorlage: weißes Kästchen 19 × 19 Pixel mit grauem Rand (171,171,171) und schwarzem Dreieck (8 Pixel breit, 4 hoch)
+        zeitbereich.Paint += (_, e) =>
+        {
+            var gr = e.Graphics;
+            using (var b = new SolidBrush(zeitbereich.Selected || zeitbereich.Pressed ? Ui.Hover : Color.White)) gr.FillRectangle(b, 0, 0, 19, 19);
+            using (var p = new Pen(Color.FromArgb(171, 171, 171))) gr.DrawRectangle(p, 0, 0, 18, 18);
+            for (var i = 0; i < 4; i++) gr.FillRectangle(Brushes.Black, 5 + i, 7 + i, 8 - 2 * i, 1);
+        };
         zeitbereich.DropDownOpening += (_, _) =>
         {
             var m = ZeitbereichMenue();
