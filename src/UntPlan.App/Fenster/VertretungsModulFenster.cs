@@ -14,11 +14,13 @@ namespace UntPlan.App.Fenster;
 public sealed class KalenderFenster : MdiFenster
 {
     // Kopf wie im Handbuch-Bild (Kap. 4.4, 96 dpi): „Kalenderwoche“, Wochennummer ohne Rahmen mit Auf-/Ab-Pfeilen, Datumsfeld 90 breit
-    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(108, 9, 49, 20) };
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Bounds = new Rectangle(159, 6, 90, 23) };
+    // nachgemessen auf den Vorbild-Bildschirmfotos (100 %, Fensterrahmen 1 px, hier 3 px): „Kalenderwoche“ ab x 19, Wochennummer ab x 123,
+    // Auf-/Ab-Pfeile ab x 148, Datumsfeld 89 × 24 ab x 169 / y 9 (jeweils ab Fensteraußenkante bzw. Oberkante des Inhalts)
+    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(118, 12, 43, 20) };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Bounds = new Rectangle(166, 9, 89, 24) };
     private static readonly Font TabellenSchrift = new("Segoe UI", 9f);
     /// <summary>Wochenbuchstabe der Schulwoche (A/B …) neben dem Datum, nur bei eingestellter Wochenperiodizität.</summary>
-    private readonly Label _wochenTyp = new() { AutoSize = true, Location = new Point(253, 10), Font = Ui.SchriftFett };
+    private readonly Label _wochenTyp = new() { AutoSize = true, Location = new Point(260, 13), Font = Ui.SchriftFett };
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _texte = new() { Dock = DockStyle.Fill };
     // Detailbereich wie im Handbuch-Bild (Kap. 4.4.2): Karteikarten 385 × 170 links unten, Optionsfelder im Abstand von ~20 Pixeln,
@@ -44,8 +46,9 @@ public sealed class KalenderFenster : MdiFenster
         // Fenstergröße wie im Handbuch-Bild (Kap. 4.4.2, Detailbereich ausgeklappt)
         Size = new Size(682, 487);
         Positionieren();
-        var kopf = new Panel { Dock = DockStyle.Top, Height = 50 };
-        kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(8, 10) });
+        // Vorbild: Tabelle beginnt 52 px unter der Titelleiste, links und rechts 9 px vom Fensterrand
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 52 };
+        kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(15, 13) });
         _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
         kopf.Controls.Add(_datum);
@@ -67,8 +70,9 @@ public sealed class KalenderFenster : MdiFenster
         // wie im Handbuch-Bild: Schrift Segoe UI 8,25, Zeilen und Überschrift 15 Pixel hoch, alle Spalten 44 breit (lange Überschriften
         // wie „Offen (Paus.)“ werden abgeschnitten)
         _woche.Font = _woche.DefaultCellStyle.Font = _woche.ColumnHeadersDefaultCellStyle.Font = TabellenSchrift;
+        // Vorbild-Bildschirmfotos: Überschrift und Zeilen je 19 px samt Linie
         _woche.RowTemplate.Height = Ui.ZeilenHoehe();
-        _woche.ColumnHeadersHeight = 15;
+        _woche.ColumnHeadersHeight = Ui.ZeilenHoehe();
         _woche.RowHeadersVisible = false;
         // Spalten wie im Vorbild (Kalender der Vertretungsplanung): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (PA) | Abw.Kl. |
         // Freis. | Bl.Räume | Raum-V. | Offen (R) | Tagestexte | Koll. Le. | Koll. Rä. – die Zahlen zählen dieselben Zeilen wie die
@@ -90,14 +94,17 @@ public sealed class KalenderFenster : MdiFenster
         }
         // die Standardgestaltung verbreitert Spalten auf ihre Überschrift – hier bleiben sie wie im Vorbild 44 Pixel breit
         _woche.HandleCreated += (_, _) => { foreach (DataGridViewColumn c in _woche.Columns) c.Width = 44; };
+        // wie im Vorbild bleiben Datum und Tag beim waagrechten Scrollen stehen
+        _woche.Columns["D"]!.Frozen = true;
+        _woche.Columns["T"]!.Frozen = true;
         _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
         _woche.CellFormatting += (_, e) =>
         {
             if (e.RowIndex < 0 || e.CellStyle is null || _woche.Rows[e.RowIndex].Tag is not DateOnly d) return;
-            if (!Kalender.IstUnterrichtstag(D, d)) e.CellStyle.ForeColor = Color.Gray;
-            // Planungsdatum wie im Vorbild rosa hinterlegt (auch markiert), Datum und Tag der übrigen Tage hellgrün wie Kopfspalten
-            if (d == AppZustand.Datum) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(255, 214, 214);
-            else if (e.ColumnIndex < 2) e.CellStyle.BackColor = Color.FromArgb(232, 244, 238);
+            // nachgemessen: Planungsdatum rosa (255,216,216), Datum und Tag darin orange (255,234,198) wie die aktuelle Zeile der Listen,
+            // Datum und Tag der übrigen Tage und ganze unterrichtsfreie Tage (Sa, So) in der Kopffarbe (229,239,235), Schrift schwarz
+            if (d == AppZustand.Datum) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = e.ColumnIndex < 2 ? Ui.ZelleAktivVertretung : Color.FromArgb(255, 216, 216);
+            else if (e.ColumnIndex < 2 || !Kalender.IstUnterrichtstag(D, d)) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(229, 239, 235);
             e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor.IsEmpty ? Color.Black : e.CellStyle.ForeColor;
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
@@ -181,11 +188,13 @@ public sealed class KalenderFenster : MdiFenster
         split.Panel1.Controls.Add(_woche);
         split.Panel2.Controls.Add(_tabs);
         // wie im Vorbild: kleiner schwarzer Pfeil links unten klappt den Detailbereich (Tagestexte, Kalendertag) aus bzw. ein
-        var klappe = new Panel { Dock = DockStyle.Bottom, Height = 20 };
+        // Vorbild: 30 px unter der Tabelle, Pfeil 2 px unter ihr; Tabelle links und rechts 9 px vom Fensterrand (hier 7 + 2 px breiterer Rahmen)
+        var klappe = new Panel { Dock = DockStyle.Bottom, Height = 30 };
         var pfeil = new Button { Size = new Size(16, 16), Location = new Point(0, 2), FlatStyle = FlatStyle.Flat, BackColor = Color.White, UseVisualStyleBackColor = false, Padding = Padding.Empty, Font = Ui.SchriftKlein };
         pfeil.FlatAppearance.BorderColor = Color.Gray;
         klappe.Controls.Add(pfeil);
         split.Panel1.Controls.Add(klappe);
+        split.Panel1.Padding = new Padding(7, 0, 7, 0);
         void Klappen(bool offen)
         {
             split.Panel2Collapsed = !offen;

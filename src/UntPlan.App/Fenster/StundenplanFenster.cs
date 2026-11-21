@@ -73,6 +73,15 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
     internal void SelbsttestScrollen(int y) => _planRahmen.AutoScrollPosition = new Point(0, y);
 
+    /// <summary>Abstand des Planrahmens zum Fensterrahmen im Vertretungsmodus (Vorbild 9 px bei 1 px Fensterrahmen, hier 3 px Rahmen).</summary>
+    private const int Einzug = 7;
+
+    /// <summary>
+    /// Breite des kleinen Plans samt Fensterrahmen, Einzug und 3D-Rahmen, sodass die festen Zellen genau hineinpassen
+    /// (bei 5 Tagen 247 + 2·(3 + 7 + 2) = 271 Pixel).
+    /// </summary>
+    private int KleineBreite() => _plan.BenoetigteBreite + 2 * (3 + Einzug + 2);
+
     public StundenplanFenster(ElementTyp typ, int id, bool gross, bool klein = false)
     {
         _typ = typ;
@@ -165,7 +174,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _zeitLeiste = Werkzeugleiste();
         _zeitLeiste.Dock = DockStyle.Fill;
         _zeitLeiste.CanOverflow = false;
-        var zeitbereich = new ToolStripDropDownButton { DisplayStyle = ToolStripItemDisplayStyle.None, ShowDropDownArrow = true, ToolTipText = "Zeitbereich: Tag, Woche oder Periode", AutoSize = false, Size = new Size(18, 20), Margin = new Padding(2, 1, 6, 2) };
+        var zeitbereich = new ToolStripDropDownButton { DisplayStyle = ToolStripItemDisplayStyle.None, ShowDropDownArrow = true, ToolTipText = "Zeitbereich: Tag, Woche oder Periode", AutoSize = false, Size = new Size(19, 19), Margin = new Padding(5, 0, 11, 6) };
         zeitbereich.DropDownItems.Add("…");
         zeitbereich.DropDownOpening += (_, _) =>
         {
@@ -306,23 +315,36 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         planRahmen.Controls.Add(_plan);
         void PlanGroesse()
         {
-            // nur blättern, wenn die Zellen tatsächlich mehr Platz brauchen (sonst füllt der Plan das Fenster ohne Rollbalken)
-            // kleiner Plan: immer an das Fenster angepasst; sonst Mindestgrößen laut Format (Zellengröße) bzw. Schriftgröße
-            // Vertretungsmodus: schmaler Rand um den Plan
-            var rand = AppZustand.Vertretungsmodus ? (_klein ? 3 : 6) : 0;
-            var innen = planRahmen.Height - 2 - 2 * rand;
-            // kleiner Plan (Miniplan): Mindestzeilenhöhe statt Quetschen – bei vielen Stunden (bis 14) scrollt er senkrecht
-            var noetig = _klein ? _plan.MindestHoehe : _plan.BenoetigteHoehe;
-            var blaettern = noetig > innen;
-            var quer = !_klein && _plan.BenoetigteBreite > planRahmen.Width - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0) - 2 - 2 * rand;
+            // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos: Plan in einem vertieften Rahmen (3D, 2 px), links und rechts
+            // 9 px vom Fensterrand (hier 7 px plus 2 px breiterer Fensterrahmen), der Plan beginnt direkt am Rahmen
+            mitte.Padding = AppZustand.Vertretungsmodus ? new Padding(Einzug, 0, Einzug, 0) : Padding.Empty;
+            planRahmen.BorderStyle = AppZustand.Vertretungsmodus ? BorderStyle.Fixed3D : BorderStyle.None;
+            mitte.BackColor = planRahmen.BackColor;
+            var rahmen = planRahmen.BorderStyle == BorderStyle.Fixed3D ? 4 : 0;
+            var innenB = planRahmen.Width - rahmen;
+            var innenH = planRahmen.Height - rahmen;
+            if (_klein)
+            {
+                // kleiner Plan: feste Zellen wie gemessen (Stundenspalte 41, Tage 41, Stunden 25, Pausen 16, Kopf 37) statt Stauchen –
+                // passt er nicht in das Fenster, erscheinen Rollbalken; Tageskopf und Stundenspalte bleiben dabei stehen
+                planRahmen.AutoScroll = true;
+                planRahmen.AutoScrollMinSize = Size.Empty;
+                _plan.SetBounds(planRahmen.AutoScrollPosition.X, planRahmen.AutoScrollPosition.Y, _plan.BenoetigteBreite, _plan.BenoetigteHoehe);
+                return;
+            }
+            // normaler Plan: füllt das Fenster, wird aber nie unter die lesbare Mindestgröße gestaucht (dann Rollbalken)
+            var noetig = _plan.BenoetigteHoehe;
+            var blaettern = noetig > innenH;
+            var quer = _plan.MindestBreite > innenB - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0);
+            if (!blaettern && quer) blaettern = noetig > innenH - SystemInformation.HorizontalScrollBarHeight;
             if (planRahmen.AutoScroll != (blaettern || quer))
             {
                 planRahmen.AutoScroll = blaettern || quer;
                 if (!blaettern && !quer) planRahmen.AutoScrollPosition = Point.Empty;
             }
-            var breite = quer ? _plan.BenoetigteBreite : (blaettern ? planRahmen.Width - SystemInformation.VerticalScrollBarWidth - 2 : planRahmen.Width) - 2 * rand;
-            var hoehe = blaettern ? noetig : planRahmen.Height - (quer ? SystemInformation.HorizontalScrollBarHeight + 2 : 0) - 2 * rand;
-            _plan.SetBounds(rand + (quer ? planRahmen.AutoScrollPosition.X : 0), rand + (blaettern ? planRahmen.AutoScrollPosition.Y : 0), Math.Max(_klein ? 60 : 100, breite), Math.Max(60, hoehe));
+            var breite = quer ? _plan.MindestBreite : innenB - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0);
+            var hoehe = blaettern ? noetig : innenH - (quer ? SystemInformation.HorizontalScrollBarHeight : 0);
+            _plan.SetBounds(quer ? planRahmen.AutoScrollPosition.X : 0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(100, breite), Math.Max(60, hoehe));
         }
         planRahmen.Resize += (_, _) => PlanGroesse();
         _planGroesse = PlanGroesse;
@@ -337,7 +359,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         Controls.Add(_zeitZeile);
         Controls.Add(ts);
         KleinAnwenden();
-        if (klein) Height = KleineHoehe();
+        if (klein) Size = new Size(KleineBreite(), KleineHoehe());
         ModusAnwenden();
         Neuaufbau();
         AppZustand.ElementGewaehlt += ElementGewaehlt;
@@ -361,8 +383,19 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private void ModusAnwenden()
     {
         // Vorbild-Farben des Vertretungsmodus für die Zeilen um den Plan
-        _zeitLeiste.BackColor = AppZustand.Vertretungsmodus ? Ui.Leiste : PlanFlaeche;
-        _zeitZeile.BackColor = _fuss.BackColor = _planRahmen.BackColor = AppZustand.Vertretungsmodus ? Ui.BlauSehrHell : PlanFlaeche;
+        // Vorbild: die Datumszeile liegt auf der Fensterfläche (nicht auf der hellen Werkzeugleiste), Datum 5 px unter der Leiste
+        _zeitLeiste.BackColor = AppZustand.Vertretungsmodus ? Ui.Kopf : PlanFlaeche;
+        if (_zeitLeiste is Fensterleiste zl)
+        {
+            zl.Einziehen = false;
+            zl.Grundabstand = AppZustand.Vertretungsmodus ? new Padding(2, 4, 2, 1) : new Padding(2, 1, 2, 1);
+            zl.EinzugAnwenden();
+        }
+        // Fläche um den Plan wie auf den Vorbild-Bildschirmfotos (229,239,235)
+        _zeitZeile.BackColor = _fuss.BackColor = _planRahmen.BackColor = AppZustand.Vertretungsmodus ? Ui.Kopf : PlanFlaeche;
+        // Datumszeile im Vertretungsmodus wie gemessen 38 px hoch (Zeitbereich-Knopf und Datum oben, darunter Luft bis zum Planrahmen)
+        _zeitZeile.Height = AppZustand.Vertretungsmodus ? 38 : 27;
+        _zeitLeiste.Dock = AppZustand.Vertretungsmodus ? DockStyle.Top : DockStyle.Fill;
         _pool.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(244, 246, 250) : Color.FromArgb(232, 244, 255);
         _detail.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(248, 249, 252) : PlanFlaeche;
         _detail.Visible = !_klein && !AppZustand.Vertretungsmodus;
@@ -497,7 +530,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private void NormalformAnzeigen()
     {
         if (WindowState != FormWindowState.Normal) WindowState = FormWindowState.Normal;
-        if (_klein) { Height = KleineHoehe(); return; }
+        if (_klein) { Size = new Size(KleineBreite(), KleineHoehe()); return; }
         var rand = Size - _planRahmen.ClientSize;
         var breite = Math.Max(_plan.BenoetigteBreite, _gross ? 600 : 400);
         var hoehe = _plan.BenoetigteHoehe;
@@ -553,14 +586,14 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _plan.Format = FormatHolen();
         FormateFuellen();
         if (WindowState == FormWindowState.Normal)
-            Size = klein ? new Size(196, KleineHoehe()) : _gross ? new Size(820, 640) : new Size(560, 520);
+            Size = klein ? new Size(KleineBreite(), KleineHoehe()) : _gross ? new Size(820, 640) : new Size(560, 520);
         ModusAnwenden();
         KleinAnwenden();
         Neuaufbau(false);
     }
 
     /// <summary>Passende Fensterhöhe des kleinen Plans (Plan ohne Blättern, Werkzeugleiste, Titel, ggf. Lupe).</summary>
-    private int KleineHoehe() => _plan.BenoetigteHoehe + FensterTitel.Hoehe + 27 + _zeitZeile.Height + _fuss.Height + (_lupeSichtbar ? (_klein ? 80 : _lupe.Height) : 0) + 14;
+    private int KleineHoehe() => _plan.BenoetigteHoehe + FensterTitel.Hoehe + 2 * 3 + 25 + _zeitZeile.Height + _fuss.Height + (_lupeSichtbar ? (_klein ? 80 : _lupe.Height) : 0) + 6;
 
     /// <summary>Sichtbarkeit der Bereiche: Der kleine Plan zeigt nur Werkzeugleiste (Element, Blättern, Verknüpfung) und Plan, optional die Lupe.</summary>
     private void KleinAnwenden()
@@ -574,7 +607,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             it.Visible = true;
             it.Overflow = _klein && !_kleinSichtbar.Contains(it) ? ToolStripItemOverflow.Always : ToolStripItemOverflow.AsNeeded;
         }
-        _auswahl.Width = _klein ? 70 : 100;
+        _auswahl.Width = _klein ? 76 : 100; // Vorbild klein: Elementauswahl 76 px samt Pfeil
         Titelleiste.DurchschalterLinks = _klein;
         Titelleiste.Invalidate();
         TypSymbol();

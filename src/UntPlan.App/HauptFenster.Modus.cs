@@ -189,7 +189,7 @@ public sealed partial class HauptFenster
         };
         var mdi = Controls.OfType<MdiClient>().First().ClientSize;
         var res = new List<StundenplanFenster>();
-        var x = Math.Max(0, mdi.Width - plaene.Length * 196);
+        var x = Math.Max(0, mdi.Width - plaene.Length * 271);
         foreach (var (typ, id) in plaene)
         {
             var f = StundenplanFenster.Neu(typ, id is int i && i != 0 ? i : null, false, true);
@@ -334,6 +334,18 @@ public sealed partial class HauptFenster
         _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
         _statusLinks.Font = Ui.DialogSchrift;
         _statusLinks.ForeColor = Color.Black;
+        // Vorbild-Bildschirmfoto: Hilfehinweis nimmt den freien Platz ein, „Vertr.“ linksbündig in einem festen Feld, rechts „DE“ und
+        // „Vertretung“; die Kennzahlen der Datei (Periode, Klassen, Lehrkräfte) nur im Stundenplanmodus
+        var vm = AppZustand.Vertretungsmodus;
+        _statusLinks.Spring = vm;
+        _statusLinks.TextAlign = ContentAlignment.MiddleLeft;
+        _statusMitte.Spring = !vm;
+        _statusMitte.AutoSize = !vm;
+        if (vm) _statusMitte.Width = 685;
+        _statusMitte.TextAlign = vm ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter;
+        _statusMitte.Font = _statusSprache.Font = _statusModus.Font = vm ? Ui.DialogSchrift : _status.Font;
+        _statusRechts.Visible = !vm;
+        _statusSprache.Visible = _statusModus.Visible = vm;
 
         _ribbon.Invalidate();
         // Listen und Pläne in der Modusfarbe
@@ -406,30 +418,50 @@ public sealed partial class HauptFenster
         return n > 0;
     }
 
-    /// <summary>Standardanordnung des Vertretungsmodus: Kalender, Absenzen, Vertretungen, Vertretungsvorschlag und tagesaktuelle Pläne.</summary>
+    /// <summary>
+    /// Standardanordnung des Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (Vollbild 1916 px, 100 %), nachgemessen und auf den
+    /// Arbeitsbereich umgerechnet: links Kalender (500 × 299) und darunter Absenzen (500 × 400), in der Mitte Vertretungen (951 × 399) und
+    /// darunter die drei kleinen tagesaktuellen Pläne Klasse (308), Lehrkraft (286) und Raum (362) bis zum unteren Rand, rechts der
+    /// Vertretungsvorschlag (444) über die ganze Höhe. Bezugsgröße des Arbeitsbereichs: 1900 × 831 Pixel.
+    /// </summary>
     public void VertretungsStandardFenster()
     {
         AlleSchliessen();
         var mdi = Controls.OfType<MdiClient>().First().ClientSize;
         var w = mdi.Width;
         var h = mdi.Height;
-        var links = Math.Max(380, (int)(w * 0.27));
-        var mitteB = (int)(w * 0.45);
-        var oben = (int)(h * 0.36);
+        int X(int px) => (int)Math.Round(w * px / 1900.0);
+        int Y(int px) => (int)Math.Round(h * px / 831.0);
+        var links = X(500);
+        var mitteB = X(951);
         var kal = FensterOeffnen("kal")!;
-        kal.Bounds = new Rectangle(0, 0, links, oben);
+        kal.Bounds = new Rectangle(0, 0, links, Y(299));
         var abw = FensterOeffnen("abw")!;
-        abw.Bounds = new Rectangle(0, oben, links, h - oben);
+        abw.Bounds = new Rectangle(0, Y(299), links, Y(400));
         var vertr = FensterOeffnen("vertr")!;
-        vertr.Bounds = new Rectangle(links, 0, mitteB, (int)(h * 0.55));
+        vertr.Bounds = new Rectangle(links, 0, mitteB, Y(399));
         var vor = FensterOeffnen("vorschlag")!;
-        vor.Bounds = new Rectangle(links, (int)(h * 0.55), mitteB, h - (int)(h * 0.55));
+        vor.Bounds = new Rectangle(links + mitteB, 0, Math.Max(200, w - links - mitteB), h);
         var d = AppZustand.D;
-        var kl = StundenplanFenster.Neu(ElementTyp.Klasse, Stammdaten.Sortiert(d, ElementTyp.Klasse).FirstOrDefault()?.Id, false);
-        kl.Bounds = new Rectangle(links + mitteB, 0, w - links - mitteB, h / 2);
+        var v = AppZustand.AktiveVertretung;
         var abwesend = d.Abwesenheiten.FirstOrDefault(a => a.Art == AbwesenheitsArt.Lehrer && AppZustand.Datum >= a.Von && AppZustand.Datum <= a.Bis)?.ElementId;
-        var le = StundenplanFenster.Neu(ElementTyp.Lehrer, abwesend ?? Stammdaten.Sortiert(d, ElementTyp.Lehrer).FirstOrDefault()?.Id, false);
-        le.Bounds = new Rectangle(links + mitteB, h / 2, w - links - mitteB, h - h / 2);
+        var plaene = new (ElementTyp Typ, int? Id, int Breite)[]
+        {
+            (ElementTyp.Klasse, (v?.NeueKlassenIds.FirstOrDefault() is int k && k != 0 ? k : (int?)null) ?? Stammdaten.Sortiert(d, ElementTyp.Klasse).FirstOrDefault()?.Id, X(308)),
+            (ElementTyp.Lehrer, v?.LehrerId ?? abwesend ?? Stammdaten.Sortiert(d, ElementTyp.Lehrer).FirstOrDefault()?.Id, X(286)),
+            (ElementTyp.Raum, v?.VertretungsraumId ?? v?.RaumId ?? Stammdaten.Sortiert(d, ElementTyp.Raum).FirstOrDefault()?.Id, 0),
+        };
+        var x = links;
+        var oben = Y(399);
+        for (var i = 0; i < plaene.Length; i++)
+        {
+            var (typ, id, breite) = plaene[i];
+            var f = StundenplanFenster.Neu(typ, id is int n && n != 0 ? n : null, false, true);
+            // breit genug für die festen Zellen samt senkrechtem Rollbalken (unser Fensterrahmen ist 2 px breiter als im Vorbild)
+            breite = i == plaene.Length - 1 ? links + mitteB - x : Math.Max(breite, f.Width + SystemInformation.VerticalScrollBarWidth + 2);
+            f.Bounds = new Rectangle(x, oben, Math.Max(120, breite), Math.Max(150, h - oben));
+            x += breite;
+        }
         vertr.Activate();
     }
 

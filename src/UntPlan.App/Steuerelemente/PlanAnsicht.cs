@@ -379,6 +379,9 @@ public sealed partial class PlanAnsicht : Control
     private (int Tag, int Stunde)? Treffer(Point p)
     {
         if (p.X < KopfBreite || p.Y < KopfHoehe) return null;
+        // stehengebliebener Kopf bzw. Stundenspalte des gescrollten Plans liegt über den Zellen
+        var (fx, fy) = Fixversatz;
+        if ((fx > 0 && p.X < fx + KopfBreite) || (fy > 0 && p.Y < fy + KopfHoehe)) return null;
         if (Transponiert)
         {
             for (var tt = 0; tt < Tage; tt++)
@@ -607,7 +610,59 @@ public sealed partial class PlanAnsicht : Control
     {
         using var _m = Core.Messung.Start("PlanAnsicht.Zeichnen");
         Zeichnen(e.Graphics, ClientRectangle, false);
+        KoepfeFixieren(e.Graphics);
     }
+
+    /// <summary>
+    /// Gescrollter Anteil des Plans (der Plan liegt in einem scrollenden Rahmen): Tageskopf und Stundenspalte bleiben beim Scrollen
+    /// stehen – sie werden an der sichtbaren Ober- bzw. Linkskante noch einmal gezeichnet.
+    /// </summary>
+    internal (int X, int Y) Fixversatz =>
+        KlassikStil && !Transponiert && Parent is ScrollableControl { AutoScroll: true } sc
+            ? (Math.Max(0, -sc.AutoScrollPosition.X), Math.Max(0, -sc.AutoScrollPosition.Y)) : (0, 0);
+
+    private void KoepfeFixieren(Graphics g)
+    {
+        var (dx, dy) = Fixversatz;
+        if (dx == 0 && dy == 0) return;
+        _pausenCache = PausenZeilen();
+        using var _f = Schriftcache.Familie(Format.SchriftartWirksam);
+        using var linie = new Pen(Color.Black);
+        var zustand = g.Save();
+        try
+        {
+            void Teil(Rectangle clip, int vx, int vy)
+            {
+                g.SetClip(clip);
+                var b = new Rectangle(vx, vy, Width, Height);
+                KlassikKoepfe(g, b, false, linie);
+                if (vx > 0) PausenZeichnen(g, b, linie);
+                g.FillRectangle(Brushes.Black, b.X, b.Y + KopfHoehe - 1, b.Width, 2);
+                g.FillRectangle(Brushes.Black, b.X + KopfBreite - 1, b.Y, 2, b.Height);
+                g.FillRectangle(Brushes.Black, b.X, b.Y, b.Width, 1);
+                g.FillRectangle(Brushes.Black, b.X, b.Y, 1, b.Height);
+            }
+            // Stundenspalte (samt Pausenzeilen) an der linken Kante, Tageskopf an der oberen, zuletzt die Ecke über beiden
+            if (dx > 0) Teil(new Rectangle(dx, 0, KopfBreite + 1, Height), dx, 0);
+            if (dy > 0) Teil(new Rectangle(0, dy, Width, KopfHoehe + 1), 0, dy);
+            if (dx > 0 && dy > 0) Teil(new Rectangle(dx, dy, KopfBreite + 1, KopfHoehe + 1), dx, dy);
+        }
+        finally
+        {
+            g.Restore(zustand);
+            _pausenCache = null;
+        }
+    }
+
+    /// <summary>Beim Scrollen verschiebt der Rahmen den Plan: Kopf und Stundenspalte an der neuen Kante neu zeichnen.</summary>
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        if (Fixversatz != (0, 0) || _warVersetzt) Invalidate();
+        _warVersetzt = Fixversatz != (0, 0);
+    }
+
+    private bool _warVersetzt;
 
     private bool _druck;
 
@@ -1083,7 +1138,8 @@ public sealed partial class PlanAnsicht : Control
         // Vorbild: „Nvpl Std.“ mit nicht verplanten / allen Stunden oben links (große Pläne)
         // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: „Nvpl“ über „2/28“ (Arial 8) in der 41 × 37 px großen Ecke;
         // im Vertretungsmodus bleibt die Ecke des kleinen Plans wie im Original-Bildschirmfoto leer
-        if (Ecke.Length > 0 && (!klein || (PlanKleinVorbild && !AppZustand.Vertretungsmodus)) && !druck)
+        // Vorbild-Bildschirmfotos der Vertretungsplanung: der kleine Klassenplan zeigt „Nvpl“ über „0/30“, Lehrer- und Raumplan bleiben leer
+        if (Ecke.Length > 0 && (!klein || (PlanKleinVorbild && (!AppZustand.Vertretungsmodus || Typ == ElementTyp.Klasse))) && !druck)
         {
             var f = Schriftcache.Holen(Math.Max(6.5f, Math.Min(8.25f, KopfHoehe / 3.4f)));
             var eckText = klein ? string.Join("\n", Ecke.Split('\n').Select((z, i) => i == 0 ? z.Split(' ')[0] : z)) : Ecke;
@@ -1778,13 +1834,28 @@ public sealed partial class PlanAnsicht : Control
 
     /// <summary>Mindesthöhe, damit alle Werte einer Stunde untereinander lesbar sind (das Fenster scrollt dann).</summary>
     /// <remarks>Im Vertretungsmodus kompakt (zwei bis drei Zeilen je Stunde), damit der Tagesplan auf die Seite passt.</remarks>
-    public int BenoetigteHoehe => KopfHoehe + PausenZeilen().Count * PausenHoehe + 2 + Stunden * (Format.ZellenHoehe > 0 ? Format.ZellenHoehe :
+    public int BenoetigteHoehe => KopfHoehe + PausenZeilen().Count * PausenHoehe + (Format.Klein ? 1 : 2) + Stunden * (Format.ZellenHoehe > 0 ? Format.ZellenHoehe :
         // kleiner Plan im Stundenplanmodus wie im Vorbild „Kla1“: 25 px je Stunde bei Schrift 9
         Format.Klein ? (int)Math.Ceiling(Format.Schriftgroesse * (PlanKleinVorbild ? 2.75f : KlassikStil ? 1.85f : 1.6f)) :
         (int)Math.Ceiling(Format.Schriftgroesse * (AppZustand.Vertretungsmodus ? (Format.Gross ? 3.6f : 2.8f) : Format.Gross ? 6.4f : 5.0f)));
 
     /// <summary>Mindestbreite laut Format (Zellenbreite je Tag), 0 = an die Fensterbreite anpassen.</summary>
-    public int BenoetigteBreite => Format.ZellenBreite > 0 ? KopfBreite + SichtbareTage * Format.ZellenBreite + 2 : 0;
+    /// <remarks>
+    /// Kleiner Plan: feste Zellen wie auf den Vorbild-Bildschirmfotos der Vertretungsplanung (100 %): Stundenspalte 41, je Tag 41 Pixel
+    /// samt Linie, dazu die Abschlusslinie rechts – fünf Tage ergeben 247 Pixel. Ist das Fenster kleiner, scrollt der Plan.
+    /// </remarks>
+    public int BenoetigteBreite => Format.Klein ? KopfBreite + SichtbareTage * (Format.ZellenBreite > 0 ? Format.ZellenBreite : KleineSpalte) + 1
+        : Format.ZellenBreite > 0 ? KopfBreite + SichtbareTage * Format.ZellenBreite + 2 : 0;
+
+    /// <summary>Spaltenbreite eines Tages im kleinen Plan (gemessen: 41 Pixel samt Linie).</summary>
+    public const int KleineSpalte = 41;
+
+    /// <summary>
+    /// Mindestbreite des normalen Plans ohne feste Zellenbreite: darunter werden die Tage nicht weiter gestaucht, sondern der Plan
+    /// scrollt waagrecht.
+    /// </summary>
+    public int MindestBreite => BenoetigteBreite > 0 ? BenoetigteBreite
+        : KopfBreite + (Transponiert ? SichtbareStunden : SichtbareTage) * Math.Max(44, (int)Math.Ceiling(Format.Schriftgroesse * 6f)) + 2;
 
     private static string ZeilenGruppe(Kopplungszeile z) =>
         z.UGruppeId is int g && D.UGruppen.FirstOrDefault(x => x.Id == g) is { } ug ? $"({ug.Kurzname})" : "";
