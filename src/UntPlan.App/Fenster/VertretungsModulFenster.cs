@@ -297,12 +297,13 @@ public sealed class KalenderFenster : MdiFenster
         var p = D.PeriodeAm(datum);
         var name = p.Name.Length > 0 ? p.Name : p.Langname;
         var ende = Perioden.Ende(D, p);
-        // wie im Vorbild: „2.7.2020 Donnerstag / Periode1 (11.9.-29.7.)“
-        Text = $"{datum.Day}.{datum.Month}.{datum.Year} {Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)} / {name} ({p.Von.Day}.{p.Von.Month}.-{ende.Day}.{ende.Month}.)";
+        // wie in der Vorlage (Bilder 308–312): Fenstertitel „Kalender“; Datum, Wochentag und Periode als Hinweis am Wochenbuchstaben
+        Text = "Kalender";
+        var periode = $"{datum.Day}.{datum.Month}.{datum.Year} {Format.De.DateTimeFormat.GetDayName(datum.DayOfWeek)}, {name} ({p.Von.Day}.{p.Von.Month}. bis {ende.Day}.{ende.Month}.)";
         var mitWochen = D.Einstellungen.Wochenperiodizitaet > 1;
         _wochenTyp.Visible = mitWochen;
         _wochenTyp.Text = mitWochen ? $"{Kalender.WochenTyp(D, datum)}" : "";
-        _tipp.SetToolTip(_wochenTyp, mitWochen ? $"Schulwoche {Kalender.Schulwoche(D, datum)}, Wochenbuchstabe laut Wochenperiodizität" : "");
+        _tipp.SetToolTip(_wochenTyp, mitWochen ? $"{periode}, Schulwoche {Kalender.Schulwoche(D, datum)}, Wochenbuchstabe laut Wochenperiodizität" : periode);
     }
 
     private void TexteSpeichern()
@@ -429,8 +430,8 @@ public sealed class KalenderFenster : MdiFenster
 public sealed class KlausurenFenster : MdiFenster
 {
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
     private readonly ToolStripButton _ganzesJahr = new("Ganzes Schuljahr") { CheckOnClick = true, Checked = true, ToolTipText = "Zwischen dem gewählten Zeitbereich und dem ganzen Schuljahr wechseln" };
     private readonly ToolStripComboBox _klasse = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100, ToolTipText = "Ansicht auf eine Klasse einschränken" };
 

@@ -18,8 +18,8 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private static Font TabellenSchrift => Ui.AbsenzSchrift;
     private readonly Steuerelemente.Reiterleiste _tabs = new();
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ToolStripMenuItem _vaZeigen = new("Veranstaltungen anzeigen") { CheckOnClick = true };
     private int _letzterReiter;

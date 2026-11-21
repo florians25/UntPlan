@@ -32,7 +32,7 @@ public sealed class ListenauswahlFenster : MdiFenster
     private readonly TreeView _baum = new() { Dock = DockStyle.Fill, HideSelection = false, FullRowSelect = true, ShowLines = true, ItemHeight = 19 }; // Zeilenabstand 19 px wie im Handbuch-Bild
     private readonly Label _beschreibung = new() { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(6), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(250, 250, 245) };
     private readonly ToolStripButton _ausgabe;
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
 
     /// <summary>Datum für Listen mit Zeitbezug (Woche der freien Stunden, Vertretungsplan).</summary>
     private DateOnly Datum => DateOnly.FromDateTime(_datum.Value);

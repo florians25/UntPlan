@@ -39,7 +39,7 @@ public sealed class UntPlanWebDialog : Dialog
     private readonly Label _benutzer = new() { Left = 16, Top = 60, Width = 300, Height = 20 };
     private readonly CheckBox _anfangAktiv = new() { Text = "Anfangsdatum für Daten, die mit * markiert sind, aktivieren.", Left = 14, Top = 22, AutoSize = true };
     private readonly ComboBox _datumWahl = new() { Left = 16, Top = 46, Width = 170, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly DateTimePicker _anfang = new() { Format = DateTimePickerFormat.Short, Left = 194, Top = 46, Width = 110 };
+    private readonly DateTimePicker _anfang = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 194, Top = 46, Width = 110 };
     private readonly List<Zeile> _zeilen = new();
     private readonly List<(string Text, DateOnly Datum)> _datumVorgaben = new();
     private readonly ToolTip _tipp = new() { AutoPopDelay = 15000 };

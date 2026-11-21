@@ -12,7 +12,7 @@ namespace UntPlan.App.Fenster;
 /// </summary>
 public sealed class TotaldiagnoseFenster : MdiFenster
 {
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Left = 6, Top = 6, Width = 104 };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 6, Top = 6, Width = 104 };
     private readonly ComboBox _art = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 122, Top = 6, Width = 80 };
     private readonly Label _woche = new() { Left = 6, Top = 34, Width = 110, Height = 32 };
     private readonly Label _summen = new() { Left = 122, Top = 34, Width = 150, Height = 32 };

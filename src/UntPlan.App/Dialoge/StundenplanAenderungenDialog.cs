@@ -14,8 +14,8 @@ namespace UntPlan.App.Dialoge;
 public sealed class StundenplanAenderungenDialog : Dialog
 {
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
     private readonly CheckBox _erledigte = new() { Text = "Bereits durchgeführte/ignorierte Änderungen anzeigen.", AutoSize = true, Left = 8, Top = 10 };
     private readonly Label _status = new() { AutoSize = true, ForeColor = Color.DimGray, Left = 8, Top = 34 };
     private List<WebRueckmeldung> _server = new();

@@ -29,7 +29,7 @@ public sealed class DiagnoseFenster : MdiFenster
     private List<DiagnosePunkt> _punkteEingabe = new(), _punktePlan = new();
 
     /// <summary>Datums-Einstellung unter der Symbolleiste: die Diagnose bezieht sich immer auf die Woche dieses Datums.</summary>
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 104, Left = 4, Top = 3 };
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 104, Left = 4, Top = 3 };
     private readonly Label _wocheText = new() { Left = 116, Top = 6, AutoSize = true, ForeColor = Color.DimGray };
 
     private static readonly string[] GwFilter = { "Alle", ">= 1", ">= 2", ">= 3", ">= 4", ">= 5" };

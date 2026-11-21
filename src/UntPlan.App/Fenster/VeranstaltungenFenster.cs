@@ -19,8 +19,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private static Veranstaltung? _zwischenablage;
     private static string? _ablageText;
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 100 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 100 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
     private readonly NumericUpDown _nr = new() { Width = 72, Maximum = int.MaxValue, Minimum = 0 };
     private readonly ZeitraumAuswahl _zeitraum;
     private bool _laedt;

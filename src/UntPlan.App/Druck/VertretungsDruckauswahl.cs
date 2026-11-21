@@ -31,7 +31,7 @@ public static class VertretungsDruckauswahl
 
         var gGeaendert = new GroupBox { Text = "Druck nur, wenn geändert nach ..", Left = 9, Top = 160, Width = 324, Height = 49 };
         var ab = e.NurGeaendertNach ?? SeitenlayoutFenster.OhneAenderungsdatum;
-        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = ab.Date, Left = 11, Top = 17, Width = 101 };
+        var datum = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = ab.Date, Left = 11, Top = 17, Width = 101 };
         var zeit = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm:ss", ShowUpDown = true, Value = ab, Left = 131, Top = 17, Width = 80 };
         var heute = new Button { Text = "Heute", Left = 237, Top = 17, Width = 75, Height = 23 };
         heute.Click += (_, _) => datum.Value = DateTime.Today;

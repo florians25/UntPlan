@@ -20,8 +20,8 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
 
     // --- Statistik ------------------------------------------------------------------------------------
     // Maße des Bereichs „Zeitraum“ nach dem Handbuch-Bild: Datumsfelder 91 breit, Aktualisieren 24 × 24 dazwischen
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Width = 91, Left = 6, Top = 19, Font = Abschnitt.Schrift };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Width = 91, Left = 134, Top = 19, Font = Abschnitt.Schrift };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 91, Left = 6, Top = 19, Font = Abschnitt.Schrift };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 91, Left = 134, Top = 19, Font = Abschnitt.Schrift };
     private readonly LinienGrafik _verlauf = new() { Left = 4, Top = 44, Height = 150, Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom };
     private readonly DataGridView _stunden = Raster();
     private readonly DataGridView _woche = Raster();
@@ -602,8 +602,8 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
 
     private readonly TreeView _berichte = new() { Dock = DockStyle.Fill, ShowLines = true, HideSelection = false, BorderStyle = BorderStyle.FixedSingle };
     // Maße der Karteikarte „Berichte“ nach dem Handbuch-Bild (96 dpi, Tahoma 8,25)
-    private readonly DateTimePicker _bVon = new() { Format = DateTimePickerFormat.Short, Left = 25, Top = 20, Width = 125 };
-    private readonly DateTimePicker _bBis = new() { Format = DateTimePickerFormat.Short, Left = 157, Top = 20, Width = 125 };
+    private readonly DateTimePicker _bVon = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 25, Top = 20, Width = 125 };
+    private readonly DateTimePicker _bBis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 157, Top = 20, Width = 125 };
     private readonly RadioButton _bKlassen = new() { Text = "Klassen", Left = 7, Top = 23, AutoSize = true, Checked = true };
     private readonly RadioButton _bLehrer = new() { Text = "Lehrer", Left = 7, Top = 41, AutoSize = true };
     private readonly RadioButton _bEntfaelle = new() { Text = "Entfälle", Left = 0, Top = 0, AutoSize = true };

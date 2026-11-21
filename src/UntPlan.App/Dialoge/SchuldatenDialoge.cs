@@ -252,8 +252,8 @@ public sealed partial class EinstellungenDialog : Dialog
         var jahr = new GroupBox { Text = "Schuljahr", Left = 8, Top = 114, Width = 270, Height = 126 };
         jahr.Controls.Add(new Label { Text = "Von", Left = 10, Top = 18, Width = 60 });
         jahr.Controls.Add(new Label { Text = "Bis", Left = 140, Top = 18, Width = 60 });
-        var von = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 36, Width = 120, Value = _e.SchuljahrVon.ToDateTime(TimeOnly.MinValue) };
-        var bis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 140, Top = 36, Width = 120, Value = _e.SchuljahrBis.ToDateTime(TimeOnly.MinValue) };
+        var von = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 10, Top = 36, Width = 120, Value = _e.SchuljahrVon.ToDateTime(TimeOnly.MinValue) };
+        var bis = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 140, Top = 36, Width = 120, Value = _e.SchuljahrBis.ToDateTime(TimeOnly.MinValue) };
         von.ValueChanged += (_, _) => _e.SchuljahrVon = DateOnly.FromDateTime(von.Value);
         bis.ValueChanged += (_, _) => _e.SchuljahrBis = DateOnly.FromDateTime(bis.Value);
         var per = new NumericUpDown { Left = 10, Top = 66, Width = 46, Minimum = 1, Maximum = 4, Value = Math.Clamp(_e.Wochenperiodizitaet, 1, 4) };
@@ -380,8 +380,8 @@ public sealed class PeriodenDialog : Dialog
     private readonly Button _neu = new() { Text = "Neue Periode zu dieser Mutterper.", Left = 12, Top = 50, Width = 192, Height = 24 };
     private readonly CheckBox _fixiert = new() { Text = "Fixiert", Left = 230, Top = 60, AutoSize = true };
     private readonly TextBox _lang = new() { Left = 12, Top = 96, Width = 196 };
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 12, Top = 140, Width = 100 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 120, Top = 140, Width = 116, ShowCheckBox = true };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 12, Top = 140, Width = 100 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 120, Top = 140, Width = 116, ShowCheckBox = true };
     private readonly Label _tage = new() { Left = 250, Top = 144, AutoSize = true, Font = Ui.SchriftFett };
     private readonly DataGridView _g = new() { Left = 12, Top = 176, Width = 690, Height = 230, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
     private bool _laedt;

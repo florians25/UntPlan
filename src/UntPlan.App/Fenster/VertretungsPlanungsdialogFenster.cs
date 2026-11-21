@@ -21,8 +21,8 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
     // Woche-2 (je 75 breit mit Drehknopf und Beschriftung)
     private readonly ComboBox _element = new() { Left = 11, Top = 12, Width = 132, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Label _name = new() { Left = 147, Top = 15, Width = 260, Text = "Name" };
-    private readonly DateTimePicker _woche1 = new() { Left = 11, Top = 39, Width = 76, Format = DateTimePickerFormat.Short };
-    private readonly DateTimePicker _woche2 = new() { Left = 162, Top = 39, Width = 76, Format = DateTimePickerFormat.Short };
+    private readonly DateTimePicker _woche1 = new() { Left = 11, Top = 39, Width = 76, Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy" };
+    private readonly DateTimePicker _woche2 = new() { Left = 162, Top = 39, Width = 76, Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy" };
     private readonly PlanungsRaster _raster = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _lupe = new() { Dock = DockStyle.Bottom, Height = 96, Name = "Lupe" };
     private readonly ToolStripButton _beibehalten;
