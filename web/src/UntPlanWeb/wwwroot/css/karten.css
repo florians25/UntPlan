@@ -326,9 +326,11 @@ input.sd-eingabe { min-height: 56px; }
 .planleiste .kw-pfeil[data-element="-1"] .woche-pfeil-sym { transform: translateX(-1px); }
 .planleiste .kw-pfeil[data-element="1"] .woche-pfeil-sym { transform: translateX(1px); }
 .kopfwahl { position: relative; min-width: 0; }
-.kw-pille { position: relative; display: flex; align-items: center; height: 32px; padding: 0 22.5px 0 23px; border: 1px solid transparent; border-radius: 999px; cursor: text;
+.kw-pille { position: relative; display: flex; align-items: center; height: 32px; padding: 0 22.5px 0 23px; border: 1px solid transparent; border-radius: 999px; cursor: pointer;
   font-size: 14px; font-weight: 600; color: #414d55; white-space: nowrap; }
 .kw-pille:hover, .kopfwahl:focus-within .kw-pille, .kopfwahl.offen .kw-pille { border-color: #bfc8cf; background: #fff; }
+/* Wunsch: in der Element-/Planauswahl bleibt beim Überfahren und Klicken der Finger-Cursor (auch über dem Eingabefeld) */
+.kw-pille .kw-eingabe, .kw-pille .wahl-info, .kw-pille .kw-wert { cursor: pointer; }
 .kw-wert { position: relative; top: -1px; display: inline-flex; align-items: center; gap: 8px; pointer-events: none; }
 .kw-kurz { position: relative; top: -1px; }
 .kw-wert .wahl-info { pointer-events: auto; z-index: 1; width: 16px; height: 16px; top: 0; }
@@ -360,7 +362,7 @@ input.sd-eingabe { min-height: 56px; }
 .kw-balken i { display: block; width: 100%; border-radius: 4px; background: #bfc8cf; }
 .kw-raster { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 4.5px; margin: 3px 0 1px 38px; }
 .kw-raster[hidden] { display: none; }
-.kw-chip { position: relative; top: 2px; height: 28px; padding: 0 8.75px 4px; border: 0; border-radius: 999px; background: transparent; font-size: 14px; font-weight: 600; color: #67747e; white-space: nowrap; }
+.kw-chip { position: relative; top: 2px; height: 28px; padding: 0 8.75px 4px; border: 0; border-radius: 999px; background: transparent; font-size: 14px; font-weight: 600; color: #67747e; white-space: nowrap; cursor: pointer; }
 .kw-chip:hover { background: rgba(255, 255, 255, .7); color: #414d55; }
 .kw-chip.aktiv { background: #414d55; color: #fff; }
 @media (max-width: 767.98px) { .kw-raster { display: none; } }
