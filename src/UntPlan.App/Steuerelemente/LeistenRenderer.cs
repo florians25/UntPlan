@@ -5,10 +5,19 @@ public sealed class LeistenRenderer : ToolStripProfessionalRenderer
 {
     public LeistenRenderer() => RoundedEdges = false;
 
+    /// <summary>Kontextband der gewählten Registerkarte in Leistenkoordinaten (Vorlage, Vertretungsmodus); leer = keines.</summary>
+    public Func<Rectangle>? Band { get; init; }
+
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
     {
         using var b = new SolidBrush(Ui.Titel);
         e.Graphics.FillRectangle(b, e.AffectedBounds);
+        // Vorlage: oben 4 Pixel hellgrün, darunter dunkler bis zur Registerkarte (unter den Symbolen des Schnellzugriffs)
+        if (Band?.Invoke() is { Width: > 0 } band)
+        {
+            using (var d = new SolidBrush(Ribbon.KontextDunkel)) e.Graphics.FillRectangle(d, band.X, 0, band.Width, e.ToolStrip.Height);
+            using (var h = new SolidBrush(Ribbon.KontextHell)) e.Graphics.FillRectangle(h, band.X, 0, band.Width, 4);
+        }
     }
 
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e) { }

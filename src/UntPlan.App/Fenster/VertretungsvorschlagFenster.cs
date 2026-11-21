@@ -954,12 +954,14 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var w = Math.Max(12, _zellBreite);
             var clip = e.Graphics.Clip;
             e.Graphics.SetClip(new Rectangle(r.X, r.Y, r.Width - 1, r.Height));
-            using var linie = new Pen(g.GridColor);
+            // Vorlage: Stundenzellen immer weiß (auch in markierten und abwechselnd getönten Zeilen), je 52 Pixel mit dunkelgrauer Trennlinie
+            e.Graphics.FillRectangle(Brushes.White, r.X, r.Y, r.Width - 1, r.Height - 1);
+            using var linie = new Pen(Color.FromArgb(90, 90, 90));
             for (var k = 0; k < z.Count; k++)
             {
                 var zelle = z[k];
-                var zr = new Rectangle(r.X + 1 + k * w, r.Y, w, r.Height - 1);
-                var hg = selected ? e.CellStyle.SelectionBackColor : e.CellStyle.BackColor;
+                var zr = new Rectangle(r.X + k * w, r.Y, w - 1, r.Height - 1);
+                var hg = Color.White;
                 if (zelle.Hintergrund != 0 && !zelle.Entfallen)
                 {
                     hg = Ui.Farbe(zelle.Hintergrund, Color.White);
@@ -977,7 +979,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                     using var p = new Pen(Color.Red, 1);
                     e.Graphics.DrawLine(p, zr.X + (zr.Width - breite) / 2, y, zr.X + (zr.Width + breite) / 2, y);
                 }
-                if (k < z.Count - 1) e.Graphics.DrawLine(linie, zr.Right - 1, zr.Y, zr.Right - 1, zr.Bottom);
+                if (k < z.Count - 1) e.Graphics.DrawLine(linie, zr.Right, zr.Y, zr.Right, zr.Bottom);
                 if (zelle.Ziel) ZielMarkieren(e.Graphics, zr, e.RowIndex == 0, e.RowIndex == g.Rows.Count - 1);
             }
             e.Graphics.Clip = clip;
@@ -1061,19 +1063,29 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private static void SchuelerZeichnen(Graphics g, Rectangle r) =>
         g.DrawImage(Symbole.Get("schueler", 16), r.X + (r.Width - 16) / 2, r.Y + (r.Height - 16) / 2, 16, 16);
 
-    /// <summary>Vertretungsstunde: gelb-orange gestrichelter Rahmen links und rechts, oben in der ersten und unten in der letzten Zeile.</summary>
+    /// <summary>
+    /// Vertretungsstunde wie in der Vorlage: 3 Pixel breiter Rahmen, abwechselnd 6 Pixel orange (255,165,0) und 6 Pixel gelb (255,255,0),
+    /// links und rechts in jeder Zeile (Muster beginnt je Zeile oben), oben in der ersten und unten in der letzten Zeile.
+    /// </summary>
     private static void ZielMarkieren(Graphics g, Rectangle r, bool erste, bool letzte)
     {
-        using var gelb = new Pen(Color.FromArgb(255, 235, 0), 2);
-        using var orange = new Pen(Color.FromArgb(255, 150, 0), 2) { DashPattern = new[] { 2f, 2f } };
-        var (x1, x2, y1, y2) = (r.X + 1, r.Right - 2, r.Y, r.Bottom - 1);
-        foreach (var p in new[] { gelb, orange })
+        const int dicke = 3, strich = 6;
+        using var orange = new SolidBrush(Color.FromArgb(255, 165, 0));
+        using var gelb = new SolidBrush(Color.FromArgb(255, 255, 0));
+        void Senkrecht(int x)
         {
-            g.DrawLine(p, x1, y1, x1, y2);
-            g.DrawLine(p, x2, y1, x2, y2);
-            if (erste) g.DrawLine(p, x1, y1 + 1, x2, y1 + 1);
-            if (letzte) g.DrawLine(p, x1, y2 - 1, x2, y2 - 1);
+            for (var y = 0; y < r.Height; y += strich)
+                g.FillRectangle(y / strich % 2 == 0 ? orange : gelb, x, r.Y + y, dicke, Math.Min(strich, r.Height - y));
         }
+        void Waagrecht(int y)
+        {
+            for (var x = 0; x < r.Width; x += strich)
+                g.FillRectangle(x / strich % 2 == 0 ? orange : gelb, r.X + x, y, Math.Min(strich, r.Width - x), dicke);
+        }
+        if (erste) Waagrecht(r.Y);
+        if (letzte) Waagrecht(r.Bottom - dicke);
+        Senkrecht(r.X);
+        Senkrecht(r.Right - dicke);
     }
 
     private static void KopfZeichnen(DataGridView g, DataGridViewCellPaintingEventArgs e, DataGridViewColumn spalte)

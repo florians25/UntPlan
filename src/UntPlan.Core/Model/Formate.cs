@@ -280,6 +280,8 @@ public sealed class StundenplanFormat
     {
         Name = name, Typ = typ, Klein = true, Einzelstunden = false, PausenAnzeigen = true, ZeitenAnzeigen = false, Schriftgroesse = 9,
         DragDropZeitwunschFarben = false, StundenplanlupeAnzeigen = true,
+        // Vorlage (Vertretungsplanung, kleine Pläne): Unterrichte ohne Fachfarben auf der Grundfarbe des Plans
+        Farbe = FarbeNach.Keine,
     };
 }
 

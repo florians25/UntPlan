@@ -608,7 +608,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             it.Overflow = _klein && !_kleinSichtbar.Contains(it) ? ToolStripItemOverflow.Always : ToolStripItemOverflow.AsNeeded;
         }
         _auswahl.Width = _klein ? 76 : 100; // Vorbild klein: Elementauswahl 76 px samt Pfeil
-        Titelleiste.DurchschalterLinks = _klein;
+        // Vorlage: Durchschalter auch im kleinen Plan rechts nach dem (gekürzten) Titel vor den Fensterknöpfen
+        Titelleiste.DurchschalterLinks = false;
         Titelleiste.Invalidate();
         TypSymbol();
         FussAnordnen();

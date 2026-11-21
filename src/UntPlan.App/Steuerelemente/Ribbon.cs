@@ -140,6 +140,25 @@ public sealed class Ribbon : Control
     public bool FreieKopfFlaeche(Point p) =>
         p.Y < TabHoehe && !_dateiBounds.Contains(p) && !Seiten.Any(s => s.IstSichtbar && s.TabBounds.Contains(p)) && !Rechts.Bounds.Contains(p);
 
+    /// <summary>
+    /// Vertretungsmodus wie in der Vorlage: über der Registerkarte „Vertretungsplanung“ ein dunkleres Band (81,132,111) bis zum oberen
+    /// Fensterrand, oben 4 Pixel hellgrün (127,202,104) – reicht in die Titelleiste (dort von der Kopfleiste gezeichnet). Leer = kein Band.
+    /// </summary>
+    public Rectangle KontextBand
+    {
+        get
+        {
+            if (!Ui.Vertretungsmodus) return Rectangle.Empty;
+            var s = Seiten.FirstOrDefault(x => x.IstSichtbar && x.Text == "Vertretungsplanung");
+            return s is null ? Rectangle.Empty : new Rectangle(s.TabBounds.X, 0, s.TabBounds.Width, s.TabBounds.Y);
+        }
+    }
+
+    /// <summary>Lage des Kontextbands hat sich geändert (die Kopfleiste zeichnet ihren Teil neu).</summary>
+    public event Action? KontextBandGeaendert;
+    private Rectangle _letztesBand;
+    public static readonly Color KontextDunkel = Color.FromArgb(81, 132, 111), KontextHell = Color.FromArgb(127, 202, 104);
+
     /// <summary>Akzentlinie über der gewählten Registerkarte (heller und kräftiger als die Modusfarbe).</summary>
     public static Color Akzent => Ui.Vertretungsmodus ? Color.FromArgb(122, 204, 96) : Color.FromArgb(96, 186, 232);
 
@@ -243,7 +262,7 @@ public sealed class Ribbon : Control
                     {
                         if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                         // große Knöpfe eng wie in der Vorlage: Beschriftung + 4 Pixel, 2 Pixel Abstand (Text zu Text 6 Pixel)
-                        var w = Math.Max(40, TextRenderer.MeasureText(e.Text, Font).Width + 4);
+                        var w = Math.Max(40, TextBreite(e.Text) + 4);
                         e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
                         e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
                         ende = x + w;
@@ -288,6 +307,9 @@ public sealed class Ribbon : Control
         Layout2(g);
         // Registerleiste in der Modusfarbe (durchgehend mit Titel- und Schnellzugriffsleiste)
         using (var b = new SolidBrush(Ui.Titel)) g.FillRectangle(b, 0, 0, Width, TabHoehe);
+        var band = KontextBand;
+        if (band.Height > 0) using (var b = new SolidBrush(KontextDunkel)) g.FillRectangle(b, band);
+        if (band != _letztesBand) { _letztesBand = band; KontextBandGeaendert?.Invoke(); }
         // Menüband flach in der hellen Modusfarbe wie in der Vorlage (kein Verlauf)
         using (var b = new SolidBrush(Ui.Menueband)) g.FillRectangle(b, 0, TabHoehe, Width, Inhalt + 1);
         // Trennlinien oben und unten wie in der Vorlage: hellgrau (213,213,213)
@@ -318,8 +340,11 @@ public sealed class Ribbon : Control
                 {
                     g.DrawLine(p, tb.X, tb.Y, tb.X, tb.Bottom);
                     g.DrawLine(p, tb.Right - 1, tb.Y, tb.Right - 1, tb.Bottom);
+                    // unter dem Kontextband (Vertretungsmodus) wie in der Vorlage nur die hellgraue Kante oben, sonst die Akzentlinie
+                    if (band.Height > 0 && band.X == tb.X) g.DrawLine(p, tb.X, tb.Y, tb.Right - 1, tb.Y);
                 }
-                using (var akzent = new SolidBrush(Akzent)) g.FillRectangle(akzent, tb.X, tb.Y, tb.Width, 3);
+                if (band.Height <= 0 || band.X != tb.X)
+                    using (var akzent = new SolidBrush(Akzent)) g.FillRectangle(akzent, tb.X, tb.Y, tb.Width, 3);
                 g.SmoothingMode = SmoothingMode.AntiAlias;
             }
             else if (_hoverTab == s)
@@ -364,7 +389,8 @@ public sealed class Ribbon : Control
                     DatumZeichnen(g, it);
                     continue;
                 }
-                var farbe = aktiv ? Color.FromArgb(30, 30, 30) : Color.FromArgb(160, 160, 160);
+                // Vorlage: Beschriftungen schwarz, im eingedrückten Knopf („Vertretungsplanung“) dunkelgrau
+                var farbe = !aktiv ? Color.FromArgb(160, 160, 160) : gedrueckt ? Color.FromArgb(70, 70, 70) : Color.Black;
                 if (it.GrossDargestellt)
                 {
                     // Symbol 32 Pixel, 2 Pixel unter der Knopfoberkante; Beschriftung ab 36; Pfeil „˅“ ab 55 (Vorlage)
