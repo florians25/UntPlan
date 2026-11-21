@@ -320,7 +320,7 @@ export async function zusaetzlicheStunden(seite, kontext, [quelleParam]) {
   if (!m) { seite.innerHTML = rahmen('Zusätzliche Stunde', '<p class="rb-leer">Wählen Sie den Unterricht unter Unterricht | Mein Unterricht bzw. die Buchung unter Meine Buchungen.</p>'); return; }
   const [opt, q, el] = await Promise.all([holen('/api/app/buchen/optionen'), holen(`/api/app/buchen/stundenquelle?${m[1]}=${m[2]}`), kontext.elemente()]);
   if (!opt.stundenplanaenderung) {
-    seite.innerHTML = rahmen('Zusätzliche Stunde', '<p class="rb-leer">Sie benötigen dafür das Recht „Stundenplanänderung“. Falls Sie dieses Recht nicht haben, kontaktieren Sie Ihre Administration für die Freigabe dieses Rechtes.</p>');
+    seite.innerHTML = rahmen('Zusätzliche Stunde', '<p class="rb-leer">Sie benötigen dafür das Recht „Stundenplanänderung“. Wenden Sie sich für die Freigabe an Ihre Administration.</p>');
     return;
   }
   const raster = opt.zeitraster.filter(z => z.nr > 0 && z.beginn && z.ende);
@@ -765,7 +765,7 @@ export async function neuerUnterricht(seite, kontext) {
         wochenstunden: d.wochenstunden, benachrichtigen: d.benachrichtigen,
         zusatz: { von: d.von, bis: d.bis, jahresstunden: d.jahresstunden, abteilung: d.zu.abteilung || '', verantwortlich: d.zu.verantwortlich || '', aktivitaetsart: d.zu.aktivitaetsart || '',
           anmerkung: d.zu.anmerkung || '', email: d.zu.email || '', emailBenachrichtigung: !!d.zu.emailBenachrichtigung } });
-      toast('Unterricht angelegt – jetzt zusätzliche Stunden verplanen.');
+      toast('Unterricht angelegt. Planen Sie jetzt die zusätzlichen Stunden ein.');
       kontext.navigieren(`#/buchen/zusatz/e${u.id}`);
     } catch (err) { kontext.fehler(err); knopf.disabled = false; }
   };

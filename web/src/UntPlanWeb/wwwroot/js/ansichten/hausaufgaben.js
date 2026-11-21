@@ -33,7 +33,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   if (reiter === 'lehrstoff') {
     const liste = await holen(`/api/app/klassenbuch/klasse?klasse=${encodeURIComponent(klasse ?? '')}&von=${von}&bis=${bis}`);
     const mit = liste.filter(x => x.thema);
-    inhalt.innerHTML = mit.length ? `<ul class="u-liste">${mit.map(x => `<li>${datumKachel(x.datum)}<div class="u-zeilentext"><div class="titel">${e(x.fach)} <span class="fw-normal text-body-secondary">· ${x.stunde}. Std. · ${e(x.lehrer)}</span></div><div>${e(x.thema)}</div>
+    inhalt.innerHTML = mit.length ? `<ul class="u-liste">${mit.map(x => `<li>${datumKachel(x.datum)}<div class="u-zeilentext"><div class="titel">${e(x.fach)} <span class="fw-normal text-body-secondary">${x.stunde}. Std., ${e(x.lehrer)}</span></div><div>${e(x.thema)}</div>
         ${x.notizSchueler ? `<div class="small text-body-secondary mt-1">${icon('info')} ${e(x.notizSchueler)}</div>` : ''}</div></li>`).join('')}</ul>` : leer('Kein Lehrstoff im Zeitraum.', 'eintraege');
     return;
   }
@@ -45,8 +45,8 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   for (const h of liste) { const s = h.faellig ?? h.datum; gruppen.set(s, [...(gruppen.get(s) ?? []), h]); }
   inhalt.innerHTML = liste.length ? `<div class="card-header">${liste.length} ${liste.length === 1 ? 'Hausaufgabe' : 'Hausaufgaben'}</div>
     <ul class="u-liste">${[...gruppen.entries()].map(([datum, hs]) => `<li class="${datum < heute ? 'opacity-75' : ''}">${datumKachel(datum)}
-      <div class="u-zeilentext d-flex flex-column gap-2">${hs.map(h => `<div><div class="titel">${e(h.fach)} <span class="fw-normal text-body-secondary">· ${e(h.klassen.join(', '))} · ${e(h.lehrer)}</span></div>
-        <div>${e(h.hausaufgabe)}</div><div class="unter">erteilt am ${datumKurz(h.datum)} (${h.stunde}. Std.)${h.faellig ? '' : ' · ohne Fälligkeit'}</div></div>`).join('')}</div>
+      <div class="u-zeilentext d-flex flex-column gap-2">${hs.map(h => `<div><div class="titel">${e(h.fach)} <span class="fw-normal text-body-secondary">${e(h.klassen.join(', '))}, ${e(h.lehrer)}</span></div>
+        <div>${e(h.hausaufgabe)}</div><div class="unter">erteilt am ${datumKurz(h.datum)} (${h.stunde}. Std.)${h.faellig ? '' : ', ohne Fälligkeit'}</div></div>`).join('')}</div>
       <span class="u-chip ${datum < heute ? '' : datum <= plusTage(heute, 1) ? 'orange' : ''} align-self-start">${datum < heute ? 'fällig gewesen' : 'fällig'}</span></li>`).join('')}</ul>`
     : leer('Keine Hausaufgaben im Zeitraum.', 'hausaufgaben');
 }

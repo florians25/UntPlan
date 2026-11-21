@@ -201,7 +201,7 @@ async function rollen(box, kontext) {
     const [farbe, sym] = rollenStil(p);
     return `<div class="rm-rolle" style="--rolle:${farbe}">
       <div class="rm-rolle-name"><span class="rm-rolle-symbol"><i class="bi bi-${sym}" aria-hidden="true"></i></span><b title="${e(p.name)}">${e(p.name)}</b></div>
-      <div class="rm-rolle-meta">${p.system ? 'Systemrolle' : `Eigene Rolle · Basis ${e(p.basisName)}`} · <a href="#/admin/benutzer/${e(p.basis)}">${p.benutzer} ${p.benutzer === 1 ? 'Konto' : 'Konten'}</a></div>
+      <div class="rm-rolle-meta">${p.system ? 'Systemrolle' : `Eigene Rolle, Basis ${e(p.basisName)}`}, <a href="#/admin/benutzer/${e(p.basis)}">${p.benutzer} ${p.benutzer === 1 ? 'Konto' : 'Konten'}</a></div>
       ${kurz ? '' : `<div class="rm-rolle-aktionen">${p.aenderbar ? `<button type="button" data-bearbeiten="${e(p.id)}" title="Name, Beschreibung und Stundenplan-Zeitraum" aria-label="${e(p.name)} bearbeiten">${icon('stift')}</button>
           <button type="button" data-kopieren="${e(p.id)}" title="Rolle kopieren" aria-label="${e(p.name)} kopieren">${icon('kopieren')}</button>` : ''}
         ${p.system && p.aenderbar ? `<button type="button" data-zuruecksetzen="${e(p.id)}" title="Auf Standard zurücksetzen" aria-label="${e(p.name)} auf Standard zurücksetzen"><i class="bi bi-arrow-counterclockwise"></i></button>` : ''}
@@ -214,7 +214,7 @@ async function rollen(box, kontext) {
     if (gesperrt(p, r)) return `<div class="rm-zelle"><span class="rm-na" title="Nur für Konten des Kollegiums">nicht verfügbar</span></div>`;
     const s = istWert(p, r);
     return `<div class="rm-zelle ${aenderungen[p.id]?.[r.id] !== undefined ? 'geaendert' : ''}" data-zelle="${e(p.id)}|${e(r.id)}">
-      <div class="u-segment klein rm-stufen" role="group" aria-label="${e(r.name)} – ${e(p.name)}">${PILLEN(r).map(([w, t, sym]) =>
+      <div class="u-segment klein rm-stufen" role="group" aria-label="${e(r.name)}, ${e(p.name)}">${PILLEN(r).map(([w, t, sym]) =>
         `<button type="button" class="s${w} ${w === s ? 'an' : ''}" data-wert="${w}" aria-pressed="${w === s}" title="${e(t)}"><i class="bi bi-${sym}" aria-hidden="true"></i><span>${e(t)}</span></button>`).join('')}</div></div>`;
   };
   const fensterZelle = (p, f, titel) => {
@@ -222,7 +222,7 @@ async function rollen(box, kontext) {
     const geaendert = fenster[p.id] && f in fenster[p.id];
     const v = geaendert ? fenster[p.id][f] : p[f];
     return `<div class="rm-zelle ${geaendert ? 'geaendert' : ''}"><input type="number" min="0" max="${k.planWochenHoechstens ?? 520}" step="1" inputmode="numeric" class="rm-wochen"
-      placeholder="unbegrenzt" value="${v ?? ''}" data-fp="${e(p.id)}" data-f="${f}" aria-label="${e(titel)} – ${e(p.name)}"></div>`;
+      placeholder="unbegrenzt" value="${v ?? ''}" data-fp="${e(p.id)}" data-f="${f}" aria-label="${e(titel)}, ${e(p.name)}"></div>`;
   };
   const gruppeTitel = (g, n) => `<h3 class="rm-gruppe-titel"><i class="bi bi-${GRUPPEN[g] ?? 'shield-check'}" aria-hidden="true"></i>${e(g)} <small>${n}</small></h3>`;
   const rechtText = (name, beschreibung) => `<div class="rm-recht"><b>${e(name)}</b>${beschreibung ? `<small title="${e(beschreibung)}">${e(beschreibung)}</small>` : ''}</div>`;
@@ -272,10 +272,10 @@ async function rollen(box, kontext) {
       ] })}
     </div>
     <div class="rm-legende"><span class="rm-l s0"><i class="bi bi-slash-circle"></i>Kein Zugriff</span><span class="rm-l s1"><i class="bi bi-eye"></i>Lesen</span><span class="rm-l s2"><i class="bi bi-pencil"></i>Schreiben bzw. Zugriff</span>
-      <span class="rm-trenn"></span><span>${k.rechte.length} Rechte in ${gruppen.length} Gruppen · Administration hat immer alle Rechte</span>
+      <span class="rm-trenn"></span><span>${k.rechte.length} Rechte in ${gruppen.length} Gruppen. Die Administration hat immer alle Rechte.</span>
       ${infoHinweis(`Eigene Rollen bauen auf einer Basisrolle auf (Kollegium, Schüler*in, Erziehungsberechtigte). Rechte des Kollegiums wirken bei Schüler- und Elternkonten nicht.
         „Rückwirkend bearbeiten“: Abwesenheiten, die länger als ${Number(k.rueckwirkendTage) || 0} Tage zurückliegen. Stundenplan-Zeitraum: Wochen vor bzw. nach der aktuellen Woche, die der Stundenplan zeigt
-        (leer = unbegrenzt, 0 = nur die aktuelle Woche) – im Web und in den Apps. Einzelnen Konten lassen sich unter „Rechte einzelner Benutzer“ Rechte zusätzlich geben oder entziehen.`, 'Hinweise zu Rollen')}
+        (leer = unbegrenzt, 0 = nur die aktuelle Woche); gilt im Web und in den Apps. Einzelnen Konten lassen sich unter „Rechte einzelner Benutzer“ Rechte zusätzlich geben oder entziehen.`, 'Hinweise zu Rollen')}
       <div class="rm-ansicht">${segment([['matrix', 'Matrix', { symbol: 'grid-3x3' }], ['rolle', 'Rolle für Rolle', { symbol: 'person-lines-fill' }]], zustand.ansicht, { attr: 'data-ansicht', label: 'Ansicht', klasse: 'klein' })}</div></div>
     <div data-rm-inhalt></div>
     <div class="rm-speichern" data-speicherleiste hidden role="status"><span data-anzahl></span>
@@ -402,7 +402,7 @@ async function benutzerrechte(box, kontext) {
   const zeichneListe = q => {
     q = (q ?? '').toLowerCase();
     listeBox.innerHTML = liste.filter(u => !q || `${u.login} ${u.anzeigename} ${u.rollenname}`.toLowerCase().includes(q)).slice(0, 300)
-      .map(u => `<button type="button" class="list-group-item list-group-item-action ${u.id === gewaehlt ? 'active' : ''}" data-id="${u.id}"><div class="fw-semibold">${e(u.anzeigename || u.login)}</div><div class="small">${e(u.login)} · ${e(u.rollenname)}</div></button>`).join('');
+      .map(u => `<button type="button" class="list-group-item list-group-item-action ${u.id === gewaehlt ? 'active' : ''}" data-id="${u.id}"><div class="fw-semibold">${e(u.anzeigename || u.login)}</div><div class="small">${e(u.login)}, ${e(u.rollenname)}</div></button>`).join('');
     listeBox.querySelectorAll('[data-id]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.id); zeichneListe(box.querySelector('[data-suche]').value); detail(); });
   };
   box.querySelector('[data-suche]').oninput = ev => zeichneListe(ev.target.value);

@@ -9,7 +9,7 @@ const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 const mitTag = iso => iso ? `${WT[new Date(`${iso}T12:00`).getDay()]}, ${datumDe(iso)}` : '–';
 
 /** Kopfzeile einer Stunde: „7a | D · Mi, 14.10.2026 · 3. Std.“ */
-const stundeText = x => `${(x.klassen ?? []).join(', ')}${x.fach ? ` | ${x.fach}` : ''} · ${mitTag(x.datum)}${x.stunde || x.von ? ` · ${x.stunde || x.von}. Std.` : ''}`;
+const stundeText = x => `${(x.klassen ?? []).join(', ')}${x.fach ? ` | ${x.fach}` : ''} | ${mitTag(x.datum)}${x.stunde || x.von ? `, ${x.stunde || x.von}. Std.` : ''}`;
 
 /**
  * Detailfenster einer Hausaufgabe. h: Eintrag aus /api/app/hausaufgaben/eintraege bzw. der Hausaufgabenliste einer Stunde
@@ -28,7 +28,7 @@ export function hausaufgabeDetails(h, { darf = !!h.darf, geaendert = () => {} } 
         ${zeile('Fach', e(h.fach || '–'))}
         ${zeile('Klasse', e((h.klassen ?? []).join(', ') || '–'))}
         ${zeile('Lehrkraft', e(h.lehrer || '–'))}
-        ${zeile('Aufgabedatum', `${e(mitTag(h.datum))}${h.stunde ? ` <span class="hw-d-grau">· ${h.stunde}. Std.</span>` : ''}`)}
+        ${zeile('Aufgabedatum', `${e(mitTag(h.datum))}${h.stunde ? ` <span class="hw-d-grau">(${h.stunde}. Std.)</span>` : ''}`)}
         ${zeile('Fälligkeit', h.faellig ? e(mitTag(h.faellig)) : '<span class="hw-d-grau">ohne Fälligkeit</span>')}
         ${h.bemerkung ? zeile('Bemerkung', e(h.bemerkung)) : ''}
         ${zeile('Anhänge', '<span class="hw-d-grau">Keine Anhänge</span>')}
@@ -112,7 +112,7 @@ export function hausaufgabeFormular({ h = null, stunde = null, lehrer = '', geae
           const r = await holen(`/api/app/klassenbuch/uebersicht?von=${d}&bis=${d}${lehrer ? `&lehrer=${encodeURIComponent(lehrer)}` : ''}`);
           stunden = (r.tage[0]?.stunden ?? []).filter(s => s.status !== 'entfall');
         } catch { stunden = []; }
-        wahl.innerHTML = stunden.length ? stunden.map((s, i) => `<option value="${i}">${s.von === s.bis ? s.von : `${s.von}.–${s.bis}`}. Std. · ${e(s.klassen.join(', '))} | ${e(s.fach)}${s.beginn ? ` (${e(s.beginn)})` : ''}</option>`).join('')
+        wahl.innerHTML = stunden.length ? stunden.map((s, i) => `<option value="${i}">${s.von === s.bis ? s.von : `${s.von}.–${s.bis}`}. Std. | ${e(s.klassen.join(', '))} | ${e(s.fach)}${s.beginn ? ` (${e(s.beginn)})` : ''}</option>`).join('')
           : '<option value="">An diesem Tag haben Sie keinen Unterricht</option>';
         wahl.dispatchEvent(new Event('change'));
       };

@@ -42,7 +42,7 @@ public sealed partial class EinstellungenDialog
         var vorhanden = Sicherungsgenerationen.Vorhandene(ordner);
         _seite.Controls.Add(new Label
         {
-            Text = $"Sicherungen in {ordner}" + (vorhanden.Count > 0 ? $" – zuletzt {vorhanden[0].Zeit:dd.MM.yyyy HH:mm}" : "") +
+            Text = $"Sicherungen in {ordner}" + (vorhanden.Count > 0 ? $", zuletzt am {vorhanden[0].Zeit:dd.MM.yyyy HH:mm}" : "") +
                    ". Die neueste Sicherung liegt in Save1. Beim Programmstart <Umschalt> gedrückt halten, um die zuletzt bearbeitete Datei nicht zu öffnen.",
             Left = 12, Top = y + 4, Width = 520, Height = 46, ForeColor = Color.DimGray,
         });
@@ -108,7 +108,7 @@ public sealed partial class EinstellungenDialog
         y += 40;
         _seite.Controls.Add(new Label
         {
-            Text = $"{zahl} Absturzbericht(e) in {ordner}.\n\nEin Absturzbericht enthält Fehlermeldung, Version, Systemarchitektur, Sprache und Sitzungsdauer – " +
+            Text = $"{zahl} Absturzbericht(e) in {ordner}.\n\nEin Absturzbericht enthält Fehlermeldung, Version, Systemarchitektur, Sprache und Sitzungsdauer, " +
                    "keine personenbezogenen Daten. UntPlan überträgt weder Absturzberichte noch Daten zur Qualitätssicherung ins Internet; " +
                    "Berichte können bei Bedarf selbst an den Support weitergegeben werden.",
             Left = 12, Top = y, Width = 520, Height = 90, ForeColor = Color.DimGray,

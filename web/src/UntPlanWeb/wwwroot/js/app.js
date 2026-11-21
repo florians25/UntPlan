@@ -88,7 +88,7 @@ const kontext = {
     const r = document.getElementById('aktionen');
     if (r) r.innerHTML = rechts;
     kopf?.classList.toggle('d-none', !text && !rechts);
-    document.title = text ? `${text} – UntPlanWeb` : 'UntPlanWeb';
+    document.title = text ? `${text} | UntPlanWeb` : 'UntPlanWeb';
   },
   /** Weiße Werkzeugleiste über dem Inhalt (z. B. Suche und Zeitraum im Klassenbuch); leer = keine Leiste. */
   werkzeug(html = '') {
@@ -177,7 +177,7 @@ function anmeldeRahmen(titel, inhalt, untertitel = '') {
       <div class="an-text">
         <p class="an-datum">${e(heute)}</p>
         <h2 class="an-schule">${e(schule)}</h2>
-        <p class="an-zeile">Stundenplan, Vertretungen und Klassenbuch – an einem Ort, immer aktuell.</p>
+        <p class="an-zeile">Stundenplan, Vertretungsplan und Klassenbuch</p>
       </div>
       <div class="an-hinweise" data-hinweise hidden></div>
       ${anmeldeBild()}
@@ -188,8 +188,8 @@ function anmeldeRahmen(titel, inhalt, untertitel = '') {
         <div class="lg-form">${inhalt}</div>
       </div>
       <footer class="an-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button>
-        <span class="lg-app-text" data-pwa-text>Tipp: Auf dem Smartphone über „Zum Startbildschirm hinzufügen“ wie eine App nutzen.</span>
-        <span class="lg-impressum">UntPlanWeb · Webbegleiter zu UntPlan</span></footer>
+        <span class="lg-app-text" data-pwa-text>Auf Smartphones lässt sich UntPlanWeb über „Zum Startbildschirm hinzufügen“ als App einrichten.</span>
+        <span class="lg-impressum">UntPlanWeb, Webanwendung zu UntPlan</span></footer>
     </section></main>`;
   // App installieren (PWA), sobald der Browser es anbietet
   const pwa = app.querySelector('[data-pwa]');
@@ -247,7 +247,7 @@ window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); wind
 const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML = alarm('danger', text); };
 
 function anmeldung() {
-  document.title = 'Anmelden – UntPlanWeb';
+  document.title = 'Anmelden | UntPlanWeb';
   const form = anmeldeRahmen('Anmelden', `<form autocomplete="on">
       <label class="lg-feld"><span>Benutzername</span><input id="login" name="login" autocomplete="username" placeholder="z. B. mustermann" required autofocus></label>
       <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required></label>
@@ -275,7 +275,7 @@ function anmeldung() {
 }
 
 function einrichtung() {
-  document.title = 'Einrichtung – UntPlanWeb';
+  document.title = 'Einrichtung | UntPlanWeb';
   const form = anmeldeRahmen('Ersteinrichtung', `<form>
       <p class="small text-body-secondary text-center">Legen Sie die Schule und das Administrationskonto an.</p>
       <div class="mb-3"><label class="form-label">Name der Schule</label><input class="form-control" name="schulname" required autofocus></div>
@@ -298,7 +298,7 @@ function einrichtung() {
 }
 
 function passwortPflicht() {
-  document.title = 'Passwort ändern – UntPlanWeb';
+  document.title = 'Passwort ändern | UntPlanWeb';
   const form = anmeldeRahmen('Neues Passwort festlegen', `<form>
       <p class="small text-body-secondary text-center">Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.</p>
       <div class="mb-3"><label class="form-label">Bisheriges Passwort</label><input class="form-control" name="alt" type="password" required autocomplete="current-password" autofocus></div>

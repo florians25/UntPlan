@@ -16,7 +16,7 @@ export function tagHtml(t, kollegium) {
     t.blockierteRaeume.length ? `<div><span class="text-body-secondary">Nicht verfügbare Räume:</span> ${e(t.blockierteRaeume.join(', '))}</div>` : '',
   ].filter(Boolean).join('');
   return `<section class="card mb-3">
-    <div class="card-header d-flex align-items-center gap-2">${e(datumLang(t.datum))}${t.woche ? `<span class="text-body-secondary fw-normal">· ${e(t.woche)}-Woche</span>` : ''}
+    <div class="card-header d-flex align-items-center gap-2">${e(datumLang(t.datum))}${t.woche ? `<span class="text-body-secondary fw-normal">(${e(t.woche)}-Woche)</span>` : ''}
       <span class="ms-auto u-chip">${t.zeilen.length} ${t.zeilen.length === 1 ? 'Eintrag' : 'Einträge'}</span></div>
     ${t.nachrichten.length ? `<ul class="list-group list-group-flush">${t.nachrichten.map(n => `<li class="list-group-item small" style="border-left:3px solid var(--u-akzent)">${e(n)}</li>`).join('')}</ul>` : ''}
     ${t.veranstaltungen.length ? `<div class="card-body py-2 small border-bottom">${t.veranstaltungen.map(v => `<div class="tt-ereignis veranstaltung d-inline-block me-2 mb-1" style="line-height:24px">${e(v)}</div>`).join('')}</div>` : ''}

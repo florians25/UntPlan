@@ -164,7 +164,7 @@ struct NeuigkeitenView: View {
 
     private let punkte: [Punkt] = [
         Punkt(symbol: "rectangle.split.3x1", titel: "Wochen blättern", text: "Im Stundenplan folgt die Woche dem Finger und gleitet beim Loslassen zur nächsten bzw. vorherigen Woche."),
-        Punkt(symbol: "rectangle.portrait", titel: "Tagesansicht", text: "Ein Tipp auf den Tageskopf zeigt den Tag über die volle Breite – Wischen wechselt zum Vor- bzw. Folgetag."),
+        Punkt(symbol: "rectangle.portrait", titel: "Tagesansicht", text: "Tippen auf den Tageskopf zeigt den Tag über die volle Breite. Wischen wechselt zum Vor- bzw. Folgetag."),
         Punkt(symbol: "list.bullet.rectangle", titel: "Neue Stundendetails", text: "Lehrstoff, Hausaufgaben, Schüler*innen, Klassenbucheinträge und Notizen direkt aus der Stunde."),
         Punkt(symbol: "door.left.hand.open", titel: "Im Stundenplan anzeigen", text: "Aus den Stundendetails den Plan eines Raums, einer Klasse oder Lehrkraft öffnen."),
         Punkt(symbol: "ipad", titel: "Für das iPad", text: "Leiste oben in der Mitte, Inhalte mittig statt über die ganze Breite."),

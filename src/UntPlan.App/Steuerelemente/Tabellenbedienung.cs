@@ -327,7 +327,7 @@ public static class Tabellenbedienung
                 g.CurrentCell = zurueck;
         }
         catch (InvalidOperationException) { }
-        if (falsch > 0) Ui.EingabeHinweis(g, $"{falsch} Feld(er) konnten nicht übernommen werden (ungültiger Wert bzw. Pflichtfeld) – die übrigen {ok} wurden übernommen.");
+        if (falsch > 0) Ui.EingabeHinweis(g, $"{falsch} Feld(er) konnten nicht übernommen werden (ungültiger Wert bzw. Pflichtfeld). Die übrigen {ok} wurden übernommen.");
         else if (ok > 0) Ui.Statushinweis($"{beschreibung}: {ok} Feld(er) übernommen (rückgängig mit Strg+Z).");
     }
 
@@ -423,7 +423,7 @@ public static class Tabellenbedienung
         {
             e.Cancel = true;
             var spalte = e.ColumnIndex >= 0 && e.ColumnIndex < g.Columns.Count ? g.Columns[e.ColumnIndex].HeaderText.Replace("\n", " ") : "";
-            Ui.EingabeHinweis(g, $"Ungültige Eingabe{(spalte.Length > 0 ? $" im Feld „{spalte}“" : "")} – bitte korrigieren oder mit Esc verwerfen.");
+            Ui.EingabeHinweis(g, $"Ungültige Eingabe{(spalte.Length > 0 ? $" im Feld „{spalte}“" : "")}. Bitte korrigieren oder mit Esc verwerfen.");
         }
     }
 

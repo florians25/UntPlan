@@ -69,7 +69,7 @@ function karteHtml(s, w, extra = '') {
 const BEREICHE = [['klasse', 'Klasse'], ['unterricht', 'Unterricht'], ['raum', 'Raum']];
 const BEREICH_TEXT = {
   klasse: 'Gilt in jedem Unterricht der Klasse (nur Klassenleitung).',
-  unterricht: 'Gilt nur in diesem Unterricht – der Klassen-Sitzplan wird hier nicht mehr angezeigt.',
+  unterricht: 'Gilt nur in diesem Unterricht. Der Klassen-Sitzplan wird hier nicht mehr angezeigt.',
   raum: 'Gilt in Ihren Stunden in diesem Raum (z. B. Fachraum).',
 };
 const OHNE_RECHT = {
@@ -175,14 +175,14 @@ export function rasterHtml(d, schueler, kachel, w = einstellungen()) {
   for (let dz = 0; dz < plan.zeilen; dz++) for (let ds = 0; ds < plan.spalten; ds++) {
     const z = hinten ? plan.zeilen - dz : dz + 1, sp = hinten ? plan.spalten - ds : ds + 1;
     const key = `${z}-${sp}`, s = nachId.get(belegung[key]);
-    zellen.push(s ? kachel(s) : ohne.has(key) ? '<div class="sp-a-gang" aria-hidden="true"></div>' : `<div class="sp-a-leer" title="Reihe ${z}, Platz ${sp} – frei"></div>`);
+    zellen.push(s ? kachel(s) : ohne.has(key) ? '<div class="sp-a-gang" aria-hidden="true"></div>' : `<div class="sp-a-leer" title="Reihe ${z}, Platz ${sp}: frei"></div>`);
   }
   const gesetzt = new Set(Object.values(belegung));
   const rest = sortieren(schueler.filter(s => !gesetzt.has(s.id)), w);
   const pult = '<div class="sp-pult"><i class="bi bi-easel2" aria-hidden="true"></i>Lehrerpult</div>';
   return `<div class="sp-anordnung" style="--spalten:${plan.spalten}"><div class="sp-anordnung-raum">${hinten ? '' : pult}
       <div class="sp-anordnung-raster">${zellen.join('')}</div>${hinten ? pult : ''}</div></div>
-    <div class="sp-a-quelle">Sitzplan: ${e(bereichName(plan.bereich))}${plan.geaendert ? ` · geändert ${e(plan.geaendert.slice(8, 10))}.${e(plan.geaendert.slice(5, 7))}.${e(plan.geaendert.slice(0, 4))}` : ''}</div>
+    <div class="sp-a-quelle">Sitzplan: ${e(bereichName(plan.bereich))}${plan.geaendert ? `, geändert am ${e(plan.geaendert.slice(8, 10))}.${e(plan.geaendert.slice(5, 7))}.${e(plan.geaendert.slice(0, 4))}` : ''}</div>
     ${rest.length ? `<div class="sp-a-ohne"><div class="sp-a-ohne-titel">Ohne Sitzplatz (${rest.length})</div><div class="sd-kacheln">${rest.map(kachel).join('')}</div></div>` : ''}`;
 }
 
@@ -274,10 +274,10 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
     for (let dz = 0; dz < st.zeilen; dz++) for (let ds = 0; ds < st.spalten; ds++) {
       const z = hinten ? st.zeilen - dz : dz + 1, sp = hinten ? st.spalten - ds : ds + 1;
       const k = `${z}-${sp}`, s = nachId.get(st.belegung.get(k));
-      const nr = `<span class="sp-nr">${z}·${sp}</span>`;
-      if (st.ohne.has(k)) zellen += `<div class="sp-sitz kein-tisch" data-platz="${k}" ${st.tische ? `role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: kein Tisch – Tisch hinstellen"` : 'aria-hidden="true"'}>${st.tische ? '<i class="bi bi-plus-lg"></i>' : ''}</div>`;
+      const nr = `<span class="sp-nr">${z}/${sp}</span>`;
+      if (st.ohne.has(k)) zellen += `<div class="sp-sitz kein-tisch" data-platz="${k}" ${st.tische ? `role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: kein Tisch, Tisch hinstellen"` : 'aria-hidden="true"'}>${st.tische ? '<i class="bi bi-plus-lg"></i>' : ''}</div>`;
       else if (s) zellen += `<div class="sp-sitz belegt" data-platz="${k}">${karteHtml(s, w, st.gewaehlt === s.id ? 'aria-pressed="true"' : '').replace('class="sp-karte"', `class="sp-karte ${st.gewaehlt === s.id ? 'gewaehlt' : ''}"`)}${nr}</div>`;
-      else zellen += `<div class="sp-sitz leer" data-platz="${k}" role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: frei${st.tische ? ' – Tisch entfernen' : ''}">${st.tische ? '<i class="bi bi-x-lg"></i>' : '<span class="sp-plus" aria-hidden="true">+</span>'}${nr}</div>`;
+      else zellen += `<div class="sp-sitz leer" data-platz="${k}" role="button" tabindex="0" aria-label="Reihe ${z}, Platz ${sp}: frei${st.tische ? ', Tisch entfernen' : ''}">${st.tische ? '<i class="bi bi-x-lg"></i>' : '<span class="sp-plus" aria-hidden="true">+</span>'}${nr}</div>`;
     }
     return `${hinten ? '' : pult}<div class="sp-raster ${st.tische ? 'sp-tischmodus' : ''}" style="--spalten:${st.spalten}">${zellen}</div>${hinten ? pult : ''}`;
   }
@@ -351,7 +351,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
     st.belegung.clear();
     const plaetze = plaetzeInReihenfolge();
     liste.slice(0, plaetze.length).forEach((s, i) => st.belegung.set(plaetze[i], s.id));
-    if (liste.length > plaetze.length) toast(`${liste.length - plaetze.length} Schüler*innen haben keinen Platz – bitte Raster vergrößern.`, true);
+    if (liste.length > plaetze.length) toast(`${liste.length - plaetze.length} Schüler*innen haben keinen Platz. Bitte vergrößern Sie das Raster.`, true);
     st.gewaehlt = null;
     geaendert();
   }
@@ -390,7 +390,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
       const neu = await senden('/api/app/sitzplaene', planDaten(), 'PUT');
       d.plaene = { ...(d.plaene ?? {}), [st.bereich]: neu };
       st.geaendert = false;
-      toast(`Sitzplan gespeichert – gilt für: ${bereichName(st.bereich)}.`);
+      toast(`Sitzplan gespeichert. Gilt für: ${bereichName(st.bereich)}.`);
       schliessen(true);
       onGespeichert?.(neu);
     } catch (err) { toast(err.message, true); knopf.disabled = false; }
@@ -460,7 +460,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
     if (st.tische && platz) {
       merken();
       const k = platz.dataset.platz;
-      if (st.ohne.has(k)) st.ohne.delete(k); else if (!st.belegung.has(k)) st.ohne.add(k); else { verlauf.pop(); toast('Auf diesem Platz sitzt jemand – zuerst die Schülerin bzw. den Schüler entfernen.', true); return; }
+      if (st.ohne.has(k)) st.ohne.delete(k); else if (!st.belegung.has(k)) st.ohne.add(k); else { verlauf.pop(); toast('Dieser Platz ist belegt. Entfernen Sie zuerst die Schülerin bzw. den Schüler.', true); return; }
       return geaendert();
     }
     if (karte) {
@@ -565,7 +565,7 @@ export async function zeigen(seite, kontext, [klasseParam]) {
     kontext: { klasse, klassen: [klasse] }, schueler: r.schueler,
     gueltig: r.plan.vorhanden ? r.plan : null, plaene: { klasse: r.plan.vorhanden ? r.plan : null }, rechte: { klasse: r.verwalten },
   };
-  const bearbeiten = () => editorOeffnen({ d, kontext: { klasse, klassen: [klasse] }, titel: `Sitzplan ${klasse}`, untertitel: `Klasse ${klasse} · gilt in jedem Unterricht der Klasse`, bereich: 'klasse', onGespeichert: () => kontext.navigieren(`#/sitzplan/${encodeURIComponent(klasse)}`) });
+  const bearbeiten = () => editorOeffnen({ d, kontext: { klasse, klassen: [klasse] }, titel: `Sitzplan ${klasse}`, untertitel: `Klasse ${klasse}, gilt in jedem Unterricht der Klasse`, bereich: 'klasse', onGespeichert: () => kontext.navigieren(`#/sitzplan/${encodeURIComponent(klasse)}`) });
   kontext.titel(`Sitzplan ${klasse}`, `${r.verwalten ? '<button class="btn btn-primary" data-bearbeiten><i class="bi bi-easel me-1"></i>Sitzplan bearbeiten</button>' : ''}
     <button class="btn btn-outline-secondary" data-drucken ${r.plan.vorhanden ? '' : 'disabled'}><i class="bi bi-printer me-1"></i>Drucken</button>
     <button class="btn btn-outline-secondary" data-einstellungen title="Klassenbuch-Einstellungen" aria-label="Klassenbuch-Einstellungen"><i class="bi bi-gear"></i></button>`);

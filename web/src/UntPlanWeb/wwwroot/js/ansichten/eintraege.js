@@ -29,7 +29,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
     klasse ? holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(klasse)}`).catch(() => []) : Promise.resolve([])]);
   // Schüler*in und Kategoriegruppe filtern die geladenen Einträge
   daten.eintraege = daten.eintraege.filter(x => (!schueler || String(x.schuelerId) === schueler) && (!gruppe || KATEGORIEGRUPPEN[gruppe].includes(x.art)));
-  const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? ` · ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
+  const stundeText = x => x.stunde ? `${x.stunde}. Stunde${x.zeit ? `, ${x.zeit} Uhr` : ''}` : x.zeit ? `${x.zeit} Uhr` : '';
   // wie im Original: Klasse | Schüler*innen | Eintragskategorie | Eintragskategoriegruppe | Zeitraum; Tabelle Auswahl | Stift/X | Art | Name | Klasse |
   // Tag | Datum | Zeit | Fach | Benutzer | Eintragskategorie | Kategoriegruppe | Text; darunter Neu | Löschen | Bericht | Berichte
   const sj = kontext.sitzung?.schuljahr ?? kontext.schuljahr ?? {};
@@ -56,7 +56,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, a
     </div>
     <div class="nl-tabelle ke-liste">${daten.eintraege.length ? `<table><thead><tr>${darf ? '<th class="nl-wahl"><span class="sg-kopfwahl">Auswahl<input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></span></th>' : ''}<th></th>
         <th>Art</th><th>Name</th><th>Klasse</th><th>Tag</th><th>Datum</th><th>Zeit</th><th>Fach</th><th>Benutzer</th><th>Eintragskategorie</th><th>Kategoriegruppe</th><th>Text</th></tr></thead><tbody>
-      ${daten.eintraege.map((x, i) => `<tr data-eintrag="${i}" tabindex="0" role="button" aria-label="${e(`Eintrag vom ${datumKurz(x.datum)}${x.datum.slice(0, 4)}, ${x.art}, Klasse ${x.klasse} – Details öffnen`)}">
+      ${daten.eintraege.map((x, i) => `<tr data-eintrag="${i}" tabindex="0" role="button" aria-label="${e(`Eintrag vom ${datumKurz(x.datum)}${x.datum.slice(0, 4)}, ${x.art}, Klasse ${x.klasse}, Details öffnen`)}">
         ${darf ? `<td class="nl-wahl">${x.loeschen ? `<input type="checkbox" class="nl-rund" data-wahl="${x.id}" aria-label="auswählen">` : ''}</td>` : ''}
         <td class="kl-zelle-icons">${x.bearbeiten ? `<button type="button" class="nl-icon sichtbar" data-stift="${i}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>` : ''}${x.loeschen ? `<button type="button" class="nl-icon sichtbar rot" data-weg="${x.id}" title="Löschen" aria-label="Löschen"><i class="bi bi-x-lg"></i></button>` : ''}</td>
         <td><i class="bi bi-${x.schuelerId ? 'person' : 'people'} nl-unter" title="${x.schuelerId ? 'Schüler*in' : 'Klasse'}"></i></td>

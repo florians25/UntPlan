@@ -81,7 +81,7 @@ public sealed class Eingabeassistent : Panel
         if (AppZustand.Vertretungsmodus)
         {
             var datum = AppZustand.Datum;
-            Kopf("Vertretungsplanung – " + Format.Datum(datum));
+            Kopf("Vertretungsplanung: " + Format.Datum(datum));
             Schritt("Planungsdatum wählen (Kalender)", true, () => h.VertretungsFensterOeffnen("kal"));
             Schritt("Absenzen eingeben", d.Abwesenheiten.Any(a => datum >= a.Von && datum <= a.Bis), () => h.VertretungsFensterOeffnen("abw"));
             Schritt("Veranstaltungen", d.Veranstaltungen.Any(v => datum >= v.Von && datum <= v.Bis), () => h.VertretungsFensterOeffnen("veranst"));
@@ -242,7 +242,7 @@ public sealed class HilfeFenster : Form
 
     private HilfeFenster()
     {
-        Text = "UntPlan – Hilfe";
+        Text = "UntPlan: Hilfe";
         Font = Ui.Schrift;
         Size = new Size(900, 620);
         StartPosition = FormStartPosition.CenterParent;
@@ -430,7 +430,7 @@ public sealed class PortalDialog : Dialog
                 Log($"Hochgeladen: {paket.Stundenplan.Length} Planstunden, {paket.Vertretungen.Length} Vertretungen → Revision {antwort.Revision}");
                 var meldungen = await Core.Austausch.Portal.MeldungenAsync(e);
                 Log($"{meldungen.Count} Meldung(en) aus dem Portal");
-                if (meldungen.Count > 0 && Ui.Frage($"{meldungen.Count} Meldung(en) (z. B. Krankmeldungen) übernehmen?\n\n" + string.Join("\n", meldungen.Select(m => $"{m.LehrerKuerzel ?? m.Absender}: {m.Von} – {m.Bis} {m.Grund} {m.Text}"))))
+                if (meldungen.Count > 0 && Ui.Frage($"{meldungen.Count} Meldung(en) (z. B. Krankmeldungen) übernehmen?\n\n" + string.Join("\n", meldungen.Select(m => $"{m.LehrerKuerzel ?? m.Absender}: {m.Von} bis {m.Bis} {m.Grund} {m.Text}"))))
                 {
                     (List<string> ok, List<string> nein) r = (new(), new());
                     AppZustand.Doc.Aendern("Portal-Meldungen übernehmen", AenderungsArt.Vertretung, d => r = Core.Austausch.Portal.MeldungenUebernehmen(d, meldungen));

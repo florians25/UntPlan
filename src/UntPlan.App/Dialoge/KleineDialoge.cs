@@ -223,7 +223,7 @@ public sealed class NeueDateiDialog : Dialog
         _leer.Left = 12; _leer.Top = y; Controls.Add(_leer); y += 26;
         _demo.Left = 12; _demo.Top = y; Controls.Add(_demo); y += 34;
         Ui.Zeile(this, "Schulbezeichnung", _name, ref y, 130, 270);
-        foreach (var (k, v) in Nrw.Schulformen) _form.Items.Add($"{k} – {v}");
+        foreach (var (k, v) in Nrw.Schulformen) _form.Items.Add($"{k}: {v}");
         _form.SelectedIndex = Nrw.Schulformen.Keys.ToList().IndexOf("GY");
         Ui.Zeile(this, "Schulform (NRW)", _form, ref y, 130, 270);
         _assistent.Left = 12; _assistent.Top = y + 4; Controls.Add(_assistent);

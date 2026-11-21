@@ -145,7 +145,7 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar, IExcelExport
     public void Drucken(bool vorschau)
     {
         if (Ui.FehlerProtokoll != null) return; // im Selbsttest keine modalen Druckdialoge
-        if (!Geladen) { Ui.Statushinweis("Der Bericht wird noch geladen – bitte einen Moment warten."); return; }
+        if (!Geladen) { Ui.Statushinweis("Der Bericht wird noch geladen. Bitte warten Sie einen Moment."); return; }
         if (vorschau) _browser.ShowPrintPreviewDialog();
         else _browser.ShowPrintDialog();
     }

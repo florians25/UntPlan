@@ -104,7 +104,7 @@ function titelText(k) {
   const klassen = (k.klassen || []).map(x => weg.size && k.status !== 'entfall' && weg.has((x.k || '').toLowerCase()) ? { k: '', alt: x.k } : x);
   const text = k.status === 'klausur' && k.pruefung ? k.pruefung : k.text;
   return [k.fachName || k.fach || text, w([...klassen, ...(k.mitklassen || [])]), w(k.lehrer), k.online ? 'findet online statt' : w(k.raeume),
-    k.status !== 'regulaer' ? statusText(k) : '', k.fach && text].filter(Boolean).join(' · ');
+    k.status !== 'regulaer' ? statusText(k) : '', k.fach && text].filter(Boolean).join(' | ');
 }
 
 /**
@@ -276,7 +276,7 @@ function formatInhalt(k, typ, kompakt, format, namen) {
   const zeilen = format.elemente.map(zeile);
   const oben = zeilen[0] || zeilen.find(z => z) || e(k.fach || k.text || '—');
   const rest = zeilen.slice(1).filter(x => x && x !== oben);
-  const rumpf = kompakt ? (rest.length ? `<div class="z2">${rest.map(zeilenText).join(' · ')}</div>` : '') : rest.map(x => zeileHtml('z2', x)).join('');
+  const rumpf = kompakt ? (rest.length ? `<div class="z2">${rest.map(zeilenText).join(', ')}</div>` : '') : rest.map(x => zeileHtml('z2', x)).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben)}${rumpf}${eckSymbole(k, typ)}`;
 }
 
@@ -353,7 +353,7 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
   const zeilen = rest.filter(x => x);
   // Hover einer gekürzten Zeile: jede Zeile für sich (Werteliste als Pillen, Fach mit vollem Namen, sonst der vollständige Text)
   const voll = x => x === fach && fachVoll ? fachVoll : titel && x === titel ? (k.text || k.art || '') : '';
-  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(' · ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
+  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(', ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben, false, voll(oben))}${rumpf}${eckSymbole(k, typ)}`;
 }
 
@@ -532,7 +532,7 @@ function abwesenheitFlaechen(liste, zeiten, aufbau, belegt) {
     const y0 = zeitY(zeiten, aufbau, minuten(a.von)), y1 = zeitY(zeiten, aufbau, minuten(a.bis));
     if (y1 - y0 < 4) return '';
     // Fläche: bei Schüler*innen nur das Kürzel des Grunds (z. B. „K“, „?“ = offen), bei Lehrkräften „Abwesend“; ausführlich im Tooltip
-    const lang = [ABW_ART[a.art] || 'Abwesend', a.grund].filter(Boolean).join(' · ');
+    const lang = [ABW_ART[a.art] || 'Abwesend', a.grund].filter(Boolean).join(', ');
     const text = a.kuerzel || 'Abwesend';
     const titel = `${lang} (${a.von}–${a.bis})`;
     // größter freier Abschnitt der Fläche (nicht von Karten bzw. Aufsichten belegt): zuerst über die ganze Breite, sonst in einem
@@ -675,12 +675,17 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       .map(x => ({ ereignis: true, datum: t.datum, von: Math.max(x.von, zeiten[0].nr), bis: Math.min(x.bis, letzte), status: 'veranstaltung', fach: '', text: x.titel, art: 'Veranstaltung', marker: ['plus', 'aenderung'],
         klassen: x.klassen.map(k => ({ k })), lehrer: x.lehrer.map(k => ({ k })), raeume: x.raeume.map(k => ({ k, neu: true })) }));
     const alleKarten = [...karten, ...ereignisKarten];
-    const lage = spuren(alleKarten);
+    // Pausenaufsichten in der Pausenzeile (nach der Stunde nachStunde): für die Spuren zwischen den Stunden (nachStunde + 0,5). Läuft
+    // eine Karte (Block, Veranstaltung) über die Pause, stehen Karte und Aufsicht nebeneinander wie parallele Stunden (die Karte halbiert);
+    // ohne überlappende Karte teilen sich nur die Aufsichten der Pause die ganze Breite
+    const aufsichten = plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde))
+      .map(a => ({ aufsicht: a, von: a.nachStunde + 0.5, bis: a.nachStunde + 0.5 }));
+    const lage = spuren([...alleKarten, ...aufsichten]);
     for (const k of alleKarten) {
       const { spur, anzahl } = lage.get(k);
       const breite = 100 / anzahl;
       const nr = k.ereignis || k.status === 'gesperrt' ? '' : `data-karte="${plan.karten.indexOf(k)}"`;
-      // Pausenaufsichten immer automatisch: Blöcke laufen über die Pause hinweg durch, die Aufsicht steht dort schmal daneben
+      // Pausenaufsichten immer automatisch: Blöcke laufen über die Pause hinweg durch, die Aufsicht steht dort in eigener Spur daneben (Karte halbiert)
       for (const [von, bis] of abschnitte(k, aufbau, index, true)) {
         const iv = index.get(von), ib = index.get(Math.min(bis, letzte)) ?? iv;
         const oben = aufbau.oben[iv] + 1, h = aufbau.unten[ib] - aufbau.oben[iv] - 1;
@@ -692,33 +697,29 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
           aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60, plan.format, plan.langnamen)}</div>`;
       }
     }
-    // Pausenaufsichten in der Pausenzeile
-    const aufsichten = plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde));
-    // Karte (Block, Veranstaltung) läuft über diese Pause: Aufsicht automatisch schmal daneben, sonst über die ganze Breite
+    // Karte (Block, Veranstaltung) läuft über diese Pause: Aufsicht in ihrer Spur neben der Karte (kleinere Schrift)
     const ueberPause = nach => alleKarten.some(k => k.von <= nach && k.bis > nach);
-    const proPause = new Map();
-    for (const a of aufsichten) proPause.set(a.nachStunde, [...(proPause.get(a.nachStunde) ?? []), a]);
-    for (const [nach, liste] of proPause) {
-      const breite = 100 / liste.length;
-      liste.forEach((a, j) => {
-        // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
-        // Raumplan eines Aufsichtsorts: statt des Orts, wer dort Aufsicht führt (Vertretung als grünes Label)
-        const ort = plan.typ === 'raum' ? aufsichtWer(a) : aufsichtOrt(a);
-        const titel = aufsichtTitel(a);
-        // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
-        // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
-        const label = aufsichtLabel(a);
-        // vorbei, sobald die Pause zu Ende ist – ohne eigene Endzeit gilt der Beginn der nächsten Stunde laut Zeitraster
-        const ende = a.ende || plan.zeitraster.find(z => z.nr > nach && z.beginn)?.beginn;
-        const vorbei = a.datum < heute || (a.datum === heute && !!ende && minuten(ende) <= jetzt);
-        const pOben = aufbau.pause.get(nach), pHoehe = aufbau.pauseHoehe.get(nach);
-        belegt.push([pOben, pOben + pHoehe, j * breite, breite]);
-        // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
-        // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie – füllt genau die Pausenzeile, deren Höhe
-        // aus der Pausendauer im Zeitraster kommt –, gleiche Breite und Einrückung
-        html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
-          ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
-      });
+    for (const x of aufsichten) {
+      const a = x.aufsicht, nach = a.nachStunde;
+      const { spur: j, anzahl } = lage.get(x);
+      const breite = 100 / anzahl;
+      // auf der Karte nur der Aufsichtsbereich (z. B. „Hof“) – nicht „Früh …“ bzw. der lange Name; Details im Tooltip
+      // Raumplan eines Aufsichtsorts: statt des Orts, wer dort Aufsicht führt (Vertretung als grünes Label)
+      const ort = plan.typ === 'raum' ? aufsichtWer(a) : aufsichtOrt(a);
+      const titel = aufsichtTitel(a);
+      // Vertretung wie bei den Stundenkarten: abwesendes Kürzel durchgestrichen, Vertretung als grünes Label (ohne Vertretung
+      // das abwesende Kürzel durchgestrichen im grünen Label); im Plan der abwesenden Lehrkraft gestrichelt
+      const label = aufsichtLabel(a);
+      // vorbei, sobald die Pause zu Ende ist – ohne eigene Endzeit gilt der Beginn der nächsten Stunde laut Zeitraster
+      const ende = a.ende || plan.zeitraster.find(z => z.nr > nach && z.beginn)?.beginn;
+      const vorbei = a.datum < heute || (a.datum === heute && !!ende && minuten(ende) <= jetzt);
+      const pOben = aufbau.pause.get(nach), pHoehe = aufbau.pauseHoehe.get(nach);
+      belegt.push([pOben, pOben + pHoehe, j * breite, breite]);
+      // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
+      // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie – füllt genau die Pausenzeile, deren Höhe
+      // aus der Pausendauer im Zeitraster kommt –, gleiche Breite und Einrückung
+      html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
+        ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
     }
     const abw = abwesenheitFlaechen((plan.abwesenheiten || []).filter(a => a.datum === t.datum), zeiten, aufbau, belegt);
     if (abw) html = html.slice(0, vorKarten) + abw + html.slice(vorKarten);
@@ -895,8 +896,8 @@ export function aufsichtTitel(a) {
   const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
   const zustand = a.status === 'vertretung' ? ` (Vertretung für ${a.alt})`
     : a.status === 'vertreten' ? (ersatz ? ` (vertreten durch ${ersatz})` : ' (Vertretung offen)')
-    : a.status === 'offen' ? ` (Vertretung offen${a.grund ? ' – ' + a.grund : ''})`
-    : a.status === 'entfall' ? ` (entfällt${a.grund ? ' – ' + a.grund : ''})` : '';
+    : a.status === 'offen' ? ` (Vertretung offen${a.grund ? ': ' + a.grund : ''})`
+    : a.status === 'entfall' ? ` (entfällt${a.grund ? ': ' + a.grund : ''})` : '';
   return `Pausenaufsicht ${a.gangName || a.gang} ${a.beginn}–${a.ende}${zustand}`;
 }
 
@@ -913,7 +914,7 @@ function aufsichtLabel(a) {
   const ersatz = a.lehrer && !/^[?+-]+$/.test(a.lehrer) ? a.lehrer : '';
   const alt = a.alt && !/^[?+-]+$/.test(a.alt) ? a.alt : '';
   if (!ersatz && alt && a.status !== 'vertretung')
-    return `<span class="lbl lbl-auf weg" data-hover="${e('Vertretung offen' + (a.grund ? ' – ' + a.grund : ''))}" data-hover-art="dunkel">${e(alt)}</span>`;
+    return `<span class="lbl lbl-auf weg" data-hover="${e('Vertretung offen' + (a.grund ? ': ' + a.grund : ''))}" data-hover-art="dunkel">${e(alt)}</span>`;
   if (!ersatz) return '';
   return `<span class="lbl lbl-auf" data-hover="${e(alt ? wechsel(alt, ersatz) : '+ ' + ersatz)}"${alt ? ` data-hover-alt="${e(alt)}"` : ''}>${e(ersatz)}</span>`;
 }

@@ -81,7 +81,7 @@ export async function zeigen(seite, kontext) {
     const tagOeffnen = iso => {
       const liste = (proTag.get(iso) ?? []).map(x => x.p);
       const box = dialog({ titel: `Prüfungen am ${datumDe(iso)}`, inhalt: `<ul class="u-liste">${liste.map((p, i) => `<li><div class="u-zeilentext"><div class="titel">${e(p.titel)}${p.status === 'vorgemerkt' ? ' <span class="u-chip">vorgemerkt</span>' : ''}</div>
-          <div class="unter">${p.stundeVon === p.stundeBis ? `${p.stundeVon}.` : `${p.stundeVon}.–${p.stundeBis}.`} Stunde · ${e(p.klassen.join(', '))}${p.lehrer.length ? ' · ' + e(p.lehrer.join(', ')) : ''}${p.raeume.length ? ' · ' + e(p.raeume.join(', ')) : ''}</div></div>
+          <div class="unter">${p.stundeVon === p.stundeBis ? `${p.stundeVon}.` : `${p.stundeVon}.–${p.stundeBis}.`} Stunde | ${e(p.klassen.join(', '))}${p.lehrer.length ? ' | ' + e(p.lehrer.join(', ')) : ''}${p.raeume.length ? ' | ' + e(p.raeume.join(', ')) : ''}</div></div>
           ${p.darfLoeschen ? `<button type="button" class="nl-knopf rot" data-pk-loeschen="${i}"><i class="bi bi-trash" aria-hidden="true"></i>Löschen</button>` : ''}</li>`).join('')}</ul>`,
         knoepfe: [{ text: 'Schließen' }] });
       box.querySelectorAll('[data-pk-loeschen]').forEach(b => b.onclick = async () => {

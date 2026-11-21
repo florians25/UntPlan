@@ -212,11 +212,11 @@ public static class SprechtagApi
 
             string Anzahl(int n) => eltern || !lehrkraft
                 ? (n == 0 ? "Noch keine Termine gebucht" : $"{Termine(n)} gebucht")
-                : $"{n} gebucht · {frei} frei";
+                : $"{n} gebucht, {frei} frei";
             var teile = new List<string>();
             if (heute)
             {
-                teile.Add(naechster is null ? "Heute · keine weiteren Termine" : $"Heute · nächster Termin {naechster.Beginn}" + (eltern
+                teile.Add(naechster is null ? "Heute: keine weiteren Termine" : $"Heute: nächster Termin {naechster.Beginn}" + (eltern
                     ? $" bei {Sprechtagdienst.LehrerName(s, naechster.Lehrer)}"
                     : s?.Schueler.FirstOrDefault(y => y.Id == naechster.SchuelerId) is { } nks && lehrkraft ? $" mit {nks.Vorname} {nks.Name}" : ""));
                 if (naechster is null && eigene > 0) teile.Add(Anzahl(eigene));
@@ -238,7 +238,7 @@ public static class SprechtagApi
                 teile.Add("Anmeldung geschlossen");
                 teile.Add(Anzahl(eigene));
             }
-            var text = string.Join(" · ", teile);
+            var text = string.Join(", ", teile);
 
             // Liste: Eltern alle gebuchten (kommenden) Termine, Lehrkraft die nächsten drei; Administration keine
             var liste = eltern ? kommend : lehrkraft ? kommend.Take(3).ToList() : new List<StTermin>();
@@ -569,7 +569,7 @@ public static class SprechtagApi
             var spalten = new List<string> { "Abschnitt", "Zeit", "Schüler*in", "Klasse", "Status", "Anmerkung", "Raum" };
             if (alle) spalten.Insert(0, "Lehrkraft");
             var titel = alle ? $"Terminplan {t.K.Name}" : $"Terminplan {Sprechtagdienst.LehrerTitel(s, liste[0])}";
-            var pdf = PdfBericht.Erzeugen(Schule(e, p), titel, $"{t.K.Name} · {Sprechtagdienst.DatumText(t)}", spalten, zeilen,
+            var pdf = PdfBericht.Erzeugen(Schule(e, p), titel, $"{t.K.Name}, {Sprechtagdienst.DatumText(t)}", spalten, zeilen,
                 leer == true ? "Freie Zeilen: Erziehungsberechtigte ohne Termin können sich hier spontan eintragen." : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false,
                 PdfBericht.Hochformat(ausrichtung, !alle));
             return Results.File(pdf, "application/pdf", $"sprechtag-{t.Id}{(alle ? "" : "-" + liste[0].ToLowerInvariant())}.pdf");
@@ -591,7 +591,7 @@ public static class SprechtagApi
                     return (IReadOnlyList<string>)new List<string> { $"{Wochentag(t.K.Abschnitte[x.Abschnitt].Datum)}, {Datum(t.K.Abschnitte[x.Abschnitt].Datum)}", $"{x.Beginn}–{x.Ende}",
                         Sprechtagdienst.LehrerTitel(s, x.Lehrer), ort, k is null ? "" : $"{k.Vorname} {k.Name}", k?.Klasse ?? "" };
                 }).ToList();
-            var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.K.Name} · {Sprechtagdienst.DatumText(t)}",
+            var pdf = PdfBericht.Erzeugen(Schule(e, p), "Meine Termine am Sprechtag", $"{t.K.Name}, {Sprechtagdienst.DatumText(t)}",
                 new[] { "Datum", "Zeit", "Lehrkraft", "Raum", "Kind", "Klasse" }, zeilen, null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, PdfBericht.Hochformat(ausrichtung, true));
             return Results.File(pdf, "application/pdf", $"sprechtag-{t.Id}-termine.pdf");
         });

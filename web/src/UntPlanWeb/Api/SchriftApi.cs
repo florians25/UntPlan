@@ -150,7 +150,7 @@ public static partial class SchriftApi
                 // Namen mit Leerzeichen (z. B. „Avenir Next Bold.woff2“) als „Avenir-Next-Bold.woff2“ ablegen
                 var name = Regex.Replace(Path.GetFileName(f.FileName).Trim(), @"\s+", "-");
                 // schmale Schnitte (Condensed) gehören zu einer anderen Familie und würden die normalen Schnitte überschreiben
-                if (name.Contains("condensed", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"„{name}“ ist ein schmaler Schnitt (Condensed) – bitte nur die normalen Schnitte hochladen.");
+                if (name.Contains("condensed", StringComparison.OrdinalIgnoreCase)) throw new ArgumentException($"„{name}“ ist ein schmaler Schnitt (Condensed). Bitte laden Sie nur die normalen Schnitte hoch.");
                 if (!Dateiname().IsMatch(name)) throw new ArgumentException($"„{name}“ ist keine zulässige Schriftdatei.");
                 if (f.Length > 5 * 1024 * 1024) throw new ArgumentException($"„{name}“ ist zu groß (höchstens 5 MB).");
                 await using var ziel = File.Create(Path.Combine(Ordner(k), name));

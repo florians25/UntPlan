@@ -572,8 +572,8 @@ public static class UntPlanWebExport
             var (_, e) = Absenzverkuerzung.Speichern(d, neuA, altA);
             var kurz = ix.KLehrer(lehrer);
             hinweise?.Add(e.Leer
-                ? $"{kurz} ist laut UntPlanWeb ab {ab:dd.MM.} {m.StundeVon ?? 1}. Std. wieder anwesend – die Absenz wurde angepasst."
-                : $"{kurz} ist laut UntPlanWeb wieder anwesend – die Absenz wurde angepasst.\n" + e.HinweisText(d, vorschau: false));
+                ? $"{kurz} ist laut UntPlanWeb ab {ab:dd.MM.} {m.StundeVon ?? 1}. Std. wieder anwesend. Die Absenz wurde angepasst."
+                : $"{kurz} ist laut UntPlanWeb wieder anwesend. Die Absenz wurde angepasst.\n" + e.HinweisText(d, vorschau: false));
         }
         foreach (var t in tage) Vertretungen.Aktualisieren(d, t);
         return (ok.Concat(ok2).ToList(), nein.Concat(nein2).ToList());

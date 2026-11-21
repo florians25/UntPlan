@@ -213,7 +213,7 @@ public static class Vertretungsimport
             var uid = U(v.UnterrichtId, v.Datum);
             if (v.UnterrichtId.HasValue && uid is null)
             {
-                erg.Hinweise.Add($"{Format.Datum(v.Datum)}, {v.Stunde}. Std.: Vertretung {v.Id} – Unterricht {v.UnterrichtId} nicht in der aktuellen Datei, nicht übernommen.");
+                erg.Hinweise.Add($"{Format.Datum(v.Datum)}, {v.Stunde}. Std.: Vertretung {v.Id}: Unterricht {v.UnterrichtId} nicht in der aktuellen Datei, nicht übernommen.");
                 continue;
             }
             var w = v.Kopie();

@@ -371,7 +371,7 @@ private struct StundendetailKopf: View {
     /// „7:45 - 11:05“ (Stunden ohne führende Null wie im Original); bei gewählter Einzelstunde deren Zeit mit „3. Std.“.
     private var zeittitel: String {
         if mitBereichswahl, let nr = daten.einzelstunde, let s = daten.blockStunden.first(where: { $0.stunde == nr }) {
-            return s.beginn.isEmpty ? "\(nr). Std." : "\(nr). Std. · \(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))"
+            return s.beginn.isEmpty ? "\(nr). Std." : "\(nr). Std. (\(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende)))"
         }
         return karte.beginn.isEmpty ? stundentext : "\(Detailmass.uhrzeit(karte.beginn)) - \(Detailmass.uhrzeit(karte.ende))"
     }
@@ -762,7 +762,7 @@ private struct StundendetailSeite: View {
             // Entfall (alle Klassen abwesend): Hinweis „Klasse abwesend“ (mit Grund); findet die Stunde für die übrigen Klassen
             // statt, steht die abwesende Klasse oben durchgestrichen – hier nur ein Grund, falls angegeben
             if !karte.abwesendeKlassen.isEmpty && (karte.istEntfall || karte.abwesendText.contains("–")) {
-                Wertzeile(bausteine: [.text("\(karte.abwesendeKlassen.joined(separator: ", ")) – \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")],
+                Wertzeile(bausteine: [.text("\(karte.abwesendeKlassen.joined(separator: ", ")): \(karte.abwesendText.isEmpty ? "abwesend" : karte.abwesendText)")],
                           schrift: Detailmass.klein)
                     .frame(height: Detailmass.zeile)
             }

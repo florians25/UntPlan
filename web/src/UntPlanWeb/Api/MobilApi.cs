@@ -94,7 +94,7 @@ public static class MobilApi
             case "loeschen":
                 if (!Enthaelt(aktuell, raum)) throw new ArgumentException($"Raum {raum} gehört nicht zur Stunde.");
                 neu = aktuell.Where(x => !Ci.Equals(x, raum)).ToList();
-                if (neu.Count == 0) throw new ArgumentException("Die Stunde braucht mindestens einen Raum – ersetzen Sie ihn stattdessen.");
+                if (neu.Count == 0) throw new ArgumentException("Die Stunde benötigt mindestens einen Raum. Ersetzen Sie den Raum stattdessen.");
                 break;
             default:
                 throw new ArgumentException("Unbekannte Aktion.");

@@ -80,7 +80,7 @@ public static class Bewertung
                     {
                         var g = ix.Raumgewicht(z);
                         var k = (g switch { 0 => 0, 1 => 2, 2 => 6, 3 => 25, _ => 120 }) * fRaum / 8.0;
-                        sink(new Verstoss(VerstossArt.KeinRaum, ElementTyp.Unterricht, u.Id, u.Id, p.Tag, p.Stunde, k, "Raum und Ausweichräume belegt – kein Raum"));
+                        sink(new Verstoss(VerstossArt.KeinRaum, ElementTyp.Unterricht, u.Id, u.Id, p.Tag, p.Stunde, k, "Raum und Ausweichräume belegt, kein Raum"));
                     }
                     continue;
                 }

@@ -1158,7 +1158,7 @@ struct PlanErklaerungView: View {
                 }
                 .ignoresSafeArea(.container, edges: .top)
                 Button(action: schliessen) {
-                    Text("Los geht’s")
+                    Text("Weiter")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 20.3)

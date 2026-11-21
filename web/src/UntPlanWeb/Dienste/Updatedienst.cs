@@ -146,10 +146,10 @@ public sealed class Updatedienst
                     return new Updateanstoss(false, "Watchtower hat die Anfrage abgelehnt (Token prüfen: UNTPLANWEB_UPDATE_WATCHTOWER_TOKEN).", sicherung);
                 if (!antwort.IsSuccessStatusCode) return new Updateanstoss(false, $"Watchtower antwortet mit Fehler {(int)antwort.StatusCode}.", sicherung);
             }
-            catch (HttpRequestException ex) { return new Updateanstoss(false, $"Watchtower nicht erreichbar ({ex.Message}) – läuft der Dienst (docker compose --profile updater up -d)?", sicherung); }
+            catch (HttpRequestException ex) { return new Updateanstoss(false, $"Watchtower nicht erreichbar ({ex.Message}). Bitte prüfen Sie, ob der Dienst läuft (docker compose --profile updater up -d).", sicherung); }
         }
         _protokoll.Schreiben(benutzer, "Update angestoßen", $"{stand.Version} → {stand.Neueste ?? "neueste"} (Watchtower)");
-        return new Updateanstoss(true, "Update angestoßen. Watchtower lädt das neue Image und startet die Container neu – die Seite ist kurz nicht erreichbar.", sicherung);
+        return new Updateanstoss(true, "Update angestoßen. Watchtower lädt das neue Image und startet die Container neu. Die Seite ist kurzzeitig nicht erreichbar.", sicherung);
     }
 
     private void AlteSicherungenLoeschen()

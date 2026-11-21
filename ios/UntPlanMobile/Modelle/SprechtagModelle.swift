@@ -101,13 +101,13 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
     var tagUndZeit: String {
         let tag = !tagText.isEmpty ? tagText : (!datumText.isEmpty ? datumText : Datumsformat.anzeige(datum, "EE dd.MM.yyyy"))
         let zeit = !zeitText.isEmpty ? zeitText : (beginn.isEmpty ? "" : (ende.isEmpty ? beginn : "\(beginn)–\(ende)"))
-        return [tag, zeit.isEmpty ? "" : "\(zeit) Uhr", online ? "online" : ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        return [tag, zeit.isEmpty ? "" : "\(zeit) Uhr", online ? "online" : ""].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     /// Statuszeile ohne Wiederholung der Phase; heute mit Liste: der nächste Termin steht markiert in der Liste.
     var statuszeile: String {
         if heute, let erster = eintraege.first, erster.id > 0, text.contains("nächster") {
-            return "Heute · \(gebucht) \(gebucht == 1 ? "Termin" : "Termine")"
+            return "Heute: \(gebucht) \(gebucht == 1 ? "Termin" : "Termine")"
         }
         if !text.isEmpty { return text }
         return angekuendigt && !anmeldungVonText.isEmpty ? "Anmeldung ab \(anmeldungVonText)" : phaseText
@@ -135,9 +135,9 @@ struct SprechtagKarte: Decodable, Identifiable, Hashable, Sendable {
             var teile = [(phaseText.isEmpty ? "Angekündigt" : phaseText) + ": " + [tag, zeit].filter { !$0.isEmpty }.joined(separator: ", ")]
             if !ort.isEmpty { teile.append(ort) }
             if !anmeldungVonText.isEmpty { teile.append("Anmeldung ab \(anmeldungVonText)") }
-            return teile.joined(separator: " · ")
+            return teile.joined(separator: " | ")
         }
-        return [tag, text].filter { !$0.isEmpty }.joined(separator: " · ")
+        return [tag, text].filter { !$0.isEmpty }.joined(separator: " | ")
     }
 }
 
@@ -209,7 +209,7 @@ struct SprechtagAbschnitt: Decodable, Identifiable, Hashable, Sendable {
         let tag = [wochentag, datumText].filter { !$0.isEmpty }.joined(separator: ", ")
         let zeit = von.isEmpty ? "" : "\(von)–\(bis) Uhr"
         let rest = [tag, zeit].filter { !$0.isEmpty }.joined(separator: ", ")
-        return [name, rest].filter { !$0.isEmpty }.joined(separator: " – ")
+        return [name, rest].filter { !$0.isEmpty }.joined(separator: ": ")
     }
 }
 

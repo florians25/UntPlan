@@ -198,7 +198,7 @@ struct StartView: View {
         }
         for e in h.ereignisse {
             var text = e.ganztaegig ? "Ganztägig" : (e.von == e.bis ? "\(e.von). Stunde" : "\(e.von).–\(e.bis). Stunde")
-            if !e.klassen.isEmpty { text += " · " + e.klassen.joined(separator: ", ") }
+            if !e.klassen.isEmpty { text += ", " + e.klassen.joined(separator: ", ") }
             liste.append(Tagesinfo(art: .veranstaltung, titel: e.titel.isEmpty ? e.art : e.titel, text: text))
         }
         // Die eigene Abwesenheit steht bereits in der Tageskarte
@@ -386,9 +386,9 @@ struct StartView: View {
         } else if let f = h.ferien ?? ferien {
             inhalt = (f.titel.isEmpty ? "Ferien" : f.titel, f.zeitraum)
         } else if h.karten.isEmpty {
-            inhalt = ("Genieße die Zeit!", Datumsformat.istHeute(h.datum) ? "Heute ist kein Unterricht geplant." : "An diesem Tag ist kein Unterricht geplant.")
+            inhalt = ("Kein Unterricht", Datumsformat.istHeute(h.datum) ? "Heute ist kein Unterricht geplant." : "An diesem Tag ist kein Unterricht geplant.")
         } else {
-            inhalt = ("Genieße die Zeit!", "Heute stehen keine weiteren Stunden an.")
+            inhalt = ("Unterricht beendet", "Heute stehen keine weiteren Stunden an.")
         }
         return Hinweisfeld(titel: inhalt.titel, text: inhalt.text, minHoehe: 112)
     }
@@ -931,7 +931,7 @@ struct MeineTermineView: View {
             teile.append(v == b ? "\(v). Stunde" : "\(v).–\(b). Stunde")
             if !t.beginn.isEmpty && !t.ende.isEmpty { teile.append("\(t.beginn) – \(t.ende)") }
         }
-        return teile.joined(separator: " · ")
+        return teile.joined(separator: ", ")
     }
 
     // MARK: Laden
@@ -1050,7 +1050,7 @@ struct StartlisteView: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundStyle(Farben.tinte)
                         .strikethrough(a.status == "vertreten" || a.status == "entfall", color: Farben.entfallRand)
-                    Text("nach der \(a.nachStunde). Stunde · \(a.beginn) – \(a.ende)")
+                    Text("nach der \(a.nachStunde). Stunde, \(a.beginn) – \(a.ende)")
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.tinte2)
                 }
@@ -1125,7 +1125,7 @@ struct Stundenzeile: View {
                     .lineLimit(1)
                 let unten = zeilen.filter { !$0.isEmpty }
                 if !unten.isEmpty {
-                    unten.dropFirst().reduce(werteText(unten[0], offen: offen(unten[0]))) { $0 + Text(" · ") + werteText($1, offen: offen($1)) }
+                    unten.dropFirst().reduce(werteText(unten[0], offen: offen(unten[0]))) { $0 + Text(", ") + werteText($1, offen: offen($1)) }
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

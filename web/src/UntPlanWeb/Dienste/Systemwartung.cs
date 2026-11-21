@@ -86,7 +86,7 @@ public sealed class Systemwartung
             : ua.Contains("Edg/") ? "Edge" : ua.Contains("Firefox/") ? "Firefox" : ua.Contains("Chrome/") ? "Chrome" : ua.Contains("Safari/") ? "Safari" : "";
         var os = ua.Contains("iPhone") || ua.Contains("iPad") ? "iOS" : ua.Contains("Android") ? "Android" : ua.Contains("Windows") ? "Windows"
             : ua.Contains("Mac OS X") ? "macOS" : ua.Contains("Linux") ? "Linux" : "";
-        var t = string.Join(" · ", new[] { app, os }.Where(x => x.Length > 0));
+        var t = string.Join(", ", new[] { app, os }.Where(x => x.Length > 0));
         return t.Length > 0 ? t : ua.Length > 60 ? ua[..60] : ua;
     }
 

@@ -162,7 +162,7 @@ public static class BuchungApi
                 t.Storniert is null && t.Status != "storniert" ? "Bestätigt" : "Storniert",
             }).ToList();
             var schule = e.Schulname.Length > 0 ? e.Schulname : p.Aktuell?.Paket.Schule.Name ?? "";
-            var unter = string.Join(" · ", new[] { x.ArtName, x.Titel, x.Lehrer.Length > 0 ? $"Lehrkraft {x.Lehrer}" : "", x.Fach.Length > 0 ? $"Fach {x.Fach}" : "",
+            var unter = string.Join(", ", new[] { x.ArtName, x.Titel, x.Lehrer.Length > 0 ? $"Lehrkraft {x.Lehrer}" : "", x.Fach.Length > 0 ? $"Fach {x.Fach}" : "",
                 x.Klassen.Count > 0 ? $"Klasse {string.Join(", ", x.Klassen)}" : "" }.Where(t => t.Length > 0));
             var pdf = PdfBericht.Erzeugen(schule, $"Buchung {x.Id}", unter, new[] { "Datum", "Zeit", "Raum", "Ressourcen", "Status" }, zeilen,
                 x.Text.Length > 0 ? $"Anmerkung: {x.Text}" : null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, true);

@@ -313,7 +313,7 @@ public sealed class MultiUserAssistent : Form
         _adminHatPasswort = _db.BenutzerSuchen(MultiUserDb.AdminName)?.HatPasswort == true;
         _pwHinweis.Text = _adminHatPasswort
             ? "Der Administrator hat bereits ein Passwort. Geben Sie es zur Bestätigung ein (wird für das Hochladen der ersten Version benötigt)."
-            : "Der Administrator hat noch kein Passwort. Bitte vergeben Sie jetzt ein Passwort – ohne Passwort kann sich jeder als Administrator anmelden.";
+            : "Der Administrator hat noch kein Passwort. Bitte vergeben Sie jetzt ein Passwort. Ohne Passwort kann sich jeder als Administrator anmelden.";
         _pw2.Visible = !_adminHatPasswort;
         _hochladen.Checked = schulen.Count == 0;
     }

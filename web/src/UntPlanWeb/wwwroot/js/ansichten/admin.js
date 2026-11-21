@@ -28,7 +28,7 @@ const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehr
 const kurzZeit = s => s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
 function kopieren(text) {
-  navigator.clipboard?.writeText(text).then(() => toast('In die Zwischenablage kopiert.'), () => toast('Kopieren nicht möglich – bitte manuell markieren.', true));
+  navigator.clipboard?.writeText(text).then(() => toast('In die Zwischenablage kopiert.'), () => toast('Kopieren nicht möglich. Bitte markieren Sie den Text manuell.', true));
 }
 
 function herunterladen(name, inhalt, typ = 'text/csv;charset=utf-8') {
@@ -84,7 +84,7 @@ async function sync(ziel, kontext, neu) {
           <label class="btn btn-outline-secondary btn-sm ms-auto mb-0">${icon('hochladen', 'me-1')}Paket hochladen<input type="file" accept=".json,application/json" data-paket hidden></label></div>
           ${p ? `<table class="table table-sm table-card mb-0"><tbody>
             <tr><th class="fw-normal text-body-secondary w-25">Empfangen</th><td>${e(kurzZeit(p.empfangen))}</td></tr>
-            <tr><th class="fw-normal text-body-secondary">Revision</th><td>${p.revision}${p.programmversion ? ` <span class="text-body-secondary">· UntPlan ${e(p.programmversion)}</span>` : ''}</td></tr>
+            <tr><th class="fw-normal text-body-secondary">Revision</th><td>${p.revision}${p.programmversion ? ` <span class="text-body-secondary">(UntPlan ${e(p.programmversion)})</span>` : ''}</td></tr>
             <tr><th class="fw-normal text-body-secondary">Schuljahr</th><td>${e(p.schuljahr)}</td></tr>
             <tr><th class="fw-normal text-body-secondary">Zeitraum</th><td>${p.von ? `${e(datumKurz(p.von))}${p.von.slice(0, 4)} – ${e(datumKurz(p.bis))}${p.bis.slice(0, 4)}` : '–'}</td></tr>
             <tr><th class="fw-normal text-body-secondary">Stammdaten</th><td>${p.klassen} Klassen, ${p.lehrer} Lehrkräfte, ${p.raeume} Räume</td></tr>
@@ -302,8 +302,8 @@ async function freietage(ziel, kontext, neu) {
   const d = await holen('/api/app/admin/freietage');
   kontext.titel('Freie Tage & Ferien', `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>`);
   const datum = s => s ? s.split('-').reverse().join('.') : '';
-  ziel.innerHTML = `<p class="small text-body-secondary">Ferien und Feiertage kommen aus UntPlan. Hier lassen sich zusätzliche unterrichtsfreie Tage eintragen (z. B. pädagogischer Tag, beweglicher Ferientag) –
-      sie erscheinen sofort in allen Plänen, im Vertretungsplan und im Klassenbuch.</p>
+  ziel.innerHTML = `<p class="small text-body-secondary">Ferien und Feiertage kommen aus UntPlan. Hier lassen sich zusätzliche unterrichtsfreie Tage eintragen (z. B. pädagogischer Tag, beweglicher Ferientag).
+      Sie erscheinen sofort in allen Plänen, im Vertretungsplan und im Klassenbuch.</p>
     <div class="card mb-3"><div class="card-header">In UntPlanWeb eingetragen</div>${d.eigene.length ? `<div class="table-responsive"><table class="table table-sm table-hover table-card align-middle"><thead><tr><th>Bezeichnung</th><th>Art</th><th>Von</th><th>Bis</th><th></th></tr></thead><tbody>
       ${d.eigene.map(f => `<tr><td class="fw-semibold">${e(f.name)}</td><td>${FREIART[f.art] ?? e(f.art)}</td><td>${datum(f.von)}</td><td>${datum(f.bis)}</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-secondary" data-bearbeiten="${f.id}">${icon('stift')}</button> <button class="btn btn-sm btn-outline-danger" data-loeschen="${f.id}">${icon('loeschen')}</button></td></tr>`).join('')}
@@ -454,7 +454,7 @@ async function raumsperren(ziel, kontext, neu, [modus]) {
     ziel.innerHTML = `<div class="pe pe-einstellungen">
       <div class="pe-listenkopf"><h3 class="pe-titel">Raumsperren <span class="pe-zahl">${d.sperren.length}</span></h3><button type="button" class="pe-knopf klein" data-neu>Neue Sperre</button></div>
       <p class="pe-unter pe-hinweis">Gesperrte Räume bzw. Ressourcen stehen zu diesen Zeiten nicht für Buchungen zur Verfügung (z. B. Mitnutzung durch eine andere Schule).
-        Kontinuierlich: ohne Unterbrechung vom Beginn bis zum Ende; sonst nur im Zeitbereich an jedem (bzw. dem gewählten) Wochentag – so entstehen regelmäßige Sperren.</p>
+        Kontinuierlich: ohne Unterbrechung vom Beginn bis zum Ende; sonst nur im Zeitbereich an jedem (bzw. dem gewählten) Wochentag. So entstehen regelmäßige Sperren.</p>
       <table class="pe-tabelle"><thead><tr><th>Art</th><th>Raum / Ressource</th><th>Zeitraum</th><th>Text</th></tr></thead><tbody>
         ${d.sperren.map(x => `<tr data-bearbeiten="${x.id}" tabindex="0" role="button" aria-label="Sperre bearbeiten"><td>${e(x.artText)}</td><td>${e(x.zielText || '–')}</td>
           <td>${e(x.beschreibung.split(': ').slice(1).join(': '))}</td><td>${e(x.text)}</td></tr>`).join('') || '<tr class="leer"><td colspan="4">Keine Raumsperren angelegt.</td></tr>'}
@@ -553,7 +553,7 @@ async function schriften(box) {
   const liste = await holen('/api/app/admin/schriften');
   const schnitt = x => `${({ 200: 'Ultra Light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Demi', 700: 'Bold', 800: 'Heavy' })[x.gewicht] ?? x.gewicht}${x.kursiv ? ' Italic' : ''}`;
   box.innerHTML = `<p class="small text-body-secondary">Die Oberfläche verwendet die Schrift <b>AvenirNextPro</b>, sobald die Schriftdateien hier hochgeladen sind (.otf, .ttf, .woff oder .woff2, Schnitt aus dem Dateinamen, z. B. „…-Regular“, „…-Medium“). Verwendet werden Regular (Text), Medium und Demi (Namen, Überschriften); Bold nur ersatzweise, wenn Demi fehlt.
-      Die Dateien werden nicht mit UntPlanWeb ausgeliefert – bitte nur Schriften mit gültiger Web-Lizenz verwenden. Ohne Dateien gilt die freie Ersatzschrift Lato.</p>
+      Die Dateien werden nicht mit UntPlanWeb ausgeliefert. Bitte verwenden Sie nur Schriften mit gültiger Web-Lizenz. Ohne Dateien gilt die freie Ersatzschrift Lato.</p>
     ${liste.length ? `<table class="table table-sm align-middle"><thead><tr><th>Datei</th><th>Schnitt</th><th class="text-end">Größe</th><th></th></tr></thead><tbody>
       ${liste.map(x => `<tr><td>${e(x.datei)}</td><td style="font-family:AvenirNextPro;font-weight:${x.cssGewicht ?? x.gewicht};font-style:${x.kursiv ? 'italic' : 'normal'}">${schnitt(x)}</td><td class="text-end small">${Math.round(x.groesse / 1024)} KB</td>
         <td class="text-end"><button class="btn btn-sm btn-outline-danger" data-schrift-weg="${e(x.datei)}" title="Löschen">${icon('loeschen')}</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">Noch keine Schriftdateien hochgeladen.</p>'}
@@ -564,7 +564,7 @@ async function schriften(box) {
     try {
       const r = await fetch('/api/app/admin/schriften', { method: 'POST', body: fd, headers: { 'X-UntPlanWeb': '1' } });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).fehler || 'Hochladen fehlgeschlagen.');
-      toast('Schrift hochgeladen – die Seite wird neu geladen.'); setTimeout(() => location.reload(), 600);
+      toast('Schrift hochgeladen. Die Seite wird neu geladen.'); setTimeout(() => location.reload(), 600);
     } catch (err) { toast(err.message, true); }
   };
   box.querySelectorAll('[data-schrift-weg]').forEach(b => b.onclick = async () => {

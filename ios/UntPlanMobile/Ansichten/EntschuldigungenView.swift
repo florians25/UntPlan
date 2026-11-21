@@ -372,7 +372,7 @@ struct EntschuldigenView: View {
             let h = l.map(\.hinweis).first { !$0.isEmpty }
             return h ?? "Der Status ist bereits gesetzt und kann nicht mehr geändert werden."
         case .leitung(let a):
-            return a.darf ? nil : "Nur Ansicht – entschuldigen kann die Klassenleitung."
+            return a.darf ? nil : "Nur Ansicht. Entschuldigen kann nur die Klassenleitung."
         case nil:
             return nil
         }
@@ -384,7 +384,7 @@ struct EntschuldigenView: View {
         case .fach(let l):
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(l) { f in
-                    Text([f.zeitraum, f.fach].filter { !$0.isEmpty }.joined(separator: " · "))
+                    Text([f.zeitraum, f.fach].filter { !$0.isEmpty }.joined(separator: ", "))
                         .font(.system(size: 15))
                         .foregroundStyle(Farben.tinte)
                 }
@@ -399,7 +399,7 @@ struct EntschuldigenView: View {
                 Text(a.zeitraum)
                     .font(.system(size: 15))
                     .foregroundStyle(Farben.tinte)
-                let info = [a.grund, a.text].filter { !$0.isEmpty }.joined(separator: " – ")
+                let info = [a.grund, a.text].filter { !$0.isEmpty }.joined(separator: ": ")
                 if !info.isEmpty {
                     Text(info)
                         .font(.system(size: 14))
@@ -430,7 +430,7 @@ struct EntschuldigenView: View {
             VStack(spacing: 8) {
                 ForEach(a.stunden) { s in
                     stundenkarte(zeit: "\(Datumsformat.anzeige(s.datum, "EE, dd.MM."))  \(s.stunde > 0 ? "\(s.stunde). Std.  " : "")\(Detailmass.uhrzeit(s.beginn)) - \(Detailmass.uhrzeit(s.ende))",
-                                 wer: [[s.fach, s.lehrer].filter { !$0.isEmpty }.joined(separator: " - "), s.verspaetung].filter { !$0.isEmpty }.joined(separator: " · "),
+                                 wer: [[s.fach, s.lehrer].filter { !$0.isEmpty }.joined(separator: " - "), s.verspaetung].filter { !$0.isEmpty }.joined(separator: ", "),
                                  status: s.stand, text: s.entschuldigung?.text ?? "")
                 }
             }
@@ -443,7 +443,7 @@ struct EntschuldigenView: View {
                 VStack(spacing: 8) {
                     ForEach(Array(eigene.enumerated()), id: \.offset) { e in
                         stundenkarte(zeit: [e.element.lehrer, e.element.rolle == "klassenleitung" ? "Klassenleitung" : "",
-                                            e.element.zeit].filter { !$0.isEmpty }.joined(separator: " · "),
+                                            e.element.zeit].filter { !$0.isEmpty }.joined(separator: ", "),
                                      wer: "", status: e.element.stand, text: e.element.text)
                     }
                 }
@@ -453,7 +453,7 @@ struct EntschuldigenView: View {
                 Feldtitel(text: "TEXTE ANDERER LEHRKRÄFTE")
                 VStack(spacing: 8) {
                     ForEach(Array(texte.enumerated()), id: \.offset) { t in
-                        stundenkarte(zeit: [t.element.lehrer, t.element.zeit].filter { !$0.isEmpty }.joined(separator: " · "),
+                        stundenkarte(zeit: [t.element.lehrer, t.element.zeit].filter { !$0.isEmpty }.joined(separator: ", "),
                                      wer: [t.element.stunde > 0 ? "\(t.element.stunde). Std." : "", t.element.fach]
                                         .filter { !$0.isEmpty }.joined(separator: " "),
                                      status: Entschuldigungsstatus(text: t.element.status), text: t.element.text)
@@ -853,7 +853,7 @@ struct EntschuldigungenView: View {
                             .foregroundStyle(Farben.tinte2)
                     }
                 }
-                Text([f.zeitraum, f.fach].filter { !$0.isEmpty }.joined(separator: " · "))
+                Text([f.zeitraum, f.fach].filter { !$0.isEmpty }.joined(separator: ", "))
                     .font(.system(size: 14))
                     .foregroundStyle(Farben.tinte2)
                 HStack(spacing: 6) {
@@ -1413,7 +1413,7 @@ struct KlassenleitungAbwesenheitenView: View {
         case "vorzeitig": art = "vorzeitig gegangen\(min)\(std)"
         default: return g.isEmpty ? "Abwesend" : g
         }
-        return g.isEmpty ? art.prefix(1).uppercased() + art.dropFirst() : "\(g) · \(art)"
+        return g.isEmpty ? art.prefix(1).uppercased() + art.dropFirst() : "\(g), \(art)"
     }
 
     // MARK: Bündeln

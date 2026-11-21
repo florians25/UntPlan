@@ -122,6 +122,70 @@ public class RasterZeitenTests
         finally { File.Delete(skript); }
     }
 
+    /// <summary>
+    /// Web (plangitter.js): Läuft eine Karte (Block, Veranstaltung) über eine Pause mit Aufsicht, stehen Karte und Aufsicht nebeneinander
+    /// wie parallele Stunden – die Karte halbiert (links), die Aufsicht in der rechten Hälfte der Pausenzeile; keine Aufsicht liegt über
+    /// einer Karte. Aufsichten in Pausen ohne durchlaufende Karte bleiben über die ganze Breite (mehrere teilen sich die Breite).
+    /// </summary>
+    [Fact]
+    public void Web_Aufsicht_neben_durchlaufendem_Block()
+    {
+        var node = Node();
+        var js = Datei("js", "plangitter.js");
+        Assert.Contains("spuren([...alleKarten, ...aufsichten])", js);
+        // keine feste rechte Hälfte mehr per CSS (die Lage kommt aus den Spuren)
+        Assert.DoesNotContain(".aufsicht.schmal { left: auto !important", Datei("css", "app.css"));
+        if (node is null) return;
+        var pfad = new Uri(Path.Combine(Wurzel(), "src", "UntPlanWeb", "wwwroot", "js", "plangitter.js")).AbsoluteUri;
+        var skript = Path.Combine(Path.GetTempPath(), "untplan-aufsichtspur-" + Guid.NewGuid().ToString("N") + ".mjs");
+        File.WriteAllText(skript, """
+            const stub = () => new Proxy(function () {}, { get: (t, p) => p === Symbol.toPrimitive ? () => '' : p === 'then' ? undefined : stub(), apply: () => stub(), construct: () => stub() });
+            globalThis.document = stub(); globalThis.window = globalThis; globalThis.matchMedia = () => stub(); globalThis.innerHeight = 0;
+            globalThis.localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+            const pg = await import(process.argv[2]);
+            let fehler = 0;
+            const pruefe = (ist, soll, was) => { const a = JSON.stringify(ist), b = JSON.stringify(soll); if (a !== b) { console.error(`${was}: ${a} statt ${b}`); fehler++; } };
+            const datum = '2030-01-07';
+            const karte = (von, bis, fach) => ({ datum, von, bis, status: 'regulaer', fach, fachName: fach, klassen: [{ k: '5a' }], lehrer: [{ k: 'KLE' }], raeume: [{ k: 'R1' }], marker: [], art: '', text: '' });
+            const aufsicht = (nach, beginn, ende, gang = 'Hof') => ({ datum, nachStunde: nach, beginn, ende, gang, gangName: gang, status: 'regulaer', lehrer: 'KLE', alt: null });
+            // [links %, Breite %] je Element der Klasse
+            const lage = (html, klasse) => [...html.matchAll(new RegExp(`class="${klasse}[^"]*"[^>]*?style="[^"]*?left:calc\\(([\\d.]+)% \\+ 1px\\);width:calc\\(([\\d.]+)% - 1px\\)`, 'g'))].map(m => [+m[1], +m[2]]);
+            const plan = (karten, aufsichten) => ({ typ: 'lehrer', karten, aufsichten, abwesenheiten: [], tage: [{ datum, hinweise: [], ereignisse: [], frei: false }],
+              zeitraster: [['07:55', '08:40'], ['08:45', '09:30'], ['09:50', '10:35'], ['10:40', '11:25'], ['11:45', '12:30'], ['12:35', '13:20']].map(([beginn, ende], i) => ({ nr: i + 1, bezeichnung: '', beginn, ende })) });
+
+            // Block 1.–4. Stunde läuft über die Pausen nach der 2. und 4. – nach der 2. eine Aufsicht: Block links halbiert, Aufsicht rechts
+            let html = pg.wochenGitter(plan([karte(1, 4, 'EW')], [aufsicht(2, '09:30', '09:50', 'Hinten')]));
+            pruefe(lage(html, 'std'), [[0, 50]], 'Block halbiert');
+            pruefe(lage(html, 'aufsicht'), [[50, 50]], 'Aufsicht daneben');
+            // Pause ohne durchlaufende Karte: Aufsicht über die ganze Breite, Karten unverändert
+            html = pg.wochenGitter(plan([karte(1, 2, 'D'), karte(3, 4, 'M')], [aufsicht(2, '09:30', '09:50')]));
+            pruefe(lage(html, 'std'), [[0, 100], [0, 100]], 'Karten ohne Aufsicht daneben');
+            pruefe(lage(html, 'aufsicht'), [[0, 100]], 'Aufsicht in freier Pause');
+            // zwei Aufsichten in einer freien Pause teilen sich die Breite (wie bisher)
+            html = pg.wochenGitter(plan([karte(1, 1, 'D')], [aufsicht(2, '09:30', '09:50', 'Hof'), aufsicht(2, '09:30', '09:50', 'Halle')]));
+            pruefe(lage(html, 'aufsicht'), [[0, 50], [50, 50]], 'zwei Aufsichten');
+            // Block 3.–6. Stunde über die Pause nach der 4. mit Aufsicht, daneben eine freie Pause nach der 2. mit Aufsicht: nur die über
+            // dem Block halbiert; eine Karte vor dem Block (1.–2.) bleibt ganz
+            html = pg.wochenGitter(plan([karte(1, 2, 'D'), karte(3, 6, 'EW')], [aufsicht(2, '09:30', '09:50'), aufsicht(4, '11:25', '11:45', 'Hinten')]));
+            pruefe(lage(html, 'std'), [[0, 100], [0, 50]], 'nur der Block halbiert');
+            pruefe(lage(html, 'aufsicht'), [[0, 100], [50, 50]], 'Aufsichten');
+            // grüne Karte (Vertretung) über die Pause: ebenso links, Aufsicht rechts
+            html = pg.wochenGitter(plan([{ ...karte(1, 4, 'EW'), status: 'geaendert' }], [{ ...aufsicht(2, '09:30', '09:50'), status: 'offen' }]));
+            pruefe(lage(html, 'std'), [[0, 50]], 'grüner Block halbiert');
+            pruefe(lage(html, 'aufsicht'), [[50, 50]], 'offene Aufsicht daneben');
+            console.log(fehler ? 'fehler' : 'ok');
+            process.exit(fehler ? 1 : 0);
+            """);
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(node, $"\"{skript}\" \"{pfad}\"") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false })!;
+            var aus = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+            p.WaitForExit(20000);
+            Assert.True(p.ExitCode == 0, aus);
+        }
+        finally { File.Delete(skript); }
+    }
+
     private static string? Node()
     {
         foreach (var kandidat in new[] { "node", "/opt/node22/bin/node", "/usr/bin/node", "/usr/local/bin/node" })

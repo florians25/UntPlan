@@ -182,7 +182,7 @@ public static partial class OberflaecheApi
                             lehrer = z.Lehrer.Select(w => w.K).Where(w => w.Length > 0), raeume = z.Raeume.Select(w => w.K).Where(w => w.Length > 0),
                             status = z.Status, unterricht = z.Unterricht, lehrstoff = e?.Thema ?? "", geprueft = e?.Anwesenheit != null,
                             abwesend = f.Count, entschuldigt = f.Count(y => y.Status == "entschuldigt"), unentschuldigt = f.Count(y => y.Status == "unentschuldigt"),
-                            hausaufgaben = string.Join(" · ", hw.Select(h => h.Text)),
+                            hausaufgaben = string.Join("; ", hw.Select(h => h.Text)),
                             verspaetet = fehl.Count(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art != "fehlt"),
                             eintraege = tagVermerke.Count(w => w.Zeit.Length == 5 && z.Klassen.Any(k => string.Equals(k.K, w.Klasse, StringComparison.OrdinalIgnoreCase))
                                 && string.CompareOrdinal(w.Zeit, z.Beginn) >= 0 && string.CompareOrdinal(w.Zeit, z.Ende) < 0),

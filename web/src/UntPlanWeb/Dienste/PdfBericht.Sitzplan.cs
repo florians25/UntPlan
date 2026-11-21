@@ -22,7 +22,7 @@ public static partial class PdfBericht
         var jetzt = DateTime.Now;
         var y = Hoehe - Rand + 6;
         Text(sb, Rand, y - 10, 11, true, schule, Schwarz);
-        Text(sb, Rand, y - 23, 8, false, "Klassenbuch · Sitzplan", Schwarz);
+        Text(sb, Rand, y - 23, 8, false, "Klassenbuch: Sitzplan", Schwarz);
         var r1 = $"Erstellt am {jetzt:dd.MM.yyyy} um {jetzt:HH:mm} Uhr";
         Text(sb, Breite - Rand - TextBreite(r1, false, 8), y - 10, 8, false, r1, Schwarz);
         if (!string.IsNullOrWhiteSpace(ersteller)) { var r2 = $"von {ersteller}"; Text(sb, Breite - Rand - TextBreite(r2, false, 8), y - 21, 8, false, r2, Schwarz); }
@@ -84,7 +84,7 @@ public static partial class PdfBericht
             ly -= 11;
         }
         Linie(sb, Rand, Rand - 4, Breite - Rand, Rand - 4, 0f);
-        Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} · {titel}", nutz * .5f, false, 7.5f), Schwarz);
+        Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} | {titel}", nutz * .5f, false, 7.5f), Schwarz);
         const string mitte = "Nur für den Dienstgebrauch";
         Text(sb, (Breite - TextBreite(mitte, false, 7.5f)) / 2, Rand - 16, 7.5f, false, mitte, Schwarz);
         return Datei(new List<string> { sb.ToString() });

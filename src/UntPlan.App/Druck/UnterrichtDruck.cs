@@ -28,11 +28,11 @@ public static class UnterrichtDruck
         if (o.Bilanzzeile)
         {
             var ist = Core.Module.Wertrechnung.Ist(d, ix, l);
-            res.Add($"Bilanz: Ist {Format.Zahl(ist)} – Soll {Format.Zahl(l.Soll)} = {Format.Zahl(ist - l.Soll)}");
+            res.Add($"Bilanz: Ist {Format.Zahl(ist)} minus Soll {Format.Zahl(l.Soll)} = {Format.Zahl(ist - l.Soll)}");
         }
         if (o.Anrechnungen)
             foreach (var e in l.Ermaessigungen)
-                res.Add($"Anrechnung: {e.Grund} {Format.Zahl(e.Wert)}{(e.Text.Length > 0 ? " – " + e.Text : "")}");
+                res.Add($"Anrechnung: {e.Grund} {Format.Zahl(e.Wert)}{(e.Text.Length > 0 ? " (" + e.Text + ")" : "")}");
         return res;
     }
 

@@ -65,7 +65,7 @@ public static class UebersichtDruck
         using var fKopf = new Font("Arial", 8f, FontStyle.Bold);
         using var fKlein = new Font("Arial", 6.5f);
         using var fName = new Font("Arial", 7.5f, FontStyle.Bold);
-        g.DrawString($"{titel} – {d.Einstellungen.Schulname}", fTitel, Brushes.Black, r.Left, r.Top);
+        g.DrawString($"{titel}, {d.Einstellungen.Schulname}", fTitel, Brushes.Black, r.Left, r.Top);
         using var rechts = new StringFormat { Alignment = StringAlignment.Far };
         g.DrawString($"Seite {seite} / {seiten}", fKlein, Brushes.Black, new RectangleF(r.Left, r.Top + 2, r.Width, 14), rechts);
         var y = r.Top + 22f;

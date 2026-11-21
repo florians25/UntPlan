@@ -1477,7 +1477,7 @@ public sealed partial class HauptFenster
         {
             var w = new UntPlanWebDialog();
             w.Show(this);
-            w.FehlerAnzeigen("UntPlanWeb-Übertragungsfehler!", "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers.");
+            w.FehlerAnzeigen("UntPlanWeb-Übertragungsfehler", "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers.");
         }, 0);
         Schritt("25d3_Schuelerabwesenheiten", () =>
         {

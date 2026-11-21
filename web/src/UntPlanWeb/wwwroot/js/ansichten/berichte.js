@@ -28,14 +28,14 @@ const optKurz = a => (a.optionen ?? []).filter(o => o.typ === 'auswahl').map(o =
 const ABSCHLUSS = [
   { nr: '01', name: 'Deckblatt', art: 'klassenbuch_deckblatt', titel: 'Klassenbuch Deckblatt', opt: {} },
   { nr: '02', name: 'Lehrnachweis', art: 'wochenuebersicht', titel: 'Wochenübersicht Klasse mit Abwesenheiten', opt: { mitabw: '1' } },
-  { nr: '03', name: 'Fehlzeitenstatistik', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – Gesamtübersicht', opt: { ausgabe: 'gesamt', status: 'alle', fehlzeiten: '1', verspaetungen: '1', zaehlend: '1', alle: '1', sortiert: '1', trennen: '1' } },
-  { nr: '04', name: 'Fehlzeiten-e', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – pro Stunde [entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'entschuldigt', sortiert: '1', trennen: '1' } },
-  { nr: '05', name: 'Fehlzeiten-u', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse – pro Stunde [nicht entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'nicht_entschuldigt', sortiert: '1', trennen: '1' } },
+  { nr: '03', name: 'Fehlzeitenstatistik', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse: Gesamtübersicht', opt: { ausgabe: 'gesamt', status: 'alle', fehlzeiten: '1', verspaetungen: '1', zaehlend: '1', alle: '1', sortiert: '1', trennen: '1' } },
+  { nr: '04', name: 'Fehlzeiten-e', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse: pro Stunde [entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'entschuldigt', sortiert: '1', trennen: '1' } },
+  { nr: '05', name: 'Fehlzeiten-u', art: 'fehlzeiten_klasse', titel: 'Fehlzeiten pro Klasse: pro Stunde [nicht entschuldigt]', opt: { ausgabe: 'pro_stunde', status: 'nicht_entschuldigt', sortiert: '1', trennen: '1' } },
   { nr: '06', name: 'Klassenbucheinträge', art: 'klassenbucheintraege', titel: 'Klassenbucheinträge pro Klasse sortiert nach Schülernamen', opt: { sortiert: '1' } },
 ];
 const BESCHREIBUNG = {
   fehlzeiten_schueler: 'Fehlstunden, Fehltage und Entschuldigungsstatus je Schüler*in im gewählten Zeitraum.',
-  fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse – geeignet für Konferenzen und Zeugnisse.',
+  fehlzeiten_klasse: 'Summen der Fehlzeiten je Klasse, geeignet für Konferenzen und Zeugnisse.',
   fehlzeiten_fach: 'Fehlstunden aufgeschlüsselt nach Fächern.',
   fehltage_klasse: 'Fehltage je Klasse und Schüler*in mit Datum, Stunden und Status, Summen je Schüler*in (mit Schultagen) und je Klasse.',
   verspaetungen: 'Jede Verspätung und jedes vorzeitige Gehen mit Uhrzeit, Minuten, Fach, Lehrkraft und Status; Summen je Schüler*in und Klasse.',

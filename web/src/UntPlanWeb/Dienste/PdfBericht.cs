@@ -116,7 +116,7 @@ public static partial class PdfBericht
         void Fuss()
         {
             Linie(sb, Rand, Rand - 4, Breite - Rand, Rand - 4, 0f);
-            Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} · {titel}", nutz * .4f, false, 7.5f), Schwarz);
+            Text(sb, Rand, Rand - 16, 7.5f, false, Kuerzen($"{schule} | {titel}", nutz * .4f, false, 7.5f), Schwarz);
             const string mitte = "Nur für den Dienstgebrauch";
             Text(sb, (Breite - TextBreite(mitte, false, 7.5f)) / 2, Rand - 16, 7.5f, false, mitte, Schwarz);
             var t = $"Seite {seite} von {Seitenzahl}";

@@ -31,15 +31,15 @@ public sealed class VeranstaltungenFenster : MdiFenster
     internal static readonly Dictionary<string, string> Spaltenhilfen = new()
     {
         ["Nr"] = "Veranstaltungsnummer zur eindeutigen Kennzeichnung der Veranstaltung",
-        ["K"] = "Teilnehmende Klasse(n) – mehrere durch Komma getrennt",
+        ["K"] = "Teilnehmende Klasse(n), mehrere durch Komma getrennt",
         ["KT"] = "Klassenteil: nur ein Teil der Klasse nimmt teil (z. B. Schülergruppe)",
-        ["L"] = "Begleitende Lehrkräfte – ihr Unterricht in dieser Zeit muss vertreten werden",
-        ["R"] = "Raum der Veranstaltung – er wird für diese Zeit belegt",
+        ["L"] = "Begleitende Lehrkräfte. Ihr Unterricht in dieser Zeit muss vertreten werden.",
+        ["R"] = "Raum der Veranstaltung. Er wird für diese Zeit belegt.",
         ["V"] = "Erster Tag der Veranstaltung (TT.MM.)",
         ["SV"] = "Erste Stunde am ersten Tag (leer = ab der ersten Stunde)",
         ["B"] = "Letzter Tag der Veranstaltung (TT.MM.)",
         ["SB"] = "Letzte Stunde am letzten Tag (leer = bis zur letzten Stunde)",
-        ["G"] = "Grund der Veranstaltung – wird für die Zählerführung gebraucht",
+        ["G"] = "Grund der Veranstaltung, wird für die Zählerführung benötigt",
         ["T"] = "Text zur Veranstaltung, erscheint im Vertretungsplan",
         ["Z"] = "Zählen: Stunden der Veranstaltung im Vertretungszähler der Lehrkräfte berücksichtigen",
         ["SG"] = "Schülergruppe, die an der Veranstaltung teilnimmt",
@@ -62,7 +62,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
         ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => TabellenFormate.MenueZeigen(_g, Cursor.Position)));
         ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
         ts.Items.Add(Knopf("Veranstaltung kopieren (Strg+C)", "kopieren", KopierenMerken));
-        ts.Items.Add(Knopf("Veranstaltung einfügen (Strg+V) – am eingestellten Datum", "import", Einfuegen));
+        ts.Items.Add(Knopf("Veranstaltung am eingestellten Datum einfügen (Strg+V)", "import", Einfuegen));
         ts.Items.Add(Knopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen(_g.CurrentCell?.OwningColumn.Name switch
         {
             "L" => ElementTyp.Lehrer, "R" => ElementTyp.Raum, _ => ElementTyp.Klasse,
@@ -261,7 +261,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
             e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(225, 40, 40);
             e.CellStyle.ForeColor = e.CellStyle.SelectionForeColor = Color.White;
             e.CellStyle.Font = Ui.SchriftFett;
-            _g.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = $"Am {t:dd.MM.yyyy} wurde eine Lehrkraft entfernt – Ersatzlehrkraft statt ??? eintragen.";
+            _g.Rows[e.RowIndex].Cells[e.ColumnIndex].ToolTipText = $"Am {t:dd.MM.yyyy} wurde eine Lehrkraft entfernt. Tragen Sie statt ??? eine Ersatzlehrkraft ein.";
         }
         if (name == "Nr" && OffenerTag(v) != null) e.CellStyle.ForeColor = Color.Red;
         if (v.Bis < AppZustand.Datum && name != "L") e.CellStyle.ForeColor = Color.Gray;
@@ -605,7 +605,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
         try { return Ui.DatumLesen(wert, bisher); }
         catch (Exception ex) when (ex is FormatException or ArgumentOutOfRangeException or OverflowException)
         {
-            throw new FormatException($"„{wert}“ ist kein gültiges Datum – bitte als TT.MM.JJJJ eingeben.");
+            throw new FormatException($"„{wert}“ ist kein gültiges Datum. Bitte im Format TT.MM.JJJJ eingeben.");
         }
     }
 

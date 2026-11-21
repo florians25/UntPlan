@@ -10,7 +10,7 @@ export function elementWahl({ eintraege, wert, platzhalter = 'Auswählen …', b
   const aktuell = eintraege.find(x => x.kurz.toLowerCase() === String(wert ?? '').toLowerCase());
   // Knopf wie im Original: Kürzel mit Info-Symbol; beim Zeigen auf das Symbol erscheint z. B. „Klassenlehrkraft: KM“
   const infoText = aktuell ? info(aktuell) : '';
-  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${e(aktuell ? `${aktuell.kurz}${infoText ? ' – ' + infoText : ''}` : platzhalter)}">
+  wurzel.innerHTML = `<button class="btn btn-outline-secondary bg-white text-body dropdown-toggle wahl-knopf" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${e(aktuell ? `${aktuell.kurz}${infoText ? ', ' + infoText : ''}` : platzhalter)}">
       ${aktuell ? `<span>${e(aktuell.kurz)}</span>${infoText ? `<span class="wahl-info" data-tip="${e(infoText)}"><img src="img/wu/exact/info-dropdown-dark.svg" alt=""></span>` : ''}` : `<span class="text-body-secondary">${e(platzhalter)}</span>`}
     </button>`;
   const knopf = wurzel.querySelector('button');
@@ -82,7 +82,7 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
   wurzel.innerHTML = `<div class="kw-pille">
       <span class="kw-wert"><span class="kw-kurz">${e(aktuell?.kurz ?? wert ?? '')}</span>${infoText ? `<span class="wahl-info" data-tip="${e(infoText)}"><img src="img/wu/exact/info-dropdown-dark.svg" alt=""></span>` : ''}</span>
       <input class="kw-eingabe" type="text" role="combobox" aria-expanded="false" aria-controls="${id}-liste" aria-autocomplete="list" autocomplete="off" spellcheck="false"
-        aria-label="${e(`${bezeichnung} wählen: ${aktuell?.kurz ?? ''}${infoText ? ` – ${infoText}` : ''}`)}">
+        aria-label="${e(`${bezeichnung} wählen: ${aktuell?.kurz ?? ''}${infoText ? `, ${infoText}` : ''}`)}">
     </div>
     <div class="kw-menue" hidden>
       <label class="kw-alle"><span>Alle anzeigen</span><input type="checkbox" role="switch" data-alle-schalter></label>

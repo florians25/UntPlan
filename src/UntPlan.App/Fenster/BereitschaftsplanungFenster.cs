@@ -330,7 +330,7 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
             _g.Rows.Clear();
             if (_f._gewaehlt is not { } g) { Text = "Lehrer-Vorschlag"; return; }
             var d = _f.D;
-            Text = $"Lehrer-Vorschlag – {Planungsdienst.Tagname(d, g.Tag)}, {g.Stunde}. Std.";
+            Text = $"Lehrer-Vorschlag: {Planungsdienst.Tagname(d, g.Tag)}, {g.Stunde}. Std.";
             foreach (var k in Bereitschaftsplanung.Vorschlag(d, g.Tag, g.Stunde))
             {
                 var zw = k.Lehrer.Zeitwuensche.Get(g.Tag, g.Stunde);

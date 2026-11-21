@@ -22,7 +22,7 @@ const pruefungsartenLaden = () => pruefungsartenGeladen ??= Promise.all([holen('
 }).catch(() => { pruefungsartenGeladen = null; });
 /** Text einer neuen Prüfung: „Art: Text – Notenschema: … – Teilnehmende: …“. */
 const pruefungText = (f, teil) => [f('art') ? `${f('art')}${f('text') ? ': ' + f('text') : ''}` : f('text'),
-  f('notenschema') ? `Notenschema: ${f('notenschema')}` : '', teil].filter(Boolean).join(' – ');
+  f('notenschema') ? `Notenschema: ${f('notenschema')}` : '', teil].filter(Boolean).join('. ');
 /** Prüfungsart ohne Notenschema: die Lehrkraft wählt ein individuelles Schema (Auswahl nur dann sichtbar). */
 function notenschemaBinden(wurzel) {
   const art = wurzel.querySelector('[name=art]');
@@ -395,7 +395,7 @@ export function karteDialog(karte, kontext = {}) {
     const berichte = `<span class="position-relative"><button type="button" class="sd-pille klein" data-sl-berichte aria-haspopup="menu">Berichte <i class="bi bi-chevron-down"></i></button>
       <span class="sl-menue d-none" data-sl-menue role="menu"><button type="button" role="menuitem" data-sl-drucken>Drucken</button><button type="button" role="menuitem" data-sl-csv>CSV-Export</button></span></span>`;
     const inhalt = `<div class="sl-blatt">
-        <p class="sl-kopf">Lehrkraft: ${e(sl.lehrer.join(', '))} · Fach: ${e(sl.fach || '')} · Klasse: ${e(sl.klassen.join(', '))}</p>
+        <p class="sl-kopf">Lehrkraft: ${e(sl.lehrer.join(', '))}, Fach: ${e(sl.fach || '')}, Klasse: ${e(sl.klassen.join(', '))}</p>
         <div class="nl-tabelle sl-tabelle"><table><thead><tr><th class="nr">Nr.</th><th>Familienname</th><th>Vorname</th><th>Geschlecht</th><th>Klasse</th></tr></thead>
           <tbody>${sl.schueler.map((x, i) => `<tr><td class="nr">${i + 1}</td><td class="nl-name">${e(x.name)}</td><td>${e(x.vorname)}</td><td>${e(g(x.geschlecht))}</td><td><span class="nl-tag">${e(x.klasse)}</span></td></tr>`).join('')
             || '<tr><td colspan="5" class="text-body-secondary">Keine Schüler*innen</td></tr>'}</tbody></table></div>
@@ -408,7 +408,7 @@ export function karteDialog(karte, kontext = {}) {
   function lehrstoffHtml() {
     const wert = daten.eintrag?.thema;
     const stift = daten.darf ? '<button type="button" class="sd-stift" data-bearbeiten="thema" title="Lehrstoff bearbeiten" aria-label="Lehrstoff bearbeiten"><i class="bi bi-pencil"></i></button>' : '';
-    const zusatz = [daten.eintrag?.lehrform ? `Lehrform: ${daten.eintrag.lehrform}` : '', daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : ''].filter(Boolean).join(' · ');
+    const zusatz = [daten.eintrag?.lehrform ? `Lehrform: ${daten.eintrag.lehrform}` : '', daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : ''].filter(Boolean).join(', ');
     const hinweis = ebenenHinweis('thema');
     // wie in der Vorlage: Lehrstoff direkt auf der Seite eingeben – Klick auf den Text bzw. den Hinweis öffnet ein Eingabefeld mit
     // „Speichern“ (erst nach einer Änderung aktiv) und „Abbrechen“; der Stift öffnet weiterhin den Dialog (Lehrstoff aus Vorwochen, Lehrform)
@@ -449,7 +449,7 @@ export function karteDialog(karte, kontext = {}) {
         ? `<button type="button" class="sd-kreisknopf klein" data-tagesbeginn="${f.schuelerId}" title="Abwesenheit auf Tagesbeginn verlängern" aria-label="Abwesenheit auf Tagesbeginn verlängern"><i class="bi bi-arrow-bar-left"></i></button>` : '';
       const schluss = vor && !spaeter && a.darf
         ? `<button type="button" class="sd-kreisknopf klein" data-bisende="${f.schuelerId}" title="Abwesenheit bis Stundenende verlängern" aria-label="Abwesenheit bis Stundenende verlängern"><i class="bi bi-arrow-bar-right"></i></button>` : '';
-      const gewertet = f.fehlstunden && f.art !== 'fehlt' ? ` · ${f.fehlstunden === 1 ? 'eine Fehlstunde' : `${f.fehlstunden} Fehlstunden`}` : '';
+      const gewertet = f.fehlstunden && f.art !== 'fehlt' ? `, ${f.fehlstunden === 1 ? 'eine Fehlstunde' : `${f.fehlstunden} Fehlstunden`}` : '';
       const st = { offen: 'offen', entschuldigt: 'entschuldigt', unentschuldigt: 'nicht entschuldigt' }[f.status] ?? '';
       const farbe = { offen: 'gelb', entschuldigt: 'gruen', unentschuldigt: 'rot' }[f.status] ?? 'grau';
       const label = spaeter ? '<span class="nl-chip grau">spätere Stunde</span>' : vor ? '<span class="nl-chip grau">Vorstunde</span>' : st ? `<span class="nl-chip ${farbe}">${st}</span>` : '';
@@ -513,8 +513,8 @@ export function karteDialog(karte, kontext = {}) {
       if (g) g.eintraege.push(z); else gruppen.push({ dienstId: z.dienstId, dienst: z.dienst, von: z.von, bis: z.bis, klasse: z.klasse, text: z.text, eintraege: [z] });
     }
     const mehrereKlassen = new Set(gruppen.map(g => g.klasse)).size > 1;
-    const inhalt = gruppen.length ? `<div class="kb-kd">${gruppen.map(g => `<div class="kb-kd-zeile" title="${e(g.dienst)}${g.text ? ' · ' + e(g.text) : ''}">
-        <span class="kd-dienst"><span class="kd-symbol"><i class="bi bi-person-gear"></i></span><span><b>${e(g.dienst)}</b><small>${g.von === g.bis ? kurz(g.von) : `${kurz(g.von)} – ${kurz(g.bis)}`}${mehrereKlassen ? ` · ${e(g.klasse)}` : ''}${g.text ? ` · ${e(g.text)}` : ''}</small></span></span>
+    const inhalt = gruppen.length ? `<div class="kb-kd">${gruppen.map(g => `<div class="kb-kd-zeile" title="${e(g.dienst)}${g.text ? ': ' + e(g.text) : ''}">
+        <span class="kd-dienst"><span class="kd-symbol"><i class="bi bi-person-gear"></i></span><span><b>${e(g.dienst)}</b><small>${g.von === g.bis ? kurz(g.von) : `${kurz(g.von)} – ${kurz(g.bis)}`}${mehrereKlassen ? `, ${e(g.klasse)}` : ''}${g.text ? `, ${e(g.text)}` : ''}</small></span></span>
         <span class="kd-schueler">${g.eintraege.map(z => `<span class="kd-person"><span class="kd-avatar">${e(ini(z.schueler))}</span>${e(z.schueler)}</span>`).join('')}</span></div>`).join('')}</div>`
       : '<p class="sd-text small mb-0">Für diesen Tag ist niemand eingeteilt.</p>';
     const kl = klassenListe()[0];
@@ -525,7 +525,7 @@ export function karteDialog(karte, kontext = {}) {
   function ticketFormular() {
     return `<div class="kb-editor"><div class="kb-editor-titel">Ticket erstellen</div>
       <p class="small text-body-secondary mb-2">Das Ticket geht als Mitteilung an Schulleitung und Administration.</p>
-      <textarea class="form-control form-control-sm mb-2" rows="3" data-ticket-text placeholder="Was soll erledigt werden?"></textarea>
+      <textarea class="form-control form-control-sm mb-2" rows="3" data-ticket-text placeholder="Beschreibung der Aufgabe"></textarea>
       <div class="d-flex gap-2"><button type="button" class="sd-pille klein primaer" data-ticket-senden>Senden</button><button type="button" class="sd-pille klein" data-zu>Abbrechen</button></div></div>`;
   }
 
@@ -559,7 +559,7 @@ export function karteDialog(karte, kontext = {}) {
     if (vertretung && k.zusaetzlich && k.fachAlt && k.status !== 'klausur') teile.push(reihe('<i class="bi bi-info-circle sd-detail-symbol" aria-hidden="true"></i>', 'Information zur Stunde', `<p class="sd-text">${e(vertretung)}</p>`));
     // Veranstaltung: der Name steht nur hier (oben im Kopf keine Bezeichnung)
     if (k.status === 'veranstaltung' && !k.fach && (k.text || k.art)) teile.push(reihe(datei, 'Information zur Stunde', `<p class="sd-text">${e(k.text || k.art)}</p>`));
-    if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(' – '))}</p>`));
+    if (k.status === 'klausur') teile.push(reihe(datei, 'Prüfung', `<p class="sd-text">${e([k.art, k.text].filter(Boolean).join(': '))}</p>`));
     const stoffHinweis = ebenenHinweis('thema');
     if (ein?.thema || stoffHinweis) teile.push(reihe(datei, 'Lehrstoff', (ein?.thema ? `<p class="sd-text">${e(ein.thema)}</p>` : '') + stoffHinweis));
     const hw = daten.hausaufgaben;
@@ -624,10 +624,10 @@ export function karteDialog(karte, kontext = {}) {
       <label>Name</label><input class="form-control" name="name" value="${e(k.fach || '')}">
       <label>Text</label><input class="form-control" name="text">
       <label>Prüfungsart</label><select class="form-select" name="art"><option value=""></option>${PRUEFUNGSARTEN.map(a => `<option value="${e(a.name)}">${e(a.name)}${a.schema ? ` (${e(a.schema)})` : ''}</option>`).join('')}</select>
-      <label data-ns hidden>Notenschema</label><div data-ns hidden><select class="form-select" name="notenschema"><option value="">– individuell (im Text beschreiben) –</option>${NOTENSCHEMEN.map(n => `<option value="${e(n.name)}">${e(n.name)}</option>`).join('')}</select>
-        <div class="small text-body-secondary mt-1">Für diese Prüfungsart ist kein Notenschema hinterlegt – bitte ein Notenschema für diese Prüfung wählen.</div></div>
+      <label data-ns hidden>Notenschema</label><div data-ns hidden><select class="form-select" name="notenschema"><option value="">Individuell (im Text beschreiben)</option>${NOTENSCHEMEN.map(n => `<option value="${e(n.name)}">${e(n.name)}</option>`).join('')}</select>
+        <div class="small text-body-secondary mt-1">Für diese Prüfungsart ist kein Notenschema hinterlegt. Bitte wählen Sie ein Notenschema für diese Prüfung.</div></div>
       <label>Datum</label><div class="d-flex flex-wrap gap-2 align-items-center"><input type="date" class="form-control" style="width:auto" name="datum" value="${k.datum}">
-        <span class="small">Stunde</span><div style="width:90px">${std('von', k.von)}</div><span>–</span><div style="width:90px">${std('bis', k.bis)}</div></div>
+        <span class="small">Stunde</span><div style="width:90px">${std('von', k.von)}</div><span>bis</span><div style="width:90px">${std('bis', k.bis)}</div></div>
       <label>Raum</label><input class="form-control" name="raeume" value="${e(kuerzel(k.raeume).join(', '))}">
       <label>Zugewiesene Lehrkraft</label><input class="form-control" name="aufsicht" value="${e(kuerzel(k.lehrer).join(', '))}">
       <label>Schüler*innen</label><div class="sd-chips">${sl.length ? sl.map(s => `<button type="button" class="sd-chip ${pruefungSchueler.has(s.id) ? 'an' : ''}" data-chip="${s.id}">${e(s.name)} ${e(s.vorname)}</button>`).join('')
@@ -693,7 +693,7 @@ export function karteDialog(karte, kontext = {}) {
     const kx = sitz.kontextVon(k);
     sitz.editorOeffnen({
       wurzel: el, d: daten.sitz, kontext: { ...kx, klasse: daten.sitz.kontext?.klasse ?? null }, titel: 'Sitzplan',
-      untertitel: [kuerzel(k.klassen).join(', '), k.fach, kuerzel(k.lehrer).join(', '), kuerzel(k.raeume).join(', ')].filter(Boolean).join(' · '),
+      untertitel: [kuerzel(k.klassen).join(', '), k.fach, kuerzel(k.lehrer).join(', '), kuerzel(k.raeume).join(', ')].filter(Boolean).join(' | '),
       onGespeichert: async () => {
         daten.sitz = await sitz.stundeLaden(kx).catch(() => null);
         sitz.einstellungenSpeichern({ ...sitz.einstellungen(), ansicht: 'sitzplan' });
@@ -779,7 +779,7 @@ export function karteDialog(karte, kontext = {}) {
       if (!await bestaetigen('Prüfung löschen', `Prüfung${k.text ? ` „${k.text}“` : ''} am ${datumDe(k.datum)} (${stdText(k.von, k.bis)} Stunde) löschen?`)) return false;
       try {
         await senden('/api/app/meldungen/klausur/loeschen', pruefungAlt());
-        toast('Prüfung gelöscht – UntPlan übernimmt die Löschung beim nächsten Import.');
+        toast('Prüfung gelöscht. UntPlan übernimmt die Löschung beim nächsten Import.');
         geaendert = true; modal.hide();
         return true;
       } catch (err) { toast(err.message, true); return false; }
@@ -789,7 +789,7 @@ export function karteDialog(karte, kontext = {}) {
     q('[data-pruefung-editieren]')?.addEventListener('click', () => {
       const wahl = (sel) => zeiten.map(z => `<option value="${z.nr}" ${z.nr === sel ? 'selected' : ''} data-zweit="${e(z.beginn)}–${e(z.ende)}">${z.nr}. Stunde</option>`).join('');
       altDialog('Prüfung editieren', `
-        <div class="ad-info">${e(k.text || 'Prüfung')} · bisher ${datumDe(k.datum)}, ${stdText(k.von, k.bis)} Stunde</div>
+        <div class="ad-info">${e(k.text || 'Prüfung')}, bisher ${datumDe(k.datum)}, ${stdText(k.von, k.bis)} Stunde</div>
         <label class="ad-feld">Name<input name="titel" maxlength="200" value="${e(k.text || '')}" placeholder="Prüfung"></label>
         <label class="ad-feld">Datum<input type="date" name="datum" value="${k.datum}" min="${heuteIso()}"></label>
         <div class="ad-reihe"><label class="ad-feld">von Stunde<select name="von">${wahl(k.von)}</select></label>
@@ -858,7 +858,7 @@ export function karteDialog(karte, kontext = {}) {
       knopf.disabled = true;
       try {
         await senden('/api/app/meldungen/klausur', { datum: f('datum'), stundeVon: Number(f('von')), stundeBis: Number(f('bis')), klassen: kuerzel(k.klassen), raeume: listeVon('raeume'), aufsicht: listeVon('aufsicht'), titel: f('name') || 'Prüfung', text });
-        toast('Prüfung erstellt – sie steht jetzt im Stundenplan.');
+        toast('Prüfung erstellt. Sie wird im Stundenplan angezeigt.');
         geaendert = true;
         modal.hide();
       } catch (err) { toast(err.message, true); knopf.disabled = false; }
@@ -1230,7 +1230,7 @@ export function karteDialog(karte, kontext = {}) {
         knopf.disabled = true;
         try {
           await senden('/api/app/meldungen/klausur', { datum: f('datum'), stundeVon: Number(f('von')), stundeBis: Number(f('bis')), klassen: kuerzel(k.klassen), raeume: listeVon('raeume'), aufsicht: listeVon('aufsicht'), titel: f('name') || 'Prüfung', text });
-          toast('Prüfung erstellt – sie steht jetzt im Stundenplan.');
+          toast('Prüfung erstellt. Sie wird im Stundenplan angezeigt.');
           geaendert = true;
           zu();
           modal.hide();
@@ -1326,8 +1326,8 @@ export function karteDialog(karte, kontext = {}) {
     const gruendeWahl = `<option value="">–</option>${daten.gruende.map(g => `<option value="${e(g.kurz)}" ${g.kurz === grundVorgabe ? 'selected' : ''}>${e(g.name)}</option>`).join('')}`;
     // Status als Segment-Schalter; bei einer bestehenden Abwesenheit entschuldigt die Klassenleitung damit direkt (ohne Speichern)
     const radio = (wert, text) => `<label class="ab-radio ab-seg-${wert}"><input type="radio" name="ab-status" value="${wert}" ${status === wert ? 'checked' : ''} ${verwalten ? '' : 'disabled'}><span>${text}</span></label>`;
-    altDialog(opt.ankunft ? 'Abwesenheit – Ankunft' : 'Abwesenheit', `
-      ${opt.ankunft ? `<div class="vs-vorschau ab-ankunft" data-ab-ankunft="${e(vorgabe.bisZeit)}"><i class="bi bi-clock"></i> Ankunft um ${e(vorgabe.bisZeit)} – die Abwesenheit endet jetzt. Speichern trägt sie als teilweise Abwesenheit (Verspätung) ein, „Löschen“ macht die Stunde ganz anwesend.</div>` : ''}
+    altDialog(opt.ankunft ? 'Abwesenheit: Ankunft' : 'Abwesenheit', `
+      ${opt.ankunft ? `<div class="vs-vorschau ab-ankunft" data-ab-ankunft="${e(vorgabe.bisZeit)}"><i class="bi bi-clock"></i> Ankunft um ${e(vorgabe.bisZeit)}. Die Abwesenheit endet zu diesem Zeitpunkt. „Speichern“ erfasst sie als teilweise Abwesenheit (Verspätung), „Löschen“ setzt die gesamte Stunde auf anwesend.</div>` : ''}
       <div class="ab-formular">
         <label>Schüler*in</label><div class="ab-wert">${e(namen.length > 3 ? `${namen.slice(0, 3).join(', ')} und ${namen.length - 3} weitere` : namen.join(', '))}</div>
         <label for="ab-vd">Von</label><div class="ab-zeile"><input type="date" id="ab-vd" data-ab-vd value="${vorgabe.vonDatum}" ${verwalten ? '' : 'disabled'}><input type="time" step="60" data-ab-vz value="${e(vorgabe.vonZeit)}" aria-label="Von Uhrzeit"></div>

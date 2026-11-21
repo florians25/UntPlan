@@ -212,7 +212,7 @@ public static class UnterrichtsvergleichDialog
             foreach (var z in Unterrichtswerkzeuge.Vergleichen(d, gewaehlt, nurUnterschiede.Checked))
             {
                 if (nurAnsicht.Checked && !unterrichte.Contains(z.UnterrichtId)) continue;
-                var i = g.Rows.Add(new object[] { z.UnterrichtId }.Concat(z.Texte.Select(t => (object)(t ?? "– nicht vorhanden –"))).ToArray());
+                var i = g.Rows.Add(new object[] { z.UnterrichtId }.Concat(z.Texte.Select(t => (object)(t ?? "(nicht vorhanden)"))).ToArray());
                 if (!z.Unterschiedlich) continue;
                 var erster = z.Texte[0];
                 for (var k = 0; k < z.Texte.Count; k++)

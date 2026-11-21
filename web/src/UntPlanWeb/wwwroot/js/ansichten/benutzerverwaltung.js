@@ -33,7 +33,7 @@ const personName = p => [p.vorname, p.name].filter(Boolean).join(' ');
 
 /** Zugangsdaten anzeigen (nur einmal sichtbar) mit CSV- und PDF-Export. */
 export function zugangsdaten(titel, r) {
-  if (!r?.anzahl) return dialog({ titel, inhalt: '<p class="mb-0">Es wurden keine Konten angelegt – alle gewählten Personen haben bereits ein Konto.</p>', knoepfe: [{ text: 'OK', art: 'haupt' }] });
+  if (!r?.anzahl) return dialog({ titel, inhalt: '<p class="mb-0">Es wurden keine Konten angelegt. Alle gewählten Personen haben bereits ein Konto.</p>', knoepfe: [{ text: 'OK', art: 'haupt' }] });
   dialog({
     titel, breit: true,
     inhalt: `${alarm('warning', 'Die Startpasswörter werden nur jetzt angezeigt. Bitte die Zugangsdaten herunterladen bzw. drucken und sicher verteilen.')}
@@ -74,7 +74,7 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
   const zuordnung = b => {
     if (KOLLEGIUM.includes(b.rolle) && b.element) { const l = lehrerNach[b.element.toLowerCase()]; return { art: 'lehrkraft', text: b.element, unter: l ? personName(l) : 'nicht in den Stammdaten' }; }
     if (b.rolle === 'schueler' && b.schuelerIds?.length) { const s = schuelerNach[b.schuelerIds[0]]; return { art: 'schueler', text: s ? personName(s) : `#${b.schuelerIds[0]}`, unter: s ? `Klasse ${s.klasse}` : 'nicht mehr in der Schülerliste' }; }
-    if (b.rolle === 'eltern' && b.schuelerIds?.length) return { art: 'kinder', text: b.schuelerIds.map(i => schuelerNach[i] ? personName(schuelerNach[i]) : `#${i}`).join(', '), unter: `${b.schuelerIds.length === 1 ? 'Kind' : 'Kinder'}${b.klassen?.length ? ' · ' + b.klassen.join(', ') : ''}` };
+    if (b.rolle === 'eltern' && b.schuelerIds?.length) return { art: 'kinder', text: b.schuelerIds.map(i => schuelerNach[i] ? personName(schuelerNach[i]) : `#${i}`).join(', '), unter: `${b.schuelerIds.length === 1 ? 'Kind' : 'Kinder'}${b.klassen?.length ? ', ' + b.klassen.join(', ') : ''}` };
     if (b.personId && personNach[b.personId]) { const p = personNach[b.personId]; return { art: 'person', text: personName(p), unter: p.funktion || ARTEN[p.art] }; }
     if (b.rolle === 'schueler' && b.element) return { art: 'klasse', text: `Klasse ${b.element}`, unter: 'Klassenkonto' };
     return null;
@@ -154,7 +154,7 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
       return `<tr data-id="${b.id}" class="${gewaehlt.has(b.id) ? 'nl-gewaehlt' : ''} ${b.gesperrt ? 'bv-gesperrt' : ''}" tabindex="0">
         <td class="nl-wahl"><input type="checkbox" class="nl-rund" data-wahl="${b.id}" ${gewaehlt.has(b.id) ? 'checked' : ''} aria-label="${e(b.login)} auswählen"></td>
         <td class="nl-avatar-zelle">${avatar(b.anzeigename || b.login, !b.gesperrt)}</td>
-        <td><div class="nl-name">${e(b.anzeigename || b.login)}</div><div class="nl-unter">${e(b.login)}${b.email ? ` · ${e(b.email)}` : ''}</div></td>
+        <td><div class="nl-name">${e(b.anzeigename || b.login)}</div><div class="nl-unter">${e(b.login)}${b.email ? `, ${e(b.email)}` : ''}</div></td>
         <td><span class="nl-tag">${e(b.rollenname)}</span>${(b.zusatzrechte ?? []).map(r => `<span class="nl-chip lila ms-1" title="Zusatzrecht">+ ${e(grundlagen.zusatzrechte.find(x => x.id === r)?.name ?? r)}</span>`).join('')}</td>
         <td>${z ? `<div class="bv-zuordnung"><i class="bi bi-${{ lehrkraft: 'person-workspace', schueler: 'mortarboard', kinder: 'people', person: 'person-badge', klasse: 'easel' }[z.art]}" aria-hidden="true"></i><span><span class="bv-z-text">${e(z.text)}</span><span class="nl-unter d-block">${e(z.unter)}</span></span></div>`
           : b.rolle === 'admin' ? '<span class="nl-unter">–</span>' : '<span class="nl-chip gelb">ohne Zuordnung</span>'}</td>
@@ -241,15 +241,15 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
     const klassen = [...new Set(schueler.map(s => s.klasse))];
     const lehrerOptionen = `<option value="">Keine Lehrkraft zugeordnet</option>${lehrer.map(l => {
       const fremd = l.konto && l.konto.id !== k.id;
-      return `<option value="${e(l.kurz)}" data-zweit="${e(personName(l) + (fremd ? ` · Konto: ${l.konto.login}` : ''))}" ${fremd ? 'disabled' : ''} ${l.kurz.toLowerCase() === (k.element ?? '').toLowerCase() ? 'selected' : ''}>${e(l.kurz)}</option>`;
+      return `<option value="${e(l.kurz)}" data-zweit="${e(personName(l) + (fremd ? `, Konto: ${l.konto.login}` : ''))}" ${fremd ? 'disabled' : ''} ${l.kurz.toLowerCase() === (k.element ?? '').toLowerCase() ? 'selected' : ''}>${e(l.kurz)}</option>`;
     }).join('')}`;
     const schuelerOptionen = (mehrfach) => `${mehrfach ? '' : '<option value="">Keine Schülerin / kein Schüler (Klassenkonto)</option>'}${klassen.map(kl => `<optgroup label="Klasse ${e(kl)}">${schueler.filter(s => s.klasse === kl).map(s => {
       const fremd = !mehrfach && s.konto && s.konto.id !== k.id;
-      return `<option value="${s.schluessel}" data-zweit="${e(`Klasse ${s.klasse}${fremd ? ` · Konto: ${s.konto.login}` : ''}`)}" ${fremd ? 'disabled' : ''} ${(k.schuelerIds ?? []).includes(Number(s.schluessel)) ? 'selected' : ''}>${e(`${s.name}, ${s.vorname}`)}</option>`;
+      return `<option value="${s.schluessel}" data-zweit="${e(`Klasse ${s.klasse}${fremd ? `, Konto: ${s.konto.login}` : ''}`)}" ${fremd ? 'disabled' : ''} ${(k.schuelerIds ?? []).includes(Number(s.schluessel)) ? 'selected' : ''}>${e(`${s.name}, ${s.vorname}`)}</option>`;
     }).join('')}</optgroup>`).join('')}`;
     const personOptionen = art => `<option value="0">Keine Person zugeordnet</option>${andere.filter(p => !art || p.art === art).map(p => {
       const fremd = p.konto && p.konto.id !== k.id;
-      return `<option value="${p.schluessel}" data-zweit="${e(`${p.funktion || ARTEN[p.art]}${fremd ? ` · Konto: ${p.konto.login}` : ''}`)}" ${fremd ? 'disabled' : ''} ${Number(p.schluessel) === k.personId ? 'selected' : ''}>${e(personName(p))}</option>`;
+      return `<option value="${p.schluessel}" data-zweit="${e(`${p.funktion || ARTEN[p.art]}${fremd ? `, Konto: ${p.konto.login}` : ''}`)}" ${fremd ? 'disabled' : ''} ${Number(p.schluessel) === k.personId ? 'selected' : ''}>${e(personName(p))}</option>`;
     }).join('')}`;
     const rechte = grundlagen.zusatzrechte.map(r => `<label class="bv-recht"><input type="checkbox" class="form-check-input" data-recht="${e(r.id)}" ${(k.zusatzrechte ?? []).includes(r.id) ? 'checked' : ''}>
       <span><b>${e(r.name)}</b><small>${e(r.beschreibung)}</small></span></label>`).join('');
@@ -259,7 +259,7 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
     panel.innerHTML = `
       <header class="bv-kopf">${b ? avatar(k.anzeigename || k.login, !k.gesperrt) : '<span class="nl-avatar">+</span>'}
         <div class="bv-kopf-text"><h2>${e(b ? k.anzeigename || k.login : 'Benutzer anlegen')}</h2>
-          <div class="nl-unter">${b ? `${e(k.login)} · ${e(k.rollenname)}` : 'Neues Konto mit Rolle und Personenzuordnung'}</div>
+          <div class="nl-unter">${b ? `${e(k.login)}, ${e(k.rollenname)}` : 'Neues Konto mit Rolle und Personenzuordnung'}</div>
           ${b ? `<div class="nl-chips mt-1">${k.gesperrt ? '<span class="nl-chip rot"><i class="bi bi-lock"></i>gesperrt</span>' : '<span class="nl-chip gruen">aktiv</span>'}${k.passwortAendern ? '<span class="nl-chip gelb">Startpasswort offen</span>' : ''}</div>` : ''}</div>
         <button type="button" class="btn-close" data-zu aria-label="Schließen"></button></header>
       <form class="bv-inhalt" novalidate>
@@ -295,7 +295,7 @@ export async function benutzer(ziel, kontext, neu, [rolleParam, idParam]) {
           <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="bv-gesperrt" name="gesperrt" ${k.gesperrt ? 'checked' : ''} ${k.id === ich.id ? 'disabled' : ''}>
             <label class="form-check-label" for="bv-gesperrt">Konto gesperrt (keine Anmeldung möglich)</label></div>
           <dl class="bv-fakten"><dt>Erstellt</dt><dd>${e(kurzZeit(k.erstellt) || k.erstellt || '–')}</dd><dt>Letzte Anmeldung</dt><dd>${k.letzteAnmeldung ? e(kurzZeit(k.letzteAnmeldung)) : 'nie'}</dd>
-            <dt>Passwort</dt><dd>${k.passwortAendern ? 'Startpasswort – muss bei der nächsten Anmeldung geändert werden' : 'selbst gewählt'}</dd></dl></section>
+            <dt>Passwort</dt><dd>${k.passwortAendern ? 'Startpasswort, muss bei der nächsten Anmeldung geändert werden' : 'selbst gewählt'}</dd></dl></section>
         <section class="bv-abschnitt"><h3>Anmeldehistorie</h3>${historie}</section>
         <section class="bv-abschnitt"><h3>Konto-Aktionen</h3><div class="d-flex flex-wrap gap-2">
           <button type="button" class="nl-knopf" data-k="passwort">${icon('schluessel')}Passwort zurücksetzen</button>
@@ -388,7 +388,7 @@ function geraetKurz(ua) {
   if (!ua) return '';
   const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : ua.split(/[ /]/)[0];
   const system = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
-  return [browser, system].filter(Boolean).join(' · ');
+  return [browser, system].filter(Boolean).join(', ');
 }
 
 // ================================================================== Personen & Konten
@@ -451,7 +451,7 @@ export async function personen(ziel, kontext, neu, [artParam]) {
           : `<span class="nl-chip grau">fehlt</span> <button type="button" class="nl-knopf bv-klein" data-einzeln="${e(p.schluessel)}">Konto anlegen</button>`}</td>
         <td class="text-end nl-aktionen">${verwaltet ? `<button class="nl-icon" data-bearbeiten="${e(p.schluessel)}" title="Bearbeiten" aria-label="Bearbeiten">${icon('stift')}</button>
           <button class="nl-icon rot" data-loeschen="${e(p.schluessel)}" title="Löschen" aria-label="Löschen">${icon('loeschen')}</button>` : ''}</td></tr>`).join('')
-      : `<tr><td colspan="7">${leer(liste.length ? 'Keine Personen gefunden.' : art === 'eltern' ? 'Noch keine Erziehungsberechtigten erfasst.' : art === 'personal' ? 'Noch kein sonstiges Personal erfasst.' : 'Keine Personen – bitte zuerst Daten aus UntPlan übertragen.', 'people')}</td></tr>`;
+      : `<tr><td colspan="7">${leer(liste.length ? 'Keine Personen gefunden.' : art === 'eltern' ? 'Noch keine Erziehungsberechtigten erfasst.' : art === 'personal' ? 'Noch kein sonstiges Personal erfasst.' : 'Keine Personen vorhanden. Bitte übertragen Sie zuerst die Daten aus UntPlan.', 'people')}</td></tr>`;
     ziel.querySelector('[data-anzahl]').textContent = `${l.length} von ${liste.length}`;
     ziel.querySelector('[data-auswahlinfo]').textContent = gewaehlt.size ? `${gewaehlt.size} ausgewählt` : '';
     const ohneKonto = l.filter(p => !p.konto);
@@ -490,7 +490,7 @@ export async function personen(ziel, kontext, neu, [artParam]) {
     const rollen = art === 'lehrer' ? { '': 'Automatisch (Zuordnungsgruppen: Schulleitung, sonst Lehrkraft)', lehrer: 'Lehrkraft', leitung: 'Schulleitung', admin: 'Administration' }
       : art === 'personal' ? { lehrer: 'Lehrkraft ohne Kürzel (Kollegium)', leitung: 'Schulleitung', admin: 'Administration' } : null;
     dialog({
-      titel: auswahl?.length === 1 ? `Konto anlegen – ${personName(liste.find(p => p.schluessel === auswahl[0]))}` : `Konten für ${ARTEN[art]} anlegen`,
+      titel: auswahl?.length === 1 ? `Konto anlegen: ${personName(liste.find(p => p.schluessel === auswahl[0]))}` : `Konten für ${ARTEN[art]} anlegen`,
       inhalt: `<div class="row g-3">
         ${auswahl ? `<div class="col-12"><div class="nl-hinweis mb-0"><i class="bi bi-people"></i>${auswahl.length} ${auswahl.length === 1 ? 'Person' : 'Personen'} ausgewählt.</div></div>`
           : `<div class="col-12"><label class="form-label" for="kd-umfang">Umfang</label><select class="form-select" id="kd-umfang" name="umfang">
@@ -500,7 +500,7 @@ export async function personen(ziel, kontext, neu, [artParam]) {
         <div class="col-sm-6"><label class="form-label">Beispiel</label><div class="form-control bg-body-tertiary font-monospace" data-beispiel></div></div>
         ${rollen ? `<div class="col-12"><label class="form-label" for="kd-rolle">Rolle</label><select class="form-select" id="kd-rolle" name="rolle">${optionen(rollen, art === 'personal' ? 'lehrer' : '')}</select></div>` : ''}
         <div class="col-12 form-text mt-2">Jedes Konto erhält ein zufälliges Startpasswort, das bei der ersten Anmeldung geändert werden muss. Gibt es den Benutzernamen schon, wird eine Zahl angehängt.
-          ${art === 'schueler' ? 'Schülerkonten werden der Person zugeordnet (eine Person – ein Konto).' : art === 'eltern' ? 'Elternkonten erhalten die erfassten Kinder.' : ''}</div></div>`,
+          ${art === 'schueler' ? 'Schülerkonten werden der Person zugeordnet (ein Konto je Person).' : art === 'eltern' ? 'Elternkonten erhalten die erfassten Kinder.' : ''}</div></div>`,
       beimOeffnen: box => {
         const schema = box.querySelector('[name=schema]');
         const zeigen = () => { box.querySelector('[data-beispiel]').textContent = beispiel ? loginBeispiel(schema.value, beispiel) : '–'; };

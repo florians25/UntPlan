@@ -62,7 +62,7 @@ public static class Export
     public static void HtmlSchreiben(Schuldatei d, string pfad, string inhalt) => File.WriteAllText(pfad, inhalt, Kodierung(d.Einstellungen.Html));
 
     /// <summary>Fußzeile der HTML-Stundenpläne (Schulname, Stand).</summary>
-    private static string HtmlFuss(Schuldatei d) => $"<div class=\"sub\">{H(d.Einstellungen.Schulname)} · Stand {DateTime.Now:dd.MM.yyyy HH:mm} · UntPlan</div>";
+    private static string HtmlFuss(Schuldatei d) => $"<div class=\"sub\">{H(d.Einstellungen.Schulname)} | Stand {DateTime.Now:dd.MM.yyyy HH:mm} | UntPlan</div>";
 
     /// <summary>HTML-Stundenplan eines Elements (Klasse, Lehrer, Raum).</summary>
     public static string StundenplanHtml(Schuldatei d, ElementTyp typ, int id)
@@ -71,7 +71,7 @@ public static class Export
         var el = ix.Element(typ, id);
         var plan = ix.PlanVon(typ, id).ToList();
         var sb = new StringBuilder();
-        sb.Append($"<div class=\"pg\"><h1>{H(el?.Kurzname)} – {H(el?.Langname)}</h1><div class=\"sub\">{H(d.Einstellungen.Schulname)} · Schuljahr {Format.Datum(d.Einstellungen.SchuljahrVon)} – {Format.Datum(d.Einstellungen.SchuljahrBis)}</div>");
+        sb.Append($"<div class=\"pg\"><h1>{H(el?.Kurzname)} ({H(el?.Langname)})</h1><div class=\"sub\">{H(d.Einstellungen.Schulname)} | Schuljahr {Format.Datum(d.Einstellungen.SchuljahrVon)} bis {Format.Datum(d.Einstellungen.SchuljahrBis)}</div>");
         var tab = d.Einstellungen.Html.TableEigenschaften.Trim();
         sb.Append($"<table class=\"tt\"{(tab.Length > 0 ? " " + tab : "")}><tr><th></th>");
         for (var t = 0; t < d.Zeitraster.TageProWoche; t++) sb.Append($"<th>{Planungsdienst.Tagname(d, t, true)}</th>");
@@ -111,7 +111,7 @@ public static class Export
     {
         var res = new Dictionary<string, string>();
         var nav = new StringBuilder("<nav><a href=\"index.html\">Übersicht</a></nav>");
-        var index = new StringBuilder($"<h1>{H(d.Einstellungen.Schulname)} – Stundenpläne</h1>");
+        var index = new StringBuilder($"<h1>{H(d.Einstellungen.Schulname)}: Stundenpläne</h1>");
         void Gruppe(string titel, ElementTyp typ, IEnumerable<Element> el, string praefix)
         {
             index.Append($"<h2>{titel}</h2><p>");
@@ -141,8 +141,8 @@ public static class Export
         if (monitor) sb.Append("<meta http-equiv=\"refresh\" content=\"60\"><style>body{background:#0b1a33;color:#fff;font-size:20px}th{background:#1d3a66;color:#fff}td{border-color:#2c4a7a}.e{color:#ff9a9a}</style>");
         foreach (var datum in tage)
         {
-            sb.Append($"<div class=\"pg\"><h1>{H(d.Einstellungen.Vertretungsplantitel)} – {Planungsdienst.TageLang[((int)datum.DayOfWeek + 6) % 7]}, {Format.Datum(datum)}</h1>");
-            sb.Append($"<div class=\"sub\">{H(d.Einstellungen.Schulname)} · Stand {DateTime.Now:dd.MM.yyyy HH:mm} · {Kalender.WochenTyp(d, datum)}-Woche</div>");
+            sb.Append($"<div class=\"pg\"><h1>{H(d.Einstellungen.Vertretungsplantitel)}: {Planungsdienst.TageLang[((int)datum.DayOfWeek + 6) % 7]}, {Format.Datum(datum)}</h1>");
+            sb.Append($"<div class=\"sub\">{H(d.Einstellungen.Schulname)} | Stand {DateTime.Now:dd.MM.yyyy HH:mm} | {Kalender.WochenTyp(d, datum)}-Woche</div>");
             foreach (var t in d.Tagestexte.Where(t => t.Datum == datum && (lehrerversion || !t.NurLehrer))) sb.Append($"<p><b>{H(t.Text)}</b></p>");
             if (lehrerversion)
             {

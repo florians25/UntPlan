@@ -180,6 +180,14 @@ public sealed class Vertretung
     public int? VonStunde { get; set; }
     /// <summary>Verknüpft beide Zeilen einer Verlegung/eines Tausches.</summary>
     public int? VerlegungsId { get; set; }
+    /// <summary>
+    /// Zeile, die durch eine Verlegung zum Entfall wurde (Ursprung einer wegverlegten Stunde, die schon eine Zeile hatte, bzw. offene Stunde,
+    /// in die eine Stunde vorgezogen wurde): bisherige Art (z. B. offene Vertretung, Vertretung, Entfall). Wird die Verlegung aufgehoben,
+    /// kehrt die Zeile in diesen Zustand zurück, statt zu verschwinden bzw. Entfall zu bleiben.
+    /// </summary>
+    public VertretungsArt? ArtVorVerlegung { get; set; }
+    /// <summary>Vertreter der Zeile vor der Verlegung (siehe <see cref="ArtVorVerlegung"/>).</summary>
+    public int? VertreterVorVerlegung { get; set; }
     /// <summary>Pausenaufsicht-Vertretung: Gang.</summary>
     public int? GangId { get; set; }
     public int? AbwesenheitId { get; set; }

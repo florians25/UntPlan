@@ -15,7 +15,7 @@ function tagHtml(t, lehrer, mitNachrichten = true) {
     lehrer && t.abwesendeLehrer.length ? `Abwesende Lehrkräfte: ${e(t.abwesendeLehrer.join(', '))}` : '',
     t.blockierteRaeume.length ? `Nicht verfügbare Räume: ${e(t.blockierteRaeume.join(', '))}` : '',
   ].filter(Boolean);
-  return `<section class="card h-100"><div class="card-header">${e(datumLang(t.datum))}${t.woche ? ` <span class="fw-normal opacity-75">· ${e(t.woche)}-Woche</span>` : ''}</div>
+  return `<section class="card h-100"><div class="card-header">${e(datumLang(t.datum))}${t.woche ? ` <span class="fw-normal opacity-75">(${e(t.woche)}-Woche)</span>` : ''}</div>
     <div class="card-body pb-0">
       ${mitNachrichten ? t.nachrichten.map(n => `<div class="nachricht">${e(n)}</div>`).join('') : ''}
       ${(t.veranstaltungen ?? []).map(v => `<div class="small mb-1"><span class="opacity-75">Veranstaltung:</span> ${e(v)}</div>`).join('')}
@@ -60,7 +60,7 @@ async function laden() {
     if (r.status === 404) { wurzel.innerHTML = '<h1 class="h3">Monitor nicht gefunden</h1><p>Der Link ist ungültig oder wurde zurückgesetzt.</p>'; return; }
     const d = await r.json();
     versatz = new Date(d.jetzt).getTime() - Date.now();
-    document.title = `${d.name} · UntPlanWeb`;
+    document.title = `${d.name} | UntPlanWeb`;
     // Monitoransichten (Administration): Nachrichten in der Kopfzeile der Tage, Laufschrift, Aktualisierungsintervall
     const anzeige = d.anzeige ?? {};
     const ticker = anzeige.ticker && d.tage[0]?.nachrichten.length ? d.tage[0].nachrichten.join('   +++   ') : '';

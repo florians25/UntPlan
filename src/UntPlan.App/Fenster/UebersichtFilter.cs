@@ -103,7 +103,7 @@ public sealed partial class UebersichtFenster
         using var dlg = new Dialoge.Dialog("Elemente auswählen", 300, 420);
         var liste = new CheckedListBox { Left = 8, Top = 8, Width = 284, Height = 340, CheckOnClick = true, IntegralHeight = false };
         var alle = Stammdaten.Sortiert(AppZustand.D, _typ).ToList();
-        foreach (var e in alle) liste.Items.Add(e.Kurzname + (e.Langname.Length > 0 ? " – " + e.Langname : ""), _auswahl is null || _auswahl.Contains(e.Id));
+        foreach (var e in alle) liste.Items.Add(e.Kurzname + (e.Langname.Length > 0 ? " (" + e.Langname + ")" : ""), _auswahl is null || _auswahl.Contains(e.Id));
         var inv = new Button { Text = "Inverse", Left = 8, Top = 356, Width = 80, Height = 26 };
         inv.Click += (_, _) => { for (var i = 0; i < liste.Items.Count; i++) liste.SetItemChecked(i, !liste.GetItemChecked(i)); };
         dlg.Controls.AddRange(new Control[] { liste, inv });

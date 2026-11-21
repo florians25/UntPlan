@@ -122,7 +122,7 @@ public sealed class DiagnoseFenster : MdiFenster
     {
         var datum = DateOnly.FromDateTime(_datum.Value);
         var montag = Kalender.Montag(datum);
-        _wocheText.Text = $"Woche {Format.Datum(montag)} – {Format.Datum(montag.AddDays(Math.Max(1, D.Zeitraster.TageProWoche) - 1))}, Schulwoche {Kalender.Schulwoche(D, datum)}";
+        _wocheText.Text = $"Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(Math.Max(1, D.Zeitraster.TageProWoche) - 1))}, Schulwoche {Kalender.Schulwoche(D, datum)}";
         using (new Dialoge.WarteCursor())
         {
             // Mehrwochenstundenplan: nur der in dieser Woche gültige Unterricht

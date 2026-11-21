@@ -71,7 +71,7 @@ export async function pruefungLoeschen(p) {
   if (!await bestaetigen('Prüfung löschen', `Prüfung „${p.titel || 'Prüfung'}“ (${(p.klassen || []).join(', ')}) am ${datumDe(p.datum)}, ${stunden} Stunde löschen?`)) return false;
   try {
     const r = await senden('/api/app/meldungen/klausur/loeschen', { datum: p.datum, stundeVon: p.stundeVon, stundeBis: p.stundeBis, klassen: p.klassen || [], titel: p.titel || null });
-    toast(r?.meldung ? 'Prüfung gelöscht – UntPlan übernimmt die Löschung beim nächsten Abgleich.' : 'Prüfung gelöscht.');
+    toast(r?.meldung ? 'Prüfung gelöscht. UntPlan übernimmt die Löschung beim nächsten Abgleich.' : 'Prüfung gelöscht.');
     return true;
   } catch (err) { toast(err.message, true); return false; }
 }

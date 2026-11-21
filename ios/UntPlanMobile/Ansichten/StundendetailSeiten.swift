@@ -2079,7 +2079,7 @@ struct SchuelerSeite: View {
             .disabled(kontrolliert)
             .accessibilityHint("Bestätigt, dass die Abwesenheiten dieser Stunde kontrolliert wurden")
         } else if liste?.darf == false {
-            leiste(Text("Nur Ansicht – die Stunde gehört nicht zu Ihrem Unterricht."))
+            leiste(Text("Nur Ansicht. Die Stunde gehört nicht zu Ihrem Unterricht."))
         }
     }
 
@@ -2097,14 +2097,14 @@ struct SchuelerSeite: View {
 
     private func untertitel(_ s: Schueler, _ f: Fehlzeiteintrag?) -> (text: String, warnung: Bool)? {
         if let f { return (f.statustext, false) }
-        if daten.inVorstundeAbwesend(s) { return ("War in Vorstunde abwesend!", true) }
+        if daten.inVorstundeAbwesend(s) { return ("In der Vorstunde abwesend", true) }
         var teile: [String] = []
         let dienste = daten.dienste[s.id] ?? []
         if !dienste.isEmpty { teile.append(dienste.joined(separator: ", ")) }
         if teile.isEmpty, (liste?.schueler.contains { $0.klasse != s.klasse }) == true, !s.klasse.isEmpty {
             teile.append(s.klasse)
         }
-        return teile.isEmpty ? nil : (teile.joined(separator: " · "), false)
+        return teile.isEmpty ? nil : (teile.joined(separator: ", "), false)
     }
 
     private func zeile(_ s: Schueler) -> some View {
@@ -2184,7 +2184,7 @@ struct SchuelerSeite: View {
     private func abwesendZeile(_ s: Schueler) -> some View {
         if let f = daten.fehlzeit(s) {
             let status = f.status == "entschuldigt" ? "entschuldigt" : f.status == "unentschuldigt" ? "nicht entschuldigt" : "offen"
-            let unter = [abwesenheitszeit(f), f.statustext, status].filter { !$0.isEmpty }.joined(separator: " · ")
+            let unter = [abwesenheitszeit(f), f.statustext, status].filter { !$0.isEmpty }.joined(separator: ", ")
             HStack(spacing: 14) {
                 Group {
                     if speichert == s.id {
@@ -2211,7 +2211,7 @@ struct SchuelerSeite: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Farben.gedaempft)
                         .lineLimit(2)
-                    let text = [daten.grundName(f.grund), f.text].filter { !$0.isEmpty }.joined(separator: " – ")
+                    let text = [daten.grundName(f.grund), f.text].filter { !$0.isEmpty }.joined(separator: ": ")
                     if !text.isEmpty {
                         Text(text)
                             .font(.system(size: 14))

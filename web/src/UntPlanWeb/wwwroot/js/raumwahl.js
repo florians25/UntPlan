@@ -30,7 +30,7 @@ const KAPAZITAETEN = [10, 15, 20, 25, 30, 40, 60, 100];
 let zaehler = 0;
 
 /** Belegung eines Raums als Text (Tooltip). */
-export const belegtText = r => (r.belegt ?? []).map(b => `${b.stunde}. Std.: ${STATUS_ART[b.art] ?? b.art}${b.text ? ` – ${b.text}` : ''}`).join('\n');
+export const belegtText = r => (r.belegt ?? []).map(b => `${b.stunde}. Std.: ${STATUS_ART[b.art] ?? b.art}${b.text ? ` (${b.text})` : ''}`).join('\n');
 
 /**
  * Eine Listenzeile. r: { kurz, name, kapazitaet, frei, belegt } bzw. eigener Status (status: { klasse, text, titel }).
@@ -339,7 +339,7 @@ export function raumListe(ziel, optionen = {}) {
     const freiAnzahl = raeume.filter(frei).length;
     const gefiltert = !!(f.suche || f.gebaeude || f.abteilung || f.raumart || f.kapazitaet);
     ziel.querySelector('[data-rw-reset]').hidden = !gefiltert;
-    ziel.querySelector('[data-rw-zahl]').innerHTML = `${sichtbar.length === raeume.length ? `<b>${raeume.length}</b> ${raeume.length === 1 ? 'Raum' : 'Räume'}` : `<b>${sichtbar.length}</b> von ${raeume.length} Räumen`} · ${freiAnzahl} frei`;
+    ziel.querySelector('[data-rw-zahl]').innerHTML = `${sichtbar.length === raeume.length ? `<b>${raeume.length}</b> ${raeume.length === 1 ? 'Raum' : 'Räume'}` : `<b>${sichtbar.length}</b> von ${raeume.length} Räumen`}, ${freiAnzahl} frei`;
     const l = ziel.querySelector('[data-rw-liste]');
     const ohne = optionen.ohne ? `<div class="rw-opt frei ${!gewaehlt ? 'gewaehlt' : ''}" role="option" tabindex="0" data-kurz="" aria-selected="${!gewaehlt}">
         <span class="rw-wahl radio" aria-hidden="true"></span><span class="rw-text"><span class="rw-kurz">${e(optionen.ohne)}</span></span><span class="rw-kap"></span><span></span></div>` : '';

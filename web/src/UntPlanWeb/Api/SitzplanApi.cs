@@ -82,7 +82,7 @@ public static class SitzplanApi
         }
         if (k.Raeume.Count > 0) teile.Add("Raum " + string.Join(", ", k.Raeume));
         if (bereich is not null) teile.Add("gilt für: " + (bereich switch { Sitzplandienst.Klasse => "Klasse", Sitzplandienst.Unterricht => "Unterricht", _ => "Raum" }));
-        return string.Join(" · ", teile);
+        return string.Join(", ", teile);
     }
 
     public static void Abbilden(RouteGroupBuilder api)

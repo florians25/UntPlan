@@ -192,7 +192,7 @@ export async function unterrichtswechsel(el, vorgabeKlasse, nachher) {
     knopfWeiter.textContent = st.schritt === SCHRITTE.length - 1 ? 'Speichern' : 'Weiter';
     const kopf = `<div class="ug-schritte">${SCHRITTE.map((t, i) => `<span class="ug-schritt ${i === st.schritt ? 'aktiv' : i < st.schritt ? 'fertig' : ''}"><b>${i + 1}</b>${t}</span>`).join('')}</div>`;
     if (st.schritt === 0) {
-      inhalt.innerHTML = `${kopf}<div class="ug-frage">In welchem Zeitraum besuchen die Schüler*innen einen anderen Unterricht?</div>
+      inhalt.innerHTML = `${kopf}<div class="ug-frage">Zeitraum, in dem die Schüler*innen einen anderen Unterricht besuchen:</div>
         <div class="ug-felder"><label>Von<input type="date" data-von value="${st.von}"></label><label>Bis<input type="date" data-bis value="${st.bis}"></label></div>
         <p class="ug-hinweis">Zum Beispiel während einer Klassenfahrt für Schüler*innen, die nicht mitfahren.</p>`;
       inhalt.querySelector('[data-von]').onchange = ev => { st.von = ev.target.value; if (st.bis < st.von) { st.bis = st.von; inhalt.querySelector('[data-bis]').value = st.bis; } };

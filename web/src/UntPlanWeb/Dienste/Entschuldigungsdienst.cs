@@ -89,8 +89,8 @@ public sealed class Entschuldigungsdienst
         if (!einst.FachlehrerJahrgangErlaubt(Jahrgang(s, z.Klasse))) return (false, false, "Für diese Jahrgangsstufe sind Fachlehrer-Entschuldigungen nicht freigegeben.");
         if (z.Status != "offen")
             return (false, true, ent?.Rolle == RolleFachlehrer
-                ? $"Bereits von {ent.Lehrer} {(z.Status == "entschuldigt" ? "entschuldigt" : "als nicht entschuldigt markiert")} – der Status kann nicht mehr geändert werden."
-                : $"Von der Klassenleitung {(z.Status == "entschuldigt" ? "entschuldigt" : z.Status == "unentschuldigt" ? "als nicht entschuldigt markiert" : "bearbeitet")} – der Status kann nicht mehr geändert werden.");
+                ? $"Bereits von {ent.Lehrer} {(z.Status == "entschuldigt" ? "entschuldigt" : "als nicht entschuldigt markiert")}. Der Status kann nicht mehr geändert werden."
+                : $"Von der Klassenleitung {(z.Status == "entschuldigt" ? "entschuldigt" : z.Status == "unentschuldigt" ? "als nicht entschuldigt markiert" : "bearbeitet")}. Der Status kann nicht mehr geändert werden.");
         return (true, false, "");
     }
 
@@ -193,7 +193,7 @@ public sealed class Entschuldigungsdienst
     public EntschuldigungsAbwesenheit Detail(Benutzer b, Stand s, IEnumerable<int> ids)
     {
         var liste = Holen(ids);
-        if (liste.Count == 0) throw new ArgumentException("Die Abwesenheit gibt es nicht mehr – bitte die Liste neu laden.");
+        if (liste.Count == 0) throw new ArgumentException("Die Abwesenheit ist nicht mehr vorhanden. Bitte laden Sie die Liste neu.");
         if (liste.Select(f => f.SchuelerId).Distinct().Count() != 1) throw new ArgumentException("Bitte die Fehlstunden genau einer Abwesenheit angeben.");
         var kl = liste.All(f => Klassenbuchdienst.IstKlassenleitung(b, s, f.Klasse) || Rechtedienst.Darf(b, Recht.AbwesenheitAlle));
         if (!kl)
@@ -246,7 +246,7 @@ public sealed class Entschuldigungsdienst
         var t = Text(text);
         var am = DatumOderHeute(datum, _uhr.Heute);
         var liste = Holen(ids);
-        if (liste.Count == 0) throw new ArgumentException("Die Fehlstunden gibt es nicht mehr – bitte die Liste neu laden.");
+        if (liste.Count == 0) throw new ArgumentException("Die Fehlstunden sind nicht mehr vorhanden. Bitte laden Sie die Liste neu.");
         var zeilen = _kb.Fehlzeilen(s, liste).ToDictionary(z => z.Id);
         var ent = Entschuldigungen(liste);
         var gesperrt = new List<int>();
@@ -283,7 +283,7 @@ public sealed class Entschuldigungsdienst
     {
         if (status is not ("entschuldigt" or "unentschuldigt" or "offen")) throw new ArgumentException("Unbekannter Status.");
         var liste = Holen(ids);
-        if (liste.Count == 0) throw new ArgumentException("Die Abwesenheit gibt es nicht mehr – bitte die Liste neu laden.");
+        if (liste.Count == 0) throw new ArgumentException("Die Abwesenheit ist nicht mehr vorhanden. Bitte laden Sie die Liste neu.");
         foreach (var f in liste)
         {
             if (!Klassenbuchdienst.DarfEntschuldigen(b, s, f.Klasse)) throw new UnauthorizedAccessException("Die ganze Abwesenheit entschuldigt die Klassenleitung.");

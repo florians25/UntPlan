@@ -518,7 +518,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         _ueberblick.TabPages[0].Text = $"Entfälle ({nEntf})";
         _ueberblick.TabPages[1].Text = $"Vertretungen ({vertr.Count})";
         _ueberblickSumme.Text = lehrer != null
-            ? $" {nEntf} nicht gehaltene Einheiten, davon zählen {nicht.Count(f => zaehlt.TryGetValue(f.Vertretung!, out var z) && z)} · {vertr.Count} Vertretungen, davon zählen {vertr.Count(v => zaehlt.TryGetValue(v, out var z) && z)}"
+            ? $" {nEntf} nicht gehaltene Einheiten, davon zählen {nicht.Count(f => zaehlt.TryGetValue(f.Vertretung!, out var z) && z)}, {vertr.Count} Vertretungen, davon zählen {vertr.Count(v => zaehlt.TryGetValue(v, out var z) && z)}"
             : $" {nEntf} nicht gehaltene Einheiten, davon {nicht.Count(f => f.Status == Statistik.FallStatus.Vertretung)} vertreten";
     }
 
@@ -547,14 +547,14 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
             schrift = dlg.Schrift;
         }
         var teile = abschnitte.Where(x => !_druckOhne.Contains(x.Item1)).Select(x => x.Item2).ToList();
-        var titel = $"Vertretungsstatistik {Format.Datum(Von)} - {Format.Datum(Bis)}" + (_detailTyp is { } t ? $" – {Ix.K(t, _detailId)}" : "");
+        var titel = $"Vertretungsstatistik {Format.Datum(Von)} bis {Format.Datum(Bis)}" + (_detailTyp is { } t ? $": {Ix.K(t, _detailId)}" : "");
         var sb = new System.Text.StringBuilder($"<div class=\"pg\"><h1>{H(titel)}</h1><div class=\"sub\">{H(D.Einstellungen.Schulname)}</div>");
         foreach (var a in teile)
         {
             if (a == _aZeitraum)
             {
                 var faelle = Gefiltert().ToList();
-                sb.Append($"<h2>Zeitbereich</h2><p>{faelle.Count(x => x.Status == Statistik.FallStatus.Planmaessig)} Planmäßig · {faelle.Count(x => x.Status == Statistik.FallStatus.Vertretung)} Vertretungen · {faelle.Count(x => x.Status == Statistik.FallStatus.Entfall)} Entfall · {faelle.Count} Gesamt</p>");
+                sb.Append($"<h2>Zeitbereich</h2><p>{faelle.Count(x => x.Status == Statistik.FallStatus.Planmaessig)} Planmäßig, {faelle.Count(x => x.Status == Statistik.FallStatus.Vertretung)} Vertretungen, {faelle.Count(x => x.Status == Statistik.FallStatus.Entfall)} Entfall, {faelle.Count} gesamt</p>");
                 continue;
             }
             var g = a == _aLehrer ? _lehrer : a == _aStunden ? _stunden : a == _aWoche ? _woche : _gruende;
@@ -845,7 +845,7 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
         return zeilen;
     }
 
-    public string ExcelName => _reiter.SelectedTab == _seiteBerichte ? BerichtTitel : $"Vertretungsstatistik {Format.Datum(Von)} - {Format.Datum(Bis)}";
+    public string ExcelName => _reiter.SelectedTab == _seiteBerichte ? BerichtTitel : $"Vertretungsstatistik {Format.Datum(Von)} bis {Format.Datum(Bis)}";
 
     /// <summary>
     /// Excel-Export der aktiven Seite: Karteikarte „Berichte“ – der Bericht wie beim Export; Übersicht – Lehrerübersicht,

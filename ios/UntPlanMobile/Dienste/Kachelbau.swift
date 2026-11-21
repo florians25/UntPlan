@@ -1492,7 +1492,8 @@ enum Kachelbau {
         let klasse = klein.hasPrefix("klasse abwesend")
         guard klasse || klein.hasPrefix("abwesend") else { return nil }
         // Teil vor dem Grund („ – Grund“)
-        let teil = String(klein.split(separator: "–", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
+        let vorGrund = klein.components(separatedBy: ": ").first ?? klein
+        let teil = String(vorGrund.split(separator: "–", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
         let zahlen = teil.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
         guard let von = zahlen.first else { return (1, nil, klasse) }
         if teil.contains(" ab ") { return (von, nil, klasse) }

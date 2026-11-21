@@ -201,7 +201,7 @@ public static class Diagnose
             {
                 var name = x.ElementTyp == ElementTyp.Unterricht ? $"U{x.ElementId}" : ix.K(x.ElementTyp, x.ElementId);
                 var zeit = x.Tag >= 0 ? $"{Planungsdienst.Tagname(d, x.Tag)}{(x.Stunde > 0 ? " " + x.Stunde + "." : "")}" : "Woche";
-                var detail = x.Text + (x.UnterrichtId is int uid && ix.Unterrichte.TryGetValue(uid, out var u) ? $" – {ix.UnterrichtText(u)}" : "");
+                var detail = x.Text + (x.UnterrichtId is int uid && ix.Unterrichte.TryGetValue(uid, out var u) ? $": {ix.UnterrichtText(u)}" : "");
                 p.Faelle.Add(new DiagnoseFall(name, x.UnterrichtId, zeit, detail, x.ElementTyp, x.ElementId));
             }
             punkte.Add(p);

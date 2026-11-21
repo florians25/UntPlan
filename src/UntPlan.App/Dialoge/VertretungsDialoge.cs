@@ -500,11 +500,11 @@ public static class SondereinsatzDialog
             var wer = string.Join(", ", new[] { k.Lehrer ? string.Join(",", k.Eintrag.LehrerIds.Select(ix.KLehrer)) : "", k.Klasse ? ix.KKlassen(k.Eintrag.KlassenIds) : "" }.Where(x => x.Length > 0));
             var fach = k.Eintrag.FachId is int fid ? d.Faecher.FirstOrDefault(x => x.Id == fid)?.Kurzname ?? "" : "";
             var folge = k.Folge == VertretungsArt.Entfall ? "entfällt" : "wird offene Vertretung";
-            return $"• {Format.Datum(k.Datum)}, {k.Stunde}. Std.: {fach} {ix.KKlassen(k.Eintrag.KlassenIds)} – {wer} hat bereits Unterricht ({folge})";
+            return $"• {Format.Datum(k.Datum)}, {k.Stunde}. Std.: {fach} {ix.KKlassen(k.Eintrag.KlassenIds)}: {wer} hat bereits Unterricht ({folge})";
         }
         var liste = string.Join("\n", kollisionen.Take(12).Select(Text)) + (kollisionen.Count > 12 ? $"\n… und {kollisionen.Count - 12} weitere" : "");
         var wahl = Ui.Auswahl($"Der Sondereinsatz kollidiert mit vorhandenem Unterricht:\n\n{liste}\n\nWie soll mit diesem Unterricht verfahren werden?",
-            "Sondereinsatz – Kollision", new[] { "Auflösen (Vertretung/Entfall)", "Unterricht belassen", "Abbrechen" }, 0, null, owner);
+            "Sondereinsatz: Kollision", new[] { "Auflösen (Vertretung/Entfall)", "Unterricht belassen", "Abbrechen" }, 0, null, owner);
         return wahl switch { 0 => true, 1 => false, _ => null };
     }
 
@@ -892,7 +892,7 @@ public static class KlausurDialog
         {
             // aus UntPlanWeb übernommene Prüfung: nur Lehrkraft und Raum änderbar, keine Verlegung
             foreach (var c in new Control[] { name, dat, von, bis, kl, ent, tx, bKurse }) c.Enabled = false;
-            f.Text = "Klausur (aus UntPlanWeb – nur Lehrer und Raum änderbar)";
+            f.Text = "Klausur (aus UntPlanWeb, nur Lehrkraft und Raum änderbar)";
         }
         // Frage bei belegtem Raum (wie im Handbuch Kap. 11.2): nicht verplanen, mit Kollision, ohne Kollision (Raumvertretung)
         f.FormClosing += (_, ev) =>
@@ -905,7 +905,7 @@ public static class KlausurDialog
             };
             var belegt = Klausurraeume.Belegungen(d, probe);
             if (belegt.Count == 0) { k.RaumVerdraengen = false; return; }
-            var text = "Kollision! " + string.Join("\n", belegt.GroupBy(b => b.RaumId).Select(gr =>
+            var text = "Kollision: " + string.Join("\n", belegt.GroupBy(b => b.RaumId).Select(gr =>
                 $"Der Raum {ix.KRaum(gr.Key)} ist bereits verplant: " + string.Join(", ", gr.Select(b => $"{b.Stunde}. Std. {ix.KKlassen(b.Eintrag.KlassenIds)} {ix.KFach(b.Eintrag.FachId)}".Trim()).Distinct()) + "."));
             var w = OptionenDialog.Fragen(f, "Frage", text, new[] { "Raum nicht verplanen", "Raum mit Kollision verplanen", "Raum ohne Kollision verplanen (erzeugt Raumvertretung)" }, k.RaumVerdraengen ? 2 : 0);
             if (w is null) { ev.Cancel = true; return; }
@@ -1055,7 +1055,7 @@ public static class TagestextDialog
     public static void Zeigen(IWin32Window owner, DateOnly datum)
     {
         var d = AppZustand.D;
-        using var f = new Dialog($"Nachrichten zum Tag – {Format.Datum(datum)}", 720, 360);
+        using var f = new Dialog($"Nachrichten zum Tag: {Format.Datum(datum)}", 720, 360);
         var g = new DataGridView { Left = 10, Top = 10, Width = 700, Height = 300 };
         Ui.RasterGestalten(g, true);
         g.AllowUserToAddRows = true;
@@ -1212,7 +1212,7 @@ public static class VertretungsEinstellungenDialog
         tz.Controls.Add(raster);
         tz.Controls.Add(new Label
         {
-            Text = "Klick wechselt: leer = vertreten · E = Unterricht entfällt bei Absenz des Lehrers · EVA = eigenverantwortliches Arbeiten.\nEin Klassenzeitraster hat Vorrang vor dem Zeitraster der Schule.",
+            Text = "Klick wechselt: leer = vertreten, E = Unterricht entfällt bei Absenz der Lehrkraft, EVA = eigenverantwortliches Arbeiten.\nEin Klassenzeitraster hat Vorrang vor dem Zeitraster der Schule.",
             Left = 10, Top = 350, Width = 620, Height = 40, ForeColor = Color.DimGray,
         });
         RasterFuellen();
@@ -1351,7 +1351,7 @@ public static class VertretungsEinstellungenDialog
         var eab = Ui.Zeile(ta, "Entfall sinnvoll ab Jahrgang:", new TextBox { Text = d.Einstellungen.EntfallAbJahrgang }, ref y, 260, 70);
         ta.Controls.Add(new Label
         {
-            Text = "NRW: Mehrarbeit ist vergütungsfähig, wenn im Kalendermonat mehr als die Mehrarbeitsgrenze (bei Teilzeit anteilig)\ngeleistet wurde – dann sind alle Stunden vergütungsfähig. Minderstunden (Entfall/Freisetzung) werden verrechnet.",
+            Text = "NRW: Mehrarbeit ist vergütungsfähig, wenn im Kalendermonat mehr als die Mehrarbeitsgrenze (bei Teilzeit anteilig)\ngeleistet wurde. In diesem Fall sind alle Stunden vergütungsfähig. Minderstunden (Entfall/Freisetzung) werden verrechnet.",
             Left = 15, Top = y + 4, Width = 620, Height = 40, ForeColor = Color.DimGray,
         });
         y += 50;
@@ -1421,7 +1421,7 @@ public static class VertretungsEinstellungenDialog
         var nNur = Ui.Zeile(tn, "", new CheckBox { Text = "Nur seit der letzten Nachricht geänderte Vertretungen senden", Checked = lokal.NachrichtenNurGeaenderte, AutoSize = true, Font = Lokal }, ref y, 120);
         tn.Controls.Add(new Label
         {
-            Text = "Platzhalter: {Name}, {Kurzname}, {Datum}, {Zeilen}, {Anzahl} – je Vertretung: {Tag}, {Datum}, {Stunde}, {Art}, {Klassen}, {Fach}, {Raum}, {Lehrer}, {Text}.\n" +
+            Text = "Platzhalter: {Name}, {Kurzname}, {Datum}, {Zeilen}, {Anzahl}; je Vertretung: {Tag}, {Datum}, {Stunde}, {Art}, {Klassen}, {Fach}, {Raum}, {Lehrer}, {Text}.\n" +
                    "Versand: Vertretungsplanung › Ausgabe › Vertretungsnachrichten (E-Mail-Adresse in den Stammdaten der Lehrer).",
             Left = 10, Top = y + 4, Width = 620, Height = 44, ForeColor = Color.DimGray,
         });
@@ -1482,7 +1482,7 @@ public static class VertretungsEinstellungenDialog
             }
             FarbenZeigen(bg.Rows[ev.RowIndex]);
         };
-        new ToolTip().SetToolTip(bg, "Klick in „Vordergrund“ bzw. „Hintergrund“: Farbe wählen – rechte Maustaste: Standardfarbe");
+        new ToolTip().SetToolTip(bg, "Klick in „Vordergrund“ bzw. „Hintergrund“: Farbe wählen. Rechte Maustaste: Standardfarbe");
         tb.Controls.Add(bg);
 
         // Baum wie im Handbuch: Vertretungsplanung mit den Unterseiten. Kursiv = nur lokal gespeicherte Einstellungen (alle Steuerelemente

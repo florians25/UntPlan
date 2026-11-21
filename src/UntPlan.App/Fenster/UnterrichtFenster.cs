@@ -361,7 +361,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(VerknuepfenKnopf());
         var kopplung = Knopf("Kopplungszeile", "plus", KopplungszeileNeu, false);
-        kopplung.ToolTipText = "Kopplungszeile zum gewählten Unterricht hinzufügen (weiterer Lehrer bzw. weitere Gruppe) – Strg+R";
+        kopplung.ToolTipText = "Kopplungszeile zum gewählten Unterricht hinzufügen (weitere Lehrkraft bzw. weitere Gruppe) (Strg+R)";
         ts.Items.Add(kopplung);
         ts.Items.Add(Knopf("Kopplungszeile löschen", "minus", KopplungszeileLoeschen));
         _rueckgaengig = Knopf("Rückgängig", "rueckgaengig", () =>
@@ -504,7 +504,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         Controls.Add(_split);
         Controls.Add(unten);
         Controls.Add(ts);
-        Hinweis("Neuer Unterricht: in der Zeile „+ neu“ Fach, Lehrer und – falls nötig – Klasse eingeben – Enter/Tab springt zum nächsten Feld, Esc verwirft die Eingabe.", HinweisArt.Info);
+        Hinweis("Neuer Unterricht: In der Zeile „+ neu“ Fach, Lehrkraft und bei Bedarf Klasse eingeben. Enter/Tab springt zum nächsten Feld, Esc verwirft die Eingabe.", HinweisArt.Info);
         Load += (_, _) => _split.SplitterDistance = Math.Max(80, _split.Height - 150);
         FormularAufbauen();
 
@@ -886,7 +886,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         _hinweisFestUid = null;
         if (_grid.CurrentRow is { Tag: null })
         {
-            Hinweis("Neuer Unterricht: Fach, Lehrer und – falls nötig – Klasse eingeben (Alt+↓ öffnet die Auswahl mit Langnamen) – Enter/Tab springt zum nächsten Feld.", HinweisArt.Info);
+            Hinweis("Neuer Unterricht: Fach, Lehrkraft und bei Bedarf Klasse eingeben (Alt+↓ öffnet die Auswahl mit Langnamen). Enter/Tab springt zum nächsten Feld.", HinweisArt.Info);
             return;
         }
         if (Aktuell() is not { } zt) return;
@@ -896,7 +896,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (pflicht.Count > 0) Hinweis($"U-Nr. {u.Id}: {string.Join(" ", fehlt)}", HinweisArt.Warnung);
         else
             Hinweis($"U-Nr. {u.Id}: {Ix.UnterrichtText(u)}, {u.Wochenstunden} Wst" + (Ix.NichtVerplant(u) > 0 ? $", {Ix.NichtVerplant(u)} nicht verplant" : ", vollständig verplant") +
-                    (fehlt.Count > 0 ? " – " + string.Join(" ", fehlt) : ""), HinweisArt.Info);
+                    (fehlt.Count > 0 ? ". " + string.Join(" ", fehlt) : ""), HinweisArt.Info);
     }
 
     /// <summary>Enter/Tab: Eingabe übernehmen (nur wenn gültig) und zum nächsten bearbeitbaren Feld (Umschalt: zurück).</summary>
@@ -1129,7 +1129,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                 ids.ForEach(id => Stammdaten.UnterrichtLoeschen(d, id));
             })) Neuaufbau();
         }
-        else Hinweis($"{ids.Count} Unterricht(e) kopiert – mit Strg+V einfügen (z. B. nach Wechsel zu einer anderen Klasse).", HinweisArt.Ok, true);
+        else Hinweis($"{ids.Count} Unterricht(e) kopiert. Mit Strg+V einfügen (z. B. nach Wechsel zu einer anderen Klasse).", HinweisArt.Ok, true);
     }
 
     private static readonly Dictionary<int, Unterricht> _ausgeschnitten = new();
@@ -1196,7 +1196,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         var weitere = ids.Skip(1).ToList();
         var wst = D.Unterrichte.Where(u => ids.Contains(u.Id)).Select(u => u.Wochenstunden).Distinct().ToList();
         var text = $"Sollen die Unterrichte {string.Join(", ", ids)} gekoppelt werden?\n\nDie Kopplungszeilen kommen zum Unterricht {ziel}; verplante Stunden der übrigen Unterrichte werden entplant.";
-        if (wst.Count > 1) text += $"\n\nAchtung: unterschiedliche Wochenstunden – die Kopplung übernimmt {D.Unterrichte.First(u => u.Id == ziel).Wochenstunden} Wst.";
+        if (wst.Count > 1) text += $"\n\nAchtung: unterschiedliche Wochenstunden. Die Kopplung übernimmt {D.Unterrichte.First(u => u.Id == ziel).Wochenstunden} Wst.";
         if (fragen && !Ui.Frage(text)) return;
         if (Aendern("Koppeln", AenderungsArt.Unterricht, d => Unterrichtswerkzeuge.Koppeln(d, ziel, weitere)))
         {
@@ -1366,7 +1366,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             Neuaufbau();
             var namen = string.Join(", ", ids.Select(id => D.Unterrichte.FirstOrDefault(u => u.Id == id)?.Kursname).Where(n => !string.IsNullOrEmpty(n)));
-            Hinweis($"Als Kurs übernommen: {namen}" + (schueler > 0 ? $" – {schueler} Kurswahl(en) eingetragen." : "."), HinweisArt.Ok, true);
+            Hinweis($"Als Kurs übernommen: {namen}" + (schueler > 0 ? $". {schueler} Kurswahl(en) eingetragen." : "."), HinweisArt.Ok, true);
         }
     }
 
@@ -1452,10 +1452,10 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             if (behindernd.Count > 0)
             {
                 var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd,
-                    $"U-Nr. {tag.U.Id}: {s.Titel} „{text}“ – der Unterricht ist bereits verplant; zu den verplanten Zeiten hat {(s.Key == "Klassen" ? "die Klasse" : "die Lehrkraft")} schon Unterricht.");
+                    $"U-Nr. {tag.U.Id}: {s.Titel} „{text}“: Der Unterricht ist bereits verplant; zu den verplanten Zeiten hat {(s.Key == "Klassen" ? "die Klasse" : "die Lehrkraft")} schon Unterricht.");
                 if (antwort == BehinderungsAntwort.Abbrechen)
                 {
-                    Hinweis($"Abgebrochen – {s.Titel} von U-Nr. {tag.U.Id} bleibt unverändert.", HinweisArt.Info, true);
+                    Hinweis($"Abgebrochen. {s.Titel} von U-Nr. {tag.U.Id} bleibt unverändert.", HinweisArt.Info, true);
                     NachZellwechsel(Neuaufbau);
                     return;
                 }
@@ -1474,7 +1474,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             }
         }))
             Hinweis($"Gespeichert: {s.Titel} = „{text}“ (U-Nr. {string.Join(", ", ziele.Select(z => z.U.Id).Distinct())})" +
-                    (weg.Count > 0 ? $", {weg.Count} behindernde Stunde(n) entplant" : "") + " – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, tag.U.Id);
+                    (weg.Count > 0 ? $", {weg.Count} behindernde Stunde(n) entplant" : "") + ". Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, tag.U.Id);
         NachZellwechsel(Neuaufbau);
     }
 
@@ -1506,7 +1506,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                     namen.Add(name);
                 }
             }))
-                Hinweis($"Schülergruppen eingetragen: {string.Join(", ", namen.Where(n => n.Length > 0).Distinct())} (U-Nr. {string.Join(", ", ids)}) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, ids[0]);
+                Hinweis($"Schülergruppen eingetragen: {string.Join(", ", namen.Where(n => n.Length > 0).Distinct())} (U-Nr. {string.Join(", ", ids)}). Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, ids[0]);
             return;
         }
         var un = ziele[0];
@@ -1532,7 +1532,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                 "Sie können nun,\n\n• die Änderung in allen Perioden (auch in Mutterperioden) durchführen.\n\n" +
                 $"• einen neuen Unterricht für {Ix.KKlassen(un.KlassenIds)}, {Ix.KFach(un.HauptfachId)} anlegen. Alle Eigenschaften des ursprünglichen Unterrichts werden dabei kopiert, der ursprüngliche Unterricht aus der aktiven Periode entfernt.",
                 "Frage", new[] { "In allen Perioden", "Neuer Unterricht", "Abbrechen" }, 0, owner: this);
-            if (wahl is null or 2) { Hinweis($"Abgebrochen – die Schülergruppe von U-Nr. {un.Id} bleibt unverändert.", HinweisArt.Info, true); return; }
+            if (wahl is null or 2) { Hinweis($"Abgebrochen. Die Schülergruppe von U-Nr. {un.Id} bleibt unverändert.", HinweisArt.Info, true); return; }
             if (wahl == 1)
             {
                 var neu = 0;
@@ -1541,15 +1541,15 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                 return;
             }
             if (Aendern("Unterricht: Schülergruppe (alle Perioden)", AenderungsArt.Unterricht, d => Schuelergruppen.InAllenPerioden(d, un.Id, eingabe)))
-                Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}, alle Perioden) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
+                Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}, alle Perioden). Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
             return;
         }
         if (Aendern("Unterricht: Schülergruppe", AenderungsArt.Unterricht, d => { if (d.Unterrichte.FirstOrDefault(x => x.Id == un.Id) is { } u) u.Schuelergruppe = eingabe; }))
         {
             // geleert, aber „Schülergruppen automatisch anlegen“ ist eingeschaltet: der Unterricht hat wieder den automatischen Namen
             if (eingabe.Length == 0 && D.Unterrichte.FirstOrDefault(x => x.Id == un.Id)?.Schuelergruppe is { Length: > 0 } auto)
-                Hinweis($"U-Nr. {un.Id} erhält automatisch die Schülergruppe „{auto}“ – zum Leeren „Schülergruppen automatisch anlegen“ im Kontextmenü ausschalten.", HinweisArt.Info, true, un.Id);
-            else Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}) – Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
+                Hinweis($"U-Nr. {un.Id} erhält automatisch die Schülergruppe „{auto}“. Zum Leeren „Schülergruppen automatisch anlegen“ im Kontextmenü ausschalten.", HinweisArt.Info, true, un.Id);
+            else Hinweis($"Gespeichert: Schülergruppe = „{eingabe}“ (U-Nr. {un.Id}). Strg+Z macht die Änderung rückgängig.", HinweisArt.Ok, true, un.Id);
         }
     }
 
@@ -1560,7 +1560,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         if (Aendern("Schülergruppen anlegen", AenderungsArt.Unterricht, d => n = Schuelergruppen.Ergaenzen(d, true)))
         {
             Neuaufbau();
-            Hinweis(n > 0 ? $"{n} Schülergruppe(n) nach dem Muster Fach_Klassen_Lehrkraft angelegt – vorhandene Schülergruppen blieben unverändert."
+            Hinweis(n > 0 ? $"{n} Schülergruppe(n) nach dem Muster Fach_Klassen_Lehrkraft angelegt. Vorhandene Schülergruppen bleiben unverändert."
                 : "Alle Unterrichte mit Fach, Klasse und Lehrkraft haben bereits eine Schülergruppe.", HinweisArt.Ok, true);
         }
     }
@@ -1575,7 +1575,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         }))
         {
             _neuId = neu?.Id;
-            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt ({s.Titel} = „{text}“) – weitere Felder eintragen; Strg+Z macht die Anlage rückgängig.", HinweisArt.Ok, true, neu?.Id);
+            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt ({s.Titel} = „{text}“). Weitere Felder eintragen; Strg+Z macht die Anlage rückgängig.", HinweisArt.Ok, true, neu?.Id);
             NachZellwechsel(Neuaufbau);
         }
     }
@@ -1618,7 +1618,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             var zeile = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == neu?.Id);
             var spalte = new[] { "Fach", "Lehrer", "Klassen", "Wst" }.FirstOrDefault(n => _grid.Columns.Contains(n) && _grid.Columns[n]!.Visible);
             if (zeile != null && spalte != null) _grid.CurrentCell = zeile.Cells[spalte];
-            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt – bitte Fach, Lehrer und ggf. Klasse eintragen (Enter springt weiter).", HinweisArt.Ok, true, neu?.Id);
+            Hinweis($"Neuer Unterricht U-Nr. {neu?.Id} angelegt. Bitte Fach, Lehrkraft und ggf. Klasse eintragen (Enter springt weiter).", HinweisArt.Ok, true, neu?.Id);
         }
     }
 
@@ -1652,7 +1652,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             var zeile = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(r => r.Tag is ZeilenTag zt && zt.U.Id == t.U.Id && zt.Index == nr - 1);
             var spalte = new[] { "Lehrer", "Fach", "Klassen" }.FirstOrDefault(n => _grid.Columns.Contains(n) && _grid.Columns[n]!.Visible);
             if (zeile != null && spalte != null) { _grid.ClearSelection(); _grid.CurrentCell = zeile.Cells[spalte]; }
-            Hinweis($"Kopplungszeile {nr} zu U-Nr. {t.U.Id} angelegt (Klassen und Fach übernommen) – jetzt den Lehrer der Zeile eintragen.", HinweisArt.Ok, true);
+            Hinweis($"Kopplungszeile {nr} zu U-Nr. {t.U.Id} angelegt (Klassen und Fach übernommen). Tragen Sie jetzt die Lehrkraft der Zeile ein.", HinweisArt.Ok, true);
         }
     }
 
@@ -1854,7 +1854,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
                     erste = false;
                 }
             }
-            var titel = $"{Ui.TypName(_sicht)} {el.Kurzname}{(el.Langname.Length > 0 ? " – " + el.Langname : "")}";
+            var titel = $"{Ui.TypName(_sicht)} {el.Kurzname}{(el.Langname.Length > 0 ? " (" + el.Langname + ")" : "")}";
             abschnitte.Add(new UnterrichtDruck.Abschnitt(titel, zeilen, o.Stundenwuensche ? new List<string>() : UnterrichtDruck.Zusatzzeilen(D, Ix, el, o)));
         }
         var layoutTitel = o.Stundenwuensche ? $"Stundenwünsche {Ui.TypName(_sicht, true)}" : UnterrichtDruck.LayoutTitel(_sicht);

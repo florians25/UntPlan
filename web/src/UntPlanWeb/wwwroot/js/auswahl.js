@@ -91,7 +91,7 @@ export function menueOeffnen(anker, eintraege, optionen = {}) {
         ${!mehrfach && an ? '<i class="bi bi-check-lg au-haken" aria-hidden="true"></i>' : ''}</div>`;
     });
     if (!sichtbar.length) html = `<div class="au-leer"><i class="bi bi-search" aria-hidden="true"></i>${esc(leerText)}${eingabe.value ? ` für „${esc(eingabe.value)}“` : ''}</div>`;
-    else if (treffer.length > sichtbar.length) html += `<div class="au-mehr">${treffer.length - sichtbar.length} weitere – bitte die Suche verfeinern</div>`;
+    else if (treffer.length > sichtbar.length) html += `<div class="au-mehr">${treffer.length - sichtbar.length} weitere Treffer. Bitte verfeinern Sie die Suche.</div>`;
     liste.innerHTML = html;
     eingabe.setAttribute('aria-activedescendant', aktiv >= 0 ? `${listId}-${aktiv}` : '');
     sichtbarMachen();
@@ -255,7 +255,7 @@ function anzeigeSetzen(knopf, eintraege, werte, mehrfach, platzhalter, entfernen
   }
   const e = gew[0];
   ziel.innerHTML = e ? `<span class="au-wert-text">${esc(e.text)}</span>` : `<span class="au-platzhalter">${esc(platzhalter)}</span>`;
-  knopf.title = e?.zweit ? `${e.text} – ${e.zweit}` : '';
+  knopf.title = e?.zweit ? `${e.text}, ${e.zweit}` : '';
 }
 
 // ------------------------------------------------------------------ Natives <select> aufwerten

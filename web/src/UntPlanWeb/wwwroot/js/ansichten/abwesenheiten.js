@@ -45,7 +45,7 @@ export const detailWerte = box => ({
 
 /** Kleine Symbole in der Liste: Nachweis, Eltern informiert, interne Notiz. */
 const detailSymbole = z => [
-  z.nachweis ? `<span class="nl-tag" title="Nachweis: ${e(NACHWEISE[z.nachweis] ?? z.nachweis)}${z.entschuldigtAm ? ` · eingegangen ${datumDe(z.entschuldigtAm)}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[z.nachweis] ?? z.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '',
+  z.nachweis ? `<span class="nl-tag" title="Nachweis: ${e(NACHWEISE[z.nachweis] ?? z.nachweis)}${z.entschuldigtAm ? `, eingegangen am ${datumDe(z.entschuldigtAm)}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[z.nachweis] ?? z.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '',
   z.elternInformiert ? '<span class="nl-tag" title="Eltern informiert"><i class="bi bi-telephone me-1"></i>Eltern</span>' : '',
   z.notizIntern ? `<span class="nl-tag" title="${e(z.notizIntern)}"><i class="bi bi-lock me-1"></i>Notiz</span>` : '',
 ].filter(Boolean).join(' ');
@@ -238,7 +238,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   });
   inhalt.querySelectorAll('[data-loeschen]').forEach(b => b.onclick = async () => {
     const z = liste[Number(b.dataset.loeschen)];
-    if (!await bestaetigen('Abwesenheit löschen', `Abwesenheit von ${z.schueler} am ${datumDe(z.datum)}${z.bis !== z.datum ? ' – ' + datumDe(z.bis) : ''} löschen?`)) return;
+    if (!await bestaetigen('Abwesenheit löschen', `Abwesenheit von ${z.schueler} ${z.bis !== z.datum ? `vom ${datumDe(z.datum)} bis ${datumDe(z.bis)}` : `am ${datumDe(z.datum)}`} löschen?`)) return;
     await senden('/api/app/abwesenheiten/loeschen', { ids: z.ids });
     toast('Gelöscht.'); neu();
   });

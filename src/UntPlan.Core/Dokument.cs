@@ -135,7 +135,7 @@ public sealed class Dokument
         if (Schreibgeschuetzt && Dateisperre.PfadGleich(pfad, Pfad))
             throw new InvalidOperationException("Die Datei ist schreibgeschützt geöffnet, weil sie von einem anderen Benutzer verwendet wird. Speichern Sie die Änderungen unter einem anderen Namen.");
         if (Sperre != null && Dateisperre.PfadGleich(pfad, Sperre.Datei) && !Sperre.IstGueltig())
-            throw new InvalidOperationException("Die Sperre der Datei besteht nicht mehr (Sperrdatei gelöscht oder von jemand anderem übernommen). Damit keine fremden Änderungen überschrieben werden, wurde nicht gespeichert – speichern Sie unter einem anderen Namen.");
+            throw new InvalidOperationException("Die Sperre der Datei besteht nicht mehr (Sperrdatei gelöscht oder von jemand anderem übernommen). Damit keine fremden Änderungen überschrieben werden, wurde nicht gespeichert. Speichern Sie die Datei unter einem anderen Namen.");
         if (AnsichtLiefern?.Invoke() is { } ansicht) Daten.Ansichtseinstellungen = ansicht;
         var tmp = pfad + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(Daten, JsonOptionen));
@@ -176,7 +176,7 @@ public sealed class Dokument
     public void Aendern(string beschreibung, AenderungsArt art, Action<Schuldatei> aktion)
     {
         if (art is AenderungsArt.Unterricht or AenderungsArt.Stundenplan && Daten.AktivePeriode.Fixiert)
-            throw new InvalidOperationException($"Die Periode {Daten.AktivePeriode.Name} ist fixiert – Unterricht und Stundenplan können nicht geändert werden.");
+            throw new InvalidOperationException($"Die Periode {Daten.AktivePeriode.Name} ist fixiert. Unterricht und Stundenplan können nicht geändert werden.");
         byte[] vorher;
         using (Messung.Start("Aendern: Rückgängig-Kopie")) vorher = JsonSerializer.SerializeToUtf8Bytes(Daten, JsonOptionen);
         var unterrichtVorher = art == AenderungsArt.Unterricht && Daten.Einstellungen.UnterrichtInFolgeperioden && Daten.Perioden.Count > 1

@@ -177,10 +177,10 @@ class Kalender {
     if (t === 'tage') {
       const titel = [];
       for (let i = 0; i < this.monate; i++) { const d = new Date(this.j, this.m + i, 1); titel.push(`${MONATE[d.getMonth()]} ${d.getFullYear()}`); }
-      kopf = titel.map(x => `<button type="button" class="kal-titel" data-ansicht="monate" aria-label="${x} – Monat wählen">${x}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`).join('');
+      kopf = titel.map(x => `<button type="button" class="kal-titel" data-ansicht="monate" aria-label="${x}, Monat wählen">${x}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`).join('');
       rumpf = `<div class="kal-monate">${Array.from({ length: this.monate }, (_, i) => { const d = new Date(this.j, this.m + i, 1); return this.monatHtml(d.getFullYear(), d.getMonth()); }).join('')}</div>`;
     } else if (t === 'monate') {
-      kopf = `<button type="button" class="kal-titel" data-ansicht="jahre" aria-label="${this.j} – Jahr wählen">${this.j}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`;
+      kopf = `<button type="button" class="kal-titel" data-ansicht="jahre" aria-label="${this.j}, Jahr wählen">${this.j}<i class="bi bi-chevron-down" aria-hidden="true"></i></button>`;
       const jetzt = heuteIso().slice(0, 7);
       rumpf = `<div class="kal-raster">${MONATE_KURZ.map((n, i) => {
         const schl = `${this.j}-${String(i + 1).padStart(2, '0')}`;
@@ -271,7 +271,7 @@ class Kalender {
       const [v, b] = this.bereich();
       text = this.phase === 'bis' && this.geaendert && !this.bis ? `${datumDe(this.von)} – <span class="kal-hinweis">Ende wählen</span>`
         : v ? `${datumDe(v)} – ${datumDe(b)}` : '<span class="kal-hinweis">Beginn wählen</span>';
-    } else if (this.modus === 'woche' && tag) text = `KW ${kalenderwoche(tag)} · ${datumDe(montag(tag)).slice(0, 6)} – ${datumDe(plusTage(montag(tag), 6))}`;
+    } else if (this.modus === 'woche' && tag) text = `KW ${kalenderwoche(tag)}, ${datumDe(montag(tag)).slice(0, 6)} – ${datumDe(plusTage(montag(tag), 6))}`;
     else if (tag) text = `${WOCHENTAGE[wochentag(tag)]}`;
     else if (this.modus === 'tag' && this.wert) text = `${WOCHENTAGE[wochentag(this.wert)]}, ${datumDe(this.wert)}`;
     else if (this.modus === 'woche' && this.wert) text = `KW ${kalenderwoche(this.wert)}`;
@@ -533,7 +533,7 @@ export function datumsfeld(input) {
   if (!input.placeholder) input.placeholder = typ === 'zeit' ? 'TT.MM.JJJJ hh:mm' : 'TT.MM.JJJJ';
   input.setAttribute('aria-haspopup', 'dialog');
   input.setAttribute('aria-expanded', 'false');
-  if (!input.title) input.title = typ === 'zeit' ? 'Datum und Uhrzeit (TT.MM.JJJJ hh:mm) – Klick öffnet den Kalender' : 'Datum (TT.MM.JJJJ) – Klick öffnet den Kalender';
+  if (!input.title) input.title = typ === 'zeit' ? 'Datum und Uhrzeit (TT.MM.JJJJ hh:mm). Ein Klick öffnet den Kalender.' : 'Datum (TT.MM.JJJJ). Ein Klick öffnet den Kalender.';
   if (grobZeiger()) input.inputMode = 'none';
   const zeigen = () => WERT.set.call(input, anzeige(wert, typ));
   Object.defineProperty(input, 'value', {

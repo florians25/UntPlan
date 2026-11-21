@@ -392,7 +392,7 @@ public static class StatistikBerichte
             sb.Append($"<div class=\"el\">{Kopf(l)}<table class=\"r\"><tr><th>Monat</th><th class=\"z\">geleistete MA</th><th class=\"z\">Minderleistung</th><th class=\"z\">Saldo</th><th class=\"z\">Grenze</th><th class=\"z\">vergütungsfähig</th></tr>");
             foreach (var m in monate)
                 sb.Append($"<tr><td>{new DateTime(m.Jahr, m.Monat, 1).ToString("MMMM yyyy", Format.De)}</td><td class=\"z\">{m.Geleistet}</td><td class=\"z\">{m.Minder}</td><td class=\"z\">{m.Saldo:+0;-0;0}</td><td class=\"z\">{m.Grenze:0.#}</td><td class=\"z\">{m.Verguetungsfaehig}</td></tr>");
-            sb.Append($"</table><div class=\"bil\">Teilzeitquote {Statistik.Teilzeitquote(d, l):0.00} · Summe vergütungsfähig: {monate.Sum(m => m.Verguetungsfaehig)} Stunden</div></div>");
+            sb.Append($"</table><div class=\"bil\">Teilzeitquote {Statistik.Teilzeitquote(d, l):0.00}, Summe vergütungsfähig: {monate.Sum(m => m.Verguetungsfaehig)} Stunden</div></div>");
         }
         return sb.ToString();
     }
@@ -439,7 +439,7 @@ public static class StatistikBerichte
             sb.Append($"<tr><td>{H(z.Lehrer.Kurzname)}</td><td>{H(z.Lehrer.VollerName)}</td><td class=\"z\">{z.Vertretungen}</td><td class=\"z\">{z.Betreuungen}</td><td class=\"z\">{z.Sondereinsaetze}</td><td class=\"z\">{z.Aufsichten}</td><td class=\"z\">{z.Mehrarbeit}</td><td class=\"z\">{z.Entfaelle}</td><td class=\"z\">{z.Freisetzungen}</td><td class=\"z\">{Zaehlung.WertText(d, z.Saldo)}</td><td class=\"z\">{z.Verguetungsfaehig}</td></tr>");
         var s = Statistik.Zusammenfassung(d, von, bis);
         sb.Append($"</table><div class=\"bil\">Gesamt: {liste.Sum(z => z.Vertretungen)} Vertretungen, {liste.Sum(z => z.Mehrarbeit)} Mehrarbeitsstunden, davon {liste.Sum(z => z.Verguetungsfaehig)} vergütungsfähig.<br>" +
-                  $"Ausfall: {s.Gesamt} Einträge – vertreten {s.Vertreten}, Entfall {s.Entfall}, Freisetzung {s.Freisetzung}, Raum {s.Raum}, Verlegung {s.Verlegung}, offen {s.Offen}.</div>");
+                  $"Ausfall: {s.Gesamt} Einträge; vertreten {s.Vertreten}, Entfall {s.Entfall}, Freisetzung {s.Freisetzung}, Raum {s.Raum}, Verlegung {s.Verlegung}, offen {s.Offen}.</div>");
         return sb.ToString();
     }
 }

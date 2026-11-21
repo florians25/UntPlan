@@ -39,7 +39,7 @@ public static class Perioden
     private static void Pruefen(Schuldatei d, DateOnly von, DateOnly? bis)
     {
         if (von < d.Einstellungen.SchuljahrVon || von > d.Einstellungen.SchuljahrBis)
-            throw new InvalidOperationException($"Der Beginn muss im Schuljahr ({Format.Datum(d.Einstellungen.SchuljahrVon)} – {Format.Datum(d.Einstellungen.SchuljahrBis)}) liegen.");
+            throw new InvalidOperationException($"Der Beginn muss im Schuljahr ({Format.Datum(d.Einstellungen.SchuljahrVon)} bis {Format.Datum(d.Einstellungen.SchuljahrBis)}) liegen.");
         if (bis is DateOnly b && b < von) throw new InvalidOperationException("Das Ende liegt vor dem Beginn.");
     }
 

@@ -178,10 +178,10 @@ public class AufsichtZusatzTests
             soll(liste, 'Hof <span class="lbl lbl-auf" data-hover="KE → AD" data-hover-alt="KE">AD</span>');
             // offen (noch ungeplant): eingeteilte Lehrkraft durchgestrichen im grünen Label, Hover „Vertretung offen – Anlass“, gestrichelt
             const offen = pg.tagesListe([], [a('offen', '???', 'KE', 'Abwesenheit')], 'lehrer');
-            soll(offen, '<div class="aufsicht vertreten offen" ><span class="auf-text">Hof <span class="lbl lbl-auf weg" data-hover="Vertretung offen – Abwesenheit" data-hover-art="dunkel">KE</span>');
+            soll(offen, '<div class="aufsicht vertreten offen" ><span class="auf-text">Hof <span class="lbl lbl-auf weg" data-hover="Vertretung offen: Abwesenheit" data-hover-art="dunkel">KE</span>');
             soll(liste, 'lbl-auf weg', false);
             // Entfall: eigene Klasse, kein Label, Anlass im Tooltip
-            soll(liste, '<div class="aufsicht entfall" title="Pausenaufsicht Hof 09:30–09:50 (entfällt – Abwesenheit)"><span class="auf-text">Hof</span>');
+            soll(liste, '<div class="aufsicht entfall" title="Pausenaufsicht Hof 09:30–09:50 (entfällt: Abwesenheit)"><span class="auf-text">Hof</span>');
             if (pg.aufsichtTitel(a('entfall', 'KE')) !== 'Pausenaufsicht Hof 09:30–09:50 (entfällt)') { console.error('Titel ohne Grund'); fehler++; }
             console.log(fehler ? 'fehler' : 'ok');
             process.exit(fehler ? 1 : 0);
