@@ -451,8 +451,8 @@ public static class StatistikBerichte
 public sealed class BerichtAuswahlDialog : Dialog
 {
     // Maße nach dem Handbuch-Bild (auf 96 dpi umgerechnet): Fenster 300 × 232, Lehrer-Rahmen 147 × 48, Datumsfelder 85 breit
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 6, Top = 71, Width = 85 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 102, Top = 71, Width = 85 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 6, Top = 71, Width = 85 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 102, Top = 71, Width = 85 };
     private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 6, Top = 115, Width = 85 };
     private readonly GroupBox _lehrerGruppe = new() { Left = 6, Top = 6, Width = 147, Height = 48 };
     private readonly List<Lehrer> _alle;
@@ -566,8 +566,8 @@ public sealed class BerichtAuswahlDialog : Dialog
 /// </summary>
 public sealed class LehrerDruckauswahlDialog : Dialog
 {
-    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Short, Left = 15, Top = 53, Width = 83 };
-    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Short, Left = 112, Top = 53, Width = 84 };
+    private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 15, Top = 53, Width = 83 };
+    private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 112, Top = 53, Width = 84 };
     private readonly ComboBox _monat = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 15, Top = 89, Width = 83 };
     private readonly ComboBox _listart = new() { DropDownStyle = ComboBoxStyle.DropDownList, Left = 12, Top = 125, Width = 184 };
     private readonly GroupBox _lehrerGruppe = new() { Left = 13, Top = 8, Width = 184, Height = 40 };
@@ -633,7 +633,7 @@ public sealed class LehrerDruckauswahlDialog : Dialog
         ueber.Click += (_, _) => { if (Ui.Eingabe("Überschrift des Berichts:", "Überschrift", Ueberschrift) is { } t) Ueberschrift = t; };
 
         var geaendert = new GroupBox { Text = "Druck nur, wenn geändert nach ..", Left = 11, Top = 152, Width = 332, Height = 45 };
-        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 16, Width = 101, Value = GeaendertNach.Date };
+        var datum = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 10, Top = 16, Width = 101, Value = GeaendertNach.Date };
         var zeit = new DateTimePicker { Format = DateTimePickerFormat.Time, ShowUpDown = true, Left = 120, Top = 16, Width = 80, Value = GeaendertNach };
         var heute = new Button { Text = "Heute", Left = 225, Top = 16, Width = 75, Height = 22 };
         heute.Click += (_, _) => { datum.Value = DateTime.Today; zeit.Value = DateTime.Today; };

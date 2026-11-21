@@ -148,7 +148,7 @@ public static class SondereinsatzDialog
         f.Ok.Text = "Ok";
         f.Ok.Size = f.Abbrechen.Size = VorbildMasse.Knopf;
         f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 12, AutoSize = true });
-        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 11, Top = 38, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 11, Top = 38, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
         f.Controls.Add(new Label { Text = "Stunde von", Left = 142, Top = 12, AutoSize = true });
         var von = ElementListe.Stunde(stunde);
         von.SetBounds(144, 38, 64, 23);
@@ -747,7 +747,7 @@ public static class KlausurDialog
         var tx = new TextBox { Text = k.Text, Left = 11, Top = 39, Width = 271 };
         Steuerelemente.Textverlauf.Anbinden(tx, "Klausur:Text");
         f.Controls.AddRange(new Control[] { name, new Label { Text = "Name", Left = 291, Top = 15, AutoSize = true }, tx, new Label { Text = "Text", Left = 291, Top = 42, AutoSize = true } });
-        var dat = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 367, Top = 12, Width = 118 };
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = k.Datum.ToDateTime(TimeOnly.MinValue), Left = 367, Top = 12, Width = 118 };
         var von = ElementListe.Stunde(k.StundeVon);
         von.SetBounds(367, 39, 118, 23);
         var bis = ElementListe.Stunde(k.StundeBis);
@@ -949,13 +949,13 @@ public static class VeranstaltungDialog
         using var f = new Dialog("Veranstaltung", 480, 426);
         var y = 14;
         var tx = Ui.Zeile(f, "Bezeichnung:", new TextBox { Text = v.Text }, ref y, 140, 300);
-        var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = v.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
+        var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = v.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
         var sv = ElementListe.Stunde(v.StundeVon);
         sv.Left = von.Right + 60;
         sv.Top = von.Top;
         f.Controls.Add(new Label { Text = "ab Std.", Left = von.Right + 12, Top = von.Top + 3, AutoSize = true });
         f.Controls.Add(sv);
-        var bis = Ui.Zeile(f, "bis:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = v.Bis.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
+        var bis = Ui.Zeile(f, "bis:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = v.Bis.ToDateTime(TimeOnly.MinValue) }, ref y, 140, 110);
         var sb = ElementListe.Stunde(Math.Min(v.StundeBis, d.Zeitraster.StundenProTag));
         sb.Left = bis.Right + 60;
         sb.Top = bis.Top;
@@ -1016,13 +1016,13 @@ public static class AbwesenheitDialog
         using var f = new Dialog(a.Art switch { AbwesenheitsArt.Lehrer => "Lehrer-Absenz", AbwesenheitsArt.Klasse => "Klassen-Absenz", _ => "Raumsperrung" }, 450, a.Art == AbwesenheitsArt.Klasse ? 300 : 270);
         var y = 14;
         var element = Ui.Zeile(f, Ui.TypName(typ) + ":", ElementListe.Combo(typ, a.ElementId == 0 ? null : a.ElementId, false), ref y, 130, 280);
-        var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = a.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 130, 110);
+        var von = Ui.Zeile(f, "von:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = a.Von.ToDateTime(TimeOnly.MinValue) }, ref y, 130, 110);
         var sv = ElementListe.Stunde(a.StundeVon);
         sv.Left = von.Right + 60;
         sv.Top = von.Top;
         f.Controls.Add(new Label { Text = "ab Std.", Left = von.Right + 12, Top = von.Top + 3, AutoSize = true });
         f.Controls.Add(sv);
-        var bis = Ui.Zeile(f, "bis:", new DateTimePicker { Format = DateTimePickerFormat.Short, Value = a.Bis.ToDateTime(TimeOnly.MinValue) }, ref y, 130, 110);
+        var bis = Ui.Zeile(f, "bis:", new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = a.Bis.ToDateTime(TimeOnly.MinValue) }, ref y, 130, 110);
         var sb = ElementListe.Stunde(Math.Min(a.StundeBis, d.Zeitraster.StundenProTag));
         sb.Left = bis.Right + 60;
         sb.Top = bis.Top;
@@ -1246,8 +1246,8 @@ public static class VertretungsEinstellungenDialog
         var rZeitraum = Option(gZeit, "Zeitraum", z.Zeitraum is ZaehlZeitraum.Benutzerdefiniert or ZaehlZeitraum.Halbjahr, 96, 6);
         // ein früher gewähltes Halbjahr erscheint als selbst gewählter Zeitraum (bleibt erhalten, solange die Daten nicht geändert werden)
         var (hjVon, hjBis) = halbjahr ? Zaehlung.Zeitraum(d, AppZustand.Datum) : (z.ZeitraumVon ?? AppZustand.Datum, z.ZeitraumBis ?? AppZustand.Datum);
-        var zVon = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 11, Top = 113, Width = 83, Value = hjVon.ToDateTime(TimeOnly.MinValue) };
-        var zBis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 104, Top = 113, Width = 83, Value = hjBis.ToDateTime(TimeOnly.MinValue) };
+        var zVon = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 11, Top = 113, Width = 83, Value = hjVon.ToDateTime(TimeOnly.MinValue) };
+        var zBis = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 104, Top = 113, Width = 83, Value = hjBis.ToDateTime(TimeOnly.MinValue) };
         gZeit.Controls.AddRange(new Control[] { zVon, zBis });
         void ZeitraumFreigeben() => zVon.Enabled = zBis.Enabled = rZeitraum.Checked;
         rZeitraum.CheckedChanged += (_, _) => ZeitraumFreigeben();

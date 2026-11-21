@@ -138,8 +138,8 @@ public static class StundenplanEinstellungenDialog
         bereich.Controls.Add(wochen);
         var datum = new GroupBox { Text = "Datum", Left = 8, Top = 116, Width = 530, Height = 120 };
         var heute = AppZustand.Datum;
-        var dVon = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 10, Top = 22, Width = 110, Value = (f.DatumVon ?? dd.Einstellungen.SchuljahrVon).ToDateTime(TimeOnly.MinValue) };
-        var dBis = new DateTimePicker { Format = DateTimePickerFormat.Short, Left = 150, Top = 22, Width = 110, Value = (f.DatumBis ?? dd.Einstellungen.SchuljahrBis).ToDateTime(TimeOnly.MinValue) };
+        var dVon = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 10, Top = 22, Width = 110, Value = (f.DatumVon ?? dd.Einstellungen.SchuljahrVon).ToDateTime(TimeOnly.MinValue) };
+        var dBis = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 150, Top = 22, Width = 110, Value = (f.DatumBis ?? dd.Einstellungen.SchuljahrBis).ToDateTime(TimeOnly.MinValue) };
         var drehVon = new Drehknopf("Eine Woche vor / zurück") { Left = 122, Top = 22 };
         var drehBis = new Drehknopf("Eine Woche vor / zurück") { Left = 262, Top = 22 };
         drehVon.Gedreht += r => dVon.Value = dVon.Value.AddDays(7 * r);

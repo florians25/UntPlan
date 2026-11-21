@@ -166,7 +166,7 @@ public sealed class SeitenlayoutFenster : Form
         var gGeaendert = new GroupBox { Text = "Druck nur, wenn geändert nach ..", Left = 147, Top = 6, Width = 271, Height = 51 };
         p.Controls.Add(gGeaendert);
         var ab = E.NurGeaendertNach ?? OhneAenderungsdatum;
-        var datum = new DateTimePicker { Format = DateTimePickerFormat.Short, Value = ab.Date, Left = 8, Top = 20, Width = 92 };
+        var datum = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Value = ab.Date, Left = 8, Top = 20, Width = 92 };
         var zeit = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm:ss", ShowUpDown = true, Value = ab, Left = 108, Top = 20, Width = 69 };
         var heute = new Button { Text = "Heute", Left = 184, Top = 20, Width = 75, Height = 23 };
         gGeaendert.Controls.AddRange(new Control[] { datum, zeit, heute });
