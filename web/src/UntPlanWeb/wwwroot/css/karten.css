@@ -23,8 +23,8 @@
    Label im Kopf wie Vorlage 295: Kasten 16px ab +7 unter der Kartenkante, Versalien 4px unter der Kastenoberkante, 2px über der
    Unterkante, 2px Luft bis Zeile 2 */
 html:root.is-win .std .z1 { font-weight: 500; }
-html:root.is-win .std .z1:has(.lbl) { margin: -2px 0 -1px; }
-html:root.is-win .std .z1 .lbl { padding-top: 2px; line-height: 14px; }
+html:root.is-win .std .z1:has(.lbl) { margin: -2px 0 -2px; padding-top: 1px; }
+html:root.is-win .std .z1 .lbl { height: 16px; box-sizing: border-box; padding-top: 1px; margin-top: -1px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
