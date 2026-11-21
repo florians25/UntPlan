@@ -374,16 +374,65 @@ public class MdiFenster : Form
 
     protected static ToolStrip Werkzeugleiste()
     {
-        var ts = new ToolStrip
+        var ts = new Fensterleiste
         {
             GripStyle = ToolStripGripStyle.Hidden,
-            RenderMode = ToolStripRenderMode.System,
             Font = Ui.Schrift,
             ImageScalingSize = new Size(16, 16),
             BackColor = Ui.Leiste,
-            Padding = new Padding(2, 1, 2, 1),
         };
+        ts.Renderer = new Fensterleiste.Darstellung();
+        ts.EinzugAnwenden();
         return ts;
+    }
+
+    /// <summary>
+    /// Werkzeugleiste der Arbeitsfenster. Im Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (100 %) gemessen: die helle Leiste
+    /// (240,246,243) beginnt und endet 7 Pixel innerhalb des Fensters, daneben liegt die Fensterfläche (229,239,235); ohne Randlinie.
+    /// </summary>
+    protected sealed class Fensterleiste : ToolStrip
+    {
+        /// <summary>Abstand der hellen Leiste zum Fensterrand im Vertretungsmodus.</summary>
+        public const int Einzug = 7;
+        /// <summary>false: Leiste ohne Einzug (z. B. Datumszeile der Stundenpläne, die auf der Fensterfläche liegt).</summary>
+        public bool Einziehen { get; set; } = true;
+        /// <summary>Innenabstand ohne Einzug.</summary>
+        public Padding Grundabstand { get; set; } = new(2, 1, 2, 1);
+
+        public Fensterleiste() => AppZustand.ModusGewechselt += EinzugAnwenden;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) AppZustand.ModusGewechselt -= EinzugAnwenden;
+            base.Dispose(disposing);
+        }
+
+        public void EinzugAnwenden()
+        {
+            if (IsDisposed) return;
+            var e = Einziehen && Ui.Vertretungsmodus ? Einzug : 0;
+            var soll = new Padding(Grundabstand.Left + e, Grundabstand.Top, Grundabstand.Right + e, Grundabstand.Bottom);
+            if (Padding != soll) Padding = soll;
+            Invalidate();
+        }
+
+        /// <summary>Systemdarstellung, im Vertretungsmodus mit eingerückter Fläche und ohne Randlinie.</summary>
+        public sealed class Darstellung : ToolStripSystemRenderer
+        {
+            protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste { Einziehen: true } l || !Ui.Vertretungsmodus) { base.OnRenderToolStripBackground(e); return; }
+                using (var aussen = new SolidBrush(Ui.Kopf)) e.Graphics.FillRectangle(aussen, 0, 0, l.Width, l.Height);
+                using var innen = new SolidBrush(l.BackColor);
+                e.Graphics.FillRectangle(innen, Einzug, 0, Math.Max(0, l.Width - 2 * Einzug), l.Height);
+            }
+
+            protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+            {
+                if (e.ToolStrip is Fensterleiste && Ui.Vertretungsmodus) return;
+                base.OnRenderToolStripBorder(e);
+            }
+        }
     }
 
     protected static ToolStripButton Knopf(string text, string symbol, Action klick, bool nurSymbol = true)

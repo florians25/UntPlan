@@ -18,6 +18,10 @@ public sealed partial class HauptFenster : Form
     private readonly ToolStripStatusLabel _statusLinks = new("Mit F1 erhalten Sie Hilfe.");
     private readonly ToolStripStatusLabel _statusMitte = new() { Spring = true };
     private readonly ToolStripStatusLabel _statusRechts = new();
+    // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (1916 px): Hilfehinweis links (dehnbar), „Vertr.“ ab x 1089 in einem
+    // 685 px breiten Feld, dann die Felder „DE“ (32 px) und „Vertretung“ (98 px) vor dem Größengriff
+    private readonly ToolStripStatusLabel _statusSprache = new("DE") { AutoSize = false, Width = 32, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
+    private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 98, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
     /// <summary>Updateanzeige (GitHub-Releases) mit Hinweis rechts in der Statusleiste.</summary>
     internal Updateanzeige Updates { get; }
     private readonly Eingabeassistent _assistent;
@@ -51,7 +55,7 @@ public sealed partial class HauptFenster : Form
             _titelLabel,
         });
         Updates = new Updateanzeige(this);
-        _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts, Updates.Label });
+        _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts, _statusSprache, _statusModus, Updates.Label });
         _status.Font = Ui.Schrift;
 
         _assistent = new Eingabeassistent { Dock = DockStyle.Right, Width = 230, Visible = AppZustand.Einstellungen.AssistentZeigen };
