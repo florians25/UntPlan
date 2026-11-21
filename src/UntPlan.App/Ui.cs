@@ -102,6 +102,16 @@ public static partial class Ui
         else if (f.Bold) cb.Font = OhneFett(f);
     }
 
+    /// <summary>
+    /// Häkchenfeld wie in der Vorlage (Vertretungsfenster): flaches weißes Kästchen 11 × 11 Pixel mit grauem Rand (171,171,171).
+    /// </summary>
+    public static CheckBox FlachesHaekchen(CheckBox cb)
+    {
+        cb.FlatStyle = FlatStyle.Flat;
+        cb.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
+        return cb;
+    }
+
     /// <summary>Vertretungsmodus aktiv: Oberfläche in Grün (wie ein eigenes Programm innerhalb von UntPlan).</summary>
     public static bool Vertretungsmodus { get; set; }
 

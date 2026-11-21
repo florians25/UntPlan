@@ -17,8 +17,9 @@ public sealed class KalenderFenster : MdiFenster
     // nachgemessen auf den Vorbild-Bildschirmfotos (100 %, Fensterrahmen 1 px, hier 3 px): „Kalenderwoche“ ab x 19, Wochennummer ab x 123,
     // Auf-/Ab-Pfeile ab x 148, Datumsfeld 89 × 24 ab x 169 / y 9 (jeweils ab Fensteraußenkante bzw. Oberkante des Inhalts)
     private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(118, 12, 43, 20) };
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Bounds = new Rectangle(166, 9, 89, 24) };
-    private static readonly Font TabellenSchrift = new("Segoe UI", 9f);
+    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Bounds = new Rectangle(166, 9, 89, 24) };
+    // Vorlage (Bild 308): Kopf und Tabelle in Microsoft Sans Serif 8,25 („Kalenderwoche“ 72 Pixel, „Datum“ 30 Pixel breit)
+    private static Font TabellenSchrift => Ui.DialogSchrift;
     /// <summary>Wochenbuchstabe der Schulwoche (A/B …) neben dem Datum, nur bei eingestellter Wochenperiodizität.</summary>
     private readonly Label _wochenTyp = new() { AutoSize = true, Location = new Point(260, 13), Font = Ui.SchriftFett };
     private readonly DataGridView _woche = new() { Dock = DockStyle.Fill };
@@ -47,7 +48,7 @@ public sealed class KalenderFenster : MdiFenster
         Size = new Size(682, 487);
         Positionieren();
         // Vorbild: Tabelle beginnt 52 px unter der Titelleiste, links und rechts 9 px vom Fensterrand
-        var kopf = new Panel { Dock = DockStyle.Top, Height = 52 };
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 52, Font = Ui.DialogSchrift };
         kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(15, 13) });
         _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
@@ -192,13 +193,22 @@ public sealed class KalenderFenster : MdiFenster
         var klappe = new Panel { Dock = DockStyle.Bottom, Height = 30 };
         var pfeil = new Button { Size = new Size(16, 16), Location = new Point(0, 2), FlatStyle = FlatStyle.Flat, BackColor = Color.White, UseVisualStyleBackColor = false, Padding = Padding.Empty, Font = Ui.SchriftKlein };
         pfeil.FlatAppearance.BorderColor = Color.Gray;
+        // Vorlage: weißes Kästchen 16 × 16 Pixel, Rand (171,171,171), schwarzes Dreieck 8 Pixel breit (▼ eingeklappt, ▲ ausgeklappt)
+        pfeil.Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            g.Clear(Color.White);
+            using (var p = new Pen(Color.FromArgb(171, 171, 171))) g.DrawRectangle(p, 0, 0, pfeil.Width - 1, pfeil.Height - 1);
+            var offen = !split.Panel2Collapsed;
+            for (var i = 0; i < 4; i++) g.FillRectangle(Brushes.Black, 4 + i, offen ? 9 - i : 6 + i, 8 - 2 * i, 1);
+        };
         klappe.Controls.Add(pfeil);
         split.Panel1.Controls.Add(klappe);
         split.Panel1.Padding = new Padding(7, 0, 7, 0);
         void Klappen(bool offen)
         {
             split.Panel2Collapsed = !offen;
-            pfeil.Text = offen ? "▴" : "▾";
+            pfeil.Invalidate();
             _tipp.SetToolTip(pfeil, offen ? "Detailbereich einklappen" : "Detailbereich ausklappen");
             AppZustand.Einstellungen.KalenderDetailOffen = offen;
         }

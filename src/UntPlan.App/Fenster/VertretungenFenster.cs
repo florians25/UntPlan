@@ -199,6 +199,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _offen.Location = new Point(10, 22);
         _kollisionen.Location = new Point(10, 43);
         _offen.Padding = _kollisionen.Padding = Padding.Empty;
+        foreach (var cb in new[] { _offen, _kollisionen, _vaSammeln }) Ui.FlachesHaekchen(cb);
         Ui.FlacheKaestchen(_offen, _kollisionen);
         ansicht.Controls.Add(_offen);
         ansicht.Controls.Add(_kollisionen);
