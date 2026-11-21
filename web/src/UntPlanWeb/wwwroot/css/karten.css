@@ -19,12 +19,11 @@
 .std .z2 { font-weight: 400; }
 .std .z2 .lbl { font-weight: 500; }
 /* Windows (eigenes Rendering 293/294 gegen Vorlage 295, beide 100 %, senkrechte Striche gemessen): mit den hochgeladenen
-   Avenir-Next-Dateien zeichnet Windows ~30 % fetter als die Vorlage (Kopf 2,27 statt 1,75 px) – Kopf dort Medium statt Demi (~1,8 px);
-   Label im Kopf wie Vorlage 295: Kasten 16px ab +7 unter der Kartenkante, Versalien 4px unter der Kastenoberkante, 2px über der
-   Unterkante, 2px Luft bis Zeile 2 */
+   Avenir-Next-Dateien zeichnet Windows ~30 % fetter als die Vorlage (Kopf 2,27 statt 1,75 px), Kopf dort Medium statt Demi (~1,8 px) */
 html:root.is-win .std .z1 { font-weight: 500; }
-html:root.is-win .std .z1:has(.lbl) { margin: -2px 0 -2px; padding-top: 1px; }
-html:root.is-win .std .z1 .lbl { height: 16px; box-sizing: border-box; padding-top: 1px; margin-top: -1px; }
+/* Label im Kopf wie Vorlage 305: Kasten oben an der Zeile ausgerichtet (unabhängig von der Grundlinie der Schrift), 16px hoch ab +7
+   unter der Kartenkante, Versalien 4px unter der Oberkante und 2px über der Unterkante */
+html:root:not(.is-mac) .std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
