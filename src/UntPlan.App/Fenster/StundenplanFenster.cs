@@ -34,7 +34,12 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private readonly ToolStripButton _farbenKnopf;
     private readonly ToolStripButton _artKnopf;
     private readonly ToolStripButton _ansichtKnopf;
-    private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Short, Width = 105 };
+    // Vorlage: Datum immer als TT.MM.JJJJ (unabhängig von der Windows-Region) mit Pfeil „˅“, so breit wie das Datum (wie Von-Bis der Listen)
+    private readonly DateTimePicker _datum = new()
+    {
+        Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy",
+        Width = TextRenderer.MeasureText("25.11.2026", Ui.Schrift).Width + SystemInformation.VerticalScrollBarWidth + 6,
+    };
     private readonly ToolStrip _leiste;
     /// <summary>Zweite Zeile wie im Vorbild: Zeitbereich (▼), Datum mit Hoch/Runter und Ende der Woche („- 16.10.2026“).</summary>
     private readonly Panel _zeitZeile = new() { Dock = DockStyle.Top, Height = 27 };
@@ -608,7 +613,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             it.Overflow = _klein && !_kleinSichtbar.Contains(it) ? ToolStripItemOverflow.Always : ToolStripItemOverflow.AsNeeded;
         }
         _auswahl.Width = _klein ? 76 : 100; // Vorbild klein: Elementauswahl 76 px samt Pfeil
-        Titelleiste.DurchschalterLinks = _klein;
+        // Vorlage: Durchschalter auch im kleinen Plan rechts nach dem (gekürzten) Titel vor den Fensterknöpfen
+        Titelleiste.DurchschalterLinks = false;
         Titelleiste.Invalidate();
         TypSymbol();
         FussAnordnen();

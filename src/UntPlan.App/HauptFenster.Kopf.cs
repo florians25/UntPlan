@@ -124,6 +124,7 @@ public partial class HauptFenster
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += BildschirmGeaendert;
         FormClosed += (_, _) => Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= BildschirmGeaendert;
         _schnell.Paint += TitelZeichnen;
+        _ribbon.KontextBandGeaendert += () => _schnell.Invalidate();
         _schnell.MouseDown += KopfMausDown;
         _schnell.MouseDoubleClick += (_, e) => { if (e.Button == MouseButtons.Left && _schnell.GetItemAt(e.Location) is null) MaximierenUmschalten(); };
         _ribbon.MouseDown += (_, e) =>

@@ -417,7 +417,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
 
         // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle (Label oben beim Auswahlfeld angelegt)
-        Controls.Add(_g);
+        // Vorlage: Tabelle 9 Pixel vom linken und rechten Fensterrand eingerückt (Fensterfläche ringsum)
+        var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 6), BackColor = Ui.Kopf };
+        tabellenFlaeche.Controls.Add(_g);
+        Controls.Add(tabellenFlaeche);
         Controls.Add(ansichtName);
         Controls.Add(filter);
         Controls.Add(unten);

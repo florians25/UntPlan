@@ -313,6 +313,33 @@ input.sd-eingabe { min-height: 56px; }
 .tt-tag.heute { font-weight: 600; color: #414d55; }
 /* Pfeile, Zeitraum und „Heute“ 4px näher am oberen Rand, Tageszeile und erste Linie 3px tiefer (nachgemessen an der Vorlage) */
 @media (min-width: 992px) { [data-ansicht="plan"] { --plankopf: 50px; } [data-ansicht="plan"] .planleiste { padding-top: 7px; padding-bottom: 11px; } }
+/* Raster wie Vorlage 295 (Windows, 100 %, Fenster 1877 px): Zeitspalte ab 291 px (11 px neben der Seitenleiste), erste Linie und erste
+   Karte bei 348/349 px, Spaltenschritt 306 px (Karte 289 px + 17 px Lücke), letzte Karte endet 15 px vor dem Fensterrand; erste Linie
+   39 px unter der Mitte der Tageszeile (Kopf 52 statt 48 px) */
+@media (min-width: 992px) {
+  [data-ansicht="plan"] .tt { margin-left: -5px; margin-right: 2px; }
+  [data-ansicht="plan"] .tt > .tt-tag, [data-ansicht="plan"] .tt > .tt-ecke:first-child { height: 52px; }
+  /* über der Zeitspalte endet der Kopf 6px früher: die Uhrzeit an der ersten Linie steht mittig auf der Linie (Vorlage 295) */
+  [data-ansicht="plan"] .tt > .tt-ecke:first-child { height: 46px; align-self: start; }
+  [data-ansicht="plan"] .tt > .tt-ecke:first-child::after { top: calc(100% + 6px); }
+}
+/* Uhrzeiten an der Zeitachse wie Vorlage 295/297: Ende 3px über, Beginn 2px unter der Linie (Versalien), einzelne Zeit mittig auf der Linie */
+.tt-zeit.beginn { transform: translateY(0); }
+.tt-zeit.ende { transform: translateY(-14px); }
+.tt-zeit.mittig { transform: translateY(-7px); }
+/* Kopfleiste wie Vorlage 295/298/299: „Heute“ 32px hoch, rechte Kante 9px innerhalb der Rasterkante; Wochenpfeile 1px tiefer
+   (Winkel auf Höhe der Ziffern 18–29 px) */
+@media (min-width: 992px) { [data-ansicht="plan"] .planleiste .rechts { margin-right: 9px; } }
+.planleiste .heute-pill { height: 32px; position: relative; top: 1px; padding: 0 34px; }
+.planleiste .rundknopf.woche-pfeil:not(.kw-pfeil) .woche-pfeil-sym { transform: translateY(1px); }
+/* Legende und Hilfe wie Vorlage 289/295 (Fenster 947 px hoch): Leiste 48px (Innenabstand 8px), Pillen 32px hoch, Zeichen 18px
+   (Kreis 16px), „⋮“ 32px breit; Hilfe 44px rund, 15px vom rechten und 18px vom unteren Rand, Fragezeichen 24px in #67747e */
+.u-legende-leiste { padding: 8px; }
+.u-legende-pille { height: 32px; padding: 0 14px 0 8px; gap: 6px; }
+.u-legende-pille .lg-mk { width: 24px; height: 24px; }
+.u-legende-mehr { width: 32px; height: 32px; color: #8a96a1; }
+.u-hilfe-rund { width: 44px; height: 44px; right: 15px; bottom: 18px; color: #67747e; }
+.u-hilfe-rund .bi { font-size: 24px; }
 
 
 /* ------------------------------------------------------------------ Elementwahl im Kopf des Wochenplans (Vorlagen 285–289)

@@ -10,7 +10,12 @@ public sealed class FensterTitel : Control
 {
     // wie auf dem Original-Bildschirmfoto: Titelleiste der Arbeitsfenster 30 Pixel samt Rand
     public const int Hoehe = 28;
-    private const int KnopfBreite = 34;
+    // Vorlage: Fensterknöpfe im Abstand von 47 Pixeln, Mitte des Schließen-Knopfs 21 Pixel vor dem rechten Rand der Leiste,
+    // Symbole 9 × 9 Pixel, 1 Pixel stark, ihre Mitte 8 Pixel unter der Oberkante der Leiste (nicht senkrecht mittig)
+    private const int KnopfBreite = 47;
+    private const int SymbolMitte = 8;
+    /// <summary>Schrift des Fenstertitels wie in der Vorlage (Segoe UI 8,25: „Vertretungen / Klasse - Standard“ 164 Pixel breit).</summary>
+    private static readonly Font TitelSchrift = new("Segoe UI", 8.25f);
     private readonly Form _form;
     private int _hover = -1;
 
@@ -24,9 +29,10 @@ public sealed class FensterTitel : Control
 
     private Rectangle Schalter(int i)
     {
-        const int b = 15, h = 17;
-        var x = DurchschalterLinks ? 22 : Width - 3 * KnopfBreite - 2 * b - 10;
-        return new Rectangle(x + i * (b + 2), (Height - h) / 2, b, h);
+        // Vorlage: zwei Knöpfe 13 × 18 Pixel im Abstand von 17 Pixeln, der rechte endet 28 Pixel vor der Mitte des Minimieren-Knopfs
+        const int b = 13, h = 18;
+        var x = DurchschalterLinks ? 22 : Knopf(0).X + KnopfBreite / 2 - 28 - b - 17;
+        return new Rectangle(x + i * 17, 3, b, h);
     }
 
     private int SchalterBei(Point p) => Durchschalten is null ? -1 : Enumerable.Range(0, 2).FirstOrDefault(i => Schalter(i).Contains(p), -1);
@@ -37,11 +43,11 @@ public sealed class FensterTitel : Control
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         Dock = DockStyle.Top;
         Height = Hoehe;
-        Font = Ui.Schrift;
+        Font = TitelSchrift;
         TabStop = false;
     }
 
-    private Rectangle Knopf(int i) => new(Width - (3 - i) * KnopfBreite, 0, KnopfBreite, Height);
+    private Rectangle Knopf(int i) => new(Width + 2 - (3 - i) * KnopfBreite, 0, KnopfBreite, Height);
 
     /// <summary>Titelfarbe; im Vertretungsmodus wie im Vorbild: aktives Fenster dunkelgrün mit weißer Schrift, inaktive hellgrün.</summary>
     public static Color Farbe(bool aktiv) => Ui.Vertretungsmodus
@@ -57,45 +63,43 @@ public sealed class FensterTitel : Control
         var farbe = Farbe(Aktiv);
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, ClientRectangle);
         var text = Ui.Textfarbe(farbe);
-        var x = 6;
+        var x = 7;
         if (_form.Icon != null)
         {
-            try { g.DrawIcon(_form.Icon, new Rectangle(x, (Height - 16) / 2, 16, 16)); } catch { /* Symbol nicht darstellbar */ }
+            try { g.DrawIcon(_form.Icon, new Rectangle(x, (Height - 16) / 2 + 1, 16, 16)); } catch { /* Symbol nicht darstellbar */ }
             x += 22;
         }
-        var rechts = Width - 3 * KnopfBreite - 4;
+        var rechts = Knopf(0).X - 4;
         if (Durchschalten != null)
         {
             if (DurchschalterLinks) x = Schalter(1).Right + 6;
             else rechts = Schalter(0).X - 4;
             for (var i = 0; i < 2; i++) SchalterZeichnen(g, Schalter(i), i == 1, _schalterHover == i);
         }
-        TextRenderer.DrawText(g, _form.Text, Ui.Schrift, new Rectangle(x, 0, Math.Max(0, rechts - x), Height), text,
+        TextRenderer.DrawText(g, _form.Text, TitelSchrift, new Rectangle(x - 1, 1, Math.Max(0, rechts - x + 1), Height), text,
             TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
         for (var i = 0; i < 3; i++)
         {
             var r = Knopf(i);
             if (_hover == i)
                 using (var b = new SolidBrush(i == 2 ? Color.FromArgb(232, 17, 35) : Mischen(farbe, Color.White, 0.25f))) g.FillRectangle(b, r);
-            using var p = new Pen(_hover == 2 && i == 2 ? Color.White : text, 1.2f);
-            var m = new Point(r.X + r.Width / 2, r.Y + r.Height / 2);
+            using var p = new Pen(_hover == 2 && i == 2 ? Color.White : text, 1f);
+            var m = new Point(r.X + r.Width / 2, SymbolMitte);
             switch (i)
             {
-                case 0: g.DrawLine(p, m.X - 5, m.Y, m.X + 5, m.Y); break;
+                case 0: g.DrawLine(p, m.X - 4, m.Y, m.X + 4, m.Y); break;
                 case 1:
                     if (_form.WindowState == FormWindowState.Maximized)
                     {
-                        g.DrawRectangle(p, m.X - 5, m.Y - 3, 8, 8);
-                        g.DrawLine(p, m.X - 3, m.Y - 5, m.X + 5, m.Y - 5);
-                        g.DrawLine(p, m.X + 5, m.Y - 5, m.X + 5, m.Y + 3);
+                        g.DrawRectangle(p, m.X - 4, m.Y - 2, 6, 6);
+                        g.DrawLine(p, m.X - 2, m.Y - 4, m.X + 4, m.Y - 4);
+                        g.DrawLine(p, m.X + 4, m.Y - 4, m.X + 4, m.Y + 2);
                     }
-                    else g.DrawRectangle(p, m.X - 5, m.Y - 5, 10, 10);
+                    else g.DrawRectangle(p, m.X - 4, m.Y - 4, 8, 8);
                     break;
                 default:
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    g.DrawLine(p, m.X - 5, m.Y - 5, m.X + 5, m.Y + 5);
-                    g.DrawLine(p, m.X + 5, m.Y - 5, m.X - 5, m.Y + 5);
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+                    g.DrawLine(p, m.X - 4, m.Y - 4, m.X + 4, m.Y + 4);
+                    g.DrawLine(p, m.X + 4, m.Y - 4, m.X - 4, m.Y + 4);
                     break;
             }
         }

@@ -133,7 +133,9 @@ public sealed partial class HauptFenster
             if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie im Vorbild: " + Text);
             using var bild = new Bitmap(_ribbon.Width, _ribbon.Height);
             _ribbon.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));
-            var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb());
+            // gewählte Registerkarte: Akzentlinie bzw. im Vertretungsmodus (Vorlage) das dunkle Kontextband über „Vertretungsplanung“
+            var akzentGefunden = Enumerable.Range(0, Math.Min(bild.Width, 900)).Any(x => bild.GetPixel(x, 3).ToArgb() == Steuerelemente.Ribbon.Akzent.ToArgb() ||
+                (Ui.Vertretungsmodus && bild.GetPixel(x, 1).ToArgb() == Steuerelemente.Ribbon.KontextDunkel.ToArgb()));
             if (!akzentGefunden) throw new InvalidOperationException("Gewählte Registerkarte ohne Akzentlinie");
             log.Add($"INFO  Kopf ({modus}): „{Text}“ mittig bei {mitte}/{_schnell.Width}, Farbe {Ui.Titel.R},{Ui.Titel.G},{Ui.Titel.B}");
         }
@@ -856,6 +858,10 @@ public sealed partial class HauptFenster
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts
             // (offene Vertretung einer Unterrichtsstunde, Eingabeassistent ausgeblendet wie im Original)
+            // Hauptfenster maximiert wie auf dem Original-Bildschirmfoto (danach wieder wie vorher)
+            var vorherZustand = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
             AppZustand.VertretungWaehlen(AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == AppZustand.Datum && v.Offen && v.Art == VertretungsArt.Vertretung) ?? OffeneVertretung());
             if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
             var mdi = Controls.OfType<MdiClient>().First().ClientSize;
@@ -870,9 +876,16 @@ public sealed partial class HauptFenster
             if (AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == AppZustand.Datum && v.Offen && v.Art == VertretungsArt.Vertretung) is { } offen)
                 AppZustand.VertretungWaehlen(offen);
             Warten(600);
+            // die Vertretungsliste wählt nach dem Aufbau ggf. ihre erste Zeile: Unterrichtsvertretung erneut wählen
+            if (AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == AppZustand.Datum && v.Offen && v.Art == VertretungsArt.Vertretung) is { } offen2)
+            {
+                AppZustand.VertretungWaehlen(offen2);
+                Warten(400);
+            }
             var b = Screen.PrimaryScreen?.Bounds ?? Bounds;
             log.Add($"MASS  V6_Gesamt: Bildschirm {b.Width}×{b.Height}, MDI {mdi.Width}×{mdi.Height}, Kopf {_schnell.Height}, Menüband {_ribbon.Height}, Statusleiste {_status.Height}");
             Foto(Path.Combine(ordner, "V6_Gesamt_F.png"));
+            WindowState = vorherZustand;
         }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);

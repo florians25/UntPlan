@@ -39,7 +39,7 @@ public sealed partial class HauptFenster : Form
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
 
         _schnell.GripStyle = ToolStripGripStyle.Hidden;
-        _schnell.Renderer = new LeistenRenderer();
+        _schnell.Renderer = new LeistenRenderer { Band = () => _ribbon.KontextBand is { Width: > 0 } b ? new Rectangle(_ribbon.Left + b.X - _schnell.Left, 0, b.Width, _schnell.Height) : Rectangle.Empty };
         _schnell.BackColor = Ui.Titel;
         _schnell.Padding = new Padding(4, 2, 4, 2);
         _schnell.ImageScalingSize = new Size(16, 16);

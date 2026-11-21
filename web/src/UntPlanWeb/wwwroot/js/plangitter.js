@@ -650,11 +650,21 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
   // Stundenplanformat: Beginn-/Endzeit bzw. Stundennummer ausblenden
   const mitZeiten = !kartenZeiten && plan.format?.zeiten !== false;
   const mitNummer = plan.format?.stundennummer !== false;
+  // Wie Vorlage 295/297: steht an einer Linie nur eine Uhrzeit (erste/letzte Linie, Ende = nächster Beginn), sitzt sie mittig auf der
+  // Linie; nur zwei verschiedene Zeiten an derselben Linie (Pause) stehen als Ende darüber und Beginn darunter.
+  const anLinie = new Map();
   zeiten.forEach((z, i) => {
-    const oben = aufbau.oben[i];
-    if (mitZeiten) html += `<div class="tt-zeit beginn" style="top:${oben}px">${e(z.beginn)}</div>`;
+    for (const [y, art, zeit] of [[aufbau.oben[i], 'beginn', z.beginn], [aufbau.unten[i], 'ende', z.ende]]) {
+      if (!anLinie.has(y)) anLinie.set(y, new Map());
+      anLinie.get(y).set(art, zeit);
+    }
+  });
+  const mittig = (y, art) => { const l = anLinie.get(y); return !l.has(art === 'beginn' ? 'ende' : 'beginn') || l.get('beginn') === l.get('ende'); };
+  zeiten.forEach((z, i) => {
+    const oben = aufbau.oben[i], unten = aufbau.unten[i];
+    if (mitZeiten) html += `<div class="tt-zeit beginn${mittig(oben, 'beginn') ? ' mittig' : ''}" style="top:${oben}px">${e(z.beginn)}</div>`;
     if (mitNummer) html += `<div class="tt-nr${mitZeiten ? '' : ' allein'}" style="top:${oben}px">${e(z.bezeichnung || z.nr)}.</div>`;
-    if (mitZeiten) html += `<div class="tt-zeit ende" style="top:${aufbau.unten[i]}px">${e(z.ende)}</div>`;
+    if (mitZeiten && !(zeiten[i + 1] && aufbau.oben[i + 1] === unten && mittig(unten, 'ende'))) html += `<div class="tt-zeit ende${mittig(unten, 'ende') ? ' mittig' : ''}" style="top:${unten}px">${e(z.ende)}</div>`;
   });
   // Uhrzeiten auf den Karten: auch an der ersten Linie keine Uhrzeit (Vorlage 279 – „07:45“ an der Linie gibt es nur ohne Kartenzeiten)
   if (jetztY !== null) html += `<div class="tt-jetzt-zeit" style="top:${jetztY}px">${hhmm(jetzt)}</div>`;

@@ -432,6 +432,17 @@ public class MdiFenster : Form
                 if (e.ToolStrip is Fensterleiste && Ui.Vertretungsmodus) return;
                 base.OnRenderToolStripBorder(e);
             }
+
+            /// <summary>Überlaufknopf im Vertretungsmodus wie in der Vorlage: kleines Dreieck (5 × 3 Pixel) unten rechts statt „»“.</summary>
+            protected override void OnRenderOverflowButtonBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste || !Ui.Vertretungsmodus) { base.OnRenderOverflowButtonBackground(e); return; }
+                var it = e.Item;
+                using (var b = new SolidBrush(it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor)) e.Graphics.FillRectangle(b, 0, 0, it.Width, it.Height);
+                var m = new Point(it.Width / 2, it.Height - 9);
+                using var p = new SolidBrush(Color.FromArgb(70, 70, 70));
+                e.Graphics.FillPolygon(p, new[] { new Point(m.X - 3, m.Y), new Point(m.X + 3, m.Y), new Point(m.X, m.Y + 3) });
+            }
         }
     }
 
