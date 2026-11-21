@@ -23,7 +23,7 @@
 html:root.is-win .std .z1 { font-weight: 500; }
 /* Label im Kopf wie Vorlage 305: Kasten oben an der Zeile ausgerichtet (unabhängig von der Grundlinie der Schrift), 16px hoch ab +7
    unter der Kartenkante, Versalien 4px unter der Oberkante und 2px über der Unterkante */
-html:root:not(.is-mac) .std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
+.std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
@@ -377,6 +377,7 @@ input.sd-eingabe { min-height: 56px; }
    - Durchstreichung als Linie auf halber Versalhöhe (Unterstreichung mit negativem Abstand zur Grundlinie, ohne Aussparungen). */
 html:root.is-mac .std .lbl, html:root.is-mac .aufsicht .lbl, html:root.is-mac .std .abw-label, html:root.is-mac .sd-lbl-weg, html:root.is-mac .std-lbl { --lbl-h: 15px; }
 html:root.is-mac .std .z1 .lbl { --lbl-h: 16px; }
+html:root.is-mac .std .z1 .lbl { vertical-align: baseline; height: auto; }
 html:root.is-mac .aufsicht .lbl, html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
 html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
   padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em);
