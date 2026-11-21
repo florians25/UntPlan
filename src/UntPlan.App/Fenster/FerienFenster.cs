@@ -287,7 +287,7 @@ public sealed class FerienFenster : MdiFenster
     internal void NeuDialog(DateOnly von, DateOnly bis)
     {
         var kurz = von == bis ? $"{von.Day}.{von.Month}" : "Ferien";
-        var lang = von == bis ? $"{von.Day}.{von.Month}.{von.Year}" : $"Ferien {Format.Datum(von)} – {Format.Datum(bis)}";
+        var lang = von == bis ? $"{von.Day}.{von.Month}.{von.Year}" : $"Ferien {Format.Datum(von)} bis {Format.Datum(bis)}";
         var e = KurznameDialog.Zeigen(this, kurz, lang);
         if (e is not { } x || x.Kurz.Length == 0) return;
         Neu(von, bis, x.Kurz, x.Lang);

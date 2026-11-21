@@ -657,7 +657,7 @@ struct Elementzeile: View {
         }
         guard zeigeArt else { return infos }
         guard let erstes = infos.first else { return [kategorie.einzahl] }
-        return ["\(kategorie.einzahl) · \(erstes)"] + infos.dropFirst()
+        return ["\(kategorie.einzahl): \(erstes)"] + infos.dropFirst()
     }
 
     var body: some View {

@@ -47,7 +47,7 @@ public static class BehinderungsAbfrage
     {
         var text = Behinderung.Fragetext(d, ix, hindernisse, anlass) +
                    "\n\nJa: behindernden Unterricht entplanen (er erscheint unter „nicht verplant“)" +
-                   (nein ? "\nNein: trotzdem ausführen – die Kollision bleibt bestehen" : "") + "\nAbbrechen: nichts ändern";
+                   (nein ? "\nNein: trotzdem ausführen (die Kollision bleibt bestehen)" : "") + "\nAbbrechen: nichts ändern";
         if (Ui.FrageAntwort is { } antwort) return antwort(text, Titel) ? BehinderungsAntwort.Entplanen : nein ? BehinderungsAntwort.KollisionZulassen : BehinderungsAntwort.Abbrechen;
         var r = nein ? Ui.JaNeinAbbrechen(text, Titel, MeldungsArt.Frage, 0, owner)
             : Ui.Meldung(text, Titel, MeldungsArt.Frage, new[] { "OK" }, 0, true, owner) == 0 ? DialogResult.OK : DialogResult.Cancel;
@@ -164,7 +164,7 @@ public static class RaumZuordnenDialog
         }
         var legende = new Label
         {
-            Text = "grün = Wunschraum bzw. Raumgruppe · rot = besetzt (in mindestens einer Stunde) · grau = gesperrt · Std.frei = freie Stunden von den betroffenen Stunden",
+            Text = "grün = Wunschraum bzw. Raumgruppe, rot = besetzt (in mindestens einer Stunde), grau = gesperrt, Std.frei = freie Stunden von den betroffenen Stunden",
             Left = 10, Top = 556, Width = 1000, Height = 18, ForeColor = Color.DimGray, Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
         };
         d.Controls.AddRange(new Control[] { info, umfang, lang, nurFrei, nurWunsch, nurKap, suche, links, pfeil, loeschen, rechts, legende });
@@ -372,7 +372,7 @@ public static class TauschvorschlaegeDialog
                 Farbe(oben.Rows[r].Cells["Gewinn"], v.Gewinn);
                 if (v.Sprungklasse.Length > 0) Farbe(oben.Rows[r].Cells["Gesamt"], v.Gesamt);
             }
-            if (liste.Count == 0) stundeText.Text += "  –  keine Tauschmöglichkeiten gefunden";
+            if (liste.Count == 0) stundeText.Text += ": keine Tauschmöglichkeiten gefunden";
             Folge();
         }
         oben.SelectionChanged += (_, _) => Folge();

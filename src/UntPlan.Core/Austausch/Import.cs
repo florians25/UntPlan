@@ -173,7 +173,7 @@ public static class Import
         var nr = new Dictionary<string, int>();
         foreach (var (key, u) in unterrichte)
         {
-            if (u.Zeilen.All(z => z.FachId is null)) { b.Hinweise.Add($"Unterricht {key}: kein Fach – übersprungen"); continue; }
+            if (u.Zeilen.All(z => z.FachId is null)) { b.Hinweise.Add($"Unterricht {key}: kein Fach, übersprungen"); continue; }
             d.Unterrichte.Add(u);
             nr[key] = u.Id;
             b.Neu++;

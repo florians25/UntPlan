@@ -36,8 +36,8 @@ export async function zeigen(seite, kontext, [idParam, vonParam, bisParam, klass
   seite.innerHTML = `
     <div class="u-kopfteil">
       <div class="nl-leiste">
-        <div class="ub-kopf"><div class="nl-name">${u ? `Klasse ${e(u.klassen.join(', '))} · ${e(u.fach)}` : `Unterricht ${id}`}</div>
-          <div class="nl-unter">${u ? `Lehrkraft ${e(u.lehrer.join(', '))}${u.kurs ? ` · Schülergruppe ${e(u.kurs)}` : ''}` : ''}</div></div>
+        <div class="ub-kopf"><div class="nl-name">${u ? `Klasse ${e(u.klassen.join(', '))}, ${e(u.fach)}` : `Unterricht ${id}`}</div>
+          <div class="nl-unter">${u ? `Lehrkraft ${e(u.lehrer.join(', '))}${u.kurs ? `, Schülergruppe ${e(u.kurs)}` : ''}` : ''}</div></div>
         <label class="nl-pille"><span class="me-1 text-body-secondary">Von</span><input type="date" data-von value="${von}"></label>
         <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${bis}"></label>
         <label class="nl-pille ${bereich ? 'aktiv' : ''}"><select data-bereich aria-label="Zeitraum">${bereich ? '' : '<option value="">Datumsbereich</option>'}${Object.entries(bereiche).map(([k, [t]]) => `<option value="${k}" ${k === bereich ? 'selected' : ''}>${e(t)}</option>`).join('')}</select></label>

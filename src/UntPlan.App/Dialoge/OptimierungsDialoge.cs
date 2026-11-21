@@ -100,7 +100,7 @@ public sealed class GewichtungDialog : Dialog
         }
         _inhalt.Controls.Add(new Label
         {
-            Text = "Verwenden Sie die Prioritäten 4 und 5 nicht zu häufig. Zwischen 4 und 5 ist ein (sehr) großer Unterschied – stellen Sie Regler zunächst maximal auf 4.",
+            Text = "Verwenden Sie die Prioritäten 4 und 5 nicht zu häufig. Zwischen 4 und 5 besteht ein sehr großer Unterschied. Stellen Sie die Regler zunächst höchstens auf 4.",
             Left = 4, Top = y + 6, Width = 540, Height = 40, ForeColor = Color.DimGray,
         });
     }

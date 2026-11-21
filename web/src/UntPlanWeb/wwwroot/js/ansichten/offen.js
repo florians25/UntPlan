@@ -142,7 +142,7 @@ export async function zeigen(seite, kontext, [bereichParam, artParam, lehrerPara
     const kuerzel = [...new Set(liste.map(z => z.lehrer))];
     const ziele = empfaenger.filter(x => x.id.startsWith('benutzer:') && kuerzel.some(k => x.name.toLowerCase().includes(`(${k.toLowerCase()})`) || x.name.toLowerCase().includes(k.toLowerCase())));
     const nachricht = `Bitte tragen Sie für folgende Stunden die Abwesenheitskontrolle bzw. den Lehrstoff nach:\n\n${liste.slice(0, 60).map(z =>
-      `- ${datumDe(z.datum)} ${z.beginn}–${z.ende} ${z.klassen.join(', ')} ${z.fach} (${z.lehrer})${!z.geprueft ? ' · Abwesenheiten' : ''}${!z.lehrstoff ? ' · Lehrstoff' : ''}`).join('\n')}${liste.length > 60 ? `\n… und ${liste.length - 60} weitere` : ''}`;
+      `- ${datumDe(z.datum)} ${z.beginn}–${z.ende} ${z.klassen.join(', ')} ${z.fach} (${z.lehrer})${!z.geprueft ? ', Abwesenheiten' : ''}${!z.lehrstoff ? ', Lehrstoff' : ''}`).join('\n')}${liste.length > 60 ? `\n… und ${liste.length - 60} weitere` : ''}`;
     dialog({
       titel: 'Nachricht senden', breit: true,
       inhalt: `<div class="mb-3"><label class="form-label">Empfänger</label><div class="mt-empfaenger">${ziele.length ? ziele.map(x => `<span class="u-chip">${e(x.name)}</span>`).join('') : '<span class="text-body-secondary small">Für die betroffenen Lehrkräfte gibt es kein Benutzerkonto.</span>'}</div></div>

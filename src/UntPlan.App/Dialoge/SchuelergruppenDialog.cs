@@ -28,7 +28,7 @@ public static class SchuelergruppenDialog
         {
             Left = 12, Top = 10, Width = 610, Height = 34, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
             Text = "Unterricht hat über mehrere Perioden hinweg unterschiedliche Schülergruppen. Bitte prüfen Sie die Korrektheit der Schülergruppen " +
-                   "in diesem Unterricht – Zelle der richtigen Schülergruppe markieren und „In alle Perioden übernehmen“.",
+                   "in diesem Unterricht. Markieren Sie die Zelle der richtigen Schülergruppe und wählen Sie „In alle Perioden übernehmen“.",
         };
         var g = new DataGridView
         {
@@ -49,7 +49,7 @@ public static class SchuelergruppenDialog
             g.Rows.Clear();
             foreach (var x in Schuelergruppen.Inkonsistente(AppZustand.D))
             {
-                var werte = perioden.Select(p => (object)(x.Perioden.FirstOrDefault(y => y.Periode.Id == p.Id) is { Periode: not null } y ? y.Schuelergruppe : "– nicht vorhanden –"));
+                var werte = perioden.Select(p => (object)(x.Perioden.FirstOrDefault(y => y.Periode.Id == p.Id) is { Periode: not null } y ? y.Schuelergruppe : "(nicht vorhanden)"));
                 var i = g.Rows.Add(new object[] { x.UnterrichtId }.Concat(werte).ToArray());
                 g.Rows[i].Tag = x.UnterrichtId;
                 var aktiv = x.Perioden.FirstOrDefault(y => y.Periode.Id == AppZustand.D.AktivePeriodeId).Schuelergruppe;

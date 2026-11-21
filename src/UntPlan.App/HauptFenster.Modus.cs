@@ -27,7 +27,7 @@ public sealed partial class HauptFenster
         g.Eintraege.Add(new RibbonEintrag
         {
             Text = "Kalender", Symbol = "kalender", Gross = true, PfeilKalender = true, Klick = () => VertretungsFensterOeffnen("kal"),
-            Hinweis = "Klick: Fenster Kalender · Pfeil: Planungsdatum im Monatskalender wählen (Heute: Strg+T)",
+            Hinweis = "Klick: Fenster Kalender. Pfeil: Planungsdatum im Monatskalender wählen (Heute: Strg+T)",
         });
         g.Eintraege.Add(new RibbonEintrag { Text = "Datum", IstDatum = true, Hinweis = "Planungsdatum: ◂ ▸ voriger/nächster Schultag (Strg+G / Strg+M), Strg+T: heute" });
 

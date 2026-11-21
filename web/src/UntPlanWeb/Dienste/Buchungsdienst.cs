@@ -428,7 +428,7 @@ public sealed class Buchungsdienst
         var weg = new List<DateOnly>();
         foreach (var d in tage.Distinct().Order())
             if (_plan.Frei(s, d).Frei) weg.Add(d); else res.Add(new Termin(d, v, b));
-        if (res.Count > MaxTermine) throw new ArgumentException($"Höchstens {MaxTermine} Termine auf einmal – bitte den Zeitraum verkleinern.");
+        if (res.Count > MaxTermine) throw new ArgumentException($"Höchstens {MaxTermine} Termine auf einmal möglich. Bitte verkleinern Sie den Zeitraum.");
         return (res, weg);
     }
 
@@ -472,7 +472,7 @@ public sealed class Buchungsdienst
         foreach (var b in AktiveAm(d).Where(b => b.Id != ohneBuchung && b.Raum.Length > 0 && !SchonImPaket(b, paket)))
             for (var st = b.StundeVon; st <= b.StundeBis; st++)
                 foreach (var raum in b.AlleRaeume)
-                    res.Add(new Belegt(st, raum, "buchung", $"{(b.Titel.Length > 0 ? b.Titel : b.ArtName)} ({b.Absender}){(b.Bestaetigt is null ? " – nicht bestätigt" : "")}", b.Id));
+                    res.Add(new Belegt(st, raum, "buchung", $"{(b.Titel.Length > 0 ? b.Titel : b.ArtName)} ({b.Absender}){(b.Bestaetigt is null ? ", nicht bestätigt" : "")}", b.Id));
         return res;
     }
 
@@ -674,7 +674,7 @@ public sealed class Buchungsdienst
         }
         var zusaetzlich = quelle != null || pu != null || art == Buchungsarten.Unterricht;
         if (zusaetzlich && !Rechtedienst.Darf(b, Recht.Stundenplanaenderung))
-            throw new UnauthorizedAccessException("Für zusätzliche Stunden benötigen Sie das Recht „Stundenplanänderung“ – bitte wenden Sie sich an die Administration.");
+            throw new UnauthorizedAccessException("Für zusätzliche Stunden benötigen Sie das Recht „Stundenplanänderung“. Bitte wenden Sie sich an die Administration.");
 
         EigenerUnterricht? eu = null;
         if (art == Buchungsarten.Unterricht && pu == null && d.PlanUnterricht == null)
@@ -816,7 +816,7 @@ public sealed class Buchungsdienst
         var alle = erste.AlleLehrer;
         var konten = _benutzer.Alle().Where(x => !x.Gesperrt && x.Id != b.Id && alle.Contains(x.LehrerKuerzel ?? "\u0001", Ci)).ToList();
         if (konten.Count == 0)
-            return alle.All(l => l == b.LehrerKuerzel) ? new() : new() { $"Für {string.Join(", ", alle.Where(l => l != b.LehrerKuerzel))} gibt es kein Benutzerkonto – keine Benachrichtigung." };
+            return alle.All(l => l == b.LehrerKuerzel) ? new() : new() { $"Für {string.Join(", ", alle.Where(l => l != b.LehrerKuerzel))} gibt es kein Benutzerkonto. Es wurde keine Benachrichtigung versendet." };
         var zeilen = neu.Take(30).Select(x => $"• {Plandienst.Wochentage[Plandienst.TagIndex(DateOnly.Parse(x.Datum))]}, {DateOnly.Parse(x.Datum):dd.MM.yyyy}, {x.StundeVon}.{(x.StundeBis != x.StundeVon ? $"–{x.StundeBis}." : "")} Stunde"
             + (x.Beginn.Length > 0 ? $" ({x.Beginn}–{x.Ende})" : "") + (x.Raum.Length > 0 ? $", Raum {x.Raum}" : ""));
         var text = $"{b.Anzeigename.Trim() switch { "" => b.Login, var n => n }} hat Sie für die Aktivität „{erste.Titel}“ eingetragen:\n\n{string.Join("\n", zeilen)}"
@@ -1010,7 +1010,7 @@ public sealed class Buchungsdienst
                 ressourcen = r.Ressourcen,
                 belegung = daten.ToDictionary(d => Plandienst.Iso(d), d => belegung[d].Where(x => Ci.Equals(x.Raum, r.Kurz))
                     .GroupBy(x => x.Stunde).OrderBy(g => g.Key)
-                    .Select(g => new { stunde = g.Key, art = g.First().Art, text = string.Join(" · ", g.Select(x => x.Text).Distinct()), buchung = g.Select(x => x.BuchungId).FirstOrDefault(x => x.HasValue) })),
+                    .Select(g => new { stunde = g.Key, art = g.First().Art, text = string.Join(", ", g.Select(x => x.Text).Distinct()), buchung = g.Select(x => x.BuchungId).FirstOrDefault(x => x.HasValue) })),
             }),
         };
     }
@@ -1303,7 +1303,7 @@ public sealed class Buchungsdienst
                 {
                     _mitteilungen.Senden(b, s, new[] { "benutzer:" + konto.Id }, $"Neuer Unterricht: {neu.Fach} {string.Join(", ", neu.Klassen)}",
                         $"{(b.Anzeigename.Trim().Length > 0 ? b.Anzeigename.Trim() : b.Login)} hat für Sie den Unterricht {neu.Fach}{(neu.Klassen.Count > 0 ? $" ({string.Join(", ", neu.Klassen)})" : "")} angelegt."
-                        + (neu.Zusatz.Von.Length > 0 ? $"\nZeitraum: {neu.Zusatz.Von} – {neu.Zusatz.Bis}" : "") + (neu.Text.Length > 0 ? $"\n\n{neu.Text}" : ""), false);
+                        + (neu.Zusatz.Von.Length > 0 ? $"\nZeitraum: {neu.Zusatz.Von} bis {neu.Zusatz.Bis}" : "") + (neu.Text.Length > 0 ? $"\n\n{neu.Text}" : ""), false);
                 }
                 catch (ArgumentException) { /* optional */ }
         return neu;

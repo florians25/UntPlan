@@ -28,7 +28,7 @@ public abstract class WebListenDialog : Dialog
         ts.Items.Add(new ToolStripSeparator());
         ts.Items.Add(new ToolStripLabel("Suche:"));
         ts.Items.Add(_suche);
-        ts.Items.Add(new ToolStripLabel("Importiert aus UntPlanWeb – Änderungen bitte dort vornehmen.") { Alignment = ToolStripItemAlignment.Right, ForeColor = Color.DimGray });
+        ts.Items.Add(new ToolStripLabel("Importiert aus UntPlanWeb. Änderungen bitte dort vornehmen.") { Alignment = ToolStripItemAlignment.Right, ForeColor = Color.DimGray });
 
         Ui.RasterGestalten(Raster, false);
         Raster.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -135,7 +135,7 @@ public sealed class SchuelerAbwesenheitenDialog : WebListenDialog
         var fehlt = gezeigt.Where(a => !a.Verspaetet).ToList();
         var versp = gezeigt.Where(a => a.Verspaetet).ToList();
         return $"{fehlt.Count} Fehlstunden ({fehlt.Count(a => a.Status == "entschuldigt")} entschuldigt, {fehlt.Count(a => a.Status == "unentschuldigt")} unentschuldigt, " +
-               $"{fehlt.Count(a => a.Status == "offen")} offen) · {versp.Count} Verspätungen ({versp.Sum(a => a.Minuten)} Min.) · {gezeigt.Select(a => a.SchuelerId).Distinct().Count()} Schüler/innen";
+               $"{fehlt.Count(a => a.Status == "offen")} offen), {versp.Count} Verspätungen ({versp.Sum(a => a.Minuten)} Min.), {gezeigt.Select(a => a.SchuelerId).Distinct().Count()} Schüler/innen";
     }
 }
 

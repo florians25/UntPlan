@@ -148,7 +148,7 @@ public sealed partial class Klassenbuchverwaltung
         string Grund(string g) => gruende.TryGetValue(g, out var n) ? n : g;
         var plan = _kb.PlanFinder(s);
         var mitAllen = An(o, info, "alle");
-        var titel = info.Titel + (statusFilter == "entschuldigt" ? " – entschuldigt" : statusFilter == "nicht_entschuldigt" ? " – nicht entschuldigt" : "");
+        var titel = info.Titel + (statusFilter == "entschuldigt" ? " (entschuldigt)" : statusFilter == "nicht_entschuldigt" ? " (nicht entschuldigt)" : "");
         var hinweisBasis = "Es erscheinen nur die Fehlzeiten, die als Abwesenheiten in UntPlanWeb bzw. UntPlanMobile dokumentiert wurden. Nur „entschuldigt“ zählt als entschuldigt; [offen] und alle anderen Status zählen als nicht entschuldigt.";
         var zeilen = new List<(string Art, object?[] Zeile)>();
 
@@ -315,7 +315,7 @@ public sealed partial class Klassenbuchverwaltung
         var kinder = Klassenzugehoerigkeit.ImZeitraum(s, new[] { kl.Kurz }, von, bis).OrderBy(x => x.Name, De).ThenBy(x => x.Vorname, De).ToList();
         var schule = s.Paket.Schule;
         var faecher = _listen.Unterrichte(s, von < _uhr.Heute ? (bis < _uhr.Heute ? bis : _uhr.Heute) : von, null, kl.Kurz)
-            .Select(u => $"{u.Fach} – {string.Join(", ", u.Lehrer.Select(L))}").Distinct().ToList();
+            .Select(u => $"{u.Fach}: {string.Join(", ", u.Lehrer.Select(L))}").Distinct().ToList();
         var zeilen = new List<(string, object?[])>
         {
             ("block", new object?[] { "Klassenbuch", "" }),
@@ -328,7 +328,7 @@ public sealed partial class Klassenbuchverwaltung
             ("", new object?[] { "Schüler*innen", kinder.Count }),
             ("block", new object?[] { "Unterricht", "" }),
         };
-        zeilen.AddRange(faecher.Select(f => ("", new object?[] { "Fach – Lehrkraft", f })));
+        zeilen.AddRange(faecher.Select(f => ("", new object?[] { "Fach: Lehrkraft", f })));
         zeilen.Add(("block", new object?[] { "Schüler*innen", "" }));
         zeilen.AddRange(kinder.Select((x, i) => ("", new object?[] { $"{i + 1}.", $"{x.Name}, {x.Vorname}" })));
         return new Bericht(info.Id, info.Titel, new() { "Angabe", "Wert" }, zeilen.Select(z => z.Item2.ToList()).ToList(), null, zeilen.Select(z => z.Item1).ToList())
@@ -384,7 +384,7 @@ public sealed partial class Klassenbuchverwaltung
             return karten.FirstOrDefault(k => k.Von <= v.Stunde && v.Stunde <= k.Bis && k.Unterricht.HasValue)?.Fach ?? "";
         }
         // Spalten wie die Liste „Klassenbucheinträge“ des Originals (Bericht-Knopf): Name, Klasse, Tag, Datum, Zeit, Fach, Benutzer, Eintragskategorie, Kategoriegruppe, Text
-        return new Bericht(info.Id, info.Titel + (kat.Length > 0 ? $" – {(arten is { Length: > 1 } ? kat[7..] : kat)}" : ""),
+        return new Bericht(info.Id, info.Titel + (kat.Length > 0 ? $": {(arten is { Length: > 1 } ? kat[7..] : kat)}" : ""),
             new() { "Name", "Klasse", "Tag", "Datum", "Zeit", "Fach", "Benutzer", "Eintragskategorie", "Kategoriegruppe", "Text" },
             liste.Select(v => new List<object?> { v.Schueler, v.Klasse,
                 DateOnly.TryParse(v.Datum, CultureInfo.InvariantCulture, out var d) ? d.ToString("ddd", DeKultur).TrimEnd('.') + "." : "", DateOnly.TryParse(v.Datum, CultureInfo.InvariantCulture, out var d2) ? d2.ToString("dd.MM.yyyy") : v.Datum,
@@ -414,7 +414,7 @@ public sealed partial class Klassenbuchverwaltung
             var name = Name(namen, f.SchuelerId);
             if (!woche || !DateOnly.TryParse(f.Datum, CultureInfo.InvariantCulture, out var d)) return name;
             var mo = Plandienst.Montag(d);
-            return $"{name} – Woche {mo:dd.MM.} – {mo.AddDays(6):dd.MM.yyyy}";
+            return $"{name}, Woche {mo:dd.MM.} bis {mo.AddDays(6):dd.MM.yyyy}";
         }
         string Datum(string iso) => DateOnly.TryParse(iso, CultureInfo.InvariantCulture, out var d) ? d.ToString("dd.MM.yyyy") : iso;
         string Status(IEnumerable<Fehlzeit> l) => l.All(f => f.Status == "entschuldigt") ? "entschuldigt" : l.Any(f => f.Status == "unentschuldigt") ? "unentschuldigt" : "offen";
@@ -464,7 +464,7 @@ public sealed partial class Klassenbuchverwaltung
         var fz = u.Klassen.SelectMany(k => _kb.FehlzeitenZeitraum(von, bis, k)).Where(f => gehalten.Contains((f.Datum, f.Stunde)) && (f.Unterricht == uid || f.Unterricht == 0)).ToList();
         var gruende = Gruende().GroupBy(g => g.Kurz, Ci).ToDictionary(g => g.Key, g => g.First().Name, Ci);
         string Grund(string g) => gruende.TryGetValue(g, out var n) ? n : g;
-        var kopf = $"Klasse: {string.Join(", ", u.Klassen)}, Fach: {u.FachName}{(u.Kurs.Length > 0 ? $", Schülergruppe: {u.Kurs}" : "")}, Lehrkraft: {string.Join(", ", u.Lehrer)} · Unterrichtsstunden {anzahl} ({Fehlzeitenrechnung.Hhmm(gesamtMin)}) · {von:dd.MM.yyyy} – {bis:dd.MM.yyyy}";
+        var kopf = $"Klasse: {string.Join(", ", u.Klassen)}, Fach: {u.FachName}{(u.Kurs.Length > 0 ? $", Schülergruppe: {u.Kurs}" : "")}, Lehrkraft: {string.Join(", ", u.Lehrer)}, Unterrichtsstunden: {anzahl} ({Fehlzeitenrechnung.Hhmm(gesamtMin)}), Zeitraum: {von:dd.MM.yyyy} bis {bis:dd.MM.yyyy}";
         // Kopfzeilen im PDF wie im Original
         var kontextFach = $"Klasse: {string.Join(", ", u.Klassen)}, Fach: {u.Fach}{(u.Kurs.Length > 0 ? $", Schülergruppe: {u.Kurs}" : "")}, Lehrkraft: {string.Join(", ", u.Lehrer)}";
         var stundenText = $"Unterrichtsstunden\t{anzahl}\t{Fehlzeitenrechnung.Hhmm(gesamtMin)}";

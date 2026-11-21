@@ -211,13 +211,13 @@ public static class Gewichtung
         if (gesamt == 0) return h;
         var fuenf = Gewichte.Where(r => Wert(g, r.Schluessel) >= 5).ToList();
         if (fuenf.Count > Math.Max(2, gesamt / 10))
-            h.Add(new($"{fuenf.Count} Parameter stehen auf „extrem wichtig“ (5). Der Unterschied zwischen 4 und 5 ist sehr groß – zu viele 5er schränken die Optimierung so stark ein, dass oft nur ein Bruchteil der Stunden verplant werden kann.", true));
+            h.Add(new($"{fuenf.Count} Parameter stehen auf „extrem wichtig“ (5). Der Unterschied zwischen 4 und 5 ist sehr groß. Zu viele 5er schränken die Optimierung so stark ein, dass oft nur ein Bruchteil der Stunden verplant werden kann.", true));
         foreach (var r in fuenf)
-            h.Add(new($"„{Titel(r)}“ ist extrem wichtig (5) – prüfen Sie, ob „sehr wichtig“ (4) genügt.", false, r.Schluessel));
+            h.Add(new($"„{Titel(r)}“ ist extrem wichtig (5). Prüfen Sie, ob „sehr wichtig“ (4) genügt.", false, r.Schluessel));
         if (n[0] + n[1] > gesamt * 0.7)
-            h.Add(new("Ein Großteil der Gewichte ist „unwichtig“ bzw. „wenig wichtig“ – die Optimierung kann so kaum zwischen den Kriterien unterscheiden.", true));
+            h.Add(new("Ein Großteil der Gewichte ist „unwichtig“ bzw. „wenig wichtig“. Die Optimierung kann so kaum zwischen den Kriterien unterscheiden.", true));
         if (n[5] > gesamt * 0.4)
-            h.Add(new("Ein Großteil der Gewichte ist „extrem wichtig“ – bitte die Gewichte abstufen.", true));
+            h.Add(new("Ein Großteil der Gewichte ist „extrem wichtig“. Bitte stufen Sie die Gewichte ab.", true));
         if (n[4] + n[5] > n[1] + n[2] && n[4] + n[5] > 0)
             h.Add(new("Die Vergabehäufigkeit nimmt mit steigendem Gewicht zu. Empfohlen ist eine Verteilung, bei der hohe Gewichte seltener vergeben werden als niedrige.", true));
         if (d != null) AbhaengigeGewichte(d, g, h);
@@ -262,7 +262,7 @@ public static class Gewichtung
         {
             if (vorhanden || Wert(g, key) <= 0) continue;
             var r = Alle.First(x => x.Schluessel == key);
-            h.Add(new($"„{Titel(r)}“ ist gewichtet ({Wert(g, key)}), es gibt aber keine Eingaben für {wo} – das Gewicht spielt bei der Optimierung keine Rolle.", false, key));
+            h.Add(new($"„{Titel(r)}“ ist gewichtet ({Wert(g, key)}), es gibt aber keine Eingaben für {wo}. Das Gewicht spielt bei der Optimierung keine Rolle.", false, key));
         }
         if (Wert(g, "L.LetzteVorm") > 0 && Wert(g, "L.LetzteVormMax") <= 0)
             h.Add(new("„Stunden in letzter Vormittagsstunde“: Ohne Eingabe bei „Maximal“ ist das Gewicht wirkungslos.", false, "L.LetzteVorm"));

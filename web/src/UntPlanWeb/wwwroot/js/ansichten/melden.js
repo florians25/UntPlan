@@ -64,9 +64,9 @@ export async function zeigen(seite, kontext, [bereichParam]) {
         <span class="mf-kachel-text"><b>${e(titel)}</b><span>${e(text)}</span></span>${zusatz}<i class="bi bi-chevron-right mf-pfeil" aria-hidden="true"></i></a>`;
     const letzteMeldungen = liste.slice(0, 4);
     ziel.innerHTML = `
-      <p class="mf-einleitung">Was möchten Sie melden? Meldungen gehen an die Planung und erscheinen nach der Übernahme im Stundenplan.</p>
+      <p class="mf-einleitung">Wählen Sie die Art der Meldung. Meldungen gehen an die Planung und erscheinen nach der Übernahme im Stundenplan.</p>
       <div class="mf-kacheln">
-        ${kachel('#/melden/abwesenheit', 'person-dash', 'Abwesenheit melden', 'Krankheit, Fortbildung oder Termin – ganztägig oder für einzelne Stunden')}
+        ${kachel('#/melden/abwesenheit', 'person-dash', 'Abwesenheit melden', 'Krankheit, Fortbildung oder Termin, ganztägig oder für einzelne Stunden')}
         ${kachel('#/melden/klausur', 'journal-check', 'Prüfung eintragen', 'Klassenarbeit, Klausur oder Test mit Raum und Aufsicht')}
         ${kachel('#/buchen/raum', 'door-open', 'Raum buchen', 'Freien Raum für eine Stunde oder als Serie buchen')}
         ${kachel('#/melden/meine', 'list-check', 'Meine Meldungen', 'Status verfolgen, offene Meldungen zurückziehen', offen ? `<span class="mf-zaehler" title="offene Meldungen">${offen}</span>` : '')}
@@ -100,7 +100,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
     let ganz = true, grund = GRUENDE[0];
     const zf = () => {
       const zeitraum = form.von.value === form.bis.value || !form.bis.value ? datumLang(form.von.value) : `${datumLang(form.von.value)} bis ${datumLang(form.bis.value)}`;
-      form.querySelector('[data-zf]').innerHTML = form.von.value ? `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${e(zeitraum)}${ganz ? ', ganztägig' : `, ${form.stundeVon.value}.–${form.stundeBis.value}. Stunde`} · ${e(grund)}</span>` : '';
+      form.querySelector('[data-zf]').innerHTML = form.von.value ? `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${e(zeitraum)}${ganz ? ', ganztägig' : `, ${form.stundeVon.value}.–${form.stundeBis.value}. Stunde`}, ${e(grund)}</span>` : '';
     };
     form.querySelectorAll('[data-umfang]').forEach(b => b.onclick = () => {
       ganz = b.dataset.umfang === 'ganz';
@@ -191,7 +191,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       const l = sichtbar();
       const box = ziel.querySelector('[data-liste]');
       box.innerHTML = !liste.length
-        ? `<div class="mf-leer gross"><i class="bi bi-inbox" aria-hidden="true"></i><b>Noch keine Meldungen</b><span>Melden Sie eine Abwesenheit oder tragen Sie eine Prüfung ein – hier sehen Sie dann den Status.</span><a class="nl-hinzu" href="#/melden"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neue Meldung</a></div>`
+        ? `<div class="mf-leer gross"><i class="bi bi-inbox" aria-hidden="true"></i><b>Noch keine Meldungen</b><span>Gemeldete Abwesenheiten und Prüfungen erscheinen hier mit ihrem Status.</span><a class="nl-hinzu" href="#/melden"><i class="bi bi-plus-lg" aria-hidden="true"></i>Neue Meldung</a></div>`
         : l.length ? `<ul class="mp-liste">${l.map(m => meldungZeile(m, true)).join('')}</ul>`
           : `<div class="mf-leer gross"><i class="bi bi-funnel" aria-hidden="true"></i><b>Keine Meldungen für diesen Filter</b><button type="button" class="nl-knopf" data-reset>Filter zurücksetzen</button></div>`;
       box.querySelector('[data-reset]')?.addEventListener('click', () => {

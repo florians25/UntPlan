@@ -91,7 +91,7 @@ public static class Handbuch
                 "Kommentar"),
             new("Drucken und Seitenlayout",
                 "Alle Listen und Stundenpläne werden über Datei | Drucken bzw. Druckvorschau ausgegeben. Im Seitenlayout legen Sie Hoch-/Querformat, Ränder, Kopf- und Fußzeile fest.\n" +
-                "Stundenpläne können zusätzlich als HTML-Seite (für Homepage oder Info-Bildschirm) und – über einen PDF-Drucker – als PDF ausgegeben werden.",
+                "Stundenpläne können zusätzlich als HTML-Seite (für Homepage oder Info-Bildschirm) und über einen PDF-Drucker als PDF ausgegeben werden.",
                 "Druck", "Seitenlayout", "PDF"),
         }),
         ("Unterricht", new()
@@ -103,12 +103,12 @@ public static class Handbuch
                 "Die Spalte 'Nvpl' zeigt die noch nicht verplanten Stunden; von dort kann eine Stunde per Drag&Drop direkt in einen Stundenplan gezogen werden.",
                 "Unterrichtsnummer", "Wochenstunden", "Nvpl"),
             new("Kopplungen",
-                "Eine Kopplung ist ein Unterricht mit mehreren Kopplungszeilen, die gleichzeitig stattfinden – z. B. Religion: KR (Lehrer A), ER (Lehrer B) und PP (Lehrer C) für die Klassen 6a und 6b.\n" +
+                "Eine Kopplung ist ein Unterricht mit mehreren Kopplungszeilen, die gleichzeitig stattfinden, z. B. Religion: KR (Lehrer A), ER (Lehrer B) und PP (Lehrer C) für die Klassen 6a und 6b.\n" +
                 "Neue Kopplungszeile: im Unterricht die Schaltfläche 'Kopplungszeile hinzufügen'. Mit dem Plus-Zeichen vor der Zeile werden die Kopplungszeilen ein- und ausgeblendet.",
                 "Kopplung", "gekoppelt"),
             new("Doppelstunden und Blöcke",
                 "Im Feld Doppelstunden wird die gewünschte Anzahl angegeben, z. B. 1–1 (genau eine Doppelstunde) oder 0–2. Blöcke (Feld 'Block') legen größere zusammenhängende Einheiten fest, z. B. 3 für Dreierblöcke.\n" +
-                "Kursbänder: Unterrichte mit gleichem 'Band' werden immer gemeinsam (parallel) verplant – typisch für die gymnasiale Oberstufe.",
+                "Kursbänder: Unterrichte mit gleichem 'Band' werden immer gemeinsam (parallel) verplant. Dies ist typisch für die gymnasiale Oberstufe.",
                 "Doppelstunde", "Block", "Band"),
         }),
         ("Automatische Planung", new()
@@ -119,7 +119,7 @@ public static class Handbuch
                 "Gewichtung"),
             new("Optimierung",
                 "Die Optimierung (Planung | Optimierung) verplant alle nicht fixierten Stunden. Strategien:\n" +
-                "A – Schnelloptimierung (wenige Minuten), B – Normaloptimierung, D – Intensivoptimierung (mehrere Pläne, Tauschoptimierung), E – Nächtliche Optimierung (lange Laufzeit, viele Pläne).\n" +
+                "A: Schnelloptimierung (wenige Minuten), B: Normaloptimierung, D: Intensivoptimierung (mehrere Pläne, Tauschoptimierung), E: Nächtliche Optimierung (lange Laufzeit, viele Pläne).\n" +
                 "Optional: nur Schritte 1–9 (Verplanung / Tauschoptimierung / Raumoptimierung), Start- und Erhöhungsprozentsatz für schrittweises Verplanen, Anzahl Pläne.\n" +
                 "Nach der Optimierung werden alle berechneten Pläne mit Bewertungszahl angezeigt (kleiner = besser). Der beste Plan ist markiert und wird mit OK übernommen.\n" +
                 "Achtung: Fixierte Stunden (*) werden nicht verändert.",
@@ -165,7 +165,7 @@ public static class Handbuch
                 "Vertretung", "Vertretungsvorschlag", "Entfall", "Betreuung", "Verlegung", "Raumvertretung"),
             new("Abwesenheiten",
                 "Abwesenheiten werden für Lehrer (Krankheit, Fortbildung …), Klassen (Exkursion, Klassenfahrt) und Räume (Sperrung) mit Zeitraum von Datum/Stunde bis Datum/Stunde eingegeben.\n" +
-                "Bei Klassenabwesenheiten können Begleitlehrer angegeben werden; sie gelten ebenfalls als abwesend. Der Unterricht der abwesenden Klasse wird als 'Freisetzung' geführt – " +
+                "Bei Klassenabwesenheiten können Begleitlehrer angegeben werden; sie gelten ebenfalls als abwesend. Der Unterricht der abwesenden Klasse wird als 'Freisetzung' geführt; " +
                 "die frei gewordenen Lehrer stehen für Vertretungen zur Verfügung (Minusstunden im Saldo).",
                 "Abwesenheit", "Freisetzung", "Klassenfahrt"),
             new("Pausenaufsichten",
@@ -175,7 +175,7 @@ public static class Handbuch
                 "Pausenaufsicht", "Gang", "Aufsicht"),
             new("Statistik",
                 "Die Vertretungsstatistik zeigt je Lehrer Vertretungen, Betreuungen, Sondereinsätze, Pausenaufsichten, Mehrarbeit, Entfälle, Freisetzungen und den Saldo im gewählten Zeitraum.\n" +
-                "NRW-Regel Mehrarbeit: Mehrarbeit wird vergütet, wenn im Kalendermonat mehr als 3 Unterrichtsstunden (Grenze einstellbar) geleistet wurden – dann alle Stunden; Minderstunden (Freisetzungen) werden verrechnet.\n" +
+                "NRW-Regel Mehrarbeit: Mehrarbeit wird vergütet, wenn im Kalendermonat mehr als 3 Unterrichtsstunden (Grenze einstellbar) geleistet wurden, und zwar alle Stunden; Minderstunden (Freisetzungen) werden verrechnet.\n" +
                 "Die Liste kann gedruckt oder als CSV-Datei (z. B. für die Bezirksregierung / Abrechnung) exportiert werden.",
                 "Statistik", "Mehrarbeit", "Abrechnung"),
             new("Vertretungsplan",

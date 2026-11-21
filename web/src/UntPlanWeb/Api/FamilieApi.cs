@@ -168,7 +168,7 @@ public static class FamilieApi
             if (format == "pdf")
             {
                 var schule = e.Schulname.Length > 0 ? e.Schulname : s.Paket.Schule.Name;
-                var pdf = PdfBericht.Erzeugen(schule, titel, $"{kind.Vorname} {kind.Name} · Klasse {kind.Klasse} · Zeitraum {v:dd.MM.yyyy} – {bi:dd.MM.yyyy}", spalten,
+                var pdf = PdfBericht.Erzeugen(schule, titel, $"{kind.Vorname} {kind.Name}, Klasse {kind.Klasse}, Zeitraum {v:dd.MM.yyyy} bis {bi:dd.MM.yyyy}", spalten,
                     zeilen.Select(z => (IReadOnlyList<string>)z).ToList(), null, b.Anzeigename.Length > 0 ? b.Anzeigename : b.Login, false, PdfBericht.Hochformat(ausrichtung, false));
                 return Results.File(pdf, "application/pdf", datei + ".pdf");
             }
@@ -191,7 +191,7 @@ public static class FamilieApi
                 z.Fehlstunden.ToString(De), gruende.GetValueOrDefault(z.Grund, z.Grund), StatusText(z.Status), z.Text }).ToList();
             var hinweis = $"Hiermit entschuldige ich das Fehlen von {kind.Vorname} {kind.Name} (Klasse {kind.Klasse}) in den oben aufgeführten Zeiträumen. "
                           + "Grund des Fehlens: ____________________________________________";
-            var pdf = PdfBericht.Erzeugen(schule, "Entschuldigungsschreiben", $"{kind.Vorname} {kind.Name} · Klasse {kind.Klasse}",
+            var pdf = PdfBericht.Erzeugen(schule, "Entschuldigungsschreiben", $"{kind.Vorname} {kind.Name}, Klasse {kind.Klasse}",
                 new[] { "Von", "Bis", "Fehlstunden", "Abwesenheitsgrund", "Status", "Text" }, zeilen, hinweis, b.Rolle == Rollen.Eltern ? "Erziehungsberechtigte*r" : $"{kind.Vorname} {kind.Name}",
                 true, PdfBericht.Hochformat(ausrichtung, true));
             return Results.File(pdf, "application/pdf", $"entschuldigung-{kind.Name.ToLowerInvariant()}-{uhr.Heute:yyyy-MM-dd}.pdf");

@@ -293,7 +293,7 @@ public sealed partial class EinstellungenDialog : Dialog
         var nr = Rechts("Schulnummer", new TextBox { Text = _e.Schulnummer }, 150);
         nr.TextChanged += (_, _) => _e.Schulnummer = nr.Text;
         var form = Rechts("Schulart", new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }, 150);
-        foreach (var (k, v) in Nrw.Schulformen) form.Items.Add($"{k} – {v}");
+        foreach (var (k, v) in Nrw.Schulformen) form.Items.Add($"{k}: {v}");
         form.DropDownWidth = 260;
         form.SelectedIndex = Math.Max(0, Nrw.Schulformen.Keys.ToList().IndexOf(_e.Schulform));
         form.SelectedIndexChanged += (_, _) => _e.Schulform = Nrw.Schulformen.Keys.ElementAt(form.SelectedIndex);
@@ -320,7 +320,7 @@ public sealed partial class EinstellungenDialog : Dialog
         tg.CheckedChanged += (_, _) => _e.TagesgenaueWertrechnung = tg.Checked;
         var mg = Ui.Zeile(_seite, "Mehrarbeit vergütungsfähig ab mehr als … Std./Monat (NRW)", new NumericUpDown { Minimum = 0, Maximum = 20, Value = _e.Mehrarbeitsgrenze }, ref y, 340, 60);
         mg.ValueChanged += (_, _) => _e.Mehrarbeitsgrenze = (int)mg.Value;
-        _seite.Controls.Add(new Label { Text = $"Pflichtstunden der Schulform ({Nrw.Schulformen.GetValueOrDefault(_e.Schulform)}): {Format.Zahl(Nrw.Pflichtstunden.GetValueOrDefault(_e.Schulform, 25.5m))} Std. (VO zu § 93 Abs. 2 SchulG) – Voreinstellung für neue Lehrer.", Left = 12, Top = y + 6, Width = 520, Height = 40, ForeColor = Color.DimGray });
+        _seite.Controls.Add(new Label { Text = $"Pflichtstunden der Schulform ({Nrw.Schulformen.GetValueOrDefault(_e.Schulform)}): {Format.Zahl(Nrw.Pflichtstunden.GetValueOrDefault(_e.Schulform, 25.5m))} Std. (VO zu § 93 Abs. 2 SchulG). Voreinstellung für neue Lehrkräfte.", Left = 12, Top = y + 6, Width = 520, Height = 40, ForeColor = Color.DimGray });
     }
 
     private void SeiteVertretung()
@@ -498,7 +498,7 @@ public sealed class PeriodenDialog : Dialog
     private void Neu()
     {
         if (Gewaehlt is not { } mutter) return;
-        var ab = Ui.Eingabe($"Neue Periode zur Mutterperiode {mutter.Name} – gültig ab (TT.MM.JJJJ):", "Neue Periode", Format.Datum(AppZustand.Datum < mutter.Von ? mutter.Von : AppZustand.Datum));
+        var ab = Ui.Eingabe($"Neue Periode zur Mutterperiode {mutter.Name}, gültig ab (TT.MM.JJJJ):", "Neue Periode", Format.Datum(AppZustand.Datum < mutter.Von ? mutter.Von : AppZustand.Datum));
         if (ab is null) return;
         try
         {

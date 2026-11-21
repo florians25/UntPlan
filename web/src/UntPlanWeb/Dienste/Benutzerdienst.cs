@@ -41,7 +41,7 @@ public static class Zusatzrechte
     {
         (Nachrichten, "Nachrichten zum Tag", "Nachrichten zum Tag pflegen und Mitteilungen an alle Benutzer senden (wie die Schulleitung)."),
         (Schuelerverwaltung, "Schülerverwaltung", "Schüler*innen aller Klassen anlegen, bearbeiten und löschen (nur Kollegium)."),
-        (KlassenbuchAlle, "Klassenbuch – alle", "Klassenbuch aller Lehrkräfte einsehen, z. B. die offenen Stunden aller Lehrkräfte (nur Kollegium)."),
+        (KlassenbuchAlle, "Klassenbuch (alle)", "Klassenbuch aller Lehrkräfte einsehen, z. B. die offenen Stunden aller Lehrkräfte (nur Kollegium)."),
         (OffeneStunden, "Offene Stunden", "Offene Stunden aller Lehrkräfte kontrollieren und Lehrkräfte daran erinnern (nur Kollegium)."),
     };
 

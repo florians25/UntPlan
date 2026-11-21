@@ -75,6 +75,54 @@ public class KartenVerlegungFachTests
         Assert.All(von["lehrer"]!.AsArray(), w => Assert.False(Wahr(w!, "neu")));
     }
 
+    /// <summary>
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als laut Stundenplan: Der Vertretungsplan nennt am Ziel den Raum
+    /// der Zielstunde als Soll-Raum (Raum gleich neuer Raum) – die Karte zeigt den Raum trotzdem als grünes Label („TH2 → R999“), verglichen
+    /// mit dem Raum des Unterrichts laut Stundenplan. Bleibt der Raum gleich, gibt es kein Label.
+    /// </summary>
+    [Theory]
+    [InlineData("Verlegung", "R999", true)]
+    [InlineData("Tausch", "R999", true)]
+    [InlineData("Verlegung", "", false)]
+    public async Task Verlegung_in_anderen_Raum_zeigt_Raumlabel_auch_mit_Raum_der_Zielstunde_als_Soll_Raum(string art, string zielraum, bool geaendert)
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 84;
+        var s = Stunde(paket, "2026-10-12", "7a", 4);
+        var lehrer = s["lehrer"]![0]!.GetValue<string>();
+        var fach = s["fach"]!.GetValue<string>();
+        var raum = s["raeume"]![0]!.GetValue<string>();
+        var ziel = zielraum.Length > 0 ? zielraum : raum;
+        s["status"] = "entfall"; s["vertretung"] = 9311;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9311, "2026-10-12", 4, "Entfall", lehrer, "---", fach, fach, raum, "", "", "Mi-14.10. / 7", "", null, "7a"));
+        Tag(paket, "2026-10-14")["stunden"]!.AsArray().Add(new JsonObject
+        {
+            ["stunde"] = 7, ["unterricht"] = s["unterricht"]!.GetValue<int>(), ["fach"] = fach, ["klassen"] = new JsonArray("7a"), ["lehrer"] = new JsonArray(lehrer),
+            ["raeume"] = new JsonArray(ziel), ["status"] = "zusaetzlich", ["vertretung"] = 9312, ["text"] = "",
+        });
+        // Soll-Raum am Ziel = Raum der Zielstunde (wie der Vertretungsplan des Desktops seit „Raum der Zielstunde als Soll-Raum“)
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9312, "2026-10-14", 7, art, lehrer, lehrer, fach, fach, ziel, ziel, "Mo-12.10. / 4", "", "", null, "7a"));
+
+        foreach (var (typ, element) in new[] { ("klasse", "7a"), ("lehrer", lehrer), ("raum", ziel) })
+        {
+            var plan = await PlanAsync(paket, typ, element, "2026-10-12");
+            var karte = Karten(plan, "2026-10-14", 7).Single(k => k["verlegung"]?.GetValue<string>() == "nach");
+            var r = karte["raeume"]!.AsArray().Single()!;
+            Assert.Equal(ziel, r["k"]!.GetValue<string>());
+            if (geaendert)
+            {
+                Assert.Equal(raum, r["alt"]?.GetValue<string>());
+                Assert.True(Wahr(r, "neu"));
+                Assert.Contains("aenderung", karte["marker"]!.AsArray().Select(x => x!.GetValue<string>()));
+            }
+            else
+            {
+                Assert.Null(r["alt"]?.GetValue<string>());
+                Assert.False(Wahr(r, "neu"));
+            }
+        }
+    }
+
     [Fact]
     public async Task Entfall_wegen_Veranstaltung_ohne_Vertretungstext()
     {

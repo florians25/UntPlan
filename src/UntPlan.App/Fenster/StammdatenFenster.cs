@@ -122,7 +122,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
             ts.Items.Add(Knopf("Stundenplan", "stundenplan", () => StundenplanFenster.Neu(_typ, _aktuell?.Id, false)));
             // Absenzeingabe im Schuljahreskalender (Handbuch Vertretungsplanung Kap. 5.3)
             if (typ != ElementTyp.Fach)
-                ts.Items.Add(Knopf("Schuljahreskalender – Absenzen", "kalender", () => { if (_aktuell is { } el) AbsenzKalenderDialog.Zeigen(this, _typ, el.Id); }));
+                ts.Items.Add(Knopf("Schuljahreskalender: Absenzen", "kalender", () => { if (_aktuell is { } el) AbsenzKalenderDialog.Zeigen(this, _typ, el.Id); }));
         }
         if (typ == ElementTyp.Fach)
         {

@@ -32,14 +32,14 @@ export async function quelleKarte(box, nachher) {
   box.innerHTML = `<div class="pe pe-einstellungen mb-3"><section class="pe-kasten"><h3 class="pe-titel">Quelle der Schülerdaten</h3>
     <div class="pe-zeile"><div class="pe-text">Woher die Schüler*innen kommen<small>Beim Wechsel zur Web-Verwaltung werden die bisher übertragenen Schüler*innen übernommen.</small></div>
       <div class="pe-wert pe-stapel">${Object.entries(QUELLE).map(([id, t]) => `<label class="pe-haken"><input type="radio" name="si-quelle" id="si-q-${id}" value="${id}" ${q.quelle === id ? 'checked' : ''}><span class="pe-kreis" aria-hidden="true"></span>
-        <span><b>${t}</b> – ${id === 'export' ? 'Schüler*innen kommen mit jeder Übertragung aus der Desktop-App; Änderungen in UntPlanWeb ergänzen sie.' : 'Schüler*innen werden in UntPlanWeb gepflegt (Schülerverwaltung, CSV-Import); der Export überschreibt sie nicht.'}</span></label>`).join('')}</div></div>
+        <span><b>${t}:</b> ${id === 'export' ? 'Schüler*innen kommen mit jeder Übertragung aus der Desktop-App; Änderungen in UntPlanWeb ergänzen sie.' : 'Schüler*innen werden in UntPlanWeb gepflegt (Schülerverwaltung, CSV-Import); der Export überschreibt sie nicht.'}</span></label>`).join('')}</div></div>
   </section></div>`;
   box.querySelectorAll('[name=si-quelle]').forEach(r => r.onchange = async () => {
     if (!await bestaetigen('Quelle der Schülerdaten', `Quelle auf „${QUELLE[r.value]}“ umstellen?`, 'Umstellen')) { box.querySelector(`#si-q-${q.quelle}`).checked = true; return; }
     try {
       const n = await senden('/api/app/admin/schuelerimport/quelle', { quelle: r.value }, 'PUT');
       q.quelle = n.quelle;
-      toast(n.uebernommen ? `Umgestellt – ${n.uebernommen} Schüler*innen übernommen.` : 'Umgestellt.');
+      toast(n.uebernommen ? `Umgestellt. ${n.uebernommen} Schüler*innen übernommen.` : 'Umgestellt.');
       nachher?.(n.quelle);
     } catch (err) { toast(err.message, true); box.querySelector(`#si-q-${q.quelle}`).checked = true; }
   });
@@ -54,7 +54,7 @@ export async function zeigen(ziel, kontext) {
   ziel.innerHTML = `<div data-quelle></div>
     <div class="card mb-3"><div class="card-body">
       <div class="si-schritt"><b>1</b>Datei wählen</div>
-      <p class="small text-body-secondary">CSV- oder TXT-Datei (Trennzeichen ; , oder Tab, UTF-8 oder Windows-1252 – beides wird erkannt). Aktuell ${g.schueler} Schüler*innen.</p>
+      <p class="small text-body-secondary">CSV- oder TXT-Datei (Trennzeichen ; , oder Tab, UTF-8 oder Windows-1252, beides wird erkannt). Aktuell ${g.schueler} Schüler*innen.</p>
       <div class="d-flex flex-wrap gap-2 align-items-end">
         <label class="btn btn-outline-secondary mb-0">${icon('hochladen')}Datei wählen<input type="file" accept=".csv,.txt,text/csv,text/plain" data-datei hidden></label>
         <label class="small">Trennzeichen<select class="form-select form-select-sm" data-trenner><option value="">automatisch</option><option value=";">Semikolon</option><option value=",">Komma</option><option value="tab">Tabulator</option></select></label>
@@ -65,7 +65,7 @@ export async function zeigen(ziel, kontext) {
   if (g.darfQuelle) await quelleKarte(ziel.querySelector('[data-quelle]'), q => { g.quelle = q; });
   else ziel.querySelector('[data-quelle]').innerHTML = alarm('info', `Quelle der Schülerdaten: ${QUELLE[g.quelle]}.`);
 
-  const felderOptionen = sel => `<option value="">– nicht übernehmen –</option>${[...new Set(g.felder.map(f => f.gruppe))].map(gr => `<optgroup label="${e(gr)}">${g.felder.filter(f => f.gruppe === gr)
+  const felderOptionen = sel => `<option value="">(nicht übernehmen)</option>${[...new Set(g.felder.map(f => f.gruppe))].map(gr => `<optgroup label="${e(gr)}">${g.felder.filter(f => f.gruppe === gr)
     .map(f => `<option value="${f.id}" ${sel === f.id ? 'selected' : ''}>${e(f.name)}</option>`).join('')}</optgroup>`).join('')}`;
 
   const laden = async () => {
@@ -80,7 +80,7 @@ export async function zeigen(ziel, kontext) {
       datei = await api('/api/app/admin/schuelerimport/lesen', { methode: 'POST', formular: fd });
       kopfzeile = datei.kopfzeile;
       zuordnung = { ...datei.vorschlag };
-      ziel.querySelector('[data-info]').textContent = `${datei.datei}: ${datei.anzahl} Zeilen · ${datei.kodierung} · Trennzeichen ${datei.trennzeichen === 'tab' ? 'Tabulator' : `„${datei.trennzeichen}“`}`;
+      ziel.querySelector('[data-info]').textContent = `${datei.datei}: ${datei.anzahl} Zeilen, ${datei.kodierung}, Trennzeichen ${datei.trennzeichen === 'tab' ? 'Tabulator' : `„${datei.trennzeichen}“`}`;
       ziel.querySelector('[data-ergebnis]').innerHTML = '';
       zuordnen();
     } catch (err) { kontext.fehler(err); }

@@ -45,7 +45,7 @@ public static class Unterrichtseingabe
                 if (t.Length == 0) return Eingabepruefung.Ok("");
                 var teile = t.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (teile.Any(x => !int.TryParse(x, out var n) || n < 2 || n > 10))
-                    return Eingabepruefung.Fehler($"Block: Blockgrößen von 2 bis 10, mehrere durch Komma getrennt (z. B. „3“ oder „3,3“) – „{t}“ ist ungültig.");
+                    return Eingabepruefung.Fehler($"Block: Blockgrößen von 2 bis 10, mehrere durch Komma getrennt (z. B. „3“ oder „3,3“). „{t}“ ist ungültig.");
                 return Eingabepruefung.Ok(string.Join(",", teile));
             }
             case "Von" or "Bis":
@@ -74,14 +74,14 @@ public static class Unterrichtseingabe
     public static List<string> Pflichthinweise(Unterricht u, Schuldatei? d = null)
     {
         var res = new List<string>();
-        if (u.Wochenstunden <= 0) res.Add("Wochenstunden fehlen (Wst = 0) – der Unterricht kann nicht verplant werden.");
+        if (u.Wochenstunden <= 0) res.Add("Wochenstunden fehlen (Wst = 0). Der Unterricht kann nicht verplant werden.");
         for (var i = 0; i < u.Zeilen.Count; i++)
         {
             var z = u.Zeilen[i];
             var wo = u.Zeilen.Count > 1 ? $" (Kopplungszeile {i + 1})" : "";
             if (z.FachId is null) res.Add($"Fach fehlt{wo}.");
             if (i == 0 && KlasseNoetig(d, u)) res.Add($"Klasse fehlt{wo}.");
-            if (z.LehrerId is null) res.Add($"Noch kein Lehrer{wo} – kann später ergänzt werden.");
+            if (z.LehrerId is null) res.Add($"Noch keine Lehrkraft{wo}. Kann später ergänzt werden.");
         }
         return res;
     }

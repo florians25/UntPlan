@@ -170,7 +170,7 @@ public static class ListenDruck
         {
             if (vorschau)
             {
-                using var p = new PrintPreviewDialog { Document = doc, Width = 1000, Height = 760, UseAntiAlias = true, Text = "Seitenansicht – " + doc.DocumentName };
+                using var p = new PrintPreviewDialog { Document = doc, Width = 1000, Height = 760, UseAntiAlias = true, Text = "Seitenansicht: " + doc.DocumentName };
                 p.ShowDialog(owner);
             }
             else

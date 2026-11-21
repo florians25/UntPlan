@@ -58,7 +58,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>„Felder der Ansicht“ während eines Neuaufbaus (sonst je Zelle neu gelesen).</summary>
     private Dictionary<string, string>? _felder;
     private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 107 };
-    private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen – erneuter Klick stellt die ursprünglichen Spalten wieder her" };
+    private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen. Ein erneuter Klick stellt die ursprünglichen Spalten wieder her." };
     /// <summary>Spalten, die vor „Felder mit Inhalt“ sichtbar waren.</summary>
     private HashSet<string>? _vorInhalt;
     /// <summary>Zusammengefasste Zeilen einer Veranstaltung (je Tag eine Zeile): Stellvertreter-Id → alle Stundenzeilen.</summary>
@@ -208,7 +208,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // „Veranstaltungen zusammenfassen“ (eigene Einstellung) liegt im Menü Einstellungen der Symbolleiste
         _vaSammeln.Checked = AppZustand.Einstellungen.VeranstaltungenZusammenfassen;
         var vaMenue = new ToolStripMenuItem("Veranstaltungen zusammenfassen") { CheckOnClick = true, Checked = _vaSammeln.Checked,
-            ToolTipText = "Entfälle und Freisetzungen einer Veranstaltung (z. B. Lehrkräftekonferenz, pädagogischer Tag) je Tag in einer Zeile zeigen – „Alle Klassen“, Stunde „1-6“. Ausschalten zeigt jede Stunde einzeln." };
+            ToolTipText = "Entfälle und Freisetzungen einer Veranstaltung (z. B. Lehrkräftekonferenz, pädagogischer Tag) je Tag in einer Zeile zeigen („Alle Klassen“, Stunde „1-6“). Ausschalten zeigt jede Stunde einzeln." };
         vaMenue.CheckedChanged += (_, _) => _vaSammeln.Checked = vaMenue.Checked;
         _vaSammeln.CheckedChanged += (_, _) => vaMenue.Checked = _vaSammeln.Checked;
         einst.DropDownItems.Insert(0, vaMenue);
@@ -292,14 +292,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             _wertVorher = _g.Rows[e.RowIndex].Cells[e.ColumnIndex].Value?.ToString()?.Trim() ?? "";
             // fixierte Vertretungen sind vor Veränderungen geschützt, Unterrichtszeilen sind nur Anzeige
             if (v.Id == 0) { e.Cancel = true; return; }
-            if (v.Fixiert) { e.Cancel = true; _status.Text = $"Vertretung {v.Id} ist fixiert (X) – zum Ändern zuerst lösen."; }
+            if (v.Fixiert) { e.Cancel = true; _status.Text = $"Vertretung {v.Id} ist fixiert (X). Zum Ändern zuerst die Fixierung lösen."; }
             var spalte = _g.Columns[e.ColumnIndex].Name;
             if (v.Art == VertretungsArt.Veranstaltung && spalte != "Vertreter" && spalte != "Text") e.Cancel = true;
             // zusammengefasste Entfälle einer Veranstaltung: nur der Text (gilt für alle Stunden); einzeln bearbeiten nach „Veranstaltungen zusammenfassen“ aus
             if (_vaSammel.Contains(v.Id) && spalte is not ("Text" or "Text2" or "Kz"))
             {
                 e.Cancel = true;
-                _status.Text = "Zusammengefasste Zeile einer Veranstaltung – zum Bearbeiten einzelner Stunden „Veranstaltungen zusammenfassen“ ausschalten (Doppelklick).";
+                _status.Text = "Zusammengefasste Zeile einer Veranstaltung. Zum Bearbeiten einzelner Stunden „Veranstaltungen zusammenfassen“ ausschalten (Doppelklick).";
             }
             if (v.Art == VertretungsArt.Freisetzung && spalte is "Vertreter" or "NFach" or "NRaum") e.Cancel = true;
         };
@@ -307,7 +307,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _g.CellClick += (_, e) =>
         {
             if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && !_g.Columns[e.ColumnIndex].ReadOnly && _g.Rows[e.RowIndex].Tag is Vertretung { Fixiert: true, Id: not 0 } fv)
-                _status.Text = $"Vertretung {fv.Id} ist fixiert (X) – zum Ändern zuerst lösen.";
+                _status.Text = $"Vertretung {fv.Id} ist fixiert (X). Zum Ändern zuerst die Fixierung lösen.";
         };
         _g.EditingControlShowing += EditorZeigen;
         Steuerelemente.SuchKombi.Aktivieren(_g, VertreterStil);
@@ -459,13 +459,13 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         ["UText"] = "Text des Unterrichts laut Unterrichtsdaten",
         ["UZText"] = "Zeilentext der Unterrichtszeile laut Unterrichtsdaten",
         ["Beschr"] = "Beschreibung der Vertretung",
-        ["Text"] = "Vertretungs-Text – erscheint im Vertretungsplan",
+        ["Text"] = "Vertretungstext, erscheint im Vertretungsplan",
         ["Entf"] = "Entfall: die Stunde findet nicht statt",
         ["Mitb"] = "Mitbetreuung: eine Lehrkraft betreut die Klasse zusätzlich zu ihrem eigenen Unterricht",
         ["Kopp"] = "Vertretungs-Kopplung: gemeinsam vertretene Kopplungszeilen",
         ["Neu"] = "Neue Vertretung seit der letzten Ausgabe des Vertretungsplans",
         ["Fix"] = "(X) Fixiert: die Vertretung wird von der Automatik nicht verändert",
-        ["Grund"] = "Absenzgrund der abwesenden Lehrkraft – wird für die Zählerführung gebraucht",
+        ["Grund"] = "Absenzgrund der abwesenden Lehrkraft, wird für die Zählerführung benötigt",
         ["ND"] = "N. Druck: die Vertretung erscheint nicht im gedruckten Vertretungsplan",
         ["Text2"] = "Zweiter Vertretungs-Text, z. B. für Lehrerinformationen",
         ["Ben"] = "Benachrichtigen: die Vertretung soll der Lehrkraft mitgeteilt werden",
@@ -767,7 +767,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Einstellungen des Vertretungsfensters: angezeigte Vertretungsarten (je Ansicht) und regulären Unterricht anzeigen.</summary>
     private void FensterEinstellungen()
     {
-        using var dlg = new Dialog("Einstellungen – Vertretungen / " + AnsichtName.Replace(" - ", " – "), 380, 560);
+        using var dlg = new Dialog("Einstellungen: Vertretungen / " + AnsichtName, 380, 560);
         dlg.Controls.Add(new Label { Text = "Diese Vertretungsarten werden angezeigt:", Left = 12, Top = 10, AutoSize = true });
         var liste = new CheckedListBox { Left = 12, Top = 32, Width = 350, Height = 400, CheckOnClick = true, IntegralHeight = false };
         var arten = Enum.GetValues<VertretungsArt>().OrderBy(a => ArtAnzeige(D, a), StringComparer.Create(Format.De, true)).ToList();
@@ -1000,7 +1000,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             var probe = Dokument.VertretungsProbe(D, von, bis);
             Vertretungen.Aktualisieren(probe, von, bis);
             if (Signatur(probe, von, bis) != Signatur(D, von, bis))
-                Aendern($"Vertretungen {Format.Datum(von)}{(von == bis ? "" : " – " + Format.Datum(bis))} aktualisiert", AenderungsArt.Vertretung, d => Vertretungen.Aktualisieren(d, von, bis));
+                Aendern($"Vertretungen {Format.Datum(von)}{(von == bis ? "" : " bis " + Format.Datum(bis))} aktualisiert", AenderungsArt.Vertretung, d => Vertretungen.Aktualisieren(d, von, bis));
         }
         if (von == bis && AppZustand.Datum != von)
         {
@@ -1440,7 +1440,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             : v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.VertreterId is int l ? Anzeige(ElementTyp.Lehrer, l, "Vertreter") : v.Offen ? "???" : "";
         var raumNeu = ohneStriche ? "" : v.IstEntfall ? "---" : v.RaumOffen ? "???" : v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId)
             : string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => Anzeige(ElementTyp.Raum, x, "NRaum")));
-        string Pos(DateOnly? d, int? s) => d is DateOnly dd ? $"{dd:d.M.} / {s}" : "";
+        static string Pos(DateOnly? d, int? s) => Vertretungsanzeige.Position(d, s);
         var stunde = gruppe is { Count: > 1 } && gruppe.Min(x => x.Stunde) != gruppe.Max(x => x.Stunde)
             ? $"{gruppe.Min(x => x.Stunde)}-{gruppe.Max(x => x.Stunde)}" : Vertretungsplan.StundeText(v);
         var u = v.UnterrichtId is int uid ? Plan(v.Datum).Unterrichte.GetValueOrDefault(uid) : null;
@@ -1469,7 +1469,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
             v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, (weg ?? v).RaumId, "Raum"), raumNeu,
-            Pos(v.VonDatum, v.VonStunde), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : Pos(v.NachDatum, v.NachStunde), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik,
+            // „(Le.) nach“ wie im Vorbild: Ziel der wegverlegten Stunde, bei einem reinen Entfall „Entfall“
+            Vertretungsanzeige.Von(v), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : ohneStriche ? "" : Vertretungsanzeige.Nach(v), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik,
             // Schülergruppe: eingetragene der Vertretung, sonst die des ursprünglichen Unterrichts (dann kursiv grau, siehe Formatieren)
             v.Schuelergruppe.Length > 0 ? v.Schuelergruppe : u != null ? Schuelergruppen.VonZeile(u, v.ZeilenIndex) : "",
             Langname("Grund") && D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == v.GrundId) is { } gl ? gl.Langname : v.Grund,
@@ -1664,8 +1665,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var gesperrt = Absenzen.RaumGesperrt(D, r.Id, v.Datum, v.Stunde);
         var belegt = Plan(v.Datum).Stunde(v.Stunde).Any(x => x.Findetstatt && x.RaumIds.Contains(r.Id) && x.Vertretung != v);
         var name = r.Langname.Length > 0 && r.Langname != r.Kurzname ? r.Langname : "";
-        return gesperrt ? new(Color.FromArgb(225, 40, 40), Color.White, (name + " – gesperrt").Trim(' ', '–'))
-            : belegt ? new(Color.FromArgb(255, 205, 205), Color.Black, (name + " – belegt").Trim(' ', '–'))
+        return gesperrt ? new(Color.FromArgb(225, 40, 40), Color.White, (name + " (gesperrt)").Trim())
+            : belegt ? new(Color.FromArgb(255, 205, 205), Color.Black, (name + " (belegt)").Trim())
             : new(Color.FromArgb(200, 240, 200), Color.Black, name);
     }
 
@@ -1975,7 +1976,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         {
             var w = OptionenDialog.Fragen(this, "Frage",
                 $"{string.Join(", ", zusaetzlich.Select(Ix.KLehrer))} zusätzlich an der Veranstaltung {va.Id} ({va.Text}) teilnehmen lassen?",
-                new[] { $"nur am {datum:dd.MM.yyyy}", $"an der ganzen Veranstaltung ({va.Von:dd.MM.} – {va.Bis:dd.MM.yyyy})" });
+                new[] { $"nur am {datum:dd.MM.yyyy}", $"an der ganzen Veranstaltung ({va.Von:dd.MM.} bis {va.Bis:dd.MM.yyyy})" });
             if (w is null) { Neuaufbau(); return; }
             ganze = w == 1;
         }
@@ -2145,6 +2146,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             foreach (var v in d.Vertretungen.Where(x => ids.Contains(x.Id)).ToList())
             {
                 tage.Add(v.Datum);
+                // Teil einer Verlegung bzw. eines Tausches (auch schon mit aufgehoben): die ganze Verlegung aufheben – der Ursprung wird
+                // wieder, was er vorher war (offene Vertretung, Vertretung, Entfall), eine gefüllte offene Stunde wieder offen
+                if (!d.Vertretungen.Contains(v)) continue;
+                if (Verlegungsaufhebung.IstVerlegung(d, v))
+                {
+                    Verlegungsaufhebung.Aufheben(d, v);
+                    continue;
+                }
                 if (Vertretungen.IstAbgeleitet(v))
                 {
                     v.Bearbeitet = false;
@@ -2182,8 +2191,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         Aendern("Vertretungen löschen", AenderungsArt.Vertretung, d =>
         {
             var weg = d.Vertretungen.Where(x => ids.Contains(x.Id)).ToList();
-            var verlegungen = weg.Where(x => x.VerlegungsId.HasValue).Select(x => x.VerlegungsId).ToHashSet();
-            d.Vertretungen.RemoveAll(x => ids.Contains(x.Id) || (x.VerlegungsId.HasValue && verlegungen.Contains(x.VerlegungsId)));
+            // Verlegungen und Tausche ganz aufheben (beide Richtungen, bisherige Zeile am Ursprung zurück), alles andere löschen
+            var verlegt = weg.Where(x => Verlegungsaufhebung.IstVerlegung(d, x)).ToList();
+            foreach (var x in verlegt.Where(x => Verlegungsaufhebung.IstVerlegung(d, x))) Verlegungsaufhebung.Aufheben(d, x);
+            d.Vertretungen.RemoveAll(x => ids.Contains(x.Id) && !verlegt.Contains(x));
             foreach (var t in weg.Select(x => x.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         });
     }

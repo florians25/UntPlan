@@ -11,7 +11,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (t, d) => `#/tag/${t}/${d}`;
   kontext.titel('');
-  document.title = `Tag - ${TYPEN[typ]} – UntPlanWeb`;
+  document.title = `Tag: ${TYPEN[typ]} | UntPlanWeb`;
 
   // Kopfzeile wie im Stundenplan: Filter links, Tag mittig mit Blättern, „Heute“ rechts
   seite.innerHTML = `
@@ -57,7 +57,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
       ${tag.gesperrt ? `<div class="tt-gesperrt tag-gesperrt">${sperreHtml(tag.sperrhinweis)}</div>`
         : k.frei ? `<div class="alert alert-secondary">${e(k.freiGrund || 'Unterrichtsfrei')}</div>`
         : zeilen.length ? `<div class="tag-huelle" style="--spalten:${zeilen.length}">${wochenGitter(plan, { ecke })}</div>`
-        : `<div class="alert alert-secondary">${leerAus && tag.zeilen.length ? 'Keine Einträge – leere Spalten sind ausgeblendet.' : 'Keine Einträge.'}</div>`}`;
+        : `<div class="alert alert-secondary">${leerAus && tag.zeilen.length ? 'Keine Einträge. Leere Spalten sind ausgeblendet.' : 'Keine Einträge.'}</div>`}`;
     kartenBinden(inhalt, plan.karten, kontext, typ);
     inhalt.querySelector('[data-leer]')?.addEventListener('click', () => {
       leerAus = !leerAus;

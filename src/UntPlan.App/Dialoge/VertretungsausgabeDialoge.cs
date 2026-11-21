@@ -36,7 +36,7 @@ public static class VertretungsnachrichtenDialog
     {
         var d = AppZustand.D;
         var einst = AppZustand.Einstellungen;
-        using var f = new Dialog($"Vertretungsnachrichten {Format.Datum(von)}{(bis > von ? " – " + Format.Datum(bis) : "")}", 720, 470);
+        using var f = new Dialog($"Vertretungsnachrichten {Format.Datum(von)}{(bis > von ? " bis " + Format.Datum(bis) : "")}", 720, 470);
         f.Ok.Text = "Senden";
         var nurGeaendert = new CheckBox { Text = "Nur seit der letzten Nachricht geänderte Vertretungen" + (einst.NachrichtenZuletzt is DateTime z ? $" ({z:dd.MM. HH:mm})" : ""), Left = 10, Top = 8, AutoSize = true, Checked = einst.NachrichtenNurGeaenderte };
         nurGeaendert.Font = new Font(Ui.Schrift, FontStyle.Italic); // lokal gespeichert
@@ -84,7 +84,7 @@ public static class VertretungsimportDialog
 {
     public static void Zeigen(IWin32Window owner)
     {
-        using var ofd = new OpenFileDialog { Filter = "UntPlan-Schuldatei (*.up)|*.up|Alle Dateien|*.*", Title = "Import Vertretungsplanung – Datei wählen" };
+        using var ofd = new OpenFileDialog { Filter = "UntPlan-Schuldatei (*.up)|*.up|Alle Dateien|*.*", Title = "Import Vertretungsplanung: Datei wählen" };
         if (ofd.ShowDialog(owner) != DialogResult.OK) return;
         Schuldatei quelle;
         try

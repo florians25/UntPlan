@@ -221,7 +221,7 @@ async function konfiguration(seite, kontext, id, reiterParam) {
 
   const zeitraeume = () => `
     <h2 class="st-abschnitt-titel">Sprechtag in Abschnitte gliedern</h2>
-    <p class="st-abschnitt-text">Legen Sie fest, wann Ihr Sprechtag stattfindet – auch für verschiedene Tage möglich. Die Zeitblöcke ergeben sich aus der zuvor definierten Länge. Raumzuweisungen und Pausen passen Sie später an.</p>
+    <p class="st-abschnitt-text">Legen Sie fest, wann der Sprechtag stattfindet. Mehrere Tage sind möglich. Die Zeitblöcke ergeben sich aus der zuvor definierten Länge. Raumzuweisungen und Pausen passen Sie später an.</p>
     ${k.abschnitte.map((a, i) => `<section class="st-box">
       <h4>${i + 1}. Sprechtagsabschnitt</h4>
       ${k.abschnitte.length > 1 ? `<button type="button" class="st-box-loeschen" data-abschnitt-weg="${i}" title="Abschnitt löschen" aria-label="${i + 1}. Abschnitt löschen">${bi('trash3')}</button>` : ''}
@@ -272,7 +272,7 @@ async function konfiguration(seite, kontext, id, reiterParam) {
     seite.innerHTML = `<div class="st st-weiss">
       ${kopf(t, { reiter: `<nav class="pe-reiter" role="tablist">${REITER.map(([key, text], i) => `<button type="button" role="tab" class="${key === reiter ? 'an' : i > ri ? 'aus' : ''}" aria-selected="${key === reiter}" data-reiter="${key}">${text}</button>`).join('')}</nav>` })}
       <div class="st-konfig">
-        ${t.veroeffentlicht ? '<div class="st-fehler mt-0 mb-3">Der Sprechtag ist veröffentlicht. Änderungen setzen ihn wieder auf „Entwurf“ zurück – bitte danach erneut veröffentlichen.</div>' : ''}
+        ${t.veroeffentlicht ? '<div class="st-fehler mt-0 mb-3">Der Sprechtag ist veröffentlicht. Änderungen setzen ihn auf „Entwurf“ zurück. Bitte veröffentlichen Sie ihn danach erneut.</div>' : ''}
         ${reiter === 'allgemein' ? allgemein() : reiter === 'zeitraeume' ? zeitraeume() : regeln()}
         <div class="st-fuss"><span class="st-fuss-status" data-status>${e(status)}</span>
           ${reiter === 'regeln'
@@ -350,7 +350,7 @@ async function konfiguration(seite, kontext, id, reiterParam) {
       try {
         if (timer) await speichern();
         await senden(`${BASIS}/${id}/veroeffentlichen`, {});
-        toast('Sprechtag veröffentlicht – die Lehrkräfte wurden benachrichtigt.');
+        toast('Sprechtag veröffentlicht. Die Lehrkräfte wurden benachrichtigt.');
         kontext.navigieren(`#/sprechtag/${id}`);
       } catch (err) {
         fehler(err);
@@ -408,7 +408,7 @@ async function verwaltung(seite, kontext, d) {
         <span class="st-abschnitt-rechts">${raumWahl(l, i)}${laufend ? `<button type="button" class="st-plus" data-plus="${e(l.kurz)}" data-abschnitt="${i}" title="Hinzufügen" aria-label="Hinzufügen">${bi('plus-lg')}</button>` : ''}</span></div>
       ${eintraege(l, i)}
     </div>`).join('') + (l.termine.some(x => x.status === 'einladung') ? `<div class="st-abschnitt"><div class="st-einladungen-titel">Einladungen (Uhrzeit wählen die Erziehungsberechtigten)</div>
-      ${l.termine.filter(x => x.status === 'einladung').map(x => `<div class="st-eintrag">${statusPille(x)}<span class="st-eintrag-name">${e(name(x.schueler))}<small>${e(x.schueler.klasse)}${x.verpflichtend ? ' · verpflichtend' : ''}</small></span>
+      ${l.termine.filter(x => x.status === 'einladung').map(x => `<div class="st-eintrag">${statusPille(x)}<span class="st-eintrag-name">${e(name(x.schueler))}<small>${e(x.schueler.klasse)}${x.verpflichtend ? ', verpflichtend' : ''}</small></span>
         <button type="button" class="st-symbol" data-zurueckziehen="${x.id}" title="Einladung zurückziehen" aria-label="Einladung zurückziehen">${bi('x-lg')}</button></div>`).join('')}</div>` : '');
 
   const passend = l => (!suche || `${l.kurz} ${l.name}`.toLowerCase().includes(suche.toLowerCase()))
@@ -419,7 +419,7 @@ async function verwaltung(seite, kontext, d) {
       + `<button type="button" class="st-rund" data-drucken title="Drucken (PDF)" aria-label="Drucken (PDF)">${bi('printer')}</button>`;
     if (admin) {
       const liste = d.lehrkraefte.filter(passend);
-      seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} · ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
+      seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
         <div class="st-innen">
           <h2 class="st-titel">Verwaltung</h2>
           <p class="st-text">Hier verwalten Sie Abwesenheiten, Räume und Termine der Lehrkräfte.${t.konfig.online ? ' Dies ist ein Online-Sprechtag: Meeting-Links werden direkt im jeweiligen Termin hinterlegt.' : ' Für Präsenz-Termine muss der jeweiligen Lehrkraft vorab ein Raum zugewiesen sein.'} Bereits gebuchte Termine können hier bearbeitet, abgesagt oder neu angelegt werden.</p>
@@ -435,7 +435,7 @@ async function verwaltung(seite, kontext, d) {
         </div></div>`;
     } else {
       const l = d.lehrkraefte[0];
-      seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} · ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
+      seite.innerHTML = `<div class="st">${kopf(t, { rechts: druck, unter: `<div class="st-kopf-unter">${e(t.datumText)} ${pille(t.phase, t.phaseText)}</div>`, pilleAn: false })}
         <div class="st-innen">
           <h2 class="st-titel">Meine Termine</h2>
           <p class="st-text">Hier sehen Sie Ihre Termine und Abwesenheiten für den Sprechtag.${t.konfig.online ? ' Dies ist ein Online-Sprechtag. Je nach Berechtigung müssen den Einladungen Meeting-Links hinzugefügt werden.' : ''}</p>
@@ -559,7 +559,7 @@ async function verwaltung(seite, kontext, d) {
       titel: 'Einladung senden',
       inhalt: `<p class="st-panel-unter">Die Erziehungsberechtigten wählen die Uhrzeit selbst; gebuchte Termine sind sofort bestätigt.${admin ? ` <b>${e(l.titel)}</b>` : ''}${['entwurf', 'verwaltung'].includes(t.phase) ? ' Versand an die Erziehungsberechtigten mit Beginn der 1. Anmeldephase.' : ''}</p>
         <label class="st-suche">${bi('search')}<input type="search" placeholder="Schüler*innen suchen" data-filter-sch></label>
-        <div class="st-schueler-liste">${liste.map(s => `<label class="${s.vorhanden ? 'aus' : ''}" data-zeile="${e(`${name(s)} ${s.klasse}`.toLowerCase())}"><input type="checkbox" class="form-check-input m-0" value="${s.id}" ${s.vorhanden ? 'disabled' : ''}>${e(name(s))}<small>${e(s.klasse)}${s.vorhanden ? ' · bereits eingeladen' : ''}</small></label>`).join('') || '<div class="p-3 text-secondary">Keine Schüler*innen im Unterricht dieser Lehrkraft.</div>'}</div>
+        <div class="st-schueler-liste">${liste.map(s => `<label class="${s.vorhanden ? 'aus' : ''}" data-zeile="${e(`${name(s)} ${s.klasse}`.toLowerCase())}"><input type="checkbox" class="form-check-input m-0" value="${s.id}" ${s.vorhanden ? 'disabled' : ''}>${e(name(s))}<small>${e(s.klasse)}${s.vorhanden ? ', bereits eingeladen' : ''}</small></label>`).join('') || '<div class="p-3 text-secondary">Keine Schüler*innen im Unterricht dieser Lehrkraft.</div>'}</div>
         ${feld('Nachricht (optional)', '<textarea maxlength="1000" data-text></textarea>')}
         <div class="st-recht"><div><h5>Verpflichtend</h5><p>Das Gespräch ist aus Sicht der Lehrkraft verpflichtend.</p></div>${schalter('data-pflicht', false, 'Verpflichtend')}</div>`,
       knoepfe: '<button type="button" class="st-knopf primaer klein" data-ok>Einladung senden</button>',
@@ -620,7 +620,7 @@ async function verwaltung(seite, kontext, d) {
     seitenpanel({
       titel: 'Termin',
       inhalt: `${kopfMeta(l, x.abschnitt)}
-        <p class="mb-3">${statusPille(x)} <b class="ms-2">${e(name(x.schueler))}</b> <span class="text-secondary">${e(x.schueler.klasse)}</span>${admin ? ` · ${e(l.titel)}` : ''}</p>
+        <p class="mb-3">${statusPille(x)} <b class="ms-2">${e(name(x.schueler))}</b> <span class="text-secondary">${e(x.schueler.klasse)}</span>${admin ? `, ${e(l.titel)}` : ''}</p>
         <div class="st-panel-raster">
           ${feld('Startzeit', `<select data-von ${darf ? '' : 'disabled'}><option>${e(x.beginn)}</option>${frei.filter(z => z.von !== x.beginn).map(z => `<option>${z.von}</option>`).join('')}</select>`)}
           ${feld('Endzeit', `<input type="text" value="${e(x.ende)}" disabled data-ende>`)}
@@ -680,7 +680,7 @@ async function eltern(seite, kontext, d) {
         <h2 class="st-gruppe">Meine Termine</h2><p class="st-gruppe-text">Ihre bestätigten Gesprächstermine.</p>
         ${Object.values(tage).map(g => `<div class="st-tag">${e(g.text)}</div>${g.liste.map(x => ekarte(x, { klick: true, pilleAn: true })).join('')}`).join('') || '<div class="st-leer">Noch keine bestätigten Termine.</div>'}
         ${d.freiBuchbar ? `<h2 class="st-gruppe">Termin buchen</h2><p class="st-gruppe-text">Wählen Sie eine Lehrkraft Ihres Kindes.</p>
-          ${d.kinder.map(k => `<div class="st-tag">${e(name(k))} · ${e(k.klasse)}</div>
+          ${d.kinder.map(k => `<div class="st-tag">${e(name(k))}, ${e(k.klasse)}</div>
             ${k.lehrkraefte.map(l => `<article class="st-ekarte klickbar" data-frei="${e(l.kurz)}" data-kind="${k.id}" tabindex="0"><b>(${e(l.kurz)}) ${e(l.name)}</b>
               <span class="unter">${e([l.klassenleitung ? 'Klassenleitung' : '', ...l.faecher].filter(Boolean).join(', '))}</span></article>`).join('') || '<div class="st-leer">Keine Lehrkräfte gefunden.</div>'}`).join('')}` : ''}
       </div></div></div>`;
@@ -721,8 +721,8 @@ async function eltern(seite, kontext, d) {
     const k = kind(kindId);
     seitenpanel({
       titel: termin ? 'Termin ändern' : 'Termin buchen',
-      inhalt: `<p class="st-panel-unter"><b>${e(titel)}</b> · ${e(k ? name(k) : '')}</p>
-        ${t.abschnitte.length > 1 ? `<div class="mb-3">${feld('Abschnitt', `<select data-abschnitt>${t.abschnitte.map(a => `<option value="${a.index}" ${a.index === abschnitt ? 'selected' : ''}>${e(a.name)} – ${e(a.wochentag)}, ${e(a.datumText)}, ${e(a.von)}–${e(a.bis)} Uhr</option>`).join('')}</select>`)}</div>`
+      inhalt: `<p class="st-panel-unter"><b>${e(titel)}</b>, ${e(k ? name(k) : '')}</p>
+        ${t.abschnitte.length > 1 ? `<div class="mb-3">${feld('Abschnitt', `<select data-abschnitt>${t.abschnitte.map(a => `<option value="${a.index}" ${a.index === abschnitt ? 'selected' : ''}>${e(a.name)}: ${e(a.wochentag)}, ${e(a.datumText)}, ${e(a.von)}–${e(a.bis)} Uhr</option>`).join('')}</select>`)}</div>`
           : `<div class="st-panel-meta"><span class="st-meta">${bi('calendar')} ${e(t.abschnitte[0].datumText)}</span><span class="st-meta">${bi('clock')} ${e(t.abschnitte[0].von)} – ${e(t.abschnitte[0].bis)} Uhr</span></div>`}
         <div class="st-feld"><span>Freie Zeiten</span><div class="st-zeiten" data-zeiten></div></div>`,
       knoepfe: `<button type="button" class="st-knopf primaer klein" data-ok disabled>${termin ? 'Termin ändern' : 'Termin buchen'}</button>`,
@@ -752,7 +752,7 @@ async function eltern(seite, kontext, d) {
   function terminPanel(x) {
     seitenpanel({
       titel: 'Gesprächstermin',
-      inhalt: `<p class="st-panel-unter"><b>${e(x.lehrerTitel)}</b> · ${e(name(x.schueler))}</p>
+      inhalt: `<p class="st-panel-unter"><b>${e(x.lehrerTitel)}</b>, ${e(name(x.schueler))}</p>
         <div class="st-panel-meta"><span class="st-meta">${bi('calendar')} ${e(x.wochentag)}, ${e(x.datumText)}</span><span class="st-meta">${bi('clock')} ${e(x.beginn)} – ${e(x.ende)} Uhr</span></div>
         <div class="st-panel-zeile"><span>${e(x.abschnittName)}</span><span>${t.konfig.online ? (x.link ? `<a href="${e(x.link)}" target="_blank" rel="noopener">Online-Meeting öffnen</a>` : 'Online') : e(x.raum || 'Unbekannter Raum')}</span></div>
         ${x.anmerkung ? `<p>${e(x.anmerkung)}</p>` : ''}`,
@@ -796,7 +796,7 @@ export function startkarteHtml(k) {
   const kinder = new Set(eintraege.map(x => x.schueler)).size > 1;
   // heute: der nächste Termin steht markiert in der Liste – die Statuszeile wiederholt ihn dann nicht
   const naechsterId = k.heute && k.naechster ? eintraege[0]?.id : null;
-  const statusText = naechsterId ? `Heute · ${k.gebucht} ${k.gebucht === 1 ? 'Termin' : 'Termine'}` : k.text;
+  const statusText = naechsterId ? `Heute: ${k.gebucht} ${k.gebucht === 1 ? 'Termin' : 'Termine'}` : k.text;
   const zeitTd = x => `<td class="st-s-zeit">${tage ? `<span class="st-s-tag">${e(x.tagText)}</span>` : ''}${e(x.beginn)}<span class="st-s-bis">–${e(x.ende)}</span></td>`;
   const zeile = x => k.rolle === 'eltern'
     ? `<tr${x.id === naechsterId ? ' class="st-s-naechster"' : ''}>${zeitTd(x)}<td class="st-s-wer">${e(x.lehrerName)}${kinder && x.vorname ? `<span class="st-s-unter">${e(x.vorname)}</span>` : ''}</td>
@@ -804,7 +804,7 @@ export function startkarteHtml(k) {
     : `<tr class="${x.id === naechsterId ? 'st-s-naechster' : x.status === 'angefragt' ? 'st-s-offen' : ''}">${zeitTd(x)}<td class="st-s-wer">${e(x.schueler)}${x.klasse ? `<span class="st-s-unter">${e(x.klasse)}</span>` : ''}</td>
         <td class="st-s-raum">${x.id === naechsterId ? '<span class="st-pille gruen">Als Nächstes</span>' : x.status === 'angefragt' ? '<span class="st-pille">Angefragt</span>' : ''}</td></tr>`;
   const ton = k.heute ? 'gruen' : k.offen > 0 ? 'orange' : k.status === 'anmeldung' ? 'orange' : 'grau';
-  const meta = [k.tagText || k.datumText, k.zeitText ? `${k.zeitText} Uhr` : '', k.online ? 'online' : ''].filter(Boolean).join(' · ');
+  const meta = [k.tagText || k.datumText, k.zeitText ? `${k.zeitText} Uhr` : '', k.online ? 'online' : ''].filter(Boolean).join(', ');
   const knopfText = k.knopf || (k.buchbar ? 'Termine wählen' : 'Zum Sprechtag');
   return `<section class="heute-karte st-start" data-sprechtag-start="${k.id}">
       <header><span class="st-s-sym">${icon('aktive')}</span><a href="#/sprechtag/${k.id}" class="st-s-titel">${e(k.name || 'Sprechtag')}</a></header>

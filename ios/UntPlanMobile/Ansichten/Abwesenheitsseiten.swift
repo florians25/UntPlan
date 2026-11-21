@@ -414,7 +414,7 @@ struct SchuelerAbwesenheitenView: View {
                     .foregroundStyle(Farben.tinte)
                 }
                 // Verspätung genau: Minuten, Uhrzeit von–bis, Stunde · Fach · Lehrkraft, Entschuldigungsstatus
-                let genau = [e.verspaetung, e.unterricht, e.statustext].filter { !$0.isEmpty }.joined(separator: " · ")
+                let genau = [e.verspaetung, e.unterricht, e.statustext].filter { !$0.isEmpty }.joined(separator: ", ")
                 if !genau.isEmpty {
                     HStack(spacing: 12) {
                         Image(systemName: e.verspaetung.isEmpty ? "list.bullet" : "clock.arrow.circlepath")
@@ -427,7 +427,7 @@ struct SchuelerAbwesenheitenView: View {
                             .lineLimit(2)
                     }
                 }
-                let grund = [daten.grundName(e.grund), e.text].filter { !$0.isEmpty }.joined(separator: " – ")
+                let grund = [daten.grundName(e.grund), e.text].filter { !$0.isEmpty }.joined(separator: ": ")
                 if !grund.isEmpty {
                     HStack(spacing: 12) {
                         Image(systemName: "info.circle")

@@ -126,7 +126,7 @@ public sealed class Klassenbucherinnerung : BackgroundService
             if (!z.Lehrstoff && fuer != "kontrolle") fehlt.Add("Lehrstoff");
             if (!z.Geprueft && fuer != "lehrstoff") fehlt.Add("Abwesenheitskontrolle");
             var stunde = z.Von == z.Bis ? $"{z.Von}. Std." : $"{z.Von}.–{z.Bis}. Std.";
-            t.Append($"- [{datum:dd.MM.yyyy} {stunde} {z.Fach} {string.Join(", ", z.Klassen)}](#/plan/lehrer/{Uri.EscapeDataString(lehrer)}/{z.Datum}/{z.Von}) – fehlt: {string.Join(", ", fehlt)}\n");
+            t.Append($"- [{datum:dd.MM.yyyy} {stunde} {z.Fach} {string.Join(", ", z.Klassen)}](#/plan/lehrer/{Uri.EscapeDataString(lehrer)}/{z.Datum}/{z.Von}), fehlt: {string.Join(", ", fehlt)}\n");
         }
         if (liste.Count > StundenJeMitteilung) t.Append($"- … und {liste.Count - StundenJeMitteilung} weitere (Klassenbuch → Offene Stunden)\n");
         t.Append("\nDer Link öffnet die Stunde direkt im Browser; in der mobilen App lässt er sich nicht direkt öffnen.");

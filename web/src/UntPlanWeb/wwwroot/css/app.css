@@ -1352,8 +1352,10 @@ body.plan-gescrollt [data-ansicht="plan"] .tt > .tt-tag::after, body.plan-gescro
 /* Offene Raumvertretung: wie offene Lehrervertretung (rotes Label „???“) */
 .std .lbl.offen-raum { background: var(--u-rot); }
 
-/* Pausenaufsichten halbiert (Legendenmenü) bzw. schmal neben einer durchgängigen Veranstaltung */
-.tt.aufsicht-schmal .aufsicht, .aufsicht.schmal { left: auto !important; right: 0 !important; width: 50% !important; font-size: 11px; padding-left: 14px; }
+/* Pausenaufsichten halbiert (Legendenmenü); neben einer durchgängigen Karte (Block, Veranstaltung) steht die Aufsicht in ihrer eigenen
+   Spur wie eine parallele Stunde (Lage aus plangitter.js, die Karte ist halbiert) – nur kleinere Schrift */
+.tt.aufsicht-schmal .aufsicht { left: auto !important; right: 0 !important; width: 50% !important; font-size: 11px; padding-left: 14px; }
+.aufsicht.schmal { font-size: 11px; padding-left: 14px; }
 .aufsicht.schmal::before { left: 5px; }
 .tt.aufsicht-aus .aufsicht { display: none; }
 

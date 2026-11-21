@@ -33,7 +33,7 @@ public sealed class TotaldiagnoseFenster : MdiFenster
         var akt = new Button { Text = "Aktualisieren", Left = 290, Top = 5, Width = 96, Height = 25 };
         var druck = new Button { Text = "Druck", Left = 290, Top = 36, Width = 96, Height = 25 };
         akt.Click += (_, _) => Neuaufbau();
-        druck.Click += (_, _) => ListenDruck.DruckenTabelle(this, $"Totaldiagnose – {_art.Text}", _g, true);
+        druck.Click += (_, _) => ListenDruck.DruckenTabelle(this, $"Totaldiagnose: {_art.Text}", _g, true);
         _datum.ValueChanged += (_, _) => Neuaufbau();
         _art.SelectedIndexChanged += (_, _) => Neuaufbau();
         kopf.Controls.AddRange(new Control[] { _datum, _art, _woche, _summen, akt, druck });
@@ -194,7 +194,7 @@ public sealed class CccFenster : MdiFenster
         if (_erg is null || IsDisposed) return;
         _variationen.Text = $"Unterricht: {_erg.Unterrichte}   Kopplungen: {_erg.Kopplungen}   Total: {_erg.Kombinationen:N0}";
         var unmoeglich = _erg.Ketten.Count(k => k.Wochenstunden > _erg.VerfuegbareStunden);
-        _hinweis.Text = unmoeglich > 0 ? $"{unmoeglich} Kette(n) mit mehr Wochenstunden als verfügbaren Stunden ({_erg.VerfuegbareStunden}) – restlose Verplanung unmöglich." : "";
+        _hinweis.Text = unmoeglich > 0 ? $"{unmoeglich} Kette(n) mit mehr Wochenstunden als verfügbaren Stunden ({_erg.VerfuegbareStunden}). Eine restlose Verplanung ist nicht möglich." : "";
         var ix = Ix;
         var spalten = _erg.Ketten.Select(k => k.UnterrichtIds.Count).DefaultIfEmpty(0).Max();
         _ketten.Columns.Clear();

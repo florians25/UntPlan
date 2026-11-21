@@ -14,9 +14,9 @@ const zeitraumText = z => `${z.von ? datumDe(z.von) : '…'} - ${z.bis ? datumDe
 const GESCHLECHT = { m: ['gender-male', 'männlich'], w: ['gender-female', 'weiblich'], d: ['gender-ambiguous', 'divers'] };
 const geschlecht = g => GESCHLECHT[g] ? `<i class="bi bi-${GESCHLECHT[g][0]} sg-g-${g}" title="${GESCHLECHT[g][1]}" aria-label="${GESCHLECHT[g][1]}"></i>` : '';
 const ABLAGE = 'untplan:schuelergruppen-ablage';
-const WARNUNG = 'Häkchen nicht einfach entfernen: Die Schülerin bzw. der Schüler gehört dann im ganzen Schuljahr nicht mehr zu dieser Gruppe – '
-  + 'die Abwesenheitseinträge und Entschuldigungen in dieser Gruppe gehen verloren. Bei einem Gruppenwechsel stattdessen den Zeitraum der Zugehörigkeit '
-  + '(Start- und Endedatum) eintragen. Häkchen trotzdem entfernen?';
+const WARNUNG = 'Wird das Häkchen entfernt, gehört die Schülerin bzw. der Schüler im gesamten Schuljahr nicht mehr zu dieser Gruppe. '
+  + 'Abwesenheitseinträge und Entschuldigungen in dieser Gruppe gehen dabei verloren. Tragen Sie bei einem Gruppenwechsel stattdessen den Zeitraum der Zugehörigkeit '
+  + '(Start- und Enddatum) ein. Häkchen trotzdem entfernen?';
 
 /** Zwischenablage der Schülerauswahl (über Gruppen hinweg, für Gruppe A → Gruppe B mit Umkehrung). */
 const ablage = {
@@ -347,7 +347,7 @@ async function matrix(seite, kontext, [klassenParam, schuelerParam, faecherParam
         ${werkzeug('data-s-alle', 'check2-square', 'Alle der markierten Spalte auswählen')}${werkzeug('data-s-keine', 'square', 'Keine der markierten Spalte auswählen')}${werkzeug('data-s-umkehren', 'grid-3x3-gap', 'Markierte Spalte umkehren')}
         ${werkzeug('data-s-g="m"', 'gender-male', 'Schüler der markierten Spalte auswählen')}${werkzeug('data-s-g="w"', 'gender-female', 'Schülerinnen der markierten Spalte auswählen')}${werkzeug('data-s-kopieren', 'copy', 'Markierte Spalte in die Zwischenablage kopieren')}${werkzeug('data-s-einfuegen', 'clipboard-check', 'Zwischenablage in die markierte Spalte einfügen')}
       </div></th>
-      ${d.spalten.map((s, c) => `<th class="sg-spalte" data-spalte="${c}" title="${e(`${s.name} – ${s.fach} – ${s.lehrer.join(', ')} – Unterricht ${s.unterricht}`)}" tabindex="0">
+      ${d.spalten.map((s, c) => `<th class="sg-spalte" data-spalte="${c}" title="${e(`${s.name}, ${s.fach}, ${s.lehrer.join(', ')}, Unterricht ${s.unterricht}`)}" tabindex="0">
         <span>${e(s.fach)}</span><span>${e(s.lehrer.join(', '))}</span><span class="sg-gname">${e(s.name)}</span></th>`).join('')}</tr></thead>
     <tbody>${gruppen.map(g => g.r.map((r, i) => `<tr>
       ${i === 0 ? `<th class="sg-klasse" rowspan="${g.r.length}"><span>${e(g.klasse)}</span></th>` : ''}
@@ -412,7 +412,7 @@ async function matrix(seite, kontext, [klassenParam, schuelerParam, faecherParam
         const v = el.querySelector('[data-nv]')?.value, b = el.querySelector('[data-nb]')?.value;
         if (v || b) liste.push({ von: v, bis: b });
         const neu = liste.filter(x => x.von || x.bis);
-        if (neu.some(x => x.von && x.bis && x.von > x.bis)) { toast('„Von“ liegt nach „Bis“ – Zeitraum nicht übernommen.', true); return; }
+        if (neu.some(x => x.von && x.bis && x.von > x.bis)) { toast('„Von“ liegt nach „Bis“. Der Zeitraum wurde nicht übernommen.', true); return; }
         if (JSON.stringify(neu) === JSON.stringify(z.z)) return;
         z.z = neu;
         if (neu.length) z.a = true;

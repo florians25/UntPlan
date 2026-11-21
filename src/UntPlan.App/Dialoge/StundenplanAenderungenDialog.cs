@@ -98,7 +98,7 @@ public sealed class StundenplanAenderungenDialog : Dialog
     {
         if (!_offline)
         {
-            if (string.IsNullOrWhiteSpace(P.Adresse)) _status.Text = "Keine Verbindung zu UntPlanWeb eingerichtet – es werden nur bereits bearbeitete Änderungen angezeigt.";
+            if (string.IsNullOrWhiteSpace(P.Adresse)) _status.Text = "Keine Verbindung zu UntPlanWeb eingerichtet. Es werden nur bereits bearbeitete Änderungen angezeigt.";
             else
             {
                 _status.Text = "Stundenplanänderungen werden geladen …";

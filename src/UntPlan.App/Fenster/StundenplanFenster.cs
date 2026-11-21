@@ -144,7 +144,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _alleElemente.CheckedChanged += (_, _) => { _reiter.Visible = _alleElemente.Checked; ReiterAufbauen(); };
         ts.Items.Add(_alleElemente);
         ts.Items.Add(new ToolStripSeparator());
-        _kleinKnopf = new ToolStripButton("klein") { CheckOnClick = true, Checked = klein, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Kleiner Stundenplan (nur Fachkürzel, Pausenzeilen) – z. B. mehrere nebeneinander in der Vertretungsplanung" };
+        _kleinKnopf = new ToolStripButton("klein") { CheckOnClick = true, Checked = klein, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Kleiner Stundenplan (nur Fachkürzel, Pausenzeilen), z. B. für mehrere Pläne nebeneinander in der Vertretungsplanung" };
         _kleinKnopf.CheckedChanged += (_, _) => { if (!_laden) KleinSetzen(_kleinKnopf.Checked); };
         ts.Items.Add(_kleinKnopf);
         _lupeKnopf = new ToolStripButton("Lupe") { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = "Stundenplanlupe unter dem Plan ein-/ausblenden" };
@@ -1095,7 +1095,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _laden = false;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
-        Text = el is null ? $"Stundenplan ({fmtName})" : _klein ? $"{el.Kurzname} – {(el is Lehrer lk ? lk.VollerName : el.Langname)}" : $"{el.Kurzname} – {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
+        Text = el is null ? $"Stundenplan ({fmtName})" : _klein ? $"{el.Kurzname}: {(el is Lehrer lk ? lk.VollerName : el.Langname)}" : $"{el.Kurzname}: {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
         Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}" + (_klein ? ":k" : "");
         _plan.Typ = _typ;
         _plan.ElementId = _id;
@@ -1124,7 +1124,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                 _plan.Ecke = $"Nvpl Std.\n{neben}/{_plan.StundenDerWoche()}";
             }
             var p = D.PeriodeAm(w);
-            _detail.Text = $"Woche {Format.Datum(w)} – {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.Wochenbezeichnung(D, w, AppZustand.Einstellungen.WochenanzeigeKalenderwochen)}, {Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
+            _detail.Text = $"Woche {Format.Datum(w)} bis {Format.Datum(w.AddDays(D.Zeitraster.TageProWoche - 1))} ({Kalender.Wochenbezeichnung(D, w, AppZustand.Einstellungen.WochenanzeigeKalenderwochen)}, {Kalender.WochenTyp(D, w)}-Woche, {p.Name})   Tagesaktueller Stundenplan: Änderungen rot, Entfälle durchgestrichen.";
             _datumsBereich.Visible = false;
             return;
         }
@@ -1537,7 +1537,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             if (behindernd.Count > 0)
             {
                 var anlass = unts.Count > 1 ? $"{unts.Count} Unterrichte gleichzeitig in {Planungsdienst.Tagname(D, tag)}-{stunde} verplanen"
-                    : $"{(laenge > 1 ? $"{laenge}er-Block" : "Stunde")} verplanen – U-Nr. {unts[0].Id} {Ix.UnterrichtText(unts[0])} in {Planungsdienst.Tagname(D, tag)}-{stunde}";
+                    : $"{(laenge > 1 ? $"{laenge}er-Block" : "Stunde")} verplanen: U-Nr. {unts[0].Id} {Ix.UnterrichtText(unts[0])} in {Planungsdienst.Tagname(D, tag)}-{stunde}";
                 // ein Unterricht: Rückfrage „Block speichern“ wie im Handbuch (Kap. 5.2.8), mehrere: „Soll behindernder Unterricht entplant werden?“
                 if (unts.Count == 1)
                 {
@@ -1777,7 +1777,13 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         if (_plan.TagesAuswahl is not { } ta || ta.Eintrag.Vertretung is not { } v) { Ui.Info("Bitte im tagesaktuellen Stundenplan eine geänderte Stunde anklicken."); return; }
         Aendern("Änderungen rückgängig", AenderungsArt.Vertretung, d =>
         {
-            var weg = d.Vertretungen.Where(x => x.Id == v.Id || (v.VerlegungsId.HasValue && x.VerlegungsId == v.VerlegungsId)).ToList();
+            // Verlegung bzw. Tausch: ganz aufheben (Ursprung wieder wie vorher, gefüllte offene Stunde wieder offen)
+            if (d.Vertretungen.FirstOrDefault(x => x.Id == v.Id) is { } dv && Verlegungsaufhebung.IstVerlegung(d, dv))
+            {
+                Verlegungsaufhebung.Aufheben(d, dv);
+                return;
+            }
+            var weg = d.Vertretungen.Where(x => x.Id == v.Id).ToList();
             foreach (var x in weg) d.Vertretungen.Remove(x);
             foreach (var t in weg.Select(x => x.Datum).Distinct()) Vertretungen.Aktualisieren(d, t);
         });
@@ -1854,7 +1860,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         var text = cm.Items.Add("Text", null, (_, _) => TextZurVertretung(datum, stunde, e!));
         text.Enabled = findet && uid is int;
         var schueler = uid is int us ? D.Schueler.Where(x => x.KurswahlIds.Contains(us)).ToList() : new List<Schueler>();
-        var stud = cm.Items.Add("Studenten", null, (_, _) => Ui.Info(string.Join("\n", schueler.Select(x => $"{x.Langname}, {x.Vorname}")), $"Studenten – U-Nr. {uid}"));
+        var stud = cm.Items.Add("Studenten", null, (_, _) => Ui.Info(string.Join("\n", schueler.Select(x => $"{x.Langname}, {x.Vorname}")), $"Studenten: U-Nr. {uid}"));
         stud.Enabled = schueler.Count > 0;
         cm.Items.Add(ZeitbereichMenue());
         cm.Items.Add(new ToolStripSeparator());

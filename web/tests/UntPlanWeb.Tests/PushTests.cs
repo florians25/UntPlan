@@ -132,7 +132,7 @@ public class PushTests
         Assert.StartsWith($"Do {stunde}.", text);
         Assert.Contains($"{fach} {klasse} entfällt", text);
         var viele = Enumerable.Range(1, 5).Select(i => new PlanAenderung("2026-10-16", i, i, "D", "7a", "geaendert")).ToList();
-        Assert.Equal(("Änderungen im Stundenplan", "5 Änderungen ab Fr 16.10. – bitte den Stundenplan prüfen."), Pushdienst.Nachricht(viele));
+        Assert.Equal(("Änderungen im Stundenplan", "5 Änderungen ab Fr 16.10., bitte prüfen Sie den Stundenplan."), Pushdienst.Nachricht(viele));
 
         // Versand nach dem Import (APNs simuliert), ungültige Tokens werden entfernt
         var apns = new Apns { Status = r => r.RequestUri!.AbsolutePath.EndsWith(Token2) ? HttpStatusCode.Gone : HttpStatusCode.OK };

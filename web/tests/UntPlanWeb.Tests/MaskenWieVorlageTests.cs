@@ -89,7 +89,7 @@ public class MaskenWieVorlageTests
     public void Klassenbuch_Uebersicht_Leerzustand_wortgenau_und_ohne_Heute_Markierung()
     {
         var kb = Datei("js", "ansichten", "klassenbuch.js");
-        Assert.Contains("'Benutzen Sie die Suche, um das Ergebnis mit zumindest einem Lehrer und/oder Klasse einzuschränken.'", kb);
+        Assert.Contains("'Bitte schränken Sie die Suche auf mindestens eine Lehrkraft oder Klasse ein.'", kb);
         Assert.DoesNotContain("kbl-heute", kb);
     }
 }

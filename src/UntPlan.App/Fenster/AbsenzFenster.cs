@@ -120,7 +120,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         ts.Items.Add(einst);
         var rollup = Knopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen());
         ts.Items.Add(rollup);
-        var kalender = Knopf("Schuljahreskalender – Absenzen", "l_kalender", () =>
+        var kalender = Knopf("Schuljahreskalender: Absenzen", "l_kalender", () =>
         {
             if (_g.CurrentRow?.Tag is Abwesenheit a) AbsenzKalenderDialog.Zeigen(this, Typ, a.ElementId);
             else Ui.Info("Bitte zuerst eine Absenz bzw. ein Element in der Liste wählen.");
@@ -373,12 +373,12 @@ public sealed class AbwesenheitenFenster : MdiFenster
     internal static readonly Dictionary<string, string> Spaltenhilfen = new()
     {
         ["Nr"] = "Absenznummer zur eindeutigen Kennzeichnung der Absenz",
-        ["E"] = "Abwesendes Element – Kurzname eintippen oder aus der Liste wählen",
+        ["E"] = "Abwesendes Element: Kurzname eingeben oder aus der Liste wählen",
         ["V"] = "Erster Tag der Absenz (TT.MM.)",
         ["SV"] = "Erste abwesende Stunde am ersten Tag (leer = ab der ersten Stunde)",
         ["B"] = "Letzter Tag der Absenz (TT.MM.)",
         ["SB"] = "Letzte abwesende Stunde am letzten Tag (leer = bis zur letzten Stunde)",
-        ["G"] = "Grund der Absenz – wird für die Zählerführung gebraucht (z. B. ob Entfall gezählt wird)",
+        ["G"] = "Grund der Absenz, wird für die Zählerführung benötigt (z. B. ob Entfall gezählt wird)",
         ["T"] = "Text zur Absenz, erscheint auf Wunsch im Vertretungsplan",
         ["Beg"] = "Begleitlehrkraft, z. B. bei Exkursionen der Klasse",
         ["O"] = "Anzahl der noch offenen Vertretungen dieser Absenz",
@@ -409,7 +409,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         : Statuszeilentexte.GetValueOrDefault(spalte);
 
     private static string? SpaltenhilfeText(string spalte, ElementTyp typ) => spalte == "E"
-        ? typ switch { ElementTyp.Klasse => "Abwesende Klasse – Kurzname eintippen oder aus der Liste wählen", ElementTyp.Raum => "Gesperrter Raum – Kurzname eintippen oder aus der Liste wählen", _ => "Abwesende Lehrkraft – Kurzname eintippen oder aus der Liste wählen" }
+        ? typ switch { ElementTyp.Klasse => "Abwesende Klasse: Kurzname eingeben oder aus der Liste wählen", ElementTyp.Raum => "Gesperrter Raum: Kurzname eingeben oder aus der Liste wählen", _ => "Abwesende Lehrkraft: Kurzname eingeben oder aus der Liste wählen" }
         : Spaltenhilfen.GetValueOrDefault(spalte);
 
     private static ElementTyp TypVon(AbwesenheitsArt a) => a switch { AbwesenheitsArt.Lehrer => ElementTyp.Lehrer, AbwesenheitsArt.Klasse => ElementTyp.Klasse, _ => ElementTyp.Raum };
@@ -588,7 +588,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
     private void Drucken(bool vorschau)
     {
         EntwurfSofortUebernehmen();
-        ListenDruck.DruckenTabelle(this, $"{Text} – {Format.Datum(Von)}{(Bis != Von ? " – " + Format.Datum(Bis) : "")}", _g, vorschau, zeilenFilter: r => r.Tag != null);
+        ListenDruck.DruckenTabelle(this, $"{Text}: {Format.Datum(Von)}{(Bis != Von ? " bis " + Format.Datum(Bis) : "")}", _g, vorschau, zeilenFilter: r => r.Tag != null);
     }
 
     private List<Abwesenheit> Markierte() => _g.SelectedCells.Cast<DataGridViewCell>().Select(c => c.OwningRow.Tag).OfType<Abwesenheit>().Distinct().ToList();
@@ -706,7 +706,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         if (a.ElementId == 0)
         {
             // ohne Element keine Absenz – Eingaben verwerfen
-            if (alt != null) Ui.Info("Ohne Element kann die Absenz nicht gespeichert werden – die Änderung wurde verworfen.");
+            if (alt != null) Ui.Info("Ohne Element kann die Absenz nicht gespeichert werden. Die Änderung wurde verworfen.");
             if (sofort || !IsHandleCreated) Neuaufbau(); else NachZellwechsel(Neuaufbau);
             return;
         }
@@ -766,7 +766,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         EntwurfSofortUebernehmen();
         if (_g.CurrentRow?.Tag is not Abwesenheit alt) return;
         if (alt.Von == alt.Bis) { Ui.Info("Eine eintägige Absenz kann nicht gesplittet werden."); return; }
-        var text = Ui.Eingabe($"Absenz {Format.Datum(alt.Von)} – {Format.Datum(alt.Bis)} splitten: zweiter Teil beginnt am (TT.MM.JJJJ):", "Absenz splitten", Format.Datum(alt.Von.AddDays(1)));
+        var text = Ui.Eingabe($"Absenz {Format.Datum(alt.Von)} bis {Format.Datum(alt.Bis)} teilen: zweiter Teil beginnt am (TT.MM.JJJJ):", "Absenz splitten", Format.Datum(alt.Von.AddDays(1)));
         if (text is null || !DateOnly.TryParse(text, Format.De, out var ab) || ab <= alt.Von || ab > alt.Bis) return;
         var a = Kopie(alt);
         a.Bis = ab.AddDays(-1);
@@ -945,7 +945,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         if (betroffen.Count > 0)
             Ui.Info("Achtung: Folgende Vertretungen waren bereits mit einer Lehrkraft geplant, die nun abwesend ist. " +
                 "Sie sind wieder offen und müssen neu vertreten werden:\n\n" +
-                string.Join("\n", betroffen.Take(20).Select(v => $"Vtr-Nr. {v.Id}: {Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7]} {Format.Datum(v.Datum)}, {v.Stunde}. Std., {Ix.KKlassen(v.NeueKlassenIds)} {Ix.KFach(v.FachId)} – Vertreter {Ix.KLehrer(v.VertreterId)}")) +
+                string.Join("\n", betroffen.Take(20).Select(v => $"Vtr-Nr. {v.Id}: {Planungsdienst.TageKurz[((int)v.Datum.DayOfWeek + 6) % 7]} {Format.Datum(v.Datum)}, {v.Stunde}. Std., {Ix.KKlassen(v.NeueKlassenIds)} {Ix.KFach(v.FachId)}, Vertretung: {Ix.KLehrer(v.VertreterId)}")) +
                 (betroffen.Count > 20 ? $"\n… und {betroffen.Count - 20} weitere" : ""), "Vertreter abwesend");
         VeranstaltungenPruefen(this, gespeichert, (t, a) => Aendern(t, AenderungsArt.Vertretung, a));
         // Lehrkraft wird abwesend: Verlegungen und Sondereinsätze im Absenzzeitraum rückgängig machen bzw. löschen?

@@ -30,9 +30,9 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
       holen(`/api/app/klassenbuch/klasse?klasse=${encodeURIComponent(klasse)}`),
     ]);
     seite.innerHTML = `
-      <div class="card mb-3"><div class="card-header">Offene Hausaufgaben · ${e(klasse)}</div>
+      <div class="card mb-3"><div class="card-header">Offene Hausaufgaben: ${e(klasse)}</div>
         ${ha.length ? `<div class="table-responsive"><table class="table table-sm table-card align-middle"><thead><tr><th>Fällig</th><th>Fach</th><th>Aufgabe</th><th>Gestellt</th></tr></thead><tbody>
-          ${ha.map(x => `<tr><td class="text-nowrap fw-semibold">${x.faellig ? e(datumLang(x.faellig)) : '–'}</td><td>${e(x.fach)}</td><td>${e(x.hausaufgabe)}</td><td class="text-body-secondary small">${e(datumKurz(x.datum))} · ${e(x.lehrer)}</td></tr>`).join('')}
+          ${ha.map(x => `<tr><td class="text-nowrap fw-semibold">${x.faellig ? e(datumLang(x.faellig)) : '–'}</td><td>${e(x.fach)}</td><td>${e(x.hausaufgabe)}</td><td class="text-body-secondary small">${e(datumKurz(x.datum))}, ${e(x.lehrer)}</td></tr>`).join('')}
           </tbody></table></div>` : `<div class="card-body py-0">${leer('Keine offenen Hausaufgaben.')}</div>`}</div>
       <div class="card"><div class="card-header">Unterrichtsinhalte</div>${verlaufTabelle(verlauf, false)}</div>`;
     return;
@@ -95,7 +95,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
           <td class="text-end">${f.verwalten ? `<button type="button" class="nl-icon sichtbar" data-bearb="${z.id}" title="Details bearbeiten" aria-label="Details bearbeiten">${icon('stift')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`;
     };
     const zahl = (n, kl = '') => n ? `<span class="fz-zahl ${kl}">${n}</span>` : '<span class="fz-null">–</span>';
-    const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? ` · eingegangen ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
+    const nachweis = y => y.nachweis ? `<span class="nl-tag" title="${e(NACHWEISE[y.nachweis] ?? '')}${y.entschuldigtAm ? `, eingegangen am ${e(datumKurz(y.entschuldigtAm))}` : ''}"><i class="bi bi-file-earmark-check me-1"></i>${e((NACHWEISE[y.nachweis] ?? y.nachweis).replace('ärztliches ', '').replace(' Entschuldigung', ''))}</span>` : '';
     const klWahl = seite.querySelector('.u-filter .u-feld')?.lastElementChild;
     // gemeinsames Suchfeld mit Filter (Name, Status) – Stand bleibt beim Auf-/Zuklappen erhalten
     const fzSuche = { text: '', status: '' };
@@ -113,7 +113,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
           <label class="nl-pille"><span class="me-1 text-body-secondary">Bis</span><input type="date" data-bis value="${datum}"></label>
           ${suchfeldMitFilter({ platzhalter: 'Schüler*in suchen', label: 'Schüler*in suchen', wert: fzSuche.text, filter: [
             { name: 'status', label: 'Status', alle: 'Alle mit Fehlzeiten', wert: fzSuche.status, optionen: [['offen', 'mit offenen Stunden'], ['unentschuldigt', 'mit nicht entschuldigten']] }] })}
-          ${infoHinweis(`<b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten/schueler/${von}/${datum}/${encodeURIComponent(klasse)}">Abwesenheiten</a> – beide Bereiche zeigen dieselben Daten.`)}
+          ${infoHinweis(`<b>Fehlstunden</b> entstehen aus einer Abwesenheit und dem Stundenplan: gezählt werden die Unterrichtsstunden, in denen die Schülerin bzw. der Schüler hätte anwesend sein müssen (z. B. ganzer Mittwoch abwesend, laut Plan 4 Stunden → 4 Fehlstunden). Den Zeitraum selbst erfassen Sie unter <a href="#/abwesenheiten/schueler/${von}/${datum}/${encodeURIComponent(klasse)}">Abwesenheiten</a>. Beide Bereiche zeigen dieselben Daten.`)}
           ${f.schueler.length ? `<span class="nl-zahlen kompakt"><span class="nl-zahl still" title="Schüler*innen mit Fehlzeiten"><b>${zeilen.length}/${f.schueler.length}</b> mit Fehlzeiten</span>
           <span class="nl-zahl rot still"><b>${fehlt.length}</b> Fehlstd.</span>
           <span class="nl-zahl gelb still"><b>${fehlt.filter(y => y.status === 'offen').length}</b> offen</span>
@@ -151,7 +151,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
       inhalt.querySelectorAll('[data-sw]:checked').forEach(c => (f.zeilen ?? []).filter(z => z.schuelerId === Number(c.dataset.sw)).forEach(y => ids.add(y.id)));
       return [...ids];
     };
-    const detailsDialog = (ids, vorlage) => dialog({ titel: ids.length === 1 ? 'Fehlstunde – Details' : `${ids.length} Fehlstunden – Details`,
+    const detailsDialog = (ids, vorlage) => dialog({ titel: ids.length === 1 ? 'Fehlstunde: Details' : `${ids.length} Fehlstunden: Details`,
       inhalt: `<div class="row g-3">${detailFelder(vorlage ?? {})}</div>`,
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Speichern', art: 'haupt', aktion: async box => {
         await senden('/api/app/abwesenheiten', { ids, ...detailWerte(box) }, 'PUT');
@@ -193,7 +193,7 @@ export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumPar
       holen(`/api/app/klassenbuch/schueler?klasse=${q}`),
     ]);
     const namen = new Map(schueler.map(x => [x.id, `${x.name}, ${x.vorname}`]));
-    inhalt.innerHTML = `<div class="card"><div class="card-header d-flex align-items-center">Vermerke · ${e(klasse)}<button type="button" class="btn btn-sm btn-primary ms-auto" data-neu>${icon('plus', 'me-1')}Neuer Vermerk</button></div>
+    inhalt.innerHTML = `<div class="card"><div class="card-header d-flex align-items-center">Vermerke: ${e(klasse)}<button type="button" class="btn btn-sm btn-primary ms-auto" data-neu>${icon('plus', 'me-1')}Neuer Vermerk</button></div>
       ${v.vermerke.length ? `<ul class="list-group list-group-flush">${v.vermerke.map(x => `<li class="list-group-item d-flex gap-3 align-items-start">
           <div class="text-nowrap small text-body-secondary" style="width:80px">${e(datumKurz(x.datum))}${x.datum.slice(0, 4)}</div>
           <span class="badge ${VERMERK_FARBE[x.art] ?? 'text-bg-secondary'} fw-normal">${e(x.art)}</span>
@@ -237,7 +237,7 @@ async function vermerkDialog(klasse, datum, fertig) {
     holen(`/api/app/klassenbuch/schueler?klasse=${encodeURIComponent(klasse)}`),
   ]);
   dialog({
-    titel: `Vermerk · ${klasse}`,
+    titel: `Vermerk: ${klasse}`,
     inhalt: `<div class="row g-3">
       <div class="col-sm-5"><label class="form-label small">Datum</label><input type="date" class="form-control" name="datum" value="${datum}"></div>
       <div class="col-sm-7"><label class="form-label small">Art</label><select class="form-select" name="art">${v.arten.map(a => `<option>${e(a)}</option>`).join('')}</select></div>
@@ -431,7 +431,7 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
   if (suchModus) sucheBinden();
   if (!basis) {
     seite.innerHTML = `<div class="kbl-leerseite"><span class="kbl-leer-symbol"><i class="bi bi-search"></i></span>
-      <p>${kriterien.length ? 'Nur ein Fach genügt nicht – bitte zusätzlich eine Klasse oder Lehrkraft angeben.' : 'Benutzen Sie die Suche, um das Ergebnis mit zumindest einem Lehrer und/oder Klasse einzuschränken.'}</p></div>`;
+      <p>${kriterien.length ? 'Ein Fach allein reicht nicht aus. Bitte geben Sie zusätzlich eine Klasse oder Lehrkraft an.' : 'Bitte schränken Sie die Suche auf mindestens eine Lehrkraft oder Klasse ein.'}</p></div>`;
     filterBinden(() => {});
     return;
   }
@@ -497,11 +497,11 @@ async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam
         </div></section>`;
     }).join('');
     const anfang = von <= sjVon, ende = bis >= sjBis;
-    listeEl.innerHTML = `${anfang && beschraenktVon ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)} · frühestens ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
-      ${anfang && !beschraenktVon ? `<div class="kbl-grenze"><i class="bi bi-flag"></i>Beginn des Schuljahres · ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
+    listeEl.innerHTML = `${anfang && beschraenktVon ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)}, frühestens ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
+      ${anfang && !beschraenktVon ? `<div class="kbl-grenze"><i class="bi bi-flag"></i>Beginn des Schuljahres: ${tt(sjVon)}${sjVon.slice(0, 4)}</div>` : ''}
       ${html || `<div class="kbl-leerseite klein"><span class="kbl-leer-symbol"><i class="bi bi-${filter.size ? 'check2-circle' : 'calendar-x'}"></i></span><p>${filter.size ? 'Im geladenen Zeitraum gibt es keine passenden Unterrichte.' : 'Im geladenen Zeitraum gibt es keinen Unterricht.'}</p></div>`}
-      ${ende && !beschraenktBis ? `<div class="kbl-grenze"><i class="bi bi-flag-fill"></i>Ende des Schuljahres · ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}
-      ${ende && beschraenktBis ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)} · bis ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}`;
+      ${ende && !beschraenktBis ? `<div class="kbl-grenze"><i class="bi bi-flag-fill"></i>Ende des Schuljahres: ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}
+      ${ende && beschraenktBis ? `<div class="kbl-grenze beschraenkt"><i class="bi bi-lock"></i>${e(PLAN_SPERRE)}, bis ${tt(sjBis)}${sjBis.slice(0, 4)}</div>` : ''}`;
     listeEl.querySelectorAll('[data-k]').forEach(z => {
       const oeffnen = () => karteDialog(karten[Number(z.dataset.k)], { ...kontext, liste: karten, nachSpeichern: aktualisieren });
       z.onclick = oeffnen;

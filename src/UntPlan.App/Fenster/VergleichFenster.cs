@@ -80,7 +80,7 @@ public sealed class VergleichFenster : MdiFenster
     {
         _b = b;
         _nameB = nameB;
-        Text = $"Vergleichsmodus – {nameB}";
+        Text = $"Vergleichsmodus: {nameB}";
         HilfeThema = "Stundenpläne";
         Icon = SymbolIcon("suchen");
         Size = new Size(900, 520);

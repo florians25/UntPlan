@@ -388,8 +388,9 @@ public class PlanKorrekturenEndeZuEndeTests
     }
 
     /// <summary>
-    /// Verlegung in eine andere Stunde mit anderem Raum (Raum beim Verlegen gewählt): der Raum der Zielstunde ist der Soll-Raum – kein
-    /// Raum-Label gegenüber dem Raum der Ursprungsstunde. Eine spätere Raumänderung der Zielstunde erscheint als Raumänderung.
+    /// Verlegung in eine andere Stunde mit anderem Raum (Raum beim Verlegen gewählt): der Vertretungsplan nennt den Raum der Zielstunde als
+    /// Soll-Raum, die Karte kennzeichnet den gegenüber dem Stundenplan geänderten Raum aber wieder mit Label („SPO1 → SPO2“). Eine spätere
+    /// Raumänderung der Zielstunde erscheint ebenso als Raumänderung.
     /// </summary>
     [Fact]
     public async Task Verlegung_Raum_der_Zielstunde_ist_Soll_Raum()
@@ -412,7 +413,7 @@ public class PlanKorrekturenEndeZuEndeTests
         foreach (var (typ, el) in new[] { ("klasse", "BSO1"), ("lehrer", "SPA"), ("raum", "SPO2") })
         {
             var k = Assert.Single(await KartenAsync(c, typ, el, Freitag, Std));
-            Assert.Equal("SPO2", L(k, "raeume"));
+            Assert.Equal("SPO1→SPO2", L(k, "raeume"));
         }
         // spätere Raumänderung der Zielstunde: SPO2 → SPO3 als Raumänderung
         Raumvertretungen.Zuordnen(d, zv, ra[2].Id, false, RaumKollisionsLoesung.OhneKollision);

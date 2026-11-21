@@ -19,7 +19,7 @@ export const statusChip = st => st === 'entschuldigt' ? '<span class="u-chip gru
 
 /** Zuletzt eingegebene Entschuldigungstexte derselben Abwesenheit. */
 const texteHtml = texte => texte?.length ? `<div class="fe-texte"><h3>Zuletzt eingegebene Entschuldigungstexte</h3>${texte.map(t => `<div class="fe-text">
-    <div class="fe-wer"><b>${e(t.lehrer || '–')}</b>${t.rolle === 'klassenleitung' ? ' (Klassenleitung)' : ''} · ${e(zeitDe(t.zeit))}${t.fach ? ` · ${e(t.fach)}, ${t.stunde}. Std.` : ''} · ${t.status === 'unentschuldigt' ? 'nicht entschuldigt' : e(t.status)}</div>
+    <div class="fe-wer"><b>${e(t.lehrer || '–')}</b>${t.rolle === 'klassenleitung' ? ' (Klassenleitung)' : ''}, ${e(zeitDe(t.zeit))}${t.fach ? ` | ${e(t.fach)}, ${t.stunde}. Std.` : ''} | ${t.status === 'unentschuldigt' ? 'nicht entschuldigt' : e(t.status)}</div>
     <div class="fe-inhalt">${e(t.text)}</div></div>`).join('')}</div>` : '';
 
 /**
@@ -71,10 +71,10 @@ export function seitenleiste(a, grundName = g => g) {
       <dl><dt>${e(a.schueler)}</dt><dd>${e(a.klasse)}</dd><dt>Beginn</dt><dd>${datumDe(a.vonDatum)} ${e(a.vonZeit)}</dd><dt>Ende</dt><dd>${datumDe(a.bisDatum)} ${e(a.bisZeit)}</dd>
         ${a.grund ? `<dt>Abwesenheitsgrund</dt><dd>${e(grundName(a.grund))}</dd>` : ''}<dt>Status</dt><dd>${statusChip(a.status)}${a.mehrdeutig ? ' <span class="fe-mehrdeutig">(mehrdeutig)</span>' : ''}</dd>
         <dt>Bearbeitet</dt><dd>${a.lehrerBearbeitet}/${a.lehrerGesamt} Lehrkräfte</dd></dl>
-      ${a.mehrdeutig ? '<p class="fe-warnung"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>Die Stunden haben unterschiedliche Status – bitte die Abwesenheit prüfen und als Ganzes entschuldigen.</span></p>' : ''}
+      ${a.mehrdeutig ? '<p class="fe-warnung"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>Die Stunden haben unterschiedliche Status. Bitte prüfen Sie die Abwesenheit und entschuldigen Sie sie als Ganzes.</span></p>' : ''}
       ${tage.map(t => `<div class="fe-tag">${e(tagLang(t))}</div>${a.stunden.filter(x => x.datum === t).sort((x, y) => y.stunde - x.stunde).map(x => `<div class="fe-stunde">
         <div class="fe-stunde-kopf"><span>${e(x.beginn)} – ${e(x.ende)}</span>${statusChip(x.status)}</div>
-        <div class="fe-stunde-unter">${e(x.fach)}${x.lehrer ? ` – ${e(x.lehrer)}` : ''}${x.entschuldigung ? ` · ${x.entschuldigung.rolle === 'klassenleitung' ? 'Klassenleitung' : 'Fachlehrkraft'} ${e(x.entschuldigung.lehrer)}, ${e(zeitDe(x.entschuldigung.zeit))}` : ''}</div>
+        <div class="fe-stunde-unter">${e(x.fach)}${x.lehrer ? `, ${e(x.lehrer)}` : ''}${x.entschuldigung ? ` | ${x.entschuldigung.rolle === 'klassenleitung' ? 'Klassenleitung' : 'Fachlehrkraft'} ${e(x.entschuldigung.lehrer)}, ${e(zeitDe(x.entschuldigung.zeit))}` : ''}</div>
         ${x.entschuldigung?.text ? `<div class="fe-stunde-text">${e(x.entschuldigung.text)}</div>` : ''}</div>`).join('')}`).join('')}
     </div>`;
   document.body.append(s);
@@ -115,7 +115,7 @@ export function abwesenheitDialog(abwesenheiten, { status = 'entschuldigt', nach
       const r = st === 'offen'
         ? await senden('/api/app/entschuldigungen/zuruecknehmen', { ids })
         : await senden('/api/app/entschuldigungen/abwesenheit', { ids, status: st, text: v('text'), datum: v('datum') || null, nachweis: v('nachweis') });
-      toast(st === 'offen' ? 'Entschuldigung zurückgenommen.' : r.ueberschrieben ? `Gespeichert – ${r.ueberschrieben} ${r.ueberschrieben === 1 ? 'Stunde' : 'Stunden'} der Fachlehrkräfte überschrieben.` : 'Gespeichert.');
+      toast(st === 'offen' ? 'Entschuldigung zurückgenommen.' : r.ueberschrieben ? `Gespeichert. ${r.ueberschrieben} ${r.ueberschrieben === 1 ? 'Stunde' : 'Stunden'} der Fachlehrkräfte überschrieben.` : 'Gespeichert.');
       fertig();
     } }],
   });
@@ -148,7 +148,7 @@ export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, s
       ${pille('Von', `<input type="date" data-von value="${von}">`, false)}
       ${pille('Bis', `<input type="date" data-bis value="${bis}">`, false)}
       <label class="nl-pille ${nurOffen ? 'aktiv' : ''}"><input type="checkbox" class="me-2" data-offen ${nurOffen ? 'checked' : ''}>Nur offene Fehlstunden</label>
-      ${infoHinweis('Hier stehen die Fehlstunden aus <b>Ihrem Unterricht</b>. Sie können einzelne Stunden – auch mehrere auf einmal über die Auswahlkreise – entschuldigen. Ein einmal gesetzter Status kann nur noch von der Klassenleitung geändert werden. Ihr Text ist für die anderen Lehrkräfte derselben Abwesenheit sichtbar.')}
+      ${infoHinweis('Angezeigt werden die Fehlstunden aus <b>Ihrem Unterricht</b>. Sie können einzelne Stunden entschuldigen, über die Auswahlkreise auch mehrere gleichzeitig. Ein einmal gesetzter Status kann nur noch von der Klassenleitung geändert werden. Ihr Text ist für die anderen Lehrkräfte derselben Abwesenheit sichtbar.')}
     </div>
     ${d.darf ? '' : `<p class="nl-hinweis"><i class="bi bi-lock"></i>${liste.length ? 'Sie sehen die Fehlstunden Ihres Unterrichts. Entschuldigen ist für Ihr Konto nicht freigegeben bzw. die Fachlehrer-Entschuldigungen sind nicht eingeschaltet.' : 'Die Fachlehrer-Entschuldigungen sind nicht eingeschaltet bzw. für Ihr Konto nicht freigegeben.'}</p>`}
     <div class="nl-tabelle">${liste.length ? `<table><thead><tr>${waehlbar ? '<th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></th>' : ''}

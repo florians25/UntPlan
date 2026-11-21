@@ -176,7 +176,7 @@ public static class PortalServer
         app.MapGet("/{id}/meldung", (string id, int? ok) =>
         {
             if (Schule(id) is not { } s) return Results.NotFound();
-            var html = $"<h1>Abwesenheit melden – {H(s.Name)}</h1>" + (ok == 1 ? "<p class=\"ok\">Ihre Meldung wurde übermittelt.</p>" : "") +
+            var html = $"<h1>Abwesenheit melden: {H(s.Name)}</h1>" + (ok == 1 ? "<p class=\"ok\">Ihre Meldung wurde übermittelt.</p>" : "") +
                        $"<form method=\"post\" action=\"/api/v1/schulen/{H(id)}/meldungen\">" +
                        "<label>Kürzel <input name=\"kuerzel\" required maxlength=\"20\"></label>" +
                        "<label>PIN <input name=\"pin\" type=\"password\" required></label>" +
@@ -205,7 +205,7 @@ public static class PortalServer
     private static string PlanHtml(SchulKonfiguration s, JsonObject? snap, string? klasse)
     {
         if (snap is null) return $"<h1>{H(s.Name)}</h1><p>Es wurden noch keine Daten veröffentlicht.</p>";
-        var sb = new StringBuilder($"<h1>{H(s.Name)}</h1><p>Stand: {H(snap["erzeugt"]?.ToString())} · Revision {H(snap["revision"]?.ToString())}</p>");
+        var sb = new StringBuilder($"<h1>{H(s.Name)}</h1><p>Stand: {H(snap["erzeugt"]?.ToString())}, Revision {H(snap["revision"]?.ToString())}</p>");
         var nachrichten = snap["nachrichten"]?.AsArray().Where(n => n?["intern"]?.GetValue<bool>() != true).ToList() ?? new();
         foreach (var n in nachrichten) sb.Append($"<p><b>{H(n?["datum"]?.ToString())}:</b> {H(n?["text"]?.ToString())}</p>");
         var vertretungen = snap["vertretungen"]?.AsArray().OfType<JsonNode>().ToList() ?? new();

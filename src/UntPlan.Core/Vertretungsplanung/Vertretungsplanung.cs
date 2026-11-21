@@ -915,7 +915,9 @@ public static class Vertretungen
     {
         if (vonDatum == nachDatum && vonStunde == nachStunde) return;
         var tpVon = Tagesplan.Berechnen(d, vonDatum);
-        var eintraege = tpVon.Stunde(vonStunde).Where(e => e.Findetstatt && (e.Regel?.Unterricht.Id == unterrichtId || e.Vertretung?.UnterrichtId == unterrichtId) &&
+        // auch eine bereits entfallene Stunde lässt sich verlegen: ihr Entfall wird zum Ursprung der Verlegung (keine zweite Zeile)
+        var eintraege = tpVon.Stunde(vonStunde).Where(e => (e.Findetstatt || IstEinfacherEntfall(e.Vertretung)) &&
+            (e.Regel?.Unterricht.Id == unterrichtId || e.Vertretung?.UnterrichtId == unterrichtId) &&
             (zeilenIndex is null || (e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex) == zeilenIndex)).ToList();
         if (eintraege.Count == 0) throw new InvalidOperationException("An dieser Position findet der Unterricht nicht statt.");
         var tpNach = Tagesplan.Berechnen(d, nachDatum);
@@ -928,10 +930,14 @@ public static class Vertretungen
                 var quelle = ziel.VerlegungsId is int vid ? d.Vertretungen.FirstOrDefault(x => x != ziel && x.VerlegungsId == vid) : null;
                 if (quelle != null && quelle.Datum == nachDatum && quelle.Stunde == nachStunde)
                 {
+                    // zurück an den Ursprung: Verlegung aufheben – der Ursprung wird wieder, was er vorher war (z. B. offene Vertretung)
                     d.Vertretungen.Remove(ziel);
-                    d.Vertretungen.Remove(quelle);
+                    UrsprungZuruecknehmen(d, quelle);
+                    GefuellteStundeOeffnen(d, ziel.Datum, ziel.Stunde, ziel.KlassenIds);
                     continue;
                 }
+                var altDatum = ziel.Datum;
+                var altStunde = ziel.Stunde;
                 ziel.Datum = nachDatum;
                 ziel.Stunde = nachStunde;
                 ziel.VertreterId = ZielLehrer(d, tpNach, ziel.LehrerId, nachStunde);
@@ -940,6 +946,8 @@ public static class Vertretungen
                 ziel.ZielraumId = ziel.VertretungsraumId;
                 if (quelle != null) { quelle.NachDatum = nachDatum; quelle.NachStunde = nachStunde; }
                 Markieren(ziel, benutzer);
+                // eine offene Stunde, die die verlegte Stunde bisher gefüllt hatte (Vorziehung), ist wieder offen
+                GefuellteStundeOeffnen(d, altDatum, altStunde, ziel.KlassenIds);
                 continue;
             }
             var lehrer = e.Regel?.LehrerId ?? e.Vertretung?.LehrerId;
@@ -951,6 +959,12 @@ public static class Vertretungen
                 FachId = e.Regel?.FachId, KlassenIds = e.Regel?.KlassenIds.ToList() ?? e.KlassenIds.ToList(), RaumId = e.Regel?.RaumId,
             };
             if (e.Vertretung is null) d.Vertretungen.Add(q);
+            else if (q.ArtVorVerlegung is null)
+            {
+                // die Zeile wird ersetzt (nicht verdoppelt) – ihr bisheriger Zustand kehrt beim Aufheben der Verlegung zurück
+                q.ArtVorVerlegung = q.Art;
+                q.VertreterVorVerlegung = q.VertreterId;
+            }
             var vertreterVorher = q.VertreterId;
             q.Art = VertretungsArt.Entfall;
             q.Quelle = IstAbgeleitet(q) ? q.Quelle : VertretungsQuelle.Verlegung;
@@ -1006,6 +1020,64 @@ public static class Vertretungen
         return res;
     }
 
+    /// <summary>Entfall ohne Verlegung (Stunde entfallen lassen, Entfall laut Vertretungsregel).</summary>
+    public static bool IstEinfacherEntfall(Vertretung? v) => v is { Art: VertretungsArt.Entfall, NachDatum: null, VerlegungsId: null, VonDatum: null };
+
+    /// <summary>
+    /// Ursprung einer aufgehobenen Verlegung: War dort schon vorher eine Zeile (offene Vertretung, Vertretung, Entfall), kehrt sie in ihren
+    /// bisherigen Zustand zurück; sonst wird die Entfall-Zeile entfernt. Ergebnis: true, wenn die Zeile bleibt.
+    /// </summary>
+    public static bool UrsprungZuruecknehmen(Schuldatei d, Vertretung q)
+    {
+        q.NachDatum = null;
+        q.NachStunde = null;
+        q.VerlegungsId = null;
+        if (q.ArtVorVerlegung is null)
+        {
+            d.Vertretungen.Remove(q);
+            return false;
+        }
+        return Zuruecksetzen(d, q);
+    }
+
+    /// <summary>
+    /// Bisherigen Zustand einer durch eine Verlegung zum Entfall gewordenen Zeile wiederherstellen. Gilt die Absenz, aus der sie entstand,
+    /// nicht mehr (z. B. verkürzt), verschwindet die Zeile – die Neuberechnung legt sie bei Bedarf wieder an. Ergebnis: true, wenn sie bleibt.
+    /// </summary>
+    private static bool Zuruecksetzen(Schuldatei d, Vertretung q)
+    {
+        if (q.ArtVorVerlegung is not VertretungsArt a) return true;
+        q.Art = a;
+        q.VertreterId = q.VertreterVorVerlegung;
+        q.ArtVorVerlegung = null;
+        q.VertreterVorVerlegung = null;
+        var abw = q.AbwesenheitId is int aid ? d.Abwesenheiten.FirstOrDefault(x => x.Id == aid) : null;
+        if (q.AbwesenheitId.HasValue && (abw is null || !abw.Deckt(q.Datum, q.Stunde)))
+        {
+            d.Vertretungen.Remove(q);
+            return false;
+        }
+        // wieder offene Vertretung aus der Absenz: wie berechnet (nicht „bearbeitet“), damit die Neuberechnung sie wie zuvor pflegt
+        if (q.Offen && q.Quelle == VertretungsQuelle.Absenz) q.Bearbeitet = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Offene Stunde, in die eine Stunde vorgezogen worden war (Entfall mit gemerktem bisherigen Zustand), wieder öffnen, sobald keine
+    /// verlegte Stunde dieser Klassen mehr an der Position liegt.
+    /// </summary>
+    public static void GefuellteStundeOeffnen(Schuldatei d, DateOnly datum, int stunde, IReadOnlyCollection<int> klassenIds)
+    {
+        var gefuellt = d.Vertretungen.Where(x => x.Datum == datum && x.Stunde == stunde && IstEinfacherEntfall(x) && x.ArtVorVerlegung.HasValue &&
+                                                 x.KlassenIds.Intersect(klassenIds).Any()).ToList();
+        foreach (var x in gefuellt)
+        {
+            var nochBelegt = d.Vertretungen.Any(z => z.Datum == datum && z.Stunde == stunde && z.VonDatum.HasValue && z.VerlegungsId.HasValue &&
+                                                     z.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch && z.KlassenIds.Intersect(x.KlassenIds).Any());
+            if (!nochBelegt) Zuruecksetzen(d, x);
+        }
+    }
+
     private static int? ZielLehrer(Schuldatei d, Tagesplan tp, int? lehrer, int stunde) =>
         lehrer is int l && !Absenzen.LehrerAbwesend(d, l, tp.Datum, stunde) ? l : null;
 
@@ -1057,11 +1129,15 @@ public static class Vertretungen
                 if (e.Vertretung.VerlegungsId is int vid)
                     foreach (var q in d.Vertretungen.Where(x => x.VerlegungsId == vid && x != e.Vertretung).ToList())
                     {
+                        // der Ursprung bleibt Entfall (die Stunde fällt jetzt ganz aus), ohne „(Le.) nach“
                         q.NachDatum = null;
                         q.NachStunde = null;
                         q.VerlegungsId = null;
+                        q.ArtVorVerlegung = null;
+                        q.VertreterVorVerlegung = null;
                     }
                 d.Vertretungen.Remove(e.Vertretung);
+                if (e.Vertretung.VonDatum.HasValue) GefuellteStundeOeffnen(d, e.Vertretung.Datum, e.Vertretung.Stunde, e.Vertretung.KlassenIds);
                 continue;
             }
             var v = e.Vertretung;
@@ -1947,6 +2023,9 @@ public static class VertretungsVorschlag
             return;
         }
         var uid = vz.Eintrag.Unterricht!.Id;
+        // die offene Stunde wird gefüllt: Entfall, der beim Aufheben der Vorziehung wieder zur offenen Vertretung wird
+        offen.ArtVorVerlegung ??= offen.Art;
+        offen.VertreterVorVerlegung ??= offen.VertreterId;
         offen.Art = VertretungsArt.Entfall;
         offen.VertreterId = null;
         offen.Bearbeitet = true;

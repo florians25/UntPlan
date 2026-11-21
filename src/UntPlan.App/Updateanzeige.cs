@@ -47,7 +47,7 @@ internal sealed class Updateanzeige
             Font = new Font(Ui.Schrift, FontStyle.Bold),
             Margin = new Padding(6, 2, 2, 2),
             Padding = new Padding(6, 0, 6, 0),
-            ToolTipText = "Eine neuere Version von UntPlan ist verfügbar – klicken für Details",
+            ToolTipText = "Eine neuere Version von UntPlan ist verfügbar. Klicken Sie für Details.",
         };
         _label.Click += (_, _) => HinweisZeigen();
     }

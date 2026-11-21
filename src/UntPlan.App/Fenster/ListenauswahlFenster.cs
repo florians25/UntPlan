@@ -189,12 +189,12 @@ public static class Listenberichte
     {
         var liste = Berichtslisten.FreieStunden(d, datum);
         var montag = Kalender.Montag(datum);
-        var sb = new StringBuilder($"<h1>{FreieStundenTitel} – Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
+        var sb = new StringBuilder($"<h1>{FreieStundenTitel}: Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
         if (liste.Count == 0) return sb.Append("<p>In dieser Woche liegen keine Unterrichtstage.</p>").ToString();
         foreach (var tag in liste.GroupBy(z => z.Datum))
         {
             var periode = d.PeriodeAm(tag.Key);
-            sb.Append($"<div class=\"el\"><h2>{H(Planungsdienst.TageLang[((int)tag.Key.DayOfWeek + 6) % 7])}, {Format.Datum(tag.Key)} · {H(periode.Name)}</h2>");
+            sb.Append($"<div class=\"el\"><h2>{H(Planungsdienst.TageLang[((int)tag.Key.DayOfWeek + 6) % 7])}, {Format.Datum(tag.Key)}, {H(periode.Name)}</h2>");
             sb.Append("<table class=\"g\"><tr><th>Stunde</th><th class=\"z\">Anz.</th><th>Freie Lehrkräfte</th><th class=\"z\">Anz.</th><th>Freie Räume</th></tr>");
             foreach (var z in tag)
                 sb.Append($"<tr><td>{H(d.Zeitraster.StundenLabel(z.Stunde))}.</td><td class=\"z\">{z.Lehrer.Count}</td><td>{H(string.Join(", ", z.Lehrer.Select(l => l.Kurzname)))}</td>" +
@@ -209,7 +209,7 @@ public static class Listenberichte
     {
         var liste = Berichtslisten.Belegung(d, datum);
         var montag = Kalender.Montag(datum);
-        var sb = new StringBuilder($"<h1>{BelegungTitel} – Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
+        var sb = new StringBuilder($"<h1>{BelegungTitel}: Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
         if (liste.Count == 0) return sb.Append("<p>In dieser Woche liegen keine Unterrichtstage.</p>").ToString();
         string P(double p) => p.ToString("0", Format.De) + " %";
         foreach (var tag in liste.GroupBy(z => z.Datum))
@@ -236,7 +236,7 @@ public static class Listenberichte
     {
         var liste = Berichtslisten.StundenListe(d, datum);
         var montag = Kalender.Montag(datum);
-        var sb = new StringBuilder($"<h1>{StundenListeTitel} – Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
+        var sb = new StringBuilder($"<h1>{StundenListeTitel}: Woche {Format.Datum(montag)} bis {Format.Datum(montag.AddDays(6))}</h1>");
         if (liste.Count == 0) return sb.Append("<p>In dieser Woche liegen keine Stunden.</p>").ToString();
         foreach (var (l, stunden) in liste)
         {
@@ -268,16 +268,16 @@ public static class Listenberichte
     public static string FachStundenHtml(Schuldatei d)
     {
         var bloecke = Berichtslisten.FachStunden(d);
-        var sb = new StringBuilder($"<h1>{FachStundenTitel} · {H(d.AktivePeriode.Name)}</h1>");
+        var sb = new StringBuilder($"<h1>{FachStundenTitel}: {H(d.AktivePeriode.Name)}</h1>");
         if (bloecke.Count == 0) return sb.Append("<p>Kein Unterricht vorhanden.</p>").ToString();
         foreach (var b in bloecke)
         {
-            sb.Append($"<div class=\"el\"><h2>{H(b.Fach.Kurzname)}{(b.Fach.Langname.Length > 0 ? " – " + H(b.Fach.Langname) : "")}</h2>");
+            sb.Append($"<div class=\"el\"><h2>{H(b.Fach.Kurzname)}{(b.Fach.Langname.Length > 0 ? " (" + H(b.Fach.Langname) + ")" : "")}</h2>");
             sb.Append("<table class=\"r\"><tr><th>Klasse(n)</th><th>Lehrkraft</th><th class=\"z\">Wochenstunden</th></tr>");
             foreach (var z in b.Zeilen) sb.Append($"<tr><td>{H(z.Klassen)}</td><td>{H(z.Lehrer.Length > 0 ? z.Lehrer : "---")}</td><td class=\"z\">{z.Stunden}</td></tr>");
             sb.Append($"<tr class=\"s\"><td>Summe</td><td></td><td class=\"z\">{b.Summe}</td></tr></table>");
-            sb.Append("<div style=\"margin-top:4px\">Je Klasse: ").Append(H(string.Join(" · ", b.JeKlasse.Select(k => $"{k.Klasse} {k.Stunden}"))))
-              .Append("<br>Je Lehrkraft: ").Append(H(string.Join(" · ", b.JeLehrer.Select(l => $"{l.Lehrer} {l.Stunden}")))).Append("</div></div>");
+            sb.Append("<div style=\"margin-top:4px\">Je Klasse: ").Append(H(string.Join(", ", b.JeKlasse.Select(k => $"{k.Klasse} {k.Stunden}"))))
+              .Append("<br>Je Lehrkraft: ").Append(H(string.Join(", ", b.JeLehrer.Select(l => $"{l.Lehrer} {l.Stunden}")))).Append("</div></div>");
         }
         sb.Append($"<div class=\"bil\">Gesamt: {bloecke.Sum(b => b.Summe)} Lehrer-Wochenstunden in {bloecke.Count} Fächern</div>");
         return sb.ToString();
@@ -295,7 +295,7 @@ public static class Listenberichte
     {
         var ix = new DatenIndex(d);
         var aufsichten = d.Pausenaufsichten.Where(a => a.Datum is null).ToList();
-        var sb = new StringBuilder($"<h1>{PausenaufsichtenTitel} · {H(d.AktivePeriode.Name)}</h1>");
+        var sb = new StringBuilder($"<h1>{PausenaufsichtenTitel}: {H(d.AktivePeriode.Name)}</h1>");
         if (aufsichten.Count == 0) return sb.Append("<p>Keine Pausenaufsichten eingetragen.</p>").ToString();
         string Pause(int nach) => d.Zeitraster.Pausen.FirstOrDefault(p => p.NachStunde == nach) is { Bezeichnung.Length: > 0 } p ? p.Bezeichnung : $"nach {nach}. Std.";
         sb.Append("<table class=\"g\"><tr><th>Lehrkraft</th><th>Name</th><th class=\"z\">Anzahl</th><th>Aufsichten (Tag / Pause / Gang)</th></tr>");

@@ -357,7 +357,7 @@ public static class Einstellungsseiten
     public static readonly (string Schluessel, string Text)[] Warnungen =
     {
         ("fixiert", "Unterricht ist fixiert. Unterricht trotzdem entplanen ?"),
-        ("fach2x", "Fach 2x / Tag – Trotzdem verplanen ?"),
+        ("fach2x", "Fach 2x / Tag: Trotzdem verplanen?"),
         ("raumNichtVerplant", "Raum konnte nicht verplant werden."),
     };
 

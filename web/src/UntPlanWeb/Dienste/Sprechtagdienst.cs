@@ -627,7 +627,7 @@ public sealed class Sprechtagdienst
             {
                 var was = zeitNeu ? $"neue Zeit: {ZeitText(t, neu)}" : $"neuer Meeting-Link: {linkNeu}";
                 var an = eltern ? KontenDerLehrkraft(x.Lehrer).Select(k => k.Id) : ElternVon(x.SchuelerId).Select(k => k.Id);
-                Melden(ich, an, "Sprechtag: Termin geändert", $"Ihr Termin am Sprechtag „{t.K.Name}“ bei {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)} wurde geändert – {was}.");
+                Melden(ich, an, "Sprechtag: Termin geändert", $"Ihr Termin am Sprechtag „{t.K.Name}“ bei {LehrerName(s, x.Lehrer)} für {Name(s, x.SchuelerId)} wurde geändert: {was}.");
             }
             return neu;
         }

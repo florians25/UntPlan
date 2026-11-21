@@ -307,7 +307,7 @@ struct SprechtagElternInhalt: View {
                 SprechtagLeer(text: "Für Ihr Konto sind keine Kinder hinterlegt.")
             }
             ForEach(a.kinder) { kind in
-                Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige) · \(kind.klasse)")
+                Text(kind.klasse.isEmpty ? kind.anzeige : "\(kind.anzeige), \(kind.klasse)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Farben.tinte2)
                     .padding(.top, 4)
@@ -1046,7 +1046,7 @@ struct SprechtagLehrkraftInhalt: View {
             } label: {
                 zeileInhalt(pille: x.statusAnzeige, zeit: x.zeitText,
                             name: x.schuelerName.isEmpty ? x.anmerkung : x.schuelerName,
-                            zusatz: [x.schueler?.klasse ?? "", x.verpflichtend ? "verpflichtend" : ""].filter { !$0.isEmpty }.joined(separator: " · "),
+                            zusatz: [x.schueler?.klasse ?? "", x.verpflichtend ? "verpflichtend" : ""].filter { !$0.isEmpty }.joined(separator: ", "),
                             pfeil: true)
             }
             .buttonStyle(.plain)
@@ -1119,7 +1119,7 @@ struct SprechtagLehrkraftInhalt: View {
                             Button {
                                 Task { await raumSetzen(l, ab.index, r.kurz) }
                             } label: {
-                                let text = r.name.isEmpty || r.name == r.kurz ? r.kurz : "\(r.kurz) – \(r.name)"
+                                let text = r.name.isEmpty || r.name == r.kurz ? r.kurz : "\(r.kurz) (\(r.name))"
                                 if r.kurz == aktuell {
                                     Label(text, systemImage: "checkmark")
                                 } else {
@@ -1243,7 +1243,7 @@ struct SprechtagLehrkraftInhalt: View {
                             .lineLimit(1)
                         let zusatz = [x.schueler?.klasse ?? "", x.verpflichtend ? "verpflichtend" : ""].filter { !$0.isEmpty }
                         if !zusatz.isEmpty {
-                            Text(zusatz.joined(separator: " · "))
+                            Text(zusatz.joined(separator: ", "))
                                 .font(.system(size: 13))
                                 .foregroundStyle(Farben.gedaempft)
                         }
@@ -1787,7 +1787,7 @@ struct SprechtagEinladungBlatt: View {
                         .font(.system(size: 15))
                         .foregroundStyle(s.vorhanden ? Farben.gedaempft : Farben.tinte)
                         .lineLimit(1)
-                    Text(s.vorhanden ? "\(s.klasse) · bereits eingeladen" : s.klasse)
+                    Text(s.vorhanden ? "\(s.klasse), bereits eingeladen" : s.klasse)
                         .font(.system(size: 13))
                         .foregroundStyle(Farben.gedaempft)
                         .lineLimit(1)

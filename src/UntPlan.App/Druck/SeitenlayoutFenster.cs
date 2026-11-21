@@ -197,7 +197,7 @@ public sealed class SeitenlayoutFenster : Form
         _felder.BackColor = gFelder.BackColor = Ui.BlauSehrHell;
         gFelder.Controls.Add(_felder);
         p.Controls.Add(gFelder);
-        new ToolTip().SetToolTip(_felder, "Nicht gedruckte Felder – mit der Maus in die Vorschau ziehen (oder Doppelklick), um sie einzublenden;\nSpalten aus der Vorschau hierher ziehen, um sie auszublenden.");
+        new ToolTip().SetToolTip(_felder, "Nicht gedruckte Felder: mit der Maus in die Vorschau ziehen (oder Doppelklick), um sie einzublenden;\nSpalten aus der Vorschau hierher ziehen, um sie auszublenden.");
         FelderZiehenAnbinden();
         var gBild = new GroupBox { Text = "Hintergrund-Bild", Left = 392, Top = 120, Width = 151, Height = 149 };
         p.Controls.Add(gBild);
@@ -539,7 +539,7 @@ public sealed class SeitenlayoutFenster : Form
         };
         _seite.MouseUp += (_, _) => gefasst = null;
         var tipp = new ToolTip();
-        tipp.SetToolTip(_seite, "Blaue Linie ziehen: Zeilenhöhe · Linie zwischen den Spalten ziehen: Spaltenbreite · gestrichelte Linie links/rechts ziehen: Seitenrand\nSpaltenkopf ziehen: Anordnung ändern bzw. ausblenden");
+        tipp.SetToolTip(_seite, "Blaue Linie ziehen: Zeilenhöhe; Linie zwischen den Spalten ziehen: Spaltenbreite; gestrichelte Linie links/rechts ziehen: Seitenrand\nSpaltenkopf ziehen: Anordnung ändern bzw. ausblenden");
         _seite.DragOver += (_, e) => e.Effect = Gezogen(e, FeldFormat) is not null || Gezogen(e, SpalteFormat) is not null ? DragDropEffects.Move : DragDropEffects.None;
         _seite.DragDrop += (_, e) =>
         {

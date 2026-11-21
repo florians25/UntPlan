@@ -95,6 +95,6 @@ public sealed class VertretungsautomatikDialog : Dialog
         _fortschritt.Value = _fortschritt.Maximum;
         Zaehlen();
         var rest = Vertretungsautomatik.Zaehlen(AppZustand.D, _von, _bis);
-        _schritt.Text = rest.Summe == 0 ? $"Fertig! {n} bearbeitet – alle offenen Vertretungen sind erledigt." : $"Fertig: {n} bearbeitet, {rest.Summe} weiterhin offen.";
+        _schritt.Text = rest.Summe == 0 ? $"Fertig: {n} bearbeitet. Alle offenen Vertretungen sind erledigt." : $"Fertig: {n} bearbeitet, {rest.Summe} weiterhin offen.";
     }
 }

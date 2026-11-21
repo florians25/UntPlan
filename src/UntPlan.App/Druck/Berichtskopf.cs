@@ -74,7 +74,7 @@ internal static class Berichtskopf
         if (b.FussKalenderwoche) teile.Add($"KW {ISOWeek.GetWeekOfYear(datum.ToDateTime(TimeOnly.MinValue))}");
         if (b.FussWochennummer) teile.Add($"Woche {Kalender.WochenTyp(d, datum)}");
         if (b.FussPeriode) teile.Add(d.PeriodeAm(datum).Name);
-        return string.Join("  ·  ", teile.Where(t => t.Length > 0));
+        return string.Join("  |  ", teile.Where(t => t.Length > 0));
     }
 
     /// <summary>Fußzeile unter dem Druckbereich: Linie, Text links, Seiten-Nummer (und Anzahl Seiten) rechts.</summary>

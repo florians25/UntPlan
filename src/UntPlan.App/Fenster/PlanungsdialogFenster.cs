@@ -881,7 +881,7 @@ public sealed class PlanungsdialogFenster : MdiFenster
         {
             // Mit Kollision verplanen (Handbuch Kap. 5.4.2.3)
             var antwort = BehinderungsAbfrage.Fragen(this, D, Ix, behindernd,
-                $"Stunde verplanen – U-Nr. {string.Join(",", unts.Select(u => u.Id))} in {Planungsdienst.Tagname(D, tag)}-{stunde}");
+                $"Stunde verplanen: U-Nr. {string.Join(",", unts.Select(u => u.Id))} in {Planungsdienst.Tagname(D, tag)}-{stunde}");
             if (antwort == BehinderungsAntwort.Abbrechen) return;
             if (antwort == BehinderungsAntwort.Entplanen) weg = behindernd.Select(h => h.Planstunde).ToList();
         }

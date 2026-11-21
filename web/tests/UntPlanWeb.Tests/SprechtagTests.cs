@@ -361,7 +361,7 @@ public class SprechtagTests
         Assert.Equal("lehrer", k["rolle"]!.GetValue<string>());
         Assert.Equal("Fr 30.10.2026", k["tagText"]!.GetValue<string>());
         Assert.Equal("15:00–17:00", k["zeitText"]!.GetValue<string>());
-        Assert.Equal("Anmeldung ab 15.10. 08:00 · Raum noch nicht gewählt · 1 gebucht · 10 frei", k["text"]!.GetValue<string>());
+        Assert.Equal("Anmeldung ab 15.10. 08:00, Raum noch nicht gewählt, 1 gebucht, 10 frei", k["text"]!.GetValue<string>());
         Assert.Equal(10, k["frei"]!.GetValue<int>());
         Assert.Equal("Termine verwalten", k["knopf"]!.GetValue<string>());
         Assert.Equal("15:00", k["eintraege"]!.AsArray().Single()!["beginn"]!.GetValue<string>());
@@ -372,7 +372,7 @@ public class SprechtagTests
         await Testserver.JsonAsync(await eltern.PostAsJsonAsync(Url("/buchen"), new { lehrer = "LAN", abschnitt = 0, beginn = "15:10", schuelerId = kinder[1] }));
         var ek = (await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray().Single()!;
         Assert.Equal("eltern", ek["rolle"]!.GetValue<string>());
-        Assert.Equal("Anmeldung bis 28.10. 18:00 · 1 Termin gebucht", ek["text"]!.GetValue<string>());
+        Assert.Equal("Anmeldung bis 28.10. 18:00, 1 Termin gebucht", ek["text"]!.GetValue<string>());
         Assert.Equal("Termine wählen", ek["knopf"]!.GetValue<string>());
         var et = ek["eintraege"]!.AsArray().Single()!;
         Assert.Equal("15:10", et["beginn"]!.GetValue<string>());
@@ -380,7 +380,7 @@ public class SprechtagTests
         // Administration ohne eigene Lehrkraft: Gesamtzahl, keine Liste
         var ak = (await Testserver.HolenAsync(admin, "/api/app/sprechtag/start")).AsArray().Single()!;
         Assert.Equal("admin", ak["rolle"]!.GetValue<string>());
-        Assert.Equal("Anmeldung bis 28.10. 18:00 · 2 Termine gebucht", ak["text"]!.GetValue<string>());
+        Assert.Equal("Anmeldung bis 28.10. 18:00, 2 Termine gebucht", ak["text"]!.GetValue<string>());
         Assert.Empty(ak["eintraege"]!.AsArray());
         Assert.Equal(0, ak["weitere"]!.GetValue<int>());
 
@@ -388,7 +388,7 @@ public class SprechtagTests
         uhr.Fest = new DateTime(2026, 10, 30, 15, 12, 0);
         ek = (await Testserver.HolenAsync(eltern, "/api/app/sprechtag/start")).AsArray().Single()!;
         Assert.True(ek["heute"]!.GetValue<bool>());
-        Assert.StartsWith("Heute · nächster Termin 15:10 bei ", ek["text"]!.GetValue<string>());
+        Assert.StartsWith("Heute: nächster Termin 15:10 bei ", ek["text"]!.GetValue<string>());
         Assert.Equal("Termine ansehen", ek["knopf"]!.GetValue<string>());
         k = (await Testserver.HolenAsync(lan, "/api/app/sprechtag/start")).AsArray().Single()!;
         Assert.Equal("15:10", k["naechster"]!["beginn"]!.GetValue<string>());

@@ -373,7 +373,7 @@ public class OberflaecheTests
         Assert.Equal("entfall", k["status"]!.GetValue<string>());
         Assert.Equal("Klasse abwesend", k["art"]!.GetValue<string>());
         Assert.Equal("6a", k["abwesendeKlassen"]![0]!.GetValue<string>());
-        Assert.Equal("Klasse abwesend – Exkursion", k["abwesendText"]!.GetValue<string>());
+        Assert.Equal("Klasse abwesend: Exkursion", k["abwesendText"]!.GetValue<string>());
         var schueler = await s.AlsAsync("klasse6a", "schueler", "6a");
         var ks = Karten(await Testserver.HolenAsync(schueler, "/api/app/plan?typ=klasse&element=6a&datum=2026-10-16"), "2026-10-16", 4).Single();
         Assert.Equal("entfall", ks["status"]!.GetValue<string>());

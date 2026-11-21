@@ -104,7 +104,7 @@ export async function zeigen(seite, kontext, [artParam, elementParam, bereichPar
   if (eigenerPlan) holen('/api/app/meldungen').then(m => {
     const a = m.filter(x => x.typ === 'absenz' && x.von <= bis && (x.bis ?? x.von) >= von);
     const ziel = seite.querySelector('[data-abwesenheiten]');
-    if (ziel && a.length) ziel.innerHTML = `<ul class="mu-liste">${a.map(x => `<li>${e(datumDe(x.von))}${x.bis && x.bis !== x.von ? ` – ${e(datumDe(x.bis))}` : ''}${x.stundeVon ? `, ${x.stundeVon}.${x.stundeBis && x.stundeBis !== x.stundeVon ? `–${x.stundeBis}.` : ''} Std.` : ''} · ${e(x.grund ?? '')}${x.text ? ` · ${e(x.text)}` : ''}</li>`).join('')}</ul>`;
+    if (ziel && a.length) ziel.innerHTML = `<ul class="mu-liste">${a.map(x => `<li>${e(datumDe(x.von))}${x.bis && x.bis !== x.von ? ` – ${e(datumDe(x.bis))}` : ''}${x.stundeVon ? `, ${x.stundeVon}.${x.stundeBis && x.stundeBis !== x.stundeVon ? `–${x.stundeBis}.` : ''} Std.` : ''}, ${e(x.grund ?? '')}${x.text ? `: ${e(x.text)}` : ''}</li>`).join('')}</ul>`;
   }).catch(() => {});
   // Schülergruppen des Unterrichts (Leitfaden Klassenleitung, Weg 1): Zuordnung der Schüler*innen (schuelergruppen.js)
   inhalt.querySelectorAll('[data-schuelergruppen]').forEach(b => b.onclick = async () => {

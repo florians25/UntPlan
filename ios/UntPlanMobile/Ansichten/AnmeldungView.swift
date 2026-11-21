@@ -87,7 +87,7 @@ struct AnmeldungView: View {
                                 HStack(spacing: 12) {
                                     Initialen(name: konto.name, groesse: 34)
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(konto.rollenname.isEmpty ? konto.login : "\(konto.login) · \(konto.rollenname)")
+                                        Text(konto.rollenname.isEmpty ? konto.login : "\(konto.login), \(konto.rollenname)")
                                             .foregroundStyle(Farben.tinte)
                                         Text(konto.schulname.isEmpty ? konto.serverKurz : konto.schulname)
                                             .font(.footnote)

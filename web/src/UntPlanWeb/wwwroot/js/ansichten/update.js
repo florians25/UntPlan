@@ -20,7 +20,7 @@ function hinweisZeigen(u, login) {
   h.dataset.updateHinweis = '';
   h.setAttribute('role', 'status');
   h.innerHTML = `<i class="bi bi-arrow-up-circle" aria-hidden="true"></i>
-    <div><strong>Update verfügbar</strong><span>UntPlanWeb ${e(u.neueste)} (installiert: ${e(u.version)})${u.hinweisurl ? ` · <a href="${e(u.hinweisurl)}" target="_blank" rel="noopener">Änderungen</a>` : ''}</span></div>
+    <div><strong>Update verfügbar</strong><span>UntPlanWeb ${e(u.neueste)} (installiert: ${e(u.version)})${u.hinweisurl ? ` | <a href="${e(u.hinweisurl)}" target="_blank" rel="noopener">Änderungen</a>` : ''}</span></div>
     <button type="button" class="btn-close" aria-label="Hinweis schließen"></button>`;
   const schliessen = () => {
     try { localStorage.setItem(`${HINWEIS}:${login || '-'}`, u.neueste); } catch { /* privat */ }
@@ -48,7 +48,7 @@ export async function einbinden(ziel, neu = false, login = '') {
   const status = !u.pruefungAktiv
     ? '<span class="text-body-secondary">Prüfung abgeschaltet</span>'
     : u.fehler ? `<span class="text-danger">${e(u.fehler)}</span>`
-    : u.updateVerfuegbar ? `<span class="badge text-bg-warning">Update verfügbar</span> ${e(u.neueste)}${u.hinweisurl ? ` · <a href="${e(u.hinweisurl)}" target="_blank" rel="noopener">Änderungen</a>` : ''}`
+    : u.updateVerfuegbar ? `<span class="badge text-bg-warning">Update verfügbar</span> ${e(u.neueste)}${u.hinweisurl ? ` | <a href="${e(u.hinweisurl)}" target="_blank" rel="noopener">Änderungen</a>` : ''}`
     : `<span class="badge text-bg-success">aktuell</span> <span class="text-body-secondary">neueste: ${e(u.neueste ?? '–')}</span>`;
   const aktion = u.installierbar
     ? `<button class="btn btn-${u.updateVerfuegbar ? 'primary' : 'outline-secondary'} btn-sm" data-update-installieren>${icon('herunterladen', 'me-1')}Update installieren</button>`
@@ -64,8 +64,8 @@ export async function einbinden(ziel, neu = false, login = '') {
       <tr><th class="fw-normal text-body-secondary w-25">UntPlanWeb</th><td>Version ${e(u.version)}</td></tr>
       <tr><th class="fw-normal text-body-secondary">Neueste</th><td>${status}${u.geprueft ? `<div class="small text-body-secondary">geprüft ${e(zeit(u.geprueft))}</div>` : ''}</td></tr>
       ${u.mobil ? `<tr><th class="fw-normal text-body-secondary">UntPlanMobile</th><td>Version ${e(u.mobil.version)}${u.mobil.updateVerfuegbar ? ' <span class="badge text-bg-warning">Update verfügbar</span>' : ''}</td></tr>` : ''}
-      <tr><th class="fw-normal text-body-secondary">Datenbank</th><td>${e(u.datenbank)} <span class="text-body-secondary">· Schemastand ${e(u.schemastand)}</span></td></tr>
-      ${u.angefordert ? `<tr><th class="fw-normal text-body-secondary">Angefordert</th><td>${e(u.angefordert)} – wartet auf das Update-Skript</td></tr>` : ''}
+      <tr><th class="fw-normal text-body-secondary">Datenbank</th><td>${e(u.datenbank)} <span class="text-body-secondary">(Schemastand ${e(u.schemastand)})</span></td></tr>
+      ${u.angefordert ? `<tr><th class="fw-normal text-body-secondary">Angefordert</th><td>${e(u.angefordert)}, wartet auf das Update-Skript</td></tr>` : ''}
     </tbody></table>
     <div class="card-body">${aktion}</div></div>`;
   const vorhanden = ziel.querySelector('[data-update-karte]');

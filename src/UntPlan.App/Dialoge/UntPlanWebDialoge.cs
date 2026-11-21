@@ -111,8 +111,8 @@ public sealed class UntPlanWebDialog : Dialog
             return z;
         }
         Neu("Stammdaten", WebTeile.Stammdaten, true, "Schule, Zeitraster, Klassen, Lehrkräfte, Räume, Fächer, Gänge, Ferien (und Schüler, falls freigegeben)");
-        Neu("Stundenplan*", WebTeile.Unterricht, true, "Perioden mit Unterricht und Stundenplan sowie Pausenaufsichten – Stundenplanänderungen gehen nur hiermit an UntPlanWeb");
-        var vertretungen = Neu("Vertretungen*", WebTeile.Vertretungen, true, "Vertretungen, Absenzen, Termine und Tagestexte – nur die geänderten Stunden, ohne Stundenplanänderungen");
+        Neu("Stundenplan*", WebTeile.Unterricht, true, "Perioden mit Unterricht und Stundenplan sowie Pausenaufsichten. Stundenplanänderungen werden nur hiermit an UntPlanWeb übertragen.");
+        var vertretungen = Neu("Vertretungen*", WebTeile.Vertretungen, true, "Vertretungen, Absenzen, Termine und Tagestexte. Nur die geänderten Stunden, ohne Stundenplanänderungen.");
         var stpl = Neu("Stpl.-Änderungen*", Stpl, false, "Raumänderungen, Buchungen (zusätzliche Unterrichte) und Prüfungen aus UntPlanWeb");
         stpl.Datum.Font = Ui.Schrift;
         stpl.Datum.Width = 230;
@@ -372,7 +372,7 @@ public sealed class UntPlanWebDialog : Dialog
             var text = ex is HttpRequestException or TaskCanceledException
                 ? "Es konnte keine Verbindung zum Server hergestellt werden. Überprüfen Sie Ihre Internetverbindung, die Verbindungseinstellungen und gegebenenfalls den Status des UntPlanWeb-Servers."
                 : ex.Message;
-            FehlerZeigen("UntPlanWeb-Übertragungsfehler!", text);
+            FehlerZeigen("UntPlanWeb-Übertragungsfehler", text);
         }
         finally
         {
@@ -399,7 +399,7 @@ public sealed class UntPlanWebDialog : Dialog
     }
 
     /// <summary>Meldung nach erfolgreicher Übertragung (wie im Vorbild nach dem Export nach Webportal).</summary>
-    private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich!", "UntPlan - Frage");
+    private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich.", "UntPlan - Frage");
 
     private static string TeilName(string teil) => teil switch
     {
@@ -457,7 +457,7 @@ public sealed class UntPlanWebDialog : Dialog
                 catch (InvalidOperationException) { /* fixierte Periode: bleibt als Fehler unten stehen */ }
             }
             if (Schuelergruppen.Fehlende(D) is { Count: > 0 } rest)
-                throw new InvalidOperationException($"{Text} Bitte tragen Sie die entsprechenden Schülergruppen ein (Unterrichtsfenster, Spalte „Schülergruppe“).\n\n{Liste(rest)}\n\nES WURDEN KEINE DATEN ÜBERTRAGEN!");
+                throw new InvalidOperationException($"{Text} Bitte tragen Sie die entsprechenden Schülergruppen ein (Unterrichtsfenster, Spalte „Schülergruppe“).\n\n{Liste(rest)}\n\nEs wurden keine Daten übertragen.");
         }
         if (Schuelergruppen.Inkonsistente(D).Count > 0)
         {
@@ -513,7 +513,7 @@ public sealed class UntPlanWebDialog : Dialog
             e = UntPlanWebExport.FehlzeitenUebernehmen(d, liste, ab);
             d.Einstellungen.Portal.LetzteUebertragung[Studenten] = jetzt;
         });
-        Fortschritt(100, $"Studenten: Schülerabwesenheiten übernommen – {e}.");
+        Fortschritt(100, $"Studenten: Schülerabwesenheiten übernommen ({e}).");
         if (D.SchuelerAbwesenheiten.Count == 0) return null;
         return () => { using var f = new SchuelerAbwesenheitenDialog(); f.ShowDialog(this); };
     }
@@ -532,7 +532,7 @@ public sealed class UntPlanWebDialog : Dialog
             e = UntPlanWebExport.KlassenbuchUebernehmen(d, liste, ab);
             d.Einstellungen.Portal.LetzteUebertragung[Kurse] = jetzt;
         });
-        Fortschritt(100, $"Kurse: Klassenbuch übernommen – {e}.");
+        Fortschritt(100, $"Kurse: Klassenbuch übernommen ({e}).");
         if (D.Klassenbuch.Count == 0) return null;
         return () => { using var f = new KlassenbuchDialog(); f.ShowDialog(this); };
     }
@@ -635,7 +635,7 @@ public sealed class UntPlanWebDialog : Dialog
 /// <summary>Verbindung zu UntPlanWeb (Server, Port, HTTPS, Schul-ID, API-Schlüssel, Verbindung prüfen) und Exportoptionen.</summary>
 public sealed class UntPlanWebEinstellungenDialog : Dialog
 {
-    public UntPlanWebEinstellungenDialog() : base("UntPlanWeb – Einstellungen", 700, 330)
+    public UntPlanWebEinstellungenDialog() : base("UntPlanWeb: Einstellungen", 700, 330)
     {
         var p = AppZustand.D.Einstellungen.Portal;
         Uri.TryCreate(p.Adresse, UriKind.Absolute, out var uri);

@@ -174,7 +174,7 @@ export async function zeigen(seite, kontext, [ordnerParam, idParam]) {
       inhalt: `<div class="mt-meta">
           <span class="mt-von">${eingang ? 'Von:' : 'An:'}</span>
           <div class="mt-personen">${eingang ? `<b>${e(m.absender)}</b>${m.absenderRolle ? `<span class="mt-rolle">${e(m.absenderRolle)}</span>` : ''}${m.empfaenger.length ? `<div class="mt-an">an ${e(an)}</div>` : ''}`
-            : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen · ${m.gelesenAnzahl} gelesen</div>`}</div>
+            : `<b>${e(m.empfaengerText || m.empfaenger.join(', '))}</b><div class="mt-an">${m.anzahl} Empfänger*innen, ${m.gelesenAnzahl} gelesen</div>`}</div>
           <span class="mt-datum">${e(zeitLang(m.erstellt))}</span></div>
         <div class="mt-lesetext">
           <div class="mt-text" data-text>${markdown(m.text)}</div>
@@ -675,7 +675,7 @@ async function einstellungen(seite, kontext) {
   const schalter = (name, text, hinweis = '') => `<label class="mt-einst-zeile"><input type="checkbox" class="form-check-input" name="${name}" ${x[name] ? 'checked' : ''}>
     <span><b>${e(text)}</b>${hinweis ? `<small>${e(hinweis)}</small>` : ''}</span></label>`;
   seite.innerHTML = `<div class="mt-einst">
-    <section class="u-panel"><header><h2>Wer darf an wen schreiben?</h2></header><div class="mt-einst-rumpf">
+    <section class="u-panel"><header><h2>Berechtigungen für Mitteilungen</h2></header><div class="mt-einst-rumpf">
       <div class="mt-einst-gruppe">Lehrkräfte</div>
       ${schalter('lehrerAnFamilie', 'Lehrkräfte schreiben Schüler*innen und Erziehungsberechtigten', 'Einzelne Personen sowie Schüler*innen bzw. Erziehungsberechtigte einer Klasse. Schulleitung und Konten mit dem Recht „Nachrichten“ dürfen immer.')}
       ${schalter('lehrerNurEigeneKlassen', 'nur in den eigenen Klassen', 'Klassen mit eigenem Unterricht bzw. eigener Klassenleitung.')}

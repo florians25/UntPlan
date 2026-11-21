@@ -45,7 +45,13 @@ public sealed record VerlegeAnalyse(DateOnly Von, int VonStunde, int UnterrichtI
 public static class Tagesverlegung
 {
     private static List<TagesEintrag> Quelle(Tagesplan tp, int stunde, int unterrichtId, int? zeile) =>
-        tp.Stunde(stunde).Where(e => e.Findetstatt && Raumvertretungen.Gehoert(e, unterrichtId, zeile)).ToList();
+        tp.Stunde(stunde).Where(e => (e.Findetstatt || IstVerlegbarerEntfall(e)) && Raumvertretungen.Gehoert(e, unterrichtId, zeile)).ToList();
+
+    /// <summary>
+    /// Entfallene Unterrichtsstunde (Entfall ohne Verlegung), die sich wie im Vorbild trotzdem verlegen lässt: ihr Entfall wird zum
+    /// Ursprung der Verlegung mit „(Le.) nach“ – es entsteht keine zweite Zeile.
+    /// </summary>
+    public static bool IstVerlegbarerEntfall(TagesEintrag e) => e.Status == TagesStatus.Entfall && e.Regel != null && Vertretungen.IstEinfacherEntfall(e.Vertretung);
 
     /// <summary>
     /// Lehrkräfte der gezogenen Stunde. Bei einer offenen Stunde (Lehrkraft abwesend) zählt die eigentliche Lehrkraft mit:
@@ -77,7 +83,12 @@ public static class Tagesverlegung
         var tp = Tagesplan.Berechnen(d, ziel);
         // kein automatischer Vertretungstext (der Entfall mit der Verlegung spricht für sich)
         foreach (var v in GefuellteLuecken(tp, stunde, unterrichtId, klassen))
+        {
+            // beim Aufheben der Verlegung wird die Lücke wieder zur offenen Vertretung
+            v.ArtVorVerlegung ??= v.Art;
+            v.VertreterVorVerlegung ??= v.VertreterId;
             Vertretungen.EntfallUmschalten(d, v, benutzer);
+        }
     }
 
     /// <summary>
@@ -233,6 +244,10 @@ public static class Tagesverlegung
             ursprung.NachDatum = null;
             ursprung.NachStunde = null;
             ursprung.VerlegungsId = null;
+            ursprung.ArtVorVerlegung = null;
+            ursprung.VertreterVorVerlegung = null;
+            // eine Lücke, die die verlegte Stunde gefüllt hatte, ist wieder offen
+            Vertretungen.GefuellteStundeOeffnen(d, verlegt.Datum, verlegt.Stunde, verlegt.KlassenIds);
             var vm1 = Vertretungen.AlsVormerkung(d, ursprung, benutzer);
             vm1.Quelle = quelle;
             return vm1;

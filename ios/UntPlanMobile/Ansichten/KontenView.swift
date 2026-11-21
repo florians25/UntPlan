@@ -55,7 +55,7 @@ struct KontenauswahlView: View {
                 } header: {
                     Text("Angemeldete Konten")
                 } footer: {
-                    Text("Wechseln Sie ohne Abmelden zwischen Ihren Konten – auch an verschiedenen Schulen.")
+                    Text("Wechseln Sie ohne Abmelden zwischen Ihren Konten, auch an verschiedenen Schulen.")
                 }
 
                 Section {
@@ -97,7 +97,7 @@ struct KontenauswahlView: View {
                     .foregroundStyle(Farben.tinte)
                     .lineLimit(1)
                 Text([konto.name != konto.login ? konto.login : "", konto.rollenname, konto.schulname.isEmpty ? konto.serverKurz : konto.schulname]
-                    .filter { !$0.isEmpty }.joined(separator: " · "))
+                    .filter { !$0.isEmpty }.joined(separator: ", "))
                     .font(.system(size: 13))
                     .foregroundStyle(Farben.tinte2)
                     .lineLimit(2)

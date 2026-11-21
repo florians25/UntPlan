@@ -255,7 +255,7 @@ struct EigeneAbwesenheitenView: View {
         } else if teile.isEmpty {
             teile.append("ganztägig")
         }
-        return teile.joined(separator: " · ")
+        return teile.joined(separator: ", ")
     }
 
     private func laden() async {

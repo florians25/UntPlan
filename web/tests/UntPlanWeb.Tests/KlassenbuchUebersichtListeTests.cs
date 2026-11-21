@@ -44,8 +44,8 @@ public class KlassenbuchUebersichtListeTests
         Assert.Contains(">Lehrstoff fehlt</button>", kb);
         Assert.Contains(">Abwesenheiten nicht kontrolliert</button>", kb);
         Assert.Contains("{ html: 'Heute', d: heute }, { html: 'Schuljahresbeginn', d: sjVon }, { html: 'Schuljahresende', d: sjBis }, { html: 'Kalender öffnen', kal: true }", kb);
-        Assert.Contains("Benutzen Sie die Suche, um das Ergebnis mit zumindest einem Lehrer und/oder Klasse einzuschränken.", kb);
-        Assert.Contains("Nur ein Fach genügt nicht", kb);
+        Assert.Contains("Bitte schränken Sie die Suche auf mindestens eine Lehrkraft oder Klasse ein.", kb);
+        Assert.Contains("Ein Fach allein reicht nicht aus", kb);
         // Planfenster begrenzt das Scrollen
         Assert.Contains("const fenster = planfensterGrenzen(ich, heute);", kb);
         Assert.Contains("Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt", kb);

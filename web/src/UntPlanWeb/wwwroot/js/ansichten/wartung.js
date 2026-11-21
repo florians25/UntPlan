@@ -70,7 +70,7 @@ export async function zugriff(ziel, kontext, neu) {
     ev.preventDefault();
     try {
       const r = await senden('/api/app/admin/zugriff', { gesperrt: form.gesperrt.checked, hinweis: form.hinweis.value }, 'PUT');
-      toast(r.gesperrt ? 'Zugriff gesperrt – nur die Administration kann sich anmelden.' : 'Zugriff freigegeben.');
+      toast(r.gesperrt ? 'Zugriff gesperrt. Nur die Administration kann sich anmelden.' : 'Zugriff freigegeben.');
       neu();
     } catch (err) { kontext.fehler(err); }
   };
@@ -85,9 +85,9 @@ export async function ueber(ziel) {
   ziel.innerHTML = `
     <div class="wt-karte"><div class="d-flex align-items-center gap-3 mb-3">${icon('dashboard')}<h4 class="m-0">${e(d.produkt)} ${e(d.version)}</h4></div>
       <div class="wt-raster">
-        ${wert('Version', e(d.version))}${wert('Datenbank', `${e(d.datenbank)} · Schema ${d.schemastand}`)}${wert('Laufzeit', e(d.laufzeit))}
+        ${wert('Version', e(d.version))}${wert('Datenbank', `${e(d.datenbank)}, Schema ${d.schemastand}`)}${wert('Laufzeit', e(d.laufzeit))}
         ${wert('Schule', e(d.schule || '–'))}${d.paket ? wert('Schuljahr', `${e(d.paket.schuljahrVon.split('-').reverse().join('.'))} – ${e(d.paket.schuljahrBis.split('-').reverse().join('.'))}`) : ''}
-        ${d.paket ? wert('Daten', `${d.paket.klassen} Klassen · ${d.paket.lehrer} Lehrkräfte · ${d.paket.schueler} Schüler*innen`) : ''}
+        ${d.paket ? wert('Daten', `${d.paket.klassen} Klassen, ${d.paket.lehrer} Lehrkräfte, ${d.paket.schueler} Schüler*innen`) : ''}
       </div></div>
     <div class="wt-karte"><h4>Letzte Übertragungen aus dem Desktop-Programm</h4>
       <div class="nl-tabelle"><table><thead><tr><th>Daten</th><th>Übertragen am</th><th>Revision</th><th>Desktop-Version</th></tr></thead><tbody>
@@ -95,5 +95,5 @@ export async function ueber(ziel) {
         <td>${i.revision ?? '–'}</td><td class="nl-unter">${e(i.programmversion || '–')}</td></tr>`).join('')}</tbody></table></div></div>
     <div class="wt-karte"><h4>Module</h4><div class="wt-module">
       ${d.module.map(m => `<div class="wt-modul ${m.aktiv ? '' : 'aus'}"><i class="bi bi-${m.aktiv ? 'check-circle' : 'dash-circle'}" aria-hidden="true"></i>
-        <span>${e(m.name)}<small>${m.aktiv ? 'freigeschaltet' : 'nicht eingerichtet'}${m.hinweis ? ` · ${e(m.hinweis)}` : ''}</small></span></div>`).join('')}</div></div>`;
+        <span>${e(m.name)}<small>${m.aktiv ? 'freigeschaltet' : 'nicht eingerichtet'}${m.hinweis ? `, ${e(m.hinweis)}` : ''}</small></span></div>`).join('')}</div></div>`;
 }

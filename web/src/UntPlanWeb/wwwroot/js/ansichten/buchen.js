@@ -78,10 +78,10 @@ const stundenOptionen = (raster, wert) => raster.map(z => `<option value="${z.nr
 /** Zusammenfassung des Zeitbereichs als Text („Mi 04.11.2026 · 3.–4. Std.“ bzw. „jede 2. Woche Mi, Fr · 04.11.–18.12.2026 · …“). */
 function zeitText(z) {
   const zeit = z.modus === 'uhrzeit' ? `${z.beginn}–${z.ende} Uhr` : stdText(z.stundeVon, z.stundeBis);
-  if (z.wiederholung === 'einmalig') return `${tagKurz(z.datum)} · ${zeit}`;
+  if (z.wiederholung === 'einmalig') return `${tagKurz(z.datum)}, ${zeit}`;
   const w = WIEDERHOLUNG.find(x => x[0] === z.wiederholung)?.[1] ?? '';
   const tage = z.wiederholung === 'taeglich' ? '' : ` ${z.wochentage.slice().sort().map(t => WOCHENTAGE_KURZ[t]).join(', ')}`;
-  return `${w}${tage} · ${datumDe(z.von)} – ${datumDe(z.bis)} · ${zeit}`;
+  return `${w}${tage}, ${datumDe(z.von)} bis ${datumDe(z.bis)}, ${zeit}`;
 }
 
 function zeitDaten(z) {
@@ -113,10 +113,10 @@ export function stornoDialog(b, serienAnzahl = 0) {
     const serie = !!b.serie && serienAnzahl > 1;
     const box = kbDialog({
       titel: serie ? 'Serie oder Termin stornieren' : 'Buchung stornieren', breite: 's',
-      inhalt: `<div class="bu-storno-kopf"><b>${e(b.titel || b.artName || 'Buchung')}</b><span>${e(tagLang(b.datum))} · ${stdText(b.stundeVon, b.stundeBis)}${b.raum ? ` · ${e(b.raum)}` : ''}</span></div>
+      inhalt: `<div class="bu-storno-kopf"><b>${e(b.titel || b.artName || 'Buchung')}</b><span>${e(tagLang(b.datum))}, ${stdText(b.stundeVon, b.stundeBis)}${b.raum ? `, ${e(b.raum)}` : ''}</span></div>
         ${serie ? `<div class="bu-storno-wahl" role="radiogroup" aria-label="Umfang">
           <label><input type="radio" name="bu-storno" value="termin" checked><span><b>Nur diesen Termin</b><small>${e(tagKurz(b.datum))}</small></span></label>
-          <label><input type="radio" name="bu-storno" value="serie"><span><b>Alle kommenden Termine der Serie</b><small>Serie mit ${serienAnzahl} Terminen – vergangene bleiben erhalten</small></span></label></div>`
+          <label><input type="radio" name="bu-storno" value="serie"><span><b>Alle kommenden Termine der Serie</b><small>Serie mit ${serienAnzahl} Terminen, vergangene Termine bleiben erhalten</small></span></label></div>`
           : '<p class="mb-0 nl-unter">Der Termin wird storniert und aus den Plänen entfernt.</p>'}`,
       knoepfe: [{ text: 'Abbrechen' }, { text: 'Stornieren', art: 'haupt', aktion: async fenster => {
         const ganze = fenster.querySelector('[name=bu-storno]:checked')?.value === 'serie';
@@ -143,7 +143,7 @@ async function assistent(seite, kontext, art, rest) {
     unterricht = (await holen('/api/app/buchen/unterricht')).find(u => String(u.id) === rest[0]);
     if (!unterricht) { kontext.titel(def.titel); seite.innerHTML = alarm('warning', 'Der Unterricht wurde nicht gefunden.'); return; }
   }
-  kontext.titel(art === 'unterricht' ? `Zusätzliche Stunden – ${unterricht.fach} ${unterricht.klassen.join(', ')}` : def.titel,
+  kontext.titel(art === 'unterricht' ? `Zusätzliche Stunden: ${unterricht.fach} ${unterricht.klassen.join(', ')}` : def.titel,
     `<a class="nl-knopf" href="#/buchen/raeume"><i class="bi bi-grid-3x3-gap"></i>Raumübersicht</a><a class="nl-knopf" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>`);
 
   // Vorbelegung aus der Raum- bzw. Ressourcenübersicht: #/buchen/raum/{datum}/{von}/{bis}/{raum}, #/buchen/ressource/{datum}/{von}/{bis}/{id}
@@ -322,15 +322,15 @@ async function assistent(seite, kontext, art, rest) {
       raeume: s.raeume, gewaehlt: zustand.raum, filter: zustand.raumFilter,
       nurFreiText: n > 1 ? 'Nur an allen Terminen frei' : 'Nur freie',
       status: r => raumStatus(r, s.termine), waehlbar: r => r.belegt.length < n,
-      zusatz: r => [r.raumart, ...(r.ressourcen ?? [])].filter(Boolean).length ? `<small>${e([r.raumart, ...(r.ressourcen ?? [])].filter(Boolean).join(' · '))}</small>` : '',
+      zusatz: r => [r.raumart, ...(r.ressourcen ?? [])].filter(Boolean).length ? `<small>${e([r.raumart, ...(r.ressourcen ?? [])].filter(Boolean).join(', '))}</small>` : '',
       ohne: optional ? 'Ohne Raum buchen' : null,
-      leerText: n > 1 ? 'Kein Raum ist an allen Terminen frei – schalten Sie „Nur an allen Terminen frei“ aus und wählen Sie für belegte Termine einen anderen Raum.' : 'Zu dieser Zeit ist kein passender Raum frei.',
+      leerText: n > 1 ? 'Kein Raum ist an allen Terminen frei. Deaktivieren Sie „Nur an allen Terminen frei“ und wählen Sie für belegte Termine einen anderen Raum.' : 'Zu dieser Zeit ist kein passender Raum frei.',
       beiWahl: kurz => { zustand.raum = kurz; zustand.ersatz = {}; ersatzZeichnen(); },
     });
     ersatzZeichnen();
     knoepfeVerbinden(null, async () => {
       if (!optional && !zustand.raum) throw new Error('Bitte einen Raum wählen.');
-      if (!gewaehlteTermine().length) throw new Error('Es bleibt kein Termin übrig – bitte für belegte Termine einen anderen Raum wählen.');
+      if (!gewaehlteTermine().length) throw new Error('Es bleibt kein Termin übrig. Bitte wählen Sie für belegte Termine einen anderen Raum.');
       await gehe(zustand.schritt + 1);
     });
   }
@@ -383,7 +383,7 @@ async function assistent(seite, kontext, art, rest) {
         const status = !r.belegt.length ? `<span class="rw-status frei">${r.frei} verfügbar</span>` : aus ? '<span class="rw-status belegt">ausgebucht</span>' : `<span class="rw-status teil">${n - r.belegt.length} von ${n} Terminen</span>`;
         return `<div class="bu-res ${an ? 'gewaehlt' : ''} ${aus ? 'aus' : ''}" data-res="${r.id}">
           <label class="bu-res-wahl"><input type="checkbox" class="nl-rund" data-wahl="${r.id}" ${an ? 'checked' : ''} ${aus ? 'disabled' : ''} aria-label="${e(r.name)} wählen"></label>
-          <div class="bu-res-text"><span class="bu-res-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span><span><b>${e(r.name)}</b><small>${e([r.art, r.standort ? `Standort: ${r.standort}` : '', r.bemerkung].filter(Boolean).join(' · '))}</small></span></div>
+          <div class="bu-res-text"><span class="bu-res-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span><span><b>${e(r.name)}</b><small>${e([r.art, r.standort ? `Standort: ${r.standort}` : '', r.bemerkung].filter(Boolean).join(', '))}</small></span></div>
           <label class="bu-res-menge" title="Menge">${r.anzahl > 1 ? `<input type="number" class="form-control" min="1" max="${maxMenge}" value="${zustand.ressourcen.get(r.id) ?? 1}" data-menge="${r.id}" aria-label="Menge"><span>von ${r.anzahl}</span>` : ''}</label>
           ${status}</div>`;
       }).join('')}</div>`
@@ -466,7 +466,7 @@ async function assistent(seite, kontext, art, rest) {
       inhalt.querySelector('[data-zf]').innerHTML = `
         ${zeile('Titel', e(d.titel || (u ? u.gruppe || 'Zusätzlicher Unterricht' : ART_NAME[art])))}
         ${zeile('Zeitbereich', e(zeitText(z)))}
-        ${zeile(termine.length === 1 ? 'Termin' : `${termine.length} Termine (Serie)`, `<div class="nl-chips">${termine.slice(0, 12).map(t => `<span class="nl-tag" title="${e(stdText(t.stundeVon, t.stundeBis))}${t.raum ? ` · ${e(t.raum)}` : ''}">${e(tagKurz(t.datum))}${raeume.length > 1 && t.raum ? ` · ${e(t.raum)}` : ''}</span>`).join('')}${termine.length > 12 ? `<span class="nl-tag">+${termine.length - 12}</span>` : ''}</div>`)}
+        ${zeile(termine.length === 1 ? 'Termin' : `${termine.length} Termine (Serie)`, `<div class="nl-chips">${termine.slice(0, 12).map(t => `<span class="nl-tag" title="${e(stdText(t.stundeVon, t.stundeBis))}${t.raum ? `, ${e(t.raum)}` : ''}">${e(tagKurz(t.datum))}${raeume.length > 1 && t.raum ? `, ${e(t.raum)}` : ''}</span>`).join('')}${termine.length > 12 ? `<span class="nl-tag">+${termine.length - 12}</span>` : ''}</div>`)}
         ${zeile(raeume.length > 1 ? 'Räume' : 'Raum', e(raeume.join(', ')) || (art === 'ressource' ? '' : '<span class="nl-unter">ohne Raum</span>'))}
         ${zeile('Ressourcen', e(res.join(', ')))}
         ${zeile('Klasse(n)', e((u ? u.klassen : d.klassen).join(', ')))}
@@ -512,7 +512,7 @@ async function assistent(seite, kontext, art, rest) {
     inhalt.innerHTML = `<section class="bu-karte bu-erfolg">
       <div class="bu-erfolg-symbol"><i class="bi bi-check-lg"></i></div>
       <h2>${b.length === 1 ? 'Die Buchung ist gespeichert.' : `Serie mit ${b.length} Terminen gespeichert.`}</h2>
-      <p class="nl-unter">${e(b[0].titel)} · ${e(tagKurz(b[0].datum))}${b.length > 1 ? ` – ${e(tagKurz(b[b.length - 1].datum))}` : ''} · ${stdText(b[0].stundeVon, b[0].stundeBis)}${raeume.length ? ` · ${raeume.length > 1 ? 'Räume' : 'Raum'} ${e(raeume.join(', '))}` : ''}</p>
+      <p class="nl-unter">${e(b[0].titel)}, ${e(tagKurz(b[0].datum))}${b.length > 1 ? ` bis ${e(tagKurz(b[b.length - 1].datum))}` : ''}, ${stdText(b[0].stundeVon, b[0].stundeBis)}${raeume.length ? `, ${raeume.length > 1 ? 'Räume' : 'Raum'} ${e(raeume.join(', '))}` : ''}</p>
       ${g.hinweise?.length ? alarm('warning', g.hinweise.join(' ')) : ''}
       <div class="bu-knopfleiste mitte"><a class="nl-knopf bu-gross" href="#/buchen/meine"><i class="bi bi-list-ul"></i>Meine Buchungen</a>
         ${b[0].raum ? `<a class="nl-knopf bu-gross" href="#/plan/raum/${encodeURIComponent(b[0].raum)}/${b[0].datum}"><i class="bi bi-calendar3-week"></i>Raumplan</a>` : ''}
@@ -781,7 +781,7 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
       <button type="button" class="nl-knopf klein bu-filter-weg" data-filter-weg ${filterAktiv() ? '' : 'hidden'}><i class="bi bi-x-lg"></i>Filter zurücksetzen</button>
     </div>
     <div class="bu-ru-kopf"><div class="bu-ru-zahlen" data-zahlen aria-live="polite"></div>
-      <div class="bu-legende" aria-label="Legende">${['unterricht', 'buchung', 'klausur', 'termin', 'vorgemerkt', 'gesperrt'].map(a => `<span><i class="bu-punkt ${a}"></i>${BELEGT_TEXT[a]}</span>`).join('')}<span><i class="bu-punkt frei"></i>frei – anklicken zum Buchen</span></div>
+      <div class="bu-legende" aria-label="Legende">${['unterricht', 'buchung', 'klausur', 'termin', 'vorgemerkt', 'gesperrt'].map(a => `<span><i class="bu-punkt ${a}"></i>${BELEGT_TEXT[a]}</span>`).join('')}<span><i class="bu-punkt frei"></i>frei (zum Buchen anklicken)</span></div>
       <span class="bu-ru-zoom">${segment(ZOOM, zoom, { attr: 'data-zoom', label: 'Darstellung', klasse: 'klein' })}</span></div>
     <div data-raster><div class="u-laedt"></div></div>`;
   seite.querySelectorAll('[data-schieben]').forEach(b => b.onclick = () => kontext.navigieren(ziel(plusTage(datum, Number(b.dataset.schieben) * (woche ? 7 : 1)))));
@@ -846,17 +846,17 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
     const x = infos[i];
     if (!x) return '';
     const a = x.art;
-    const zeit = a === 'tagfrei' ? '' : ` · ${stdText(x.von, x.bis)} · ${e(zeitVon(x.von)?.beginn ?? '')}–${e(zeitVon(x.bis)?.ende ?? '')} Uhr`;
+    const zeit = a === 'tagfrei' ? '' : `, ${stdText(x.von, x.bis)}, ${e(zeitVon(x.von)?.beginn ?? '')}–${e(zeitVon(x.bis)?.ende ?? '')} Uhr`;
     const tipp = a === 'frei' ? 'Anklicken, um den Raum zu buchen' : x.buchung && x.datum >= heute ? 'Anklicken, um die Buchung zu stornieren' : '';
     const r = x.raum;
     return `<div class="bu-hover-kopf"><i class="bu-punkt ${e(a)}"></i><b>${e(ZUSTAND_TEXT[a] ?? a)}</b><span class="ms-auto">${e(r.kurz)}</span></div>
       <div class="bu-hover-zeit">${e(tagKurz(x.datum))}${zeit}</div>
       ${x.text ? `<div class="bu-hover-text">${e(x.text)}</div>` : ''}
-      <div class="bu-hover-raum">${e([r.name !== r.kurz ? r.name : '', r.raumart, r.kapazitaet ? `${r.kapazitaet} Plätze` : '', r.gebaeude].filter(Boolean).join(' · '))}</div>
+      <div class="bu-hover-raum">${e([r.name !== r.kurz ? r.name : '', r.raumart, r.kapazitaet ? `${r.kapazitaet} Plätze` : '', r.gebaeude].filter(Boolean).join(', '))}</div>
       ${tipp ? `<div class="bu-hover-tipp"><i class="bi bi-hand-index"></i>${tipp}</div>` : ''}`;
   };
   const freiZahl = d => `<span class="bu-frei-zahl ${d.frei === 0 ? 'null' : d.frei < d.offen / 3 ? 'wenig' : ''}" title="${d.frei} von ${d.offen} Stunden frei">${d.frei} frei</span>`;
-  const raumMeta = r => [r.name !== r.kurz ? r.name : '', r.kapazitaet ? `${r.kapazitaet} Pl.` : '', r.raumart].filter(Boolean).join(' · ');
+  const raumMeta = r => [r.name !== r.kurz ? r.name : '', r.kapazitaet ? `${r.kapazitaet} Pl.` : '', r.raumart].filter(Boolean).join(', ');
 
   /** Zelle (Tabelle) bzw. Chip (Liste) einer Belegung. */
   const zelle = (d, b, start) => {
@@ -868,7 +868,7 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
     const span = b.n > 1 ? ` colspan="${b.n}"` : '';
     const text = woche || b.art === 'vergangen' ? '' : `<span class="bu-zt">${e(b.text ?? '')}</span>`;
     if (b.buchung && b.datum >= heute)
-      return `<td class="bu-zelle ${e(b.art)}${s}"${span} data-info="${i}" data-hover=""><button type="button" class="bu-block bu-belegt-knopf" data-buchung="${b.buchung}|${e(r.kurz)}|${b.datum}|${b.von}|${b.bis}" aria-label="${e(BELEGT_TEXT[b.art] ?? b.art)}: ${e(b.text)} – stornieren">${text}</button></td>`;
+      return `<td class="bu-zelle ${e(b.art)}${s}"${span} data-info="${i}" data-hover=""><button type="button" class="bu-block bu-belegt-knopf" data-buchung="${b.buchung}|${e(r.kurz)}|${b.datum}|${b.von}|${b.bis}" aria-label="${e(BELEGT_TEXT[b.art] ?? b.art)}: ${e(b.text)}, stornieren">${text}</button></td>`;
     return `<td class="bu-zelle ${e(b.art)}${s}"${span} data-info="${i}" data-hover="">${b.art === 'vergangen' ? '' : `<div class="bu-block">${text}</div>`}</td>`;
   };
   const chip = (d, b) => {
@@ -877,7 +877,7 @@ async function raumuebersicht(seite, kontext, [datumParam, tageParam]) {
     const nr = b.von === b.bis ? `${b.von}` : `${b.von}–${b.bis}`;
     const breit = `style="--n:${b.n}"`;
     if (b.art === 'frei') return `<button type="button" class="bu-chip frei" ${breit} data-info="${i}" data-buchen="${e(r.kurz)}|${b.datum}|${b.von}" aria-label="${e(r.kurz)} ${b.von}. Stunde buchen">${nr}</button>`;
-    if (b.buchung && b.datum >= heute) return `<button type="button" class="bu-chip ${e(b.art)}" ${breit} data-info="${i}" data-buchung="${b.buchung}|${e(r.kurz)}|${b.datum}|${b.von}|${b.bis}" aria-label="${e(b.text)} – stornieren">${nr}</button>`;
+    if (b.buchung && b.datum >= heute) return `<button type="button" class="bu-chip ${e(b.art)}" ${breit} data-info="${i}" data-buchung="${b.buchung}|${e(r.kurz)}|${b.datum}|${b.von}|${b.bis}" aria-label="${e(b.text)}, stornieren">${nr}</button>`;
     return `<button type="button" class="bu-chip ${e(b.art)}" ${breit} data-info="${i}" aria-label="${e(ZUSTAND_TEXT[b.art] ?? b.art)} ${nr}. Stunde">${b.art === 'tagfrei' ? e(b.text) : nr}</button>`;
   };
 
@@ -984,8 +984,8 @@ function schnellbuchung(kontext, opt, klassen, raum, datum, stunde, raster, bele
     for (const z of raster.filter(x => x.nr >= stunde)) { if (belegt.has(z.nr)) break; bisListe.push(z); }
     const box = kbDialog({
       titel: `${raum.kurz} buchen`, breite: 'm',
-      inhalt: `<div class="bu-schnell-kopf"><span class="mf-symbol bu-symbol"><i class="bi bi-door-open"></i></span><div><b>${e(raum.kurz)}${raum.name && raum.name !== raum.kurz ? ` · ${e(raum.name)}` : ''}</b>
-          <span>${e(tagLang(datum))}${raum.kapazitaet ? ` · ${raum.kapazitaet} Plätze` : ''}</span></div></div>
+      inhalt: `<div class="bu-schnell-kopf"><span class="mf-symbol bu-symbol"><i class="bi bi-door-open"></i></span><div><b>${e(raum.kurz)}${raum.name && raum.name !== raum.kurz ? ` (${e(raum.name)})` : ''}</b>
+          <span>${e(tagLang(datum))}${raum.kapazitaet ? `, ${raum.kapazitaet} Plätze` : ''}</span></div></div>
         <div class="bu-raster zwei">
           ${feld('Von Stunde', `<select class="form-select" name="von" disabled>${stundenOptionen(raster.filter(x => x.nr === stunde), stunde)}</select>`)}
           ${feld('Bis Stunde', `<select class="form-select" name="bis">${stundenOptionen(bisListe, stunde)}</select>`)}
@@ -1049,7 +1049,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
   const zeitVon = nr => raster.find(z => z.nr === nr);
   const ganzerTag = () => f.von === raster[0]?.nr && f.bis === raster[raster.length - 1]?.nr;
   const zrText = () => ganzerTag() ? 'ganzer Tag' : `${stdText(f.von, f.bis)} (${zeitVon(f.von)?.beginn ?? ''}–${zeitVon(f.bis)?.ende ?? ''})`;
-  const stdWahl = (n, wert) => `<select data-zr="${n}" aria-label="${n === 'von' ? 'Von Stunde' : 'Bis Stunde'}">${raster.map(z => `<option value="${z.nr}" ${z.nr === wert ? 'selected' : ''}>${z.nr}.${n === 'von' ? ` ${e(z.beginn)}` : ` – ${e(z.ende)}`}</option>`).join('')}</select>`;
+  const stdWahl = (n, wert) => `<select data-zr="${n}" aria-label="${n === 'von' ? 'Von Stunde' : 'Bis Stunde'}">${raster.map(z => `<option value="${z.nr}" ${z.nr === wert ? 'selected' : ''}>${z.nr}.${n === 'von' ? ` ${e(z.beginn)}` : ` bis ${e(z.ende)}`}</option>`).join('')}</select>`;
 
   // Arten (mit Symbol und Anzahl) für die Filter-Chips
   const arten = [...new Map(u.ressourcen.map(r => [r.artId ?? 0, { id: r.artId ?? 0, name: r.art || 'Ohne Art', symbol: ressourcenSymbol(r), ton: resTon(r) }])).values()]
@@ -1154,7 +1154,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       <div class="bu-rk-kopf"><span class="bu-rk-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}" aria-hidden="true"></i></span>
         <div class="bu-rk-titel"><b>${e(r.name)}</b><small>${e(r.art || 'Ohne Art')}</small></div>
         <span class="rw-status ${z.klasse === 'tagfrei' ? '' : z.klasse}">${e(z.text)}</span></div>
-      <div class="bu-rk-meta">${ort(r)}<span><i class="bi bi-stack" aria-hidden="true"></i>${r.anzahl} Stück</span>${tag?.frei ? '' : ganzerTag() ? (z.frei && z.frei !== 'ganztägig' ? `<span class="bu-rk-verf">frei: <b>${e(z.frei)}</b> Std.</span>` : '') : r.mobil ? `<span class="bu-rk-verf"><b>${z.v}</b>/${r.anzahl} frei · ${e(zrText())}</span>` : ''}</div>
+      <div class="bu-rk-meta">${ort(r)}<span><i class="bi bi-stack" aria-hidden="true"></i>${r.anzahl} Stück</span>${tag?.frei ? '' : ganzerTag() ? (z.frei && z.frei !== 'ganztägig' ? `<span class="bu-rk-verf">frei: <b>${e(z.frei)}</b> Std.</span>` : '') : r.mobil ? `<span class="bu-rk-verf"><b>${z.v}</b>/${r.anzahl} frei, ${e(zrText())}</span>` : ''}</div>
       ${r.bemerkung ? `<p class="bu-rk-bem">${e(r.bemerkung)}</p>` : ''}
       <div class="bu-rk-strahl">${zeitstrahl(r)}</div>
       <div class="bu-rk-fuss"><span class="nl-unter">${tag?.frei ? '' : r.mobil ? (n ? `${n} ${n === 1 ? 'Buchung' : 'Buchungen'} am ${e(tagKurz(datum))}` : `Am ${e(tagKurz(datum))} nicht gebucht`) : `Belegung von ${e(r.raum)}`}</span>${knopf(r, z)}</div>
@@ -1181,7 +1181,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
     const eintraege = (r.belegung[d] ?? []).filter(x => x.von <= s && x.bis >= s);
     const kopf = r.mobil ? (g <= 0 ? (r.anzahl > 1 ? `alle ${r.anzahl} verfügbar` : 'verfügbar') : g >= r.anzahl ? 'ausgebucht' : `${r.anzahl - g} von ${r.anzahl} verfügbar`) : g ? `Raum ${r.raum} belegt` : `Raum ${r.raum} frei`;
     return `<div class="bu-hover-kopf"><i class="bu-punkt ${g <= 0 ? 'rfrei' : g >= r.anzahl ? 'rvoll' : 'rteil'}"></i><b>${e(kopf)}</b><span class="ms-auto">${e(r.name)}</span></div>
-      <div class="bu-hover-zeit">${e(tagKurz(d))} · ${s}. Std. · ${e(z?.beginn ?? '')}–${e(z?.ende ?? '')} Uhr</div>
+      <div class="bu-hover-zeit">${e(tagKurz(d))}, ${s}. Std., ${e(z?.beginn ?? '')}–${e(z?.ende ?? '')} Uhr</div>
       ${r.mobil && eintraege.length ? `<ul class="bu-hover-liste">${eintraege.map(x => `<li>${x.menge > 1 ? `<b>${x.menge}×</b> ` : ''}${e(x.text || 'Buchung')}${x.absender ? ` <small>${e(x.absender)}</small>` : ''}</li>`).join('')}</ul>` : ''}
       ${el.matches('[data-res-buchen]') ? '<div class="bu-hover-tipp"><i class="bi bi-hand-index"></i>Anklicken, um diese Stunde zu buchen</div>' : ''}`;
   };
@@ -1197,7 +1197,7 @@ async function ressourcenuebersicht(seite, kontext, [datumParam, zweiter]) {
       ${tag?.frei ? `<span class="nl-chip grau">${e(tagKurz(datum))}: ${e(tag.grund || 'unterrichtsfrei')}</span>` : `<span class="bu-ru-jetzt"><i class="bi bi-check2-circle"></i>${frei} ${ganzerTag() ? 'mit freien Stunden' : 'verfügbar'} am ${e(tagKurz(datum))}${ganzerTag() ? '' : `, ${e(zrText())}`}</span>`}` : '';
     if (!u.ressourcen.length) {
       box.innerHTML = `<div class="bu-leer"><i class="bi bi-box-seam" aria-hidden="true"></i><b>Es sind noch keine Ressourcen angelegt.</b>
-        <span>${opt.admin ? 'Legen Sie mobile Geräte wie Beamer, Laptopwagen oder Tablet-Koffer an – oder übernehmen Sie zum Start typische Beispiele.' : 'Die Administration legt buchbare Geräte wie Beamer oder Laptopwagen an.'}</span>
+        <span>${opt.admin ? 'Legen Sie mobile Geräte wie Beamer, Laptopwagen oder Tablet-Koffer an oder übernehmen Sie typische Beispiele als Ausgangsbasis.' : 'Die Administration legt buchbare Geräte wie Beamer oder Laptopwagen an.'}</span>
         ${opt.admin ? '<div class="d-flex flex-wrap justify-content-center gap-2 mt-2"><button type="button" class="nl-knopf" data-beispiele><i class="bi bi-magic"></i>Beispiel-Ressourcen anlegen</button><a class="nl-hinzu" href="#/buchen/verwaltung"><i class="bi bi-plus-lg"></i>Ressourcen verwalten</a></div>' : ''}</div>`;
       box.querySelector('[data-beispiele]')?.addEventListener('click', async ev => {
         ev.currentTarget.disabled = true;
@@ -1252,7 +1252,7 @@ function ressourceBuchen(kontext, opt, r, datum, von, bis, raster) {
     const box = kbDialog({
       titel: `${r.name} buchen`, breite: 'm',
       inhalt: `<div class="bu-schnell-kopf"><span class="bu-rk-symbol ton-${resTon(r)}"><i class="bi bi-${e(ressourcenSymbol(r))}"></i></span><div><b>${e(r.name)}</b>
-          <span>${e([r.art, r.standort ? `Standort: ${r.standort}` : '', r.anzahl > 1 ? `${r.anzahl} Stück` : ''].filter(Boolean).join(' · '))}</span></div></div>
+          <span>${e([r.art, r.standort ? `Standort: ${r.standort}` : '', r.anzahl > 1 ? `${r.anzahl} Stück` : ''].filter(Boolean).join(', '))}</span></div></div>
         <div class="bu-raster zwei">
           ${feld('Datum', `<input type="date" class="form-control" name="datum" value="${datum}" min="${heuteIso()}">`)}
           <div class="bu-feld"><span>Verfügbar</span><div class="bu-verf" data-verf aria-live="polite">…</div></div>
@@ -1341,7 +1341,7 @@ async function eigeneUnterrichte(seite, kontext) {
       const w = n => box.querySelector(`[name=${n}]`);
       const u = await senden('/api/app/buchen/unterricht', { lehrer: w('lehrer').value || null, fach: w('fach').value, klassen: [...w('klassen').selectedOptions].map(o => o.value),
         gruppe: w('gruppe').value, text: w('text').value, wochenstunden: Number(w('wochenstunden').value) || 0 });
-      toast('Unterricht angelegt – jetzt zusätzliche Stunden verplanen.');
+      toast('Unterricht angelegt. Planen Sie jetzt die zusätzlichen Stunden ein.');
       kontext.navigieren(`#/buchen/zusatz/e${u.id}`);
     } }],
   });

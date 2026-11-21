@@ -50,7 +50,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
   const datum = n => `<input type="date" class="form-control kbe-datum" id="${id(n)}" data-feld="${n}" value="${e(w[n] ?? '')}" ${aus}>`;
   const auswahl = (n, liste) => `<select class="form-select kbe-auswahl" id="${id(n)}" data-feld="${n}" ${aus}>${liste.map(([v, t]) => `<option value="${e(v)}" ${String(w[n]) === String(v) ? 'selected' : ''}>${e(t)}</option>`).join('')}</select>`;
   const text = (n, rows = 3) => `<textarea class="form-control" id="${id(n)}" data-feld="${n}" rows="${rows}" maxlength="2000" ${aus}>${e(w[n] ?? '')}</textarea>`;
-  const gruende = [['', '– kein Standardgrund –'], ...d.gruende.map(g => [g.kurz, `${g.name} (${g.kurz})${g.entschuldigt ? ' – gilt als entschuldigt' : ''}`])];
+  const gruende = [['', '(kein Standardgrund)'], ...d.gruende.map(g => [g.kurz, `${g.name} (${g.kurz})${g.entschuldigt ? ', gilt als entschuldigt' : ''}`])];
   const bereich = (von, bis) => `<span class="kbe-bereich">${datum(von)}<span>bis</span>${datum(bis)}</span>`;
   const karte = (titel, symbol, inhalt, rechts = '') => `<section class="kbe-karte"><header><span class="kbe-symbol"><i class="bi bi-${symbol}" aria-hidden="true"></i></span><h2>${e(titel)}</h2>${rechts}</header><div class="kbe-rumpf">${inhalt}</div></section>`;
 
@@ -115,15 +115,15 @@ export async function zeigen(seite, kontext, [reiterParam]) {
     ${karte('Fachlehrer-Entschuldigungen', 'person-check', `
       ${schalter('fachlehrerEntschuldigungen', 'Fachlehrer-Entschuldigungen aktivieren', 'Lehrkräfte entschuldigen einzelne Fehlstunden aus ihrem Unterricht unter Klassenbuch → Fehlzeiten bzw. in der App (Recht „Fehlstunden im eigenen Unterricht entschuldigen“). Gilt ohne Einschränkung für alle Jahrgänge.')}
       ${schalter('fachlehrerJahrgangEinschraenken', 'Einschränkung auf Jahrgangsstufen', 'Nur Fehlstunden von Klassen in diesen Jahrgangsstufen. Die Stammdaten der Klassen müssen eine Jahrgangsstufe enthalten.')}
-      ${zeile('Jahrgangsstufen von – bis', `<span class="kbe-bereich">${zahl('fachlehrerJahrgangVon', { max: 20, leer: '–' })}<span>bis</span>${zahl('fachlehrerJahrgangBis', { max: 20, leer: '–' })}</span>`)}
+      ${zeile('Jahrgangsstufen von bis', `<span class="kbe-bereich">${zahl('fachlehrerJahrgangVon', { max: 20, leer: '–' })}<span>bis</span>${zahl('fachlehrerJahrgangBis', { max: 20, leer: '–' })}</span>`)}
       <div class="kbe-info"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div>
-        <b>Deaktivieren während des Schuljahres:</b> Bitte vorher alle Abwesenheiten von der Klassenleitung kontrollieren und bestätigen lassen. Ein einmal gesetzter Status bleibt erhalten; Abwesenheiten mit unterschiedlichen Status der Stunden bleiben „offen“ (mehrdeutig). Wir empfehlen, die Funktion nicht im laufenden Schuljahr zu deaktivieren.</div></div>`)}
+        <b>Deaktivieren während des Schuljahres:</b> Bitte vorher alle Abwesenheiten von der Klassenleitung kontrollieren und bestätigen lassen. Ein einmal gesetzter Status bleibt erhalten; Abwesenheiten mit unterschiedlichen Status der Stunden bleiben „offen“ (mehrdeutig). Es wird empfohlen, die Funktion nicht im laufenden Schuljahr zu deaktivieren.</div></div>`)}
     ${karte('Automatische Erinnerung bei offenen Stunden', 'bell', `
       ${schalter('erinnerung', 'Automatische Erinnerung über offene Stunden des aktuellen Schuljahres')}
       ${zeile('Versand jeden', auswahl('erinnerungTag', WOCHENTAGE.map((t, i) => [i + 1, t])), '', id('erinnerungTag'))}
       <div class="kbe-info"><i class="bi bi-info-circle" aria-hidden="true"></i><div>
-        <b>Wann gilt eine Stunde als offen?</b> Nach „Offene Stunden anzeigen für“: fehlender Lehrstoff, fehlende Abwesenheitskontrolle oder beides.<br>
-        <b>Wer erhält die Erinnerung?</b> Die für die Stunde verantwortliche Lehrkraft als Mitteilung – mit einem Link, der direkt zur Stunde führt (in der mobilen App lässt sich der Link nicht direkt öffnen).</div></div>`,
+        <b>Offene Stunden:</b> Maßgeblich ist die Einstellung „Offene Stunden anzeigen für“: fehlender Lehrstoff, fehlende Abwesenheitskontrolle oder beides.<br>
+        <b>Empfänger:</b> Die für die Stunde verantwortliche Lehrkraft, als Mitteilung mit einem Link, der direkt zur Stunde führt (in der mobilen App lässt sich der Link nicht direkt öffnen).</div></div>`,
       darf ? '<button type="button" class="nl-knopf ms-auto" data-erinnern><i class="bi bi-send"></i> Jetzt senden</button>' : '')}`;
 
   const unterrichtReiter = () => `
@@ -138,9 +138,9 @@ export async function zeigen(seite, kontext, [reiterParam]) {
     const gesamt = noten.schemen.find(s => s.id === noten.gesamt);
     return `
     ${karte('Notenschemen', 'award', `
-      <p class="kbe-text">Falls das verwendete Notenschema noch nicht vorhanden ist, legt die Administration unter Stammdaten → Notenschemen eigene Schemen an, z. B. „1 – 5“ oder „+, ~, -“.
+      <p class="kbe-text">Falls das verwendete Notenschema noch nicht vorhanden ist, legt die Administration unter Stammdaten → Notenschemen eigene Schemen an, z. B. „1 bis 5“ oder „+, ~, -“.
         Ohne Werte bei den Noten werden für dieses Schema keine Durchschnitte berechnet.</p>
-      ${noten.schemen.length ? `<ul class="kbe-schemen">${noten.schemen.map(s => `<li><b>${e(s.name)}</b><span>${s.noten.map(n => e(n.text)).join(' · ')}</span>
+      ${noten.schemen.length ? `<ul class="kbe-schemen">${noten.schemen.map(s => `<li><b>${e(s.name)}</b><span>${s.noten.map(n => e(n.text)).join(', ')}</span>
         ${s.mitDurchschnitt ? '<span class="nl-chip gruen">mit Durchschnitt</span>' : '<span class="nl-chip grau">ohne Werte</span>'}${s.aktiv ? '' : '<span class="nl-chip grau">inaktiv</span>'}</li>`).join('')}</ul>`
         : '<p class="kbe-text text-body-secondary">Es sind noch keine Notenschemen angelegt.</p>'}
       ${zeile('Gesamtnotenschema', `<span class="kbe-text">${gesamt ? e(gesamt.name) : 'nicht gewählt'}</span>`)}`,
@@ -213,7 +213,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
       b.disabled = true;
       try {
         const r = await senden('/api/app/klassenbuch/einstellungen/erinnerung', {});
-        toast(r.lehrkraefte ? `Erinnerung an ${r.lehrkraefte} ${r.lehrkraefte === 1 ? 'Lehrkraft' : 'Lehrkräfte'} gesendet (${r.stunden} offene Stunden).` : 'Keine offenen Stunden – es wurde keine Erinnerung gesendet.');
+        toast(r.lehrkraefte ? `Erinnerung an ${r.lehrkraefte} ${r.lehrkraefte === 1 ? 'Lehrkraft' : 'Lehrkräfte'} gesendet (${r.stunden} offene Stunden).` : 'Keine offenen Stunden. Es wurde keine Erinnerung gesendet.');
       } catch (err) { toast(err.message, true); }
       b.disabled = false;
     });

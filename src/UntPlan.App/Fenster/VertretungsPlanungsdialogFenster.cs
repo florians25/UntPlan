@@ -645,7 +645,8 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
     private string? ZiehenBeginnt(int z, int s)
     {
         var (t, stunde) = Position(z, s);
-        var e = Eintraege(t, stunde).FirstOrDefault(x => x.Findetstatt);
+        // wie im Vorbild lässt sich auch eine entfallene Stunde verlegen (ihr Entfall wird zum Ursprung mit „(Le.) nach“)
+        var e = Eintraege(t, stunde).FirstOrDefault(x => x.Findetstatt) ?? Eintraege(t, stunde).FirstOrDefault(Tagesverlegung.IstVerlegbarerEntfall);
         if (e is null) return null;
         _zielCache.Clear();
         var uid = e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId;

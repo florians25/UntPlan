@@ -535,7 +535,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _kopfLeiste.Text = KopfText(Ix, v) + mehr;
         _kopfDetails.Text = $"Vtr-Nr. {v.Id}   {Format.Datum(v.Datum)}   {Vertretungsplan.StundeText(v)}. Std.   Klasse(n) {Ix.KKlassen(v.NeueKlassenIds)}   Lehrer {Ix.KLehrer(v.LehrerId)}   Fach {Ix.KFach(v.FachId)}   " +
                             $"{(v.Art == VertretungsArt.Pausenaufsicht ? "Gang " + Ix.K(ElementTyp.Gang, v.GangId) : "Raum " + Ix.KRaum(v.VertretungsraumId ?? v.RaumId))}{Environment.NewLine}" +
-                            $"{Vertretungsplan.ArtText(D, v.Art)}{(v.Grund.Length > 0 ? ", " + v.Grund : "")}{(v.Text.Length > 0 ? " – " + v.Text : "")}";
+                            $"{Vertretungsplan.ArtText(D, v.Art)}{(v.Grund.Length > 0 ? ", " + v.Grund : "")}{(v.Text.Length > 0 ? ": " + v.Text : "")}";
         var pause = v.Art == VertretungsArt.Pausenaufsicht;
         _block.Enabled = !pause && VertretungsVorschlag.Block(D, v).Count > 1;
         _disloz.Enabled = !pause && VertretungsVorschlag.DislozierungenDefiniert(D);
@@ -589,7 +589,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 ("Kr", string.Join(", ", k.Kriterien))));
             zeile.Tag = k;
             if (k.Kennzeichen) zeile.Cells[kennzSpalte].ToolTipText = k.KennzeichenText;
-            zeile.Cells[nameSpalte].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? " – " + k.Lage : "") + (vms is null ? "" : $"{Environment.NewLine}+ {vms.Count} Vormerkung(en) – Klick auf das Plus zeigt sie");
+            zeile.Cells[nameSpalte].ToolTipText = k.Lehrer.VollerName + (k.Lage.Length > 0 ? ", " + k.Lage : "") + (vms is null ? "" : $"{Environment.NewLine}+ {vms.Count} Vormerkung(en). Ein Klick auf das Plus zeigt sie an.");
             if (reg.Verplant > 0) zeile.Cells[regSpalte].ToolTipText = $"Genutzte reguläre Bereitschaften: {reg.Genutzt} von {reg.Verplant}";
             if (dep.Verplant > 0) zeile.Cells[depSpalte].ToolTipText = $"Genutzte Deputats-Bereitschaften: {dep.Genutzt} von {dep.Verplant}";
             neueZeilen.Add(zeile);
@@ -728,7 +728,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var text = VertretungsVorschlag.VormerkungText(Ix, vm);
             zeile.CreateCells(_vorschlag, Werte(_vorschlag, ("S1", text), ("Vorm", text), ("Kr", vm.Text)));
             zeile.Tag = new VormerkungsZeile(k, vm);
-            foreach (DataGridViewCell c in zeile.Cells) c.ToolTipText = text + " – Doppelklick setzt die Lehrkraft mit der vorgemerkten Stunde ein";
+            foreach (DataGridViewCell c in zeile.Cells) c.ToolTipText = text + ". Doppelklick setzt die Lehrkraft mit der vorgemerkten Stunde ein.";
             res.Add(zeile);
         }
         return res;
@@ -1195,7 +1195,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             var warOffen = dv.OffenOderRaumOffen;
             Aendern($"Dauervertretung {Ix.KLehrer(l)}", AenderungsArt.Vertretung, d =>
                 uebersprungen = Vertretungen.Dauervertretung(d, d.Vertretungen.First(x => x.Id == id), l, block, AppZustand.Benutzer).Uebersprungen.Count);
-            if (uebersprungen > 0) Ui.Info($"{Ix.KLehrer(l)} ist in {uebersprungen} Stunde(n) der Folgewochen nicht frei – diese bleiben offen.");
+            if (uebersprungen > 0) Ui.Info($"{Ix.KLehrer(l)} ist in {uebersprungen} Stunde(n) der Folgewochen nicht frei. Diese Stunden bleiben offen.");
             _v = D.Vertretungen.FirstOrDefault(x => x.Id == id);
             Neuaufbau();
             Weiter(warOffen);

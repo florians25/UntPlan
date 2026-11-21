@@ -70,20 +70,24 @@ public sealed class KalenderFenster : MdiFenster
         _woche.RowTemplate.Height = Ui.ZeilenHoehe();
         _woche.ColumnHeadersHeight = 15;
         _woche.RowHeadersVisible = false;
-        // Spalten wie im Vorbild (Handbuch Kap. 4.4.1): Lehrer | Pausenaufsichten | Klassen | Räume | Tagestexte | Kollisionen
-        foreach (var (n, k, w) in new[]
+        // Spalten wie im Vorbild (Kalender der Vertretungsplanung): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (PA) | Abw.Kl. |
+        // Freis. | Bl.Räume | Raum-V. | Offen (R) | Tagestexte | Koll. Le. | Koll. Rä. – die Zahlen zählen dieselben Zeilen wie die
+        // Vertretungsliste (Kalenderkennzahlen), der Tooltip der Überschrift nennt die Bedeutung
+        foreach (var (n, k, w, tipp) in new[]
         {
-            ("D", "Datum", 44), ("T", "Tag", 44), ("AL", "Abw.Le.", 44), ("V", "Vertr.", 44), ("O", "Offen", 44), ("PV", "PA-Vertr.", 44), ("PO", "Offen (Paus.)", 44),
-            ("AK", "Abw.Kl.", 44), ("F", "Freis.", 44), ("BR", "Bl.Räume.", 44), ("RV", "Raum-Vtr.", 44), ("RO", "Offen (Raum)", 44), ("TT", "Tagestexte", 44),
-            ("KL", "Koll. Lehrer", 44), ("KR", "Koll. Räume", 44),
+            ("D", "Datum", 44, "Datum"), ("T", "Tag", 44, "Wochentag"), ("AL", "Abw.Le.", 44, "Abwesende Lehrkräfte"),
+            ("V", "Vertr.", 44, "Vertretungen (Zeilen der Vertretungsliste ohne Pausenaufsichten, Raumvertretungen und Freisetzungen)"),
+            ("O", "Offen", 44, "Offene Vertretungen (???)"), ("PV", "PA-Vertr.", 44, "Pausenaufsicht-Vertretungen"), ("PO", "Offen (PA)", 44, "Offene Pausenaufsicht-Vertretungen"),
+            ("AK", "Abw.Kl.", 44, "Abwesende Klassen"), ("F", "Freis.", 44, "Freisetzungen"), ("BR", "Bl.Räume", 44, "Blockierte (gesperrte) Räume"),
+            ("RV", "Raum-V.", 44, "Raumvertretungen"), ("RO", "Offen (R)", 44, "Offene Raumvertretungen"), ("TT", "Tagestexte", 44, "Tagestexte"),
+            ("KL", "Koll. Le.", 44, "Lehrerkollisionen"), ("KR", "Koll. Rä.", 44, "Raumkollisionen"),
         })
         {
             var c = _woche.Columns[_woche.Columns.Add(n, k)];
             c.Width = w;
+            c.ToolTipText = tipp;
             c.SortMode = DataGridViewColumnSortMode.NotSortable;
         }
-        // Reihenfolge wie in den Handbuch-Bildern (Kap. 4.4/4.4.1): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (Paus.) | Abw.Kl. |
-        // Freis. | Bl.Räume. | Raum-Vtr. | Offen (Raum) | Tagestexte | Koll. Lehrer | Koll. Räume
         // die Standardgestaltung verbreitert Spalten auf ihre Überschrift – hier bleiben sie wie im Vorbild 44 Pixel breit
         _woche.HandleCreated += (_, _) => { foreach (DataGridViewColumn c in _woche.Columns) c.Width = 44; };
         _woche.CellClick += (_, e) => { if (e.RowIndex >= 0 && _woche.Rows[e.RowIndex].Tag is DateOnly d) AppZustand.DatumSetzen(d); };
@@ -91,34 +95,37 @@ public sealed class KalenderFenster : MdiFenster
         {
             if (e.RowIndex < 0 || e.CellStyle is null || _woche.Rows[e.RowIndex].Tag is not DateOnly d) return;
             if (!Kalender.IstUnterrichtstag(D, d)) e.CellStyle.ForeColor = Color.Gray;
-            if (d == AppZustand.Datum) e.CellStyle.BackColor = Color.FromArgb(255, 222, 222);
+            // Planungsdatum wie im Vorbild rosa hinterlegt (auch markiert), Datum und Tag der übrigen Tage hellgrün wie Kopfspalten
+            if (d == AppZustand.Datum) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(255, 214, 214);
+            else if (e.ColumnIndex < 2) e.CellStyle.BackColor = Color.FromArgb(232, 244, 238);
+            e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor.IsEmpty ? Color.Black : e.CellStyle.ForeColor;
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
         };
 
-        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Art | Elemente | gültig für [Tage] | Tagestext […] | Webportal;
+        // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Art | Elemente | Gültig bis | Tagestext […] | UntPlanWeb;
         // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)
         Ui.RasterGestalten(_texte, true);
         _texte.AllowUserToAddRows = true;
         _texte.AllowUserToDeleteRows = true;
-        // „gültig für [Tage]“ wie im Vorbild: Anzahl Tage ab dem ersten Tag des Tagestextes
+        // „Gültig bis“ wie im Vorbild: letzter Tag, an dem der Tagestext gilt (Datum; eine Zahl gilt als Anzahl Tage ab dem ersten Tag)
         _texte.Columns.Add(new DataGridViewTextBoxColumn
         {
-            Name = "G", HeaderText = "gültig für [Tage]", Width = 96, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
-            ToolTipText = "Anzahl der Tage, an denen der Tagestext gilt (ab seinem ersten Tag)",
+            Name = "G", HeaderText = "Gültig bis", Width = 70,
+            ToolTipText = "Letzter Tag, an dem der Tagestext gilt (TT.MM.JJJJ) – eine Zahl gilt als Anzahl der Tage",
         });
         var textSpalte = _texte.Columns[_texte.Columns.Add("X", "Tagestext")];
         textSpalte.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
         textSpalte.MinimumWidth = 80;
-        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "Webportal", Width = 62 });
+        _texte.Columns.Add(new DataGridViewCheckBoxColumn { Name = "P", HeaderText = "UntPlanWeb", Width = 66, ToolTipText = "Tagestext in UntPlanWeb veröffentlichen" });
         var art = new DataGridViewComboBoxColumn { Name = "A", HeaderText = "Art", Width = 80, FlatStyle = FlatStyle.Flat };
         art.Items.AddRange(Arten);
         _texte.Columns.Add(art);
         _texte.Columns[_texte.Columns.Add("E", "Elemente")].Width = 90;
-        // Reihenfolge wie im Vorbild: Art | Elemente | gültig für [Tage] | Tagestext | Webportal
+        // Reihenfolge wie im Vorbild: Art | Elemente | Gültig bis | Tagestext | UntPlanWeb
         var reihe = new[] { "A", "E", "G", "X", "P" };
         for (var i = 0; i < reihe.Length; i++) _texte.Columns[reihe[i]]!.DisplayIndex = i;
         Steuerelemente.SuchKombi.Aktivieren(_texte);
-        _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["E"].Value = "Alle"; e.Row.Cells["G"].Value = 1; e.Row.Cells["P"].Value = true; };
+        _texte.DefaultValuesNeeded += (_, e) => { e.Row.Cells["A"].Value = Arten[0]; e.Row.Cells["E"].Value = "Alle"; e.Row.Cells["G"].Value = $"{AppZustand.Datum:dd.MM.yyyy}"; e.Row.Cells["P"].Value = true; };
         _texte.CellEndEdit += (_, _) => TexteSpeichern();
         _texte.UserDeletedRow += (_, _) => TexteSpeichern();
         _texte.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _texte.Columns[e.ColumnIndex].Name == "P") _texte.EndEdit(); };
@@ -222,6 +229,7 @@ public sealed class KalenderFenster : MdiFenster
         {
             var t = montag.AddDays(i);
             var liste = D.Vertretungen.Where(v => v.Datum == t).ToList();
+            var kz = Kalenderkennzahlen.Tag(D, t);
             int kollL = 0, kollR = 0;
             if (Kalender.IstUnterrichtstag(D, t) && liste.Count > 0)
             {
@@ -231,14 +239,8 @@ public sealed class KalenderFenster : MdiFenster
             }
             // an unterrichtsfreien Tagen (Wochenende, Ferien) bleiben die Kennzahlen leer wie im Vorbild
             var r = Kalender.IstUnterrichtstag(D, t) || liste.Count > 0
-                ? _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i],
-                    D.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && t >= a.Von && t <= a.Bis).Select(a => a.ElementId).Distinct().Count(),
-                    liste.Count(v => v.GangId is null && v.Art != VertretungsArt.Raumvertretung && v.Art != VertretungsArt.Freisetzung),
-                    liste.Count(v => v.GangId is null && v.Offen),
-                    liste.Count(v => v.GangId != null), liste.Count(v => v.GangId != null && v.Offen),
-                    D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Freisetzung),
-                    D.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && t >= a.Von && t <= a.Bis), liste.Count(v => v.Art == VertretungsArt.Raumvertretung),
-                    liste.Count(v => v.RaumOffen), D.Tagestexte.Count(x => x.GiltAm(t)), kollL, kollR)
+                ? _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i], kz.AbwesendeLehrer, kz.Vertretungen, kz.Offen, kz.Pausenvertretungen, kz.PausenOffen,
+                    kz.AbwesendeKlassen, kz.Freisetzungen, kz.GesperrteRaeume, kz.Raumvertretungen, kz.RaeumeOffen, kz.Tagestexte, kollL, kollR)
                 : _woche.Rows.Add($"{t:d.M.}", Planungsdienst.TageKurz[i]);
             _woche.Rows[r].Tag = t;
             if (t == datum) _woche.CurrentCell = _woche.Rows[r].Cells[0];
@@ -250,7 +252,7 @@ public sealed class KalenderFenster : MdiFenster
             var a = x.NurLehrer ? TagestextArt.NurLehrer : x.Art;
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
             var elemente = x.ElementIds.Count == 0 ? "Alle" : string.Join(",", x.ElementIds.Select(id => ix.K(typ, id)));
-            var r = _texte.Rows.Add(Math.Max(1, x.GueltigTage), x.Text, x.Portal, Arten[(int)a], elemente);
+            var r = _texte.Rows.Add($"{x.Datum.AddDays(Math.Max(1, x.GueltigTage) - 1):dd.MM.yyyy}", x.Text, x.Portal, Arten[(int)a], elemente);
             _texte.Rows[r].Tag = x;
         }
         _tabs.TabPages[0].Text = $"Tagestexte ({D.Tagestexte.Count(x => x.GiltAm(datum))})";
@@ -281,7 +283,7 @@ public sealed class KalenderFenster : MdiFenster
         var mitWochen = D.Einstellungen.Wochenperiodizitaet > 1;
         _wochenTyp.Visible = mitWochen;
         _wochenTyp.Text = mitWochen ? $"{Kalender.WochenTyp(D, datum)}" : "";
-        _tipp.SetToolTip(_wochenTyp, mitWochen ? $"Schulwoche {Kalender.Schulwoche(D, datum)} – Wochenbuchstabe laut Wochenperiodizität" : "");
+        _tipp.SetToolTip(_wochenTyp, mitWochen ? $"Schulwoche {Kalender.Schulwoche(D, datum)}, Wochenbuchstabe laut Wochenperiodizität" : "");
     }
 
     private void TexteSpeichern()
@@ -296,7 +298,10 @@ public sealed class KalenderFenster : MdiFenster
             var typ = a == TagestextArt.Klassen ? ElementTyp.Klasse : ElementTyp.Lehrer;
             var alt = r.Tag as Tagestext;
             var start = alt?.Datum ?? datum;
-            var tage = int.TryParse(r.Cells["G"].Value?.ToString()?.Trim(), out var g) ? Math.Clamp(g, 1, 366) : Math.Max(1, alt?.GueltigTage ?? 1);
+            var gText = r.Cells["G"].Value?.ToString()?.Trim() ?? "";
+            var tage = gText.Count(c => c == '.') >= 2 && DateOnly.TryParse(gText, Format.De, System.Globalization.DateTimeStyles.None, out var bis)
+                ? Math.Clamp(bis.DayNumber - start.DayNumber + 1, 1, 366)
+                : int.TryParse(gText, out var g) ? Math.Clamp(g, 1, 366) : Math.Max(1, alt?.GueltigTage ?? 1);
             var text = r.Cells["X"].Value!.ToString()!;
             // Formatierung bleibt erhalten, solange der Text nicht direkt in der Zelle geändert wurde
             var formatiert = alt != null && alt.Text == text && alt.TextHtml.Length > 0;
@@ -363,7 +368,7 @@ public sealed class KalenderFenster : MdiFenster
 
     private sealed record GrundEintrag(Abwesenheitsgrund G)
     {
-        public override string ToString() => G.Langname.Length > 0 ? $"{G.Kurzname} – {G.Langname}" : G.Kurzname;
+        public override string ToString() => G.Langname.Length > 0 ? $"{G.Kurzname} ({G.Langname})" : G.Kurzname;
     }
 
     private void KalendertagGeaendert()
@@ -951,7 +956,7 @@ public sealed class VormerkungenFenster : MdiFenster
     private void Verplanen()
     {
         if (_g.CurrentRow?.Tag is not Vormerkung vm) return;
-        var s = Ui.Eingabe($"Vormerkung am {Format.Datum(AppZustand.Datum)} verplanen – Stunde:", "Vormerkung verplanen", "1");
+        var s = Ui.Eingabe($"Vormerkung am {Format.Datum(AppZustand.Datum)} verplanen. Stunde:", "Vormerkung verplanen", "1");
         if (s is null || !int.TryParse(s, out var stunde)) return;
         Aendern("Vormerkung verplanen", AenderungsArt.Vertretung, d => Vertretungen.VormerkungVerplanen(d, d.Vormerkungen.First(x => x.Id == vm.Id), AppZustand.Datum, stunde, AppZustand.Benutzer));
     }
@@ -1014,7 +1019,7 @@ public sealed class BereitschaftenFenster : MdiFenster
     {
         _g.Rows.Clear();
         var datum = AppZustand.Datum;
-        Text = $"Bereitschaften – {Format.Datum(datum)}";
+        Text = $"Bereitschaften: {Format.Datum(datum)}";
         var tp = Tagesplan.Berechnen(D, datum);
         var (zv, zb) = Zaehlung.Zeitraum(D, datum);
         foreach (var e in tp.Regel.Where(r => Vertretungen.IstBereitschaftsfach(D, r.FachId) && r.LehrerId.HasValue).OrderBy(r => r.Stunde).ThenBy(r => Ix.KLehrer(r.LehrerId)))

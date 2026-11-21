@@ -42,11 +42,11 @@ async function notenschemen(seite, kontext) {
   const liste = d.schemen;
   kontext.titel('Notenschemen', `<button class="btn btn-primary" data-neu>${icon('plus')}Neu</button>`, String(liste.length));
   seite.innerHTML = `<div class="kbe">
-    <p class="nl-hinweis"><i class="bi bi-info-circle"></i>Notenschemen legen fest, welche Noten vergeben werden, z. B. „1 – 5“, „+, ~, -“ oder „Bestanden / Nicht bestanden“.
-      Werte sind optional – ohne Werte werden für das Schema keine Durchschnittsnoten berechnet.</p>
+    <p class="nl-hinweis"><i class="bi bi-info-circle"></i>Notenschemen legen fest, welche Noten vergeben werden, z. B. „1 bis 5“, „+, ~, -“ oder „Bestanden / Nicht bestanden“.
+      Werte sind optional. Ohne Werte werden für das Schema keine Durchschnittsnoten berechnet.</p>
     <section class="kbe-karte"><header><span class="kbe-symbol"><i class="bi bi-trophy" aria-hidden="true"></i></span><h2>Gesamtnotenschema</h2></header>
       <div class="kbe-rumpf"><div class="kbe-zeile"><div class="kbe-label"><label for="ns-gesamt">Schema für Gesamtnoten</label></div><div class="kbe-wert"><span class="kbe-reihe">
-        <select class="form-select kbe-auswahl" id="ns-gesamt" data-gesamt><option value="">– Auswahl –</option>${liste.filter(s => s.aktiv).map(s => `<option value="${s.id}" ${s.id === d.gesamt ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select>
+        <select class="form-select kbe-auswahl" id="ns-gesamt" data-gesamt><option value="">(Auswahl)</option>${liste.filter(s => s.aktiv).map(s => `<option value="${s.id}" ${s.id === d.gesamt ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select>
         <button type="button" class="nl-knopf" data-gesamt-speichern>Speichern</button></span></div></div></div></section>
     <div class="nl-tabelle kbe-tabelle">${liste.length ? `<table><thead><tr>
         <th class="nl-wahl"><input type="checkbox" class="nl-rund" data-alle aria-label="Alle auswählen"></th><th>Name</th><th>Noten</th><th>Durchschnitt</th><th class="text-center">aktiv</th><th class="text-end"><span class="visually-hidden">Aktionen</span></th></tr></thead>
@@ -238,7 +238,7 @@ function artFormular(a, schemen, kontext) {
     <h3 class="kbe-unter">Noten</h3>
     <div class="kbe-reihe">
       <div class="flex-grow-1"><label class="form-label" for="pa-schema">Notenschema</label><select class="form-select" id="pa-schema" data-f="notenschemaId">
-        <option value="">– individuell durch die Lehrkraft –</option>${schemen.filter(s => s.aktiv || s.id === x.notenschemaId).map(s => `<option value="${s.id}" ${s.id === x.notenschemaId ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select></div>
+        <option value="">(individuell durch die Lehrkraft)</option>${schemen.filter(s => s.aktiv || s.id === x.notenschemaId).map(s => `<option value="${s.id}" ${s.id === x.notenschemaId ? 'selected' : ''}>${e(s.name)}</option>`).join('')}</select></div>
       <div><label class="form-label" for="pa-gewicht">Gewichtungsfaktor</label><input type="number" step="0.1" min="0" max="100" class="form-control kbe-wertfeld" id="pa-gewicht" data-f="gewichtung" value="${x.gewichtung ?? 1}"></div></div>
     <p class="kbe-hilfe" data-schema-hinweis ${x.notenschemaId ? 'hidden' : ''}>Ohne Notenschema wird die Lehrkraft beim Anlegen einer Prüfung dieser Art nach einem individuellen Notenschema gefragt.</p></div>`;
   const lesen = b => {

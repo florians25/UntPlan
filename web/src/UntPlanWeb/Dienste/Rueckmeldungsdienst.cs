@@ -170,7 +170,7 @@ public sealed class Rueckmeldungsdienst
             var offen = _db.Liste("SELECT * FROM rueckmeldungen WHERE status = 'offen' AND typ = @t AND benutzer_id = @b", Lesen, Db.P("@t", WebRueckmeldungsTypen.Absenz), Db.P("@b", b.Id))
                 .Any(m => Deckt(new WebAbsenz { Von = m.Von ?? "", Bis = string.IsNullOrEmpty(m.Bis) ? m.Von ?? "" : m.Bis, StundeVon = m.StundeVon ?? 0, StundeBis = m.StundeBis ?? 0 }, ab, st));
             throw new ArgumentException(offen
-                ? "Ihre Abwesenheitsmeldung wurde noch nicht übernommen – ziehen Sie sie unter „Meine Meldungen“ zurück."
+                ? "Ihre Abwesenheitsmeldung wurde noch nicht übernommen. Sie können sie unter „Meine Meldungen“ zurückziehen."
                 : $"Am {ab:dd.MM.yyyy} ({st}. Stunde) ist in der Planung keine Abwesenheit von Ihnen eingetragen.");
         }
         var ende = eigene.Select(a => DateOnly.TryParse(a.Bis, out var x) ? x : ab).DefaultIfEmpty(ab).Max();
@@ -185,7 +185,7 @@ public sealed class Rueckmeldungsdienst
         var hinweis = eintraege.Count == 0
             ? "Nach der Übernahme durch die Vertretungsplanung gilt die Abwesenheit ab diesem Zeitpunkt nicht mehr."
             : $"Nach der Übernahme durch die Vertretungsplanung {(eintraege.Count == 1 ? "wird 1 Vertretung bzw. Verlegung" : $"werden {eintraege.Count} Vertretungen, Entfälle bzw. Verlegungen")} " +
-              "rückgängig gemacht – Ihr Unterricht findet dann wieder regulär statt.";
+              "rückgängig gemacht. Ihr Unterricht findet dann wieder regulär statt.";
         return new AnwesenheitsVorschau(Plandienst.Iso(ab), st, eigene, eintraege, hinweis);
     }
 

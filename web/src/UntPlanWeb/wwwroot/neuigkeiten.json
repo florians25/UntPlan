@@ -5,7 +5,7 @@
     "punkte": [
       "Klassenbuch, Mein Unterricht, Abwesenheiten, Offene Stunden, Hausaufgaben, Prüfungen, Berichte, Buchen und Sprechtag haben oben dieselbe Filterleiste: gleich hohe Felder, Datum mit Pfeilen und Kalender, Suche mit Lupe, Aktionsknöpfe rechts.",
       "Listen stehen in ruhigen weißen Karten mit Titel und Anzahl; leere Listen sehen überall gleich aus.",
-      "„Offene Stunden pro Klasse“ entfällt – Klassenleitungen finden dieselben Stunden unter „Offene Stunden“ mit dem Filter Klasse. Alte Links führen automatisch dorthin."
+      "„Offene Stunden pro Klasse“ entfällt. Klassenleitungen finden dieselben Stunden unter „Offene Stunden“ mit dem Filter Klasse. Alte Links führen automatisch dorthin."
     ]
   },
   {
@@ -13,7 +13,7 @@
     "titel": "Klassenleitung: Abwesenheiten, Gruppen und Kontaktdaten",
     "punkte": [
       "Abwesenheiten mit Suche, Zeitraum, Grund und Status; „Zusammenfassen“ fasst zusammenhängende Abwesenheiten zu einer zusammen, „Entschuldigen“ direkt in der Liste.",
-      "Entschuldigungsstatus wie gewohnt (offen, Entschuldigt, Nicht entschuldigt, Mahnstufen …) – nur „Entschuldigt“ zählt als entschuldigt.",
+      "Entschuldigungsstatus wie gewohnt (offen, Entschuldigt, Nicht entschuldigt, Mahnstufen …); nur „Entschuldigt“ zählt als entschuldigt.",
       "Neue Abwesenheitsgründe (z. B. Zug/Bus verspätet, schulische Veranstaltung); nicht zählende Gründe erscheinen nicht in den Fehlzeiten.",
       "Schülergruppen und Schüler-Gruppen-Zuordnung, auch mit Gruppenwechsel im laufenden Schuljahr.",
       "Kontaktdaten der Schüler*innen und Erziehungsberechtigten, Schülerbilder hochladen, Kennwort-Blatt für Schülerkonten, „Passwort vergessen?“ und Selbstregistrierung für Eltern und Betriebe.",
@@ -82,7 +82,7 @@
     "titel": "Prüfungen verlegen und löschen, minutengenaue Verspätungen",
     "punkte": [
       "Prüfungen lassen sich in den Stundendetails verlegen und löschen; übernommene Prüfungen löscht UntPlan beim nächsten Import.",
-      "Prüfungen liegen auf der Unterrichtsstunde: die Karte zeigt Lehrkraft, Fach und Raum – kein zusätzlicher Block.",
+      "Prüfungen liegen auf der Unterrichtsstunde: die Karte zeigt Lehrkraft, Fach und Raum ohne zusätzlichen Block.",
       "Wer als abwesend eingetragen ist und auf „anwesend“ geklickt wird, bekommt direkt die Verspätung minutengenau erfasst.",
       "Ein entfernter ursprünglicher Raum kann wieder hinzugefügt werden.",
       "In der Kopfzeile der Stundendetails führt auch die abwesende Lehrkraft zu ihrem Plan.",
@@ -105,12 +105,12 @@
     "titel": "Fehlzeiten mit Details, PDF als Schuldokument",
     "punkte": [
       "Abwesenheiten mit weiteren Angaben: Nachweis (Attest, schriftlich, mündlich …), Eingang der Entschuldigung, Eltern informiert, interne Notiz der Klassenleitung.",
-      "Fehlzeiten zeigen nur noch echte Fehlzeiten in einer Tabelle – je Schüler*in aufklappbar mit den einzelnen Stunden.",
+      "Fehlzeiten zeigen nur noch echte Fehlzeiten in einer Tabelle, je Schüler*in aufklappbar mit den einzelnen Stunden.",
       "PDF-Berichte mit Briefkopf, Logo, „Seite x von y“, rechtsbündigen Zahlen und Unterschriftsfeld.",
       "„Alle anzeigen“ in der Planauswahl: alle Elemente auf einen Blick.",
       "Kopplungsklassen beim Überfahren als Pillen, ruhigere Hinweise und Info-Symbol.",
       "Lehrkräfte können wieder beliebige Lehrerpläne wählen; die interne Vertretungsart wird nicht mehr angezeigt.",
-      "Raumänderung: Löschen eines Zusatzraums lässt den ursprünglichen Raum stehen; Prüfungen prüfen belegte Räume und werden nicht doppelt angelegt – auch in Vertretungsstunden.",
+      "Raumänderung: Löschen eines Zusatzraums lässt den ursprünglichen Raum stehen; Prüfungen prüfen belegte Räume und werden auch in Vertretungsstunden nicht doppelt angelegt.",
       "Lehrstoff speichern funktioniert wieder (auch bei gekoppelten Stunden und in der App).",
       "Bei zwei parallelen Stunden steht die Uhrzeit nur noch links; Logo wie im Desktop-Programm.",
       "App: untere Leiste im Glas-Stil, kräftigere Beschriftung, engere Menüs in den Stundendetails, „Raum hinzufügen“, wenn kein Raum hinterlegt ist."
@@ -125,8 +125,8 @@
       "Fehlzeitenverwaltung nur noch für Klassenleitungen, Schulleitung und Administration.",
       "Klassenabwesenheiten erscheinen wieder als Entfall (Web und App).",
       "Gekoppelte Stunden ohne eigene Klasse erscheinen im Plan aller beteiligten Klassen.",
-      "Hausschrift hochladen (Administration → Ansichtseinstellungen → Schrift) – gleiche Darstellung auf allen Geräten.",
-      "Export „Vertretungen“ überträgt nur noch Änderungen – Stundenplanänderungen gehen mit „Stundenplan“.",
+      "Hausschrift hochladen (Administration → Ansichtseinstellungen → Schrift) für eine einheitliche Darstellung auf allen Geräten.",
+      "Export „Vertretungen“ überträgt nur noch Änderungen; Stundenplanänderungen werden mit „Stundenplan“ übertragen.",
       "Wochenpfeile im Stundenplan, keine Lade- und Öffnungsanimationen, feinere Durchstreichung.",
       "Monitoransichten und Nachrichten zum Tag lassen sich wieder anlegen."
     ]

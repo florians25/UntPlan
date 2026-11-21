@@ -31,7 +31,7 @@ const tagKurz = iso => `${wtKurz(iso)} ${datumKurz(iso)}`;
 /** „Heute“, „Morgen“ oder „Fr 16.10.“ */
 const tagRel = (iso, heute) => iso === heute ? 'Heute' : iso === plusTage(heute, 1) ? 'Morgen' : tagKurz(iso);
 /** Gruppentitel eines Tages: „Heute · Mittwoch 14.10.“ */
-const tagTitel = (iso, heute) => `${iso === heute ? 'Heute · ' : iso === plusTage(heute, 1) ? 'Morgen · ' : ''}${wtLang(iso)} ${datumKurz(iso)}`;
+const tagTitel = (iso, heute) => `${iso === heute ? 'Heute, ' : iso === plusTage(heute, 1) ? 'Morgen, ' : ''}${wtLang(iso)} ${datumKurz(iso)}`;
 const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const datumVoll = iso => { const d = ausIso(iso); return `${wtLang(iso)}, ${d.getDate()}. ${MONATE[d.getMonth()]} ${d.getFullYear()}`; };
 const chipFarbe = k => ENTFALL.includes(k.status) ? 'rot' : k.status === 'klausur' || k.status === 'offen' || k.vertretungOffen ? 'gelb' : k.status === 'veranstaltung' || k.status === 'buchung' ? 'grau' : 'lila';
@@ -65,7 +65,7 @@ function gruppe({ titel, zeilen, href = '', leer = '', zahl = null, mehrHref = h
 function ruhig(texte, symbol = 'check2') {
   const t = texte.filter(Boolean);
   if (!t.length) return '';
-  const satz = t.map((x, i) => i ? x.charAt(0).toLowerCase() + x.slice(1) : x).join(' · ');
+  const satz = t.map((x, i) => i ? x.charAt(0).toLowerCase() + x.slice(1) : x).join(', ');
   return `<p class="ub-ruhig"><i class="bi bi-${symbol}" aria-hidden="true"></i><span>${e(satz)}</span></p>`;
 }
 
@@ -159,7 +159,7 @@ export async function zeigen(seite, kontext) {
   // ---------------------------------------------------------------- 1. Kopf mit Tageszeile
   const name = familie ? (ich.rolle === 'eltern' ? (ich.anzeigename || '') : kind.vorname) : (ich.anzeigename || ich.elementName || ich.login || '');
   const tagesteile = [`<span>${e(datumVoll(heute))}</span>`];
-  if (familie && ich.rolle === 'eltern' && kindListe.length < 2) tagesteile.push(`<span><b>${e(`${kind.vorname} ${kind.name}`)}</b> · Klasse ${e(kind.klasse)}</span>`);
+  if (familie && ich.rolle === 'eltern' && kindListe.length < 2) tagesteile.push(`<span><b>${e(`${kind.vorname} ${kind.name}`)}</b>, Klasse ${e(kind.klasse)}</span>`);
   if (element && !gesperrt) {
     const heuteStunden = kartenAm(heute).filter(k => !ENTFALL.includes(k.status));
     const jetzt = jetztMinuten();
@@ -168,19 +168,19 @@ export async function zeigen(seite, kontext) {
     const ab = d => { const k = kartenAm(d).find(x => !ENTFALL.includes(x.status)); return k?.beginn ? ` ab ${k.beginn}` : ''; };
     if (naechste) {
       const laeuft = naechste.beginn && minuten(naechste.beginn) <= jetzt;
-      const was = [naechste.fach || naechste.text || naechste.art, ...(typ !== 'klasse' ? (naechste.klassen ?? []).map(x => x.k) : []), ...(naechste.raeume ?? []).map(x => x.k)].filter(Boolean).join(' · ');
+      const was = [naechste.fach || naechste.text || naechste.art, ...(typ !== 'klasse' ? (naechste.klassen ?? []).map(x => x.k) : []), ...(naechste.raeume ?? []).map(x => x.k)].filter(Boolean).join(', ');
       tagesteile.push(`<span>${laeuft ? 'Jetzt' : 'Als Nächstes'} <b>${e(naechste.beginn || `${stundenText(naechste.von, naechste.bis)} Std.`)}</b> ${e(was)}</span>`);
     } else if (heuteStunden.length) {
-      tagesteile.push(`<span>Unterricht für heute beendet${folgetag ? ` · ${e(tagRel(folgetag, heute))}${e(ab(folgetag))}` : ''}</span>`);
+      tagesteile.push(`<span>Unterricht für heute beendet${folgetag ? `. Nächster Unterricht ${e(tagRel(folgetag, heute))}${e(ab(folgetag))}` : ''}</span>`);
     } else {
-      tagesteile.push(`<span><b>Heute kein Unterricht</b>${folgetag ? ` · nächster Unterricht ${e(tagRel(folgetag, heute))}${e(ab(folgetag))}` : ''}</span>`);
+      tagesteile.push(`<span><b>Heute kein Unterricht</b>${folgetag ? `. Nächster Unterricht ${e(tagRel(folgetag, heute))}${e(ab(folgetag))}` : ''}</span>`);
     }
   }
   const ferienPille = ferien && (ferien.laeuft || ferien.von <= plusTage(heute, 14))
     ? `<span class="ub-ferien"><i class="bi bi-sun" aria-hidden="true"></i>${e(ferien.text)}</span>` : '';
   const kopf = `<header class="ub-kopf">
       <div class="ub-gruss"><h1>${e(gruss())}${name ? `, ${e(name)}` : ''}</h1>
-        <p class="ub-tageszeile">${tagesteile.join('<span class="ub-sep" aria-hidden="true">·</span>')}${ferienPille}</p></div>
+        <p class="ub-tageszeile">${tagesteile.join('<span class="ub-sep" aria-hidden="true">|</span>')}${ferienPille}</p></div>
       ${familie && kindListe.length > 1 ? `<div class="ub-kind">${kindWahl(kindListe, kind)}</div>` : ''}
     </header>`;
 
@@ -204,7 +204,7 @@ export async function zeigen(seite, kontext) {
       const entfall = ENTFALL.includes(k.status);
       const titel = e(k.fach || k.text || k.art || '–');
       const neben = [mitTag ? `${stundenText(k.von, k.bis)} Std.` : '', ...(typ !== 'klasse' ? (k.klassen ?? []).map(x => e(x.alt && entfall ? x.alt : x.k || x.alt)) : []),
-        ...(k.raeume ?? []).map(x => e(x.k || x.alt)), k.fach && k.text && !OHNE_AENDERUNG.includes(k.status) ? e(k.text) : ''].filter(Boolean).join(' · ');
+        ...(k.raeume ?? []).map(x => e(x.k || x.alt)), k.fach && k.text && !OHNE_AENDERUNG.includes(k.status) ? e(k.text) : ''].filter(Boolean).join(', ');
       const status = !OHNE_AENDERUNG.includes(k.status) ? `<span class="nl-chip ${chipFarbe(k)}">${e(statusText(k))}</span>` : '';
       const vorbei = !mitTag && k.datum === heute && k.ende && minuten(k.ende) <= jetztMinuten();
       return zeile({
@@ -227,7 +227,7 @@ export async function zeigen(seite, kontext) {
   const erledigen = [];
   if (kollegium && element)
     erledigen.push(gruppe({
-      titel: 'Klassenbuch · Lehrstoff fehlt', href: '#/offen', leer: 'Klassenbuch vollständig',
+      titel: 'Klassenbuch: Lehrstoff fehlt', href: '#/offen', leer: 'Klassenbuch vollständig',
       zeilen: offen.slice().reverse().map(o => zeile({ links: e(tagKurz(o.datum)), titel: e(o.fach), neben: e((o.klassen || []).join(', ')), rechts: `${stundenText(o.von, o.bis)} Std.` })),
     }));
   if (zeigeAbw)
@@ -242,7 +242,7 @@ export async function zeigen(seite, kontext) {
     }));
   if (element)
     erledigen.push(gruppe({
-      titel: familie ? 'Hausaufgaben' : 'Hausaufgaben · fällig', href: '#/hausaufgaben', leer: 'Keine Hausaufgaben',
+      titel: familie ? 'Hausaufgaben' : 'Fällige Hausaufgaben', href: '#/hausaufgaben', leer: 'Keine Hausaufgaben',
       zeilen: offeneHa.map(h => zeile({ links: h.faellig ? e(tagKurz(h.faellig)) : '', titel: e(h.fach), neben: e(h.hausaufgabe), rechts: !familie && h.klassen?.length ? e(h.klassen.join(', ')) : '',
         klasse: h.faellig && h.faellig <= plusTage(heute, 1) ? 'bald' : '' })),
     }));
@@ -250,13 +250,13 @@ export async function zeigen(seite, kontext) {
 
   // Termine: Prüfungen, Aufsichten, Sprechtag
   const termine = [gruppe({
-    titel: 'Prüfungen · 4 Wochen', href: '#/pruefungen', leer: 'Keine Prüfungen',
+    titel: 'Prüfungen (4 Wochen)', href: '#/pruefungen', leer: 'Keine Prüfungen',
     zeilen: pruefungen.map(p => zeile({ links: e(tagKurz(p.datum)), titel: e(p.titel), neben: e((p.klassen ?? []).join(', ')),
-      rechts: `${stundenText(p.stundeVon, p.stundeBis)} Std.${p.raeume?.length ? ` · ${e(p.raeume.join(', '))}` : ''}${p.status === 'vorgemerkt' ? ' <span class="nl-chip grau">vorgemerkt</span>' : ''}` })),
+      rechts: `${stundenText(p.stundeVon, p.stundeBis)} Std.${p.raeume?.length ? `, ${e(p.raeume.join(', '))}` : ''}${p.status === 'vorgemerkt' ? ' <span class="nl-chip grau">vorgemerkt</span>' : ''}` })),
   })];
   if (kollegium && element)
     termine.push(gruppe({
-      titel: 'Aufsichten · 7 Tage', href: '#/plan/mein', leer: 'Keine Aufsichten',
+      titel: 'Aufsichten (7 Tage)', href: '#/plan/mein', leer: 'Keine Aufsichten',
       zeilen: aufsichten.map(a => zeile({ links: e(tagKurz(a.datum)), titel: e(a.gangName || a.gang), rechts: `${e(a.beginn)}–${e(a.ende)}${a.status === 'vertretung' ? ' <span class="nl-chip lila">Vertretung</span>' : ''}` })),
     }));
   termine.push(gruppe({

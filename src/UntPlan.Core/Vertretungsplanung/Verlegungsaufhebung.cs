@@ -72,10 +72,18 @@ public static class Verlegungsaufhebung
                 z.VerlegungsId = null;
                 continue;
             }
+            // Ursprung, der vorher schon eine Zeile war (offene Vertretung, Vertretung, Entfall): wieder deren Zustand statt entfernt
+            if (!ziel)
+            {
+                Vertretungen.UrsprungZuruecknehmen(d, z);
+                continue;
+            }
             d.Vertretungen.Remove(z);
             // eine aus einer Vormerkung verplante Stunde: Verplanung zurücknehmen
             if (z.VormerkungId is int vmId && z.VonDatum.HasValue && d.Vormerkungen.FirstOrDefault(m => m.Id == vmId) is { } vm) vm.VerplantAm.Remove(z.Datum);
         }
+        // offene Stunden, in die eine der Stunden vorgezogen worden war, sind wieder offen
+        foreach (var z in zeilen.Where(z => IstZielArt(z.Art) && z.VonDatum.HasValue)) Vertretungen.GefuellteStundeOeffnen(d, z.Datum, z.Stunde, z.KlassenIds);
         foreach (var t in tage) Vertretungen.Aktualisieren(d, t);
         return anzahl;
     }

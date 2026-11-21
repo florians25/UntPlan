@@ -639,8 +639,8 @@ public static partial class Ui
 
     public static string ElementName(Element e) => e switch
     {
-        Lehrer l => $"{l.Kurzname} – {l.Langname}{(l.Vorname.Length > 0 ? ", " + l.Vorname : "")}",
-        _ => string.IsNullOrEmpty(e.Langname) ? e.Kurzname : $"{e.Kurzname} – {e.Langname}",
+        Lehrer l => $"{l.Kurzname} ({l.Langname}{(l.Vorname.Length > 0 ? ", " + l.Vorname : "")})",
+        _ => string.IsNullOrEmpty(e.Langname) ? e.Kurzname : $"{e.Kurzname} ({e.Langname})",
     };
 
     public static string TypName(ElementTyp t, bool mehrzahl = false) => t switch

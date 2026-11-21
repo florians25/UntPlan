@@ -17,7 +17,7 @@ export async function zeigen(seite, kontext, [teil, filterParam]) {
   kontext.titel('Neuigkeiten', `${ungelesen.size ? '<button type="button" class="btn btn-outline-secondary" data-alle-gelesen><i class="bi bi-check2-all"></i>Alle als gelesen markieren</button>' : ''}
     ${d.darfVerwalten ? '<a class="btn btn-primary" href="#/neuigkeiten/verwalten"><i class="bi bi-pencil-square"></i>Infos verwalten</a>' : ''}`, ungelesen.size ? `${ungelesen.size} ungelesen` : '');
   seite.innerHTML = `<div class="nw-seite">
-    <p class="nw-unterzeile">Infos der Schule und Neuerungen in UntPlanWeb – neue Einträge sind mit einem Punkt markiert.</p>
+    <p class="nw-unterzeile">Informationen der Schule und Neuerungen in UntPlanWeb. Neue Einträge sind mit einem Punkt markiert.</p>
     <div class="u-sf-leiste">${suchfeldMitFilter({ platzhalter: 'Neuigkeiten durchsuchen', label: 'Neuigkeiten durchsuchen', filter: [
       { name: 'art', label: 'Art', alle: optionText('Alle'), standard: '', wert: filter === 'alle' ? '' : filter, optionen: [['infos', optionText('Infos der Schule', 'info')], ['updates', optionText('UntPlanWeb-Updates', 'neuigkeit')]] },
     ] })}</div>
@@ -48,7 +48,7 @@ async function verwalten(seite, kontext) {
   const heute = new Date().toISOString().slice(0, 10);
   const aktiv = i => (!i.von || i.von <= heute) && (!i.bis || i.bis >= heute);
   kontext.titel('Infos verwalten', '<a class="btn btn-outline-secondary" href="#/neuigkeiten"><i class="bi bi-arrow-left"></i>Neuigkeiten</a><button type="button" class="btn btn-primary" data-neu><i class="bi bi-plus-lg"></i>Info erstellen</button>');
-  seite.innerHTML = `<p class="nw-hinweis">Infos erscheinen im Infocenter (Glocke unten rechts) bei der gewählten Zielgruppe – im angegebenen Zeitraum. Wichtige Infos stehen oben.</p>
+  seite.innerHTML = `<p class="nw-hinweis">Infos erscheinen im angegebenen Zeitraum im Infocenter (Glocke unten rechts) der gewählten Zielgruppe. Wichtige Infos stehen oben.</p>
     ${infos.length ? `<div class="nl-tabelle nw-tabelle"><table><thead><tr><th>Titel</th><th>Zielgruppe</th><th>Gültig</th><th>Status</th><th class="text-end">Aktionen</th></tr></thead><tbody>
       ${infos.map(i => `<tr><td><b>${e(i.titel)}</b>${i.wichtig ? ' <span class="ic-kat wichtig">Wichtig</span>' : ''}<div class="nw-grau">${e(i.text).slice(0, 140)}</div></td>
         <td>${e(ZIELGRUPPEN[i.zielgruppe] ?? i.zielgruppe)}</td><td class="text-nowrap">${e(zeitraum(i))}</td>

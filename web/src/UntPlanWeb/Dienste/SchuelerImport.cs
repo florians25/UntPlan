@@ -414,7 +414,7 @@ public sealed class SchuelerImport
             if (mitId && e.Id is int id)
             {
                 if (bestand.TryGetValue(id, out var b)) alt = b;
-                else if (schluessel == "id") e.Hinweise.Add($"Schüler-ID {id} unbekannt – wird neu angelegt");
+                else if (schluessel == "id") e.Hinweise.Add($"Schüler-ID {id} unbekannt, wird neu angelegt");
             }
             if (alt is null && mitId && e.W.GetValueOrDefault("extern", "") is { Length: > 0 } ex && nachExtern.TryGetValue(ex, out var be)) alt = be;
             var nk = NameSchluessel(e.W["nachname"], e.W.GetValueOrDefault("vorname", ""), e.W.GetValueOrDefault("geburtsdatum", ""));
@@ -472,7 +472,7 @@ public sealed class SchuelerImport
         }
         var austritte = o.AustrittMarkieren ? bestand.Values.Where(b => !getroffen.Contains(b.Id)).OrderBy(b => b.Klasse, Ci).ThenBy(b => b.Name, Ci).ToList() : new();
         foreach (var b in austritte)
-            ergebnisse.Add(new ImportErgebnis(0, "ausgetreten", b.Id, $"{b.Name}, {b.Vorname}".Trim(' ', ','), b.Klasse, new() { "nicht in der Datei – wird als ausgetreten markiert" }, null, new()));
+            ergebnisse.Add(new ImportErgebnis(0, "ausgetreten", b.Id, $"{b.Name}, {b.Vorname}".Trim(' ', ','), b.Klasse, new() { "nicht in der Datei, wird als ausgetreten markiert" }, null, new()));
         return new Plan(ergebnisse, aktionen, austritte);
 
         void Zusatz(Eintrag e, int? id)
@@ -486,10 +486,10 @@ public sealed class SchuelerImport
             if (e.W.GetValueOrDefault("klassendienst", "") is { Length: > 0 } kd)
             {
                 var dienst = _kv.Dienstarten().FirstOrDefault(d => Ci.Equals(d.Kurz, kd) || Ci.Equals(d.Name, kd));
-                e.Hinweise.Add(dienst is null ? $"Klassendienst „{kd}“ unbekannt – wird nicht eingetragen" : $"Klassendienst: {dienst.Name}");
+                e.Hinweise.Add(dienst is null ? $"Klassendienst „{kd}“ unbekannt, wird nicht eingetragen" : $"Klassendienst: {dienst.Name}");
             }
             if (e.W.GetValueOrDefault("austritt", "") is { Length: > 0 } au && string.CompareOrdinal(au, Plandienst.Iso(_uhr.Heute)) <= 0)
-                e.Hinweise.Add("Austritt erreicht – wird als ausgetreten geführt");
+                e.Hinweise.Add("Austritt erreicht, wird als ausgetreten geführt");
         }
     }
 

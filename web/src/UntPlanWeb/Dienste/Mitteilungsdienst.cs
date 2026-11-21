@@ -215,7 +215,7 @@ public sealed class Mitteilungsdienst
                 else if (familie && (eigene is null || b.Klassen.Any(Erlaubt) || (b.Klassen.Count == 0 && Erlaubt(b.Element))))
                 {
                     var kinder = KinderText(s, b);
-                    var name = b.Rolle == Rollen.Eltern && kinder.Length > 0 ? $"{Anzeige(b)} – {kinder}" : Anzeige(b);
+                    var name = b.Rolle == Rollen.Eltern && kinder.Length > 0 ? $"{Anzeige(b)} ({kinder})" : Anzeige(b);
                     res.Add(new("benutzer:" + b.Id, name, Rollen.Name(b.Rolle), b.Rolle == Rollen.Eltern ? "eltern" : "schueler", b.KlassenKuerzel));
                 }
             }
@@ -230,7 +230,7 @@ public sealed class Mitteilungsdienst
             var istLeitung = b.LehrerKuerzel is string lk && leitung.Contains(lk);
             var istLehrkraft = b.LehrerKuerzel is string lk2 && lehrkraefte.Contains(lk2);
             if ((e.FamilieAnKlassenleitung && istLeitung) || (e.FamilieAnLehrkraefte && istLehrkraft) || (e.FamilieAnLeitung && b.Rolle == Rollen.Leitung))
-                res.Add(new("benutzer:" + b.Id, Anzeige(b) + (istLeitung ? " – Klassenleitung" : ""), Rollen.Name(b.Rolle), b.Rolle == Rollen.Leitung ? "gruppen" : "lehrkraefte"));
+                res.Add(new("benutzer:" + b.Id, Anzeige(b) + (istLeitung ? " (Klassenleitung)" : ""), Rollen.Name(b.Rolle), b.Rolle == Rollen.Leitung ? "gruppen" : "lehrkraefte"));
         }
         return res;
     }

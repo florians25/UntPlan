@@ -115,7 +115,7 @@ public sealed partial class HauptFenster
             var belegt = e.Schnellanordnungen.TryGetValue(n, out var a);
             b.Image = SchnellBild(n, belegt);
             b.ToolTipText = belegt
-                ? $"{n}: {(a!.Name.Length > 0 ? a.Name : "Fensteranordnung")} ({(a.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung")}, {a.Fenster.Count} Fenster)\nKlick: öffnen · Rechtsklick: aktuelle Anordnung hier speichern"
+                ? $"{n}: {(a!.Name.Length > 0 ? a.Name : "Fensteranordnung")} ({(a.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung")}, {a.Fenster.Count} Fenster)\nKlick: öffnen, Rechtsklick: aktuelle Anordnung hier speichern"
                 : $"{n}: frei\nRechtsklick: aktuelle Fensteranordnung hier speichern";
         }
     }
@@ -150,7 +150,7 @@ public sealed partial class HauptFenster
     {
         var e = AppZustand.Einstellungen;
         var vorschlag = e.Schnellanordnungen.TryGetValue(n, out var alt) && alt.Name.Length > 0 ? alt.Name : AppZustand.Vertretungsmodus ? "Vertretungsplanung" : "Stundenplanung";
-        var name = Ui.Eingabe($"Aktuelle Fensteranordnung unter Nummer {n} speichern – Bezeichnung:", "Fenster-Schnellknopf", vorschlag);
+        var name = Ui.Eingabe($"Aktuelle Fensteranordnung unter Nummer {n} speichern. Bezeichnung:", "Fenster-Schnellknopf", vorschlag);
         if (name is null) return;
         e.Schnellanordnungen[n] = new Fensteranordnung { Name = name.Trim(), Vertretungsmodus = AppZustand.Vertretungsmodus, Fenster = LayoutAufnehmen() };
         e.Speichern();
@@ -162,7 +162,7 @@ public sealed partial class HauptFenster
     {
         if (!AppZustand.Einstellungen.Schnellanordnungen.TryGetValue(n, out var a))
         {
-            _statusLinks.Text = $"Schnellknopf {n} ist noch frei – Rechtsklick speichert die aktuelle Fensteranordnung.";
+            _statusLinks.Text = $"Schnellknopf {n} ist noch frei. Ein Rechtsklick speichert die aktuelle Fensteranordnung.";
             return;
         }
         if (a.Vertretungsmodus != AppZustand.Vertretungsmodus) VertretungsmodusUmschalten();

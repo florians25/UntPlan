@@ -24,7 +24,7 @@ public sealed class AnmeldeDialog : Dialog
     /// <summary>Ergebnis einer erfolgreichen Anmeldung.</summary>
     public MultiUserKlient? Klient { get; private set; }
 
-    public AnmeldeDialog(MultiUserDb db, MultiUserEinstellungen einst) : base("Anmeldung – MultiUser", 440, 250)
+    public AnmeldeDialog(MultiUserDb db, MultiUserEinstellungen einst) : base("Anmeldung: MultiUser", 440, 250)
     {
         _db = db;
         _einst = einst;

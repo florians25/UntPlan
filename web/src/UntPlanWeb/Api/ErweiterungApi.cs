@@ -124,7 +124,7 @@ public static class ErweiterungApi
                             stunde = n, beginn = z?.Beginn ?? k.Beginn, ende = z?.Ende ?? k.Ende, k.Status, k.Art, k.Text, k.Fach, k.FachName, k.FachAlt,
                             klassen = k.Klassen, lehrer = k.Lehrer, raeume = k.Raeume, k.Unterricht, von = k.Von, bis = k.Bis, k.Farbe, k.Gruppe, k.Zusaetzlich,
                             k.NotizSchueler, notizLehrer = b.Kollegium ? k.NotizLehrer : "", k.HausaufgabeFaellig, k.LehrerAbwesend, k.VertretungOffen, k.KlasseAbwesend, k.AbwesendeKlassen,
-                            lehrstoff = e?.Thema ?? "", hausaufgabe = string.Join(" · ", hw.Select(h => h.Text).DefaultIfEmpty(e?.Hausaufgabe ?? "").Where(x => x.Length > 0)),
+                            lehrstoff = e?.Thema ?? "", hausaufgabe = string.Join("; ", hw.Select(h => h.Text).DefaultIfEmpty(e?.Hausaufgabe ?? "").Where(x => x.Length > 0)),
                             geprueft = e?.Anwesenheit != null, online = e?.Online == true, onlineLink = e?.Online == true ? e.OnlineLink : "",
                         });
                     }
@@ -505,7 +505,7 @@ public static class ErweiterungApi
             var basis = $"{c.Request.Scheme}://{c.Request.Host}{c.Request.PathBase}";
             static string X(string s) => SecurityElement.Escape(s) ?? "";
             sb.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<rss version=\"2.0\"><channel>");
-            sb.Append($"<title>{X("Nachrichten zum Tag – " + e.Schulname)}</title><link>{X(basis)}/</link><description>Öffentliche Nachrichten zum Tag (UntPlanWeb)</description><language>de-de</language>");
+            sb.Append($"<title>{X("Nachrichten zum Tag: " + e.Schulname)}</title><link>{X(basis)}/</link><description>Öffentliche Nachrichten zum Tag (UntPlanWeb)</description><language>de-de</language>");
             for (var d = uhr.Heute; d <= uhr.Heute.AddDays(6); d = d.AddDays(1))
                 foreach (var n in vp.NachrichtenDetails(p.Aktuell, d, false, "oeffentlich"))
                     sb.Append($"<item><title>{X(n.Betreff.Length > 0 ? n.Betreff : n.Text.Length > 60 ? n.Text[..60] + " …" : n.Text)}</title><description>{X(n.Text)}</description>")

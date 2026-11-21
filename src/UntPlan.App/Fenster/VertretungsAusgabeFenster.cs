@@ -195,7 +195,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         var vm = VM;
         foreach (var t in _nurPlan) t.Enabled = !vm;
         _optimieren.ToolTipText = vm ? "Offene Aufsichten der Woche besetzen (als Vertretungen)" : "Optimierung";
-        Text = vm ? $"Pausenaufsichten – Woche ab {TagDatum(0):dd.MM.yyyy} (Änderungen als Vertretung)" : "Pausenaufsichten";
+        Text = vm ? $"Pausenaufsichten: Woche ab {TagDatum(0):dd.MM.yyyy} (Änderungen als Vertretung)" : "Pausenaufsichten";
         var pausen = Pausen();
         _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "", Width = vm ? 128 : 84, ReadOnly = true, SortMode = DataGridViewColumnSortMode.NotSortable });
         foreach (var n in pausen)
@@ -423,13 +423,13 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         if (VM)
         {
             var datum = TagDatum(z.Tag);
-            titel = $"Lehrer-Vorschlag – {name} ({datum:dd.MM.})";
+            titel = $"Lehrer-Vorschlag: {name} ({datum:dd.MM.})";
             var liste = Pausenaufsichten.AmDatum(D, datum, gang, z.Nach);
             if (liste.Count == 0) return new();
             var ziel = liste.FirstOrDefault(a => a.Wirksam is null && !a.Entfaellt) ?? liste[0];
             return Pausenaufsichten.LehrervorschlagAmDatum(D, datum, ziel);
         }
-        titel = $"Lehrer-Vorschlag – {name}";
+        titel = $"Lehrer-Vorschlag: {name}";
         var teile = Pausenaufsichten.Teile(D, gang, z.Tag, z.Nach);
         if (teile == 0) return new();
         var belegt = D.Pausenaufsichten.Where(a => a.GangId == gang && a.Tag == z.Tag && a.NachStunde == z.Nach && a.Datum is null).ToList();
@@ -606,7 +606,7 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
         });
     }
 
-    public void Drucken(bool vorschau) => ListenDruck.DruckenTabelle(this, $"Pausenaufsichten – {(GangSicht ? "Gang" : "Lehrer")} {_element.Text}", _g, vorschau);
+    public void Drucken(bool vorschau) => ListenDruck.DruckenTabelle(this, $"Pausenaufsichten: {(GangSicht ? "Gang" : "Lehrer")} {_element.Text}", _g, vorschau);
 }
 
 /// <summary>
@@ -723,7 +723,7 @@ public sealed class MonitorFenster : Form
 
     public MonitorFenster()
     {
-        Text = "UntPlan – Vertretungsplan (Monitor)";
+        Text = "UntPlan: Vertretungsplan (Monitor)";
         FormBorderStyle = FormBorderStyle.None;
         WindowState = FormWindowState.Maximized;
         BackColor = Color.FromArgb(11, 26, 51);
@@ -761,7 +761,7 @@ public sealed class MonitorFenster : Form
             var x0 = 20 + i * (halbe + 20);
             var datum = tage[i];
             TextRenderer.DrawText(g, $"{Planungsdienst.TageLang[((int)datum.DayOfWeek + 6) % 7]}, {Format.Datum(datum)}", titel, new Point(x0, 16), Color.White);
-            var texte = string.Join("  ·  ", d.Tagestexte.Where(t => t.GiltAm(datum) && !t.FuerLehrer).Select(t => t.Text));
+            var texte = string.Join("  |  ", d.Tagestexte.Where(t => t.GiltAm(datum) && !t.FuerLehrer).Select(t => t.Text));
             TextRenderer.DrawText(g, texte, schrift, new Rectangle(x0, 64, halbe, 30), Color.FromArgb(255, 220, 120), TextFormatFlags.EndEllipsis);
             var y = 100;
             var x = x0;
@@ -793,6 +793,6 @@ public sealed class MonitorFenster : Form
             if (zeilen.Count == 0) TextRenderer.DrawText(g, "Keine Vertretungen.", schrift, new Point(x0 + 4, y + 6), Color.LightGray);
             if (seiten > 1) TextRenderer.DrawText(g, $"Seite {s + 1}/{seiten}", schrift, new Point(x0, Height - 44), Color.LightGray);
         }
-        TextRenderer.DrawText(g, $"{d.Einstellungen.Schulname}   ·   Stand {DateTime.Now:HH:mm}   ·   ESC = Beenden", schrift, new Rectangle(0, Height - 44, Width - 20, 40), Color.LightGray, TextFormatFlags.Right);
+        TextRenderer.DrawText(g, $"{d.Einstellungen.Schulname}   |   Stand {DateTime.Now:HH:mm}   |   ESC = Beenden", schrift, new Rectangle(0, Height - 44, Width - 20, 40), Color.LightGray, TextFormatFlags.Right);
     }
 }

@@ -179,7 +179,7 @@ public static class AppApi
                 case Benutzerdienst.Anmeldeergebnis.Gesperrt:
                     return Results.Json(new { fehler = "Dieses Konto ist gesperrt." }, statusCode: 403);
                 case Benutzerdienst.Anmeldeergebnis.VoruebergehendGesperrt:
-                    return Results.Json(new { fehler = "Zu viele Fehlversuche – bitte in einigen Minuten erneut versuchen." }, statusCode: 429);
+                    return Results.Json(new { fehler = "Zu viele Fehlversuche. Bitte versuchen Sie es in einigen Minuten erneut." }, statusCode: 429);
                 default:
                     await Task.Delay(400);
                     return Results.Json(new { fehler = "Benutzername oder Passwort ist falsch." }, statusCode: 401);
@@ -851,7 +851,7 @@ public static class AppApi
         Z("BEGIN:VCALENDAR");
         Z("VERSION:2.0");
         Z("PRODID:-//UntPlanWeb//DE");
-        Z($"X-WR-CALNAME:{T($"Stundenplan {element} – {schule}")}");
+        Z($"X-WR-CALNAME:{T($"Stundenplan {element}, {schule}")}");
         Z("CALSCALE:GREGORIAN");
         if (element != null)
             for (var d = Plandienst.Montag(heute); d < heute.AddDays(28); d = d.AddDays(1))
@@ -866,7 +866,7 @@ public static class AppApi
                     Z($"DTEND:{d:yyyyMMdd}T{k.Ende.Replace(":", "")}00");
                     Z($"SUMMARY:{T((k.Status == "entfall" ? "Entfall: " : k.Status is "geaendert" or "offen" ? "Änderung: " : "") + titel)}");
                     if (k.Raeume.Count > 0) Z($"LOCATION:{T(string.Join(", ", k.Raeume.Select(x => x.K)))}");
-                    if (k.Text.Length > 0 || k.Art.Length > 0) Z($"DESCRIPTION:{T(string.Join(" – ", new[] { k.Art, k.Text }.Where(x => x.Length > 0)))}");
+                    if (k.Text.Length > 0 || k.Art.Length > 0) Z($"DESCRIPTION:{T(string.Join(": ", new[] { k.Art, k.Text }.Where(x => x.Length > 0)))}");
                     if (k.Status == "entfall") Z("STATUS:CANCELLED");
                     Z("END:VEVENT");
                 }

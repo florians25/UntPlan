@@ -49,7 +49,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
     </div>
     ${PLAENE.map(([k, titel, wort]) => `<section class="pe-kasten">
       <h3 class="pe-titel">${titel}</h3>
-      <div class="pe-zeile"><div class="pe-text">Format für ${wort}-Stundenpläne festlegen${k === 'schueler' ? '<small>Gilt für Schüler*innen und Erziehungsberechtigte – im eigenen Plan und im Klassenplan.</small>' : ''}</div>
+      <div class="pe-zeile"><div class="pe-text">Format für ${wort}-Stundenpläne festlegen${k === 'schueler' ? '<small>Gilt für Schüler*innen und Erziehungsberechtigte im eigenen Plan und im Klassenplan.</small>' : ''}</div>
         <div class="pe-wert">${feld('Stundenplanformat', `<select class="form-select" data-zuordnung="${k}">
           <option value="">Standard</option>${d.formate.map(f => `<option value="${f.id}" ${zuordnung[k] === f.id ? 'selected' : ''}>${e(f.name)}</option>`).join('')}</select>`)}</div></div>
     </section>`).join('')}
@@ -63,7 +63,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
         <button type="button" class="pe-knopf klein" data-neu>Neu</button></div>
       <table class="pe-tabelle"><thead><tr><th><button type="button" data-sortieren aria-label="Nach Name sortieren">Name <i class="bi bi-arrow-${absteigend ? 'down' : 'up'}" aria-hidden="true"></i></button></th></tr></thead>
         <tbody>${liste.map(f => `<tr data-bearbeiten="${f.id}" tabindex="0" role="button" aria-label="${e(f.name)} bearbeiten"><td>${e(f.name)}</td></tr>`).join('')
-          || '<tr class="leer"><td>Noch keine Stundenplanformate – alle Pläne erscheinen in der Standarddarstellung.</td></tr>'}</tbody></table>`;
+          || '<tr class="leer"><td>Keine Stundenplanformate vorhanden. Alle Pläne erscheinen in der Standarddarstellung.</td></tr>'}</tbody></table>`;
   };
 
   // ---------------------------------------------------------------- Sichtbarkeit / iCal

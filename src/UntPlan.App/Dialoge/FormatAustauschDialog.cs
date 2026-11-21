@@ -32,7 +32,7 @@ public sealed class FormatAustauschDialog : Dialog
         d.ShowDialog(owner);
     }
 
-    private static string Beschriftung(StundenplanFormat f) => $"{(f.Kurzname.Length > 0 ? f.Kurzname + " – " : "")}{f.Name} ({f.Typ})";
+    private static string Beschriftung(StundenplanFormat f) => $"{(f.Kurzname.Length > 0 ? f.Kurzname + ": " : "")}{f.Name} ({f.Typ})";
 
     private TabPage ExportSeite()
     {

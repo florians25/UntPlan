@@ -20,7 +20,7 @@ const WOCHE_PFEIL = d => `<svg class="woche-pfeil-sym" width="7" height="14" vie
 /** Langname ohne vorangestelltes Kürzel („7a – Klasse 7a“ → „Klasse 7a“). */
 function langname(plan) {
   let n = (plan.name || '').trim();
-  if (n.toLowerCase().startsWith(plan.element.toLowerCase())) n = n.slice(plan.element.length).replace(/^\s*[–-]\s*/, '');
+  if (n.toLowerCase().startsWith(plan.element.toLowerCase())) n = n.slice(plan.element.length).replace(/^\s*[–-]\s*/, '').replace(/^\((.*)\)$/, '$1');
   return n && n !== plan.element ? n : '';
 }
 
@@ -78,14 +78,14 @@ export function planHilfe() {
     titel: 'Hilfe zum Stundenplan', breit: true,
     inhalt: `<div class="row g-3 small">
       <div class="col-md-6"><b class="d-block mb-1">Karten</b>
-        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-dreieck"></i> Entfall – die Stunde fällt aus, alle Angaben sind durchgestrichen.</div>
-        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-quadrat"></i> Änderung – z. B. Vertretung oder Raumänderung, geänderte Werte als grüne Kürzel.</div>
+        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-dreieck"></i> Entfall: Die Stunde fällt aus, alle Angaben sind durchgestrichen.</div>
+        <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-quadrat"></i> Änderung: z. B. Vertretung oder Raumänderung, geänderte Werte als grüne Kürzel.</div>
         <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-plus"></i> zusätzliche Unterrichtsstunde (keine reguläre Stunde zu dieser Zeit).</div>
         <div class="d-flex gap-2 align-items-center mb-1"><i class="mk-kreis"></i> Prüfung (Klausur, Klassenarbeit).</div>
-        <div class="d-flex gap-2 align-items-center mb-1"><span class="hilfe-gestrichelt"></span> Lehrkraft abwesend – die Stunde wird von anderen gehalten (gestrichelt, eigenes Kürzel durchgestrichen).</div>
+        <div class="d-flex gap-2 align-items-center mb-1"><span class="hilfe-gestrichelt"></span> Lehrkraft abwesend: Die Stunde wird vertreten (gestrichelt, eigenes Kürzel durchgestrichen).</div>
         <div class="d-flex gap-2 align-items-center mb-1"><img src="img/wu/exact/info.svg" alt="" width="16"> Notizen oder Vertretungstext zur Stunde.</div>
         <div class="d-flex gap-2 align-items-center mb-1"><img src="img/wu/exact/tt-homework-icon.svg" alt="" width="16"> Hausaufgabe fällig.</div>
-        <div class="d-flex gap-2 align-items-center"><span class="std-lbl weg">AB</span> Vertretung ohne Lehrkraft – die bisherige Lehrkraft ist durchgestrichen.</div></div>
+        <div class="d-flex gap-2 align-items-center"><span class="std-lbl weg">AB</span> Vertretung ohne Lehrkraft: Die bisherige Lehrkraft ist durchgestrichen.</div></div>
       <div class="col-md-6"><b class="d-block mb-1">Bedienung</b>
         <ul class="ps-3 mb-0"><li>Ein Klick auf den Datumsbereich öffnet den Kalender, „Heute“ springt zur aktuellen Woche.</li>
           <li>Klasse, Lehrkraft oder Raum wählen Sie oben links (Alt+← / Alt+→ blättert).</li>
@@ -184,7 +184,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   // eigener Plan ohne Elementauswahl nur unter „Mein Stundenplan“; unter „Lehrkraft“ immer mit Auswahl (auch eigene Lehrkraft)
   const istMein = mein && typ === ich.typ && !!meinElement && element.toLowerCase() === meinElement.toLowerCase();
   kontext.titel('');
-  document.title = `${istMein ? 'Mein Stundenplan' : `${TYPEN[typ]} ${element}`} – UntPlanWeb`;
+  document.title = `${istMein ? 'Mein Stundenplan' : `${TYPEN[typ]} ${element}`} | UntPlanWeb`;
 
   const einst = planEinstellungen();
   const aus = legendeAus();
@@ -246,7 +246,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
 
   const zeichnen = (menueOffen = false) => {
     inhalt.innerHTML = `
-      <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` – ${e(langname(plan))}` : ''}</h2>
+      <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` (${e(langname(plan))})` : ''}</h2>
         <span class="text-body-secondary small ms-2">${wochenText(mo)}</span></div>
       ${tagAuswahl(plan, gewaehlt)}
       ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: plan.format?.kartenZeiten || einst.zeiten })}

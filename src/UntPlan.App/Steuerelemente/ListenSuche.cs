@@ -48,7 +48,7 @@ public static class ListenSuche
     {
         eingabe = eingabe.Trim();
         if (eingabe.Length == 0 || cb.IsDisposed) return;
-        var text = $"„{eingabe}“ ist nicht in der Liste – der bisherige Wert bleibt erhalten.";
+        var text = $"„{eingabe}“ ist nicht in der Liste. Der bisherige Wert bleibt erhalten.";
         // dieselbe Ablehnung kommt beim Verlassen oft zweimal an (Taste und Prüfung): nur einmal zeigen
         if (text == LetzterHinweis && (DateTime.Now - _hinweisZeit).TotalMilliseconds < 600) return;
         LetzterHinweis = text;

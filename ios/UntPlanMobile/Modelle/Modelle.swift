@@ -1670,7 +1670,7 @@ struct Abwesenheitszeitraum: Decodable, Identifiable, Sendable {
 
     /// „3. Std. · M · LAN“
     var unterrichtstext: String {
-        ([stundentext] + [faecher.joined(separator: ", "), lehrer.joined(separator: ", ")]).filter { !$0.isEmpty }.joined(separator: " · ")
+        ([stundentext] + [faecher.joined(separator: ", "), lehrer.joined(separator: ", ")]).filter { !$0.isEmpty }.joined(separator: " | ")
     }
 
     /// Bemerkung bzw. Text der Abwesenheit (leer = keine).

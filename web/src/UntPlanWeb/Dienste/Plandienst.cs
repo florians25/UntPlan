@@ -297,10 +297,10 @@ public sealed class Plandienst
 
     public string Name(Stand s, string typ, string kurz) => typ switch
     {
-        Elementtyp.Klasse => s.Klassen.TryGetValue(kurz, out var k) ? (k.Name.Length > 0 && k.Name != k.Kurz ? $"{k.Kurz} – {k.Name}" : $"Klasse {k.Kurz}") : kurz,
-        Elementtyp.Lehrer => s.Lehrer.TryGetValue(kurz, out var l) ? $"{l.Kurz} – {string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0))}" : kurz,
-        Elementtyp.Raum => s.Raeume.TryGetValue(kurz, out var r) ? (r.Name.Length > 0 && r.Name != r.Kurz ? $"{r.Kurz} – {r.Name}" : $"Raum {r.Kurz}")
-            : s.Gaenge.TryGetValue(kurz, out var g) ? (g.Name.Length > 0 && g.Name != g.Kurz ? $"{g.Kurz} – {g.Name}" : $"Aufsichtsort {g.Kurz}") : kurz,
+        Elementtyp.Klasse => s.Klassen.TryGetValue(kurz, out var k) ? (k.Name.Length > 0 && k.Name != k.Kurz ? $"{k.Kurz} ({k.Name})" : $"Klasse {k.Kurz}") : kurz,
+        Elementtyp.Lehrer => s.Lehrer.TryGetValue(kurz, out var l) ? $"{l.Kurz} ({string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0))})" : kurz,
+        Elementtyp.Raum => s.Raeume.TryGetValue(kurz, out var r) ? (r.Name.Length > 0 && r.Name != r.Kurz ? $"{r.Kurz} ({r.Name})" : $"Raum {r.Kurz}")
+            : s.Gaenge.TryGetValue(kurz, out var g) ? (g.Name.Length > 0 && g.Name != g.Kurz ? $"{g.Kurz} ({g.Name})" : $"Aufsichtsort {g.Kurz}") : kurz,
         _ => kurz,
     };
 
@@ -1162,10 +1162,10 @@ public sealed class Plandienst
                 return k with
                 {
                     Status = "entfall", Art = "Klasse abwesend", VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null, Zusaetzlich = false,
-                    AbwesendeKlassen = k.Klassen.Select(w => w.K).ToList(), AbwesendText = grund is null ? "Klasse abwesend" : $"Klasse abwesend – {grund}",
+                    AbwesendeKlassen = k.Klassen.Select(w => w.K).ToList(), AbwesendText = grund is null ? "Klasse abwesend" : $"Klasse abwesend: {grund}",
                 };
             var abwesend = treffer.Select(a => k.Klassen.First(w => Ci.Equals(w.K, a.Element)).K).Distinct(Ci).ToList();
-            var text = grund is null ? "abwesend" : $"abwesend – {grund}";
+            var text = grund is null ? "abwesend" : $"abwesend: {grund}";
             // Plan der abwesenden Klasse selbst: die Stunde läuft ohne sie weiter – wie „Lehrkraft abwesend“ (kein Entfall)
             if (typ == Elementtyp.Klasse && weg.Contains(kurz) && k.Status is "regulaer" or "geaendert" or "offen")
                 return k with
@@ -1573,7 +1573,27 @@ public sealed class Plandienst
         // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
         // (Vertretungen bleiben vorerst als Label: erst nach dem Zusammenfassen mehrerer Zeilen steht fest, ob die Vertretung selbst teilnimmt)
         if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer, vertretungBehalten: true) };
-        return karte.Verlegung is null ? karte : VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten);
+        return karte.Verlegung is null ? karte : VerlegungsRaum(s, VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten), v);
+    }
+
+    /// <summary>
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als laut Stundenplan: der Raum als grünes Label („alt → neu“,
+    /// hinzugefügter Raum „+R“) wie bei jeder Raumänderung. Der Vertretungsplan nennt am Ziel den Raum der Zielstunde als Soll-Raum (Raum
+    /// gleich neuer Raum) – verglichen wird daher mit den Räumen des Unterrichts laut Stundenplan an der ursprünglichen Stunde.
+    /// </summary>
+    private Karte VerlegungsRaum(Stand s, Karte k, WebVertretung? v)
+    {
+        if (k.Verlegung != "nach" || k.Status is not ("geaendert" or "offen") || k.Unterricht is not int u || k.VerlegungVon is not { Stunde: > 0 } von
+            || !DateOnly.TryParse(von.Datum, out var vd) || k.Raeume.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt))) return k;
+        var jetzt = k.Raeume.Select(w => w.K).Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
+        if (jetzt.Count == 0) return k;
+        var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == von.Stunde).ToList();
+        // Kopplung: die Zeile(n) der Lehrkraft dieser Karte
+        var lehrer = k.Lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Append(v?.Lehrer ?? "").Where(x => x.Length > 0).ToList();
+        var eigene = zeilen.Where(r => r.Lehrer.Any(l => Enthaelt(lehrer, l))).ToList();
+        var regel = (eigene.Count > 0 ? eigene : zeilen).SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
+        if (regel.Count == 0 || jetzt.All(x => Enthaelt(regel, x))) return k;
+        return k with { Raeume = RaeumeNachBuchung(regel.Select(x => new Wert(x)).ToList(), jetzt) };
     }
 
     /// <summary>
@@ -1884,8 +1904,8 @@ public sealed class Plandienst
         string Std(int von, int bis) => bis >= 20 || bis < von ? $"ab {von}. Std." : von == bis ? $"{von}. Std." : $"{von}.–{bis}. Std.";
         foreach (var a in s.Paket.Absenzen.Where(x => DateOnly.TryParse(x.Von, out var v) && DateOnly.TryParse(x.Bis, out var b) && d >= v && d <= b && Ci.Equals(x.Element, kurz)))
         {
-            if (a.Art == "lehrer" && typ == Elementtyp.Lehrer && kollegium) res.Add($"abwesend {Std(a.StundeVon, a.StundeBis)}{(string.IsNullOrEmpty(a.Grund) ? "" : " – " + a.Grund)}");
-            if (a.Art == "klasse" && typ == Elementtyp.Klasse) res.Add($"Klasse abwesend {Std(a.StundeVon, a.StundeBis)}{(string.IsNullOrEmpty(a.Grund) || !kollegium ? "" : " – " + a.Grund)}");
+            if (a.Art == "lehrer" && typ == Elementtyp.Lehrer && kollegium) res.Add($"abwesend {Std(a.StundeVon, a.StundeBis)}{(string.IsNullOrEmpty(a.Grund) ? "" : ": " + a.Grund)}");
+            if (a.Art == "klasse" && typ == Elementtyp.Klasse) res.Add($"Klasse abwesend {Std(a.StundeVon, a.StundeBis)}{(string.IsNullOrEmpty(a.Grund) || !kollegium ? "" : ": " + a.Grund)}");
             if (a.Art == "raum" && typ == Elementtyp.Raum) res.Add($"Raum gesperrt {Std(a.StundeVon, a.StundeBis)}");
         }
         return res;

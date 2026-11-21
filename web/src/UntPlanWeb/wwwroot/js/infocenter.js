@@ -54,7 +54,7 @@ function zahlSetzen() {
   const n = zustand.ungelesen;
   const z = document.querySelector('[data-ic-zahl]');
   if (z) { z.textContent = n > 9 ? '9+' : String(n); z.hidden = n <= 0; }
-  document.querySelector('[data-ic-knopf]')?.setAttribute('aria-label', n ? `Infocenter – ${n} ungelesen` : 'Infocenter');
+  document.querySelector('[data-ic-knopf]')?.setAttribute('aria-label', n ? `Infocenter, ${n} ungelesen` : 'Infocenter');
   // Zahl auch am Menüeintrag „Neuigkeiten“
   const link = document.querySelector('[data-neuigkeiten]');
   if (link) {

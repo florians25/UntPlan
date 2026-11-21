@@ -255,7 +255,7 @@ public sealed class Pushdienst
             return ("Änderung im Stundenplan", string.Join("; ", liste.Select(Kurz)));
         var erste = liste.Min(a => a.Datum)!;
         var d = DateOnly.Parse(erste);
-        return ("Änderungen im Stundenplan", $"{liste.Count} Änderungen ab {Tag(erste)} {d:dd.MM.} – bitte den Stundenplan prüfen.");
+        return ("Änderungen im Stundenplan", $"{liste.Count} Änderungen ab {Tag(erste)} {d:dd.MM.}, bitte prüfen Sie den Stundenplan.");
     }
 
     /// <summary>Nach einem Paket-Import: Änderungen ermitteln und im Hintergrund senden (nie blockierend, Fehler werden nur protokolliert).</summary>

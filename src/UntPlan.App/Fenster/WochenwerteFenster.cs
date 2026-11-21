@@ -97,6 +97,6 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
 
     public void Drucken(bool vorschau)
     {
-        ListenDruck.DruckenTabelle(this, $"Wochenwerte – {(_lehrer.SelectedItem as Lehrer)?.Kurzname}", _g, vorschau);
+        ListenDruck.DruckenTabelle(this, $"Wochenwerte: {(_lehrer.SelectedItem as Lehrer)?.Kurzname}", _g, vorschau);
     }
 }
