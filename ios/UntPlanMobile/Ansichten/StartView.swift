@@ -246,19 +246,26 @@ struct StartView: View {
     }
 
     private func tageskarte(_ h: Heute) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+        // Maße nach dem Original-Widget (mittel, dunkel, 3 px/pt nachgemessen): Fläche 370 × 158 pt; links 22 pt Rand,
+        // Stundenspalte ab 107 pt, rechts 16 pt Rand; Versalhöhe von Wochentag und Kopfzeile 18 pt unter der Oberkante
+        let heuteIso = Datumsformat.iso(Date())
+        return HStack(alignment: .top, spacing: 13) {
             VStack(alignment: .leading, spacing: 0) {
-                // Vorlage: Wochentag und Monat 13 pt halbfett, Tageszahl 34 pt
-                Text(Datumsformat.anzeige(h.datum, "EEEE"))
+                // Links steht immer der heutige Tag (Vorlage: „Samstag / 21 / November“, rechts die Stunden des 26.):
+                // Wochentag 13 pt halbfett #dddce2, Tageszahl 34 pt (Ziffernhöhe 24 pt), Monat 13 pt halbfett; je 11 pt
+                // von der Grundlinie bis zur Oberkante der nächsten Zeile
+                Text(Datumsformat.anzeige(heuteIso, "EEEE"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Farben.tinte2)
-                Text(Datumsformat.anzeige(h.datum, "d"))
+                    .foregroundStyle(Farben.widgetWochentag)
+                    .padding(.top, 0.5)
+                Text(Datumsformat.anzeige(heuteIso, "d"))
                     .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(Farben.heute)
-                    .padding(.top, 2)
-                Text(Datumsformat.anzeige(h.datum, "MMMM"))
+                    .foregroundStyle(Farben.widgetDatum)
+                    .padding(.top, -0.5)
+                Text(Datumsformat.anzeige(heuteIso, "MMMM"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Farben.heute)
+                    .foregroundStyle(Farben.widgetDatum)
+                    .padding(.top, -0.4)
                 if !h.woche.isEmpty {
                     Text(h.woche.count == 1 ? "\(h.woche)-Woche" : h.woche)
                         .font(.system(size: 13, weight: .medium))
@@ -283,11 +290,12 @@ struct StartView: View {
                 stundenspalte(h)
             }
         }
-        // Vorlage: 21 pt seitlich, 17 pt oben, Karte mindestens 152 pt hoch
-        .padding(.horizontal, groessenklasse == .compact ? 21 : 22)
-        .padding(.top, 17)
-        .padding(.bottom, 18)
-        .frame(minHeight: 152, alignment: .top)
+        // Original-Widget: links 22 pt, rechts 16 pt, oben 15 pt, unten 11,5 pt; mindestens 158 pt hoch
+        .padding(.leading, 22)
+        .padding(.trailing, 16)
+        .padding(.top, 15)
+        .padding(.bottom, 11.5)
+        .frame(minHeight: 158, alignment: .top)
         .alsKarte()
     }
 
@@ -323,42 +331,48 @@ struct StartView: View {
         let sichtbar = alleStunden ? stunden : Array(stunden.prefix(2))
         let rest = Array(stunden.dropFirst(sichtbar.count))
         return VStack(alignment: .leading, spacing: 0) {
-            // Original-Widget: „Heute“ bzw. „Morgen“ (sonst Wochentag) | Anmeldename
-            (Text(istHeute ? "Heute" : Datumsformat.istMorgen(h.datum) ? "Morgen" : Datumsformat.anzeige(h.datum, "EEEE"))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Farben.tinte2)
-             + Text("  |  ")
-                .font(.system(size: 12))
-                .foregroundColor(Farben.gedaempft.opacity(0.6))
-             + Text(zustand.benutzer?.login ?? "Mein Stundenplan")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Farben.tinte2))
-                .lineLimit(1)
-                .padding(.bottom, 8)
+            // Original-Widget: „26. Nov. ▏ Mein Stundenplan“ – 12,5 pt halbfett #c4c7ce, dazwischen ein dunkler Strich
+            // (1,67 × 8 pt, #3b3e43) mit je 5,33 pt Abstand; Text 3,67 pt hinter der Kartenkante, Karte direkt darunter
+            HStack(spacing: 5.33) {
+                Text(istHeute ? "Heute" : Datumsformat.istMorgen(h.datum) ? "Morgen" : Datumsformat.anzeige(h.datum, "d. MMM"))
+                Capsule()
+                    .fill(Farben.widgetTrenner)
+                    .frame(width: 1.67, height: 8)
+                Text("Mein Stundenplan")
+            }
+            .font(.system(size: 12.5, weight: .semibold))
+            .foregroundStyle(Farben.tinte2)
+            .lineLimit(1)
+            .padding(.leading, 3.67)
 
             if stunden.isEmpty {
                 keineStunden(h)
+                    .padding(.top, 8)
             } else {
-                ForEach(sichtbar) { karte in
-                    Button {
-                        gewaehlteKarte = karte
-                    } label: {
-                        NaechsteStunde(karte: karte, typ: h.typ)
+                // Karten 47 pt hoch, 4 pt Abstand
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(sichtbar) { karte in
+                        Button {
+                            gewaehlteKarte = karte
+                        } label: {
+                            NaechsteStunde(karte: karte, typ: h.typ)
+                        }
+                        .buttonStyle(GedruecktStil())
                     }
-                    .buttonStyle(GedruecktStil())
-                    .padding(.bottom, 13)
                 }
                 if !rest.isEmpty || alleStunden && stunden.count > 2 {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { alleStunden.toggle() }
                     } label: {
-                        HStack(spacing: 8) {
+                        // Original-Widget: „▮▮▮▮▮ +6 Stunden“ – Striche 4 × 10 pt (#c2c6cc) mit 4 pt Abstand, bündig mit den
+                        // Balken der Karten (4 pt hinter der Kartenkante), Text 13 pt 8,67 pt dahinter, 6 pt unter der Karte
+                        HStack(spacing: 8.67) {
                             if !rest.isEmpty {
-                                HStack(spacing: 3) {
-                                    ForEach(rest.prefix(6)) { _ in
+                                HStack(spacing: 4) {
+                                    ForEach(rest.prefix(5)) { _ in
                                         Capsule()
                                             .fill(Farben.karteBalken)
-                                            .frame(width: 4, height: 13)
+                                            .frame(width: 4, height: 10)
                                     }
                                 }
                                 Text(rest.count == 1 ? "+1 Stunde" : "+\(rest.count) Stunden")
@@ -366,8 +380,10 @@ struct StartView: View {
                                 Text("Weniger anzeigen")
                             }
                         }
-                        .font(.system(size: 14))
+                        .font(.system(size: 13))
                         .foregroundStyle(Farben.tinte2)
+                        .padding(.leading, 4)
+                        .padding(.top, 3.25)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -649,7 +665,10 @@ struct NaechsteStunde: View {
         // Reihenfolge wie im Original-Widget: Lehrkraft (bzw. Klasse), Fach, Raum
         let erste = z.first ?? []
         let letzte = z.count > 1 ? z[1] : []
-        VStack(alignment: .leading, spacing: 1) {
+        // Maße nach dem Original-Widget (3 px/pt): Karte 47 pt hoch, Ecken 4 pt, Rand 2 pt; Balken 4 pt breit, 4 pt von
+        // Kartenkante, Ober- und Unterkante; Text 13 pt ab 13 pt, Zeilen im Abstand von 14 pt, Versalhöhe der ersten bzw.
+        // Grundlinie der letzten Zeile je 5,33 pt von der Kartenkante; Uhrzeiten 12 pt, 5,67 pt vom rechten Rand
+        VStack(alignment: .leading, spacing: -1.5) {
             if !erste.isEmpty {
                 zeile(erste, stil: stil).font(.system(size: 13, weight: .semibold))
             }
@@ -663,40 +682,43 @@ struct NaechsteStunde: View {
         .lineLimit(1)
         .foregroundStyle(Farben.tinte)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 14)
-        .padding(.trailing, 62)
+        .padding(.leading, 13)
+        .padding(.trailing, 44)
+        .padding(.vertical, 2)
+        .frame(minHeight: 47)
         .overlay(alignment: .leading) {
             Capsule()
                 .fill(Farben.fach(karte.farbe))
                 .frame(width: 4)
+                .padding(.vertical, 4)
+                .padding(.leading, 4)
         }
         .overlay(alignment: .trailing) {
+            // Beginn oben (Versalhöhe auf Höhe der ersten Zeile), Ende unten (Grundlinie mit der letzten Zeile)
             VStack(alignment: .trailing, spacing: 0) {
                 Text(karte.beginn.isEmpty ? "\(karte.von)." : karte.beginn)
                 Spacer(minLength: 2)
                 Text(karte.ende.isEmpty ? "\(karte.bis)." : karte.ende)
             }
-            .font(.system(size: 13).monospacedDigit())
+            .font(.system(size: 12))
             .foregroundStyle(Farben.tinte2)
-            .frame(minWidth: 52, alignment: .trailing)
+            .lineLimit(1)
+            .padding(.vertical, 2.4)
+            .padding(.trailing, 5.67)
         }
-        .padding(.top, 3)
-        .padding(.bottom, 5)
-        .padding(.trailing, 6)
-        .padding(.horizontal, karte.istEntfall || istAenderung ? 8 : 0)
         .background {
             if karte.istEntfall {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Farben.entfallHintergrund)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(Farben.entfallRand, lineWidth: 1.5)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .strokeBorder(Farben.entfallRand, lineWidth: 2)
                     }
             } else if istAenderung {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Farben.widgetAenderungFlaeche)
                     .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .strokeBorder(Farben.widgetAenderungRand, lineWidth: 2)
                     }
             }
@@ -709,14 +731,20 @@ struct NaechsteStunde: View {
         if stil.durchgestrichen {
             Text(werteKurz(werte)).strikethrough(true)
         } else if istAenderung, werte.contains(where: { $0.geaendert }) {
-            // geänderte Werte als grüne Plakette (wie „C126“ im Original-Widget), übrige normal daneben
+            // geänderte Werte als grüne Plakette (wie „WZ“ im Original-Widget: Fläche 12,33 pt hoch, je 3 pt neben der
+            // Schrift, Ecken 2 pt, Schrift #1c1c1e), übrige normal daneben; steht sie vorn, ragt sie 3 pt vor den Text
             HStack(spacing: 4) {
                 ForEach(Array(werte.enumerated()), id: \.offset) { e in
                     if e.element.geaendert && !e.element.k.isEmpty {
                         Text(e.element.k)
                             .foregroundStyle(Farben.widgetPlaketteText)
-                            .padding(.horizontal, 4)
-                            .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Farben.widgetAenderungRand))
+                            .padding(.horizontal, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(Farben.widgetAenderungRand)
+                                    .frame(height: 12.33)
+                            )
+                            .padding(.leading, e.offset == 0 ? -3 : 0)
                     } else if !e.element.k.isEmpty {
                         Text(e.element.k)
                     }

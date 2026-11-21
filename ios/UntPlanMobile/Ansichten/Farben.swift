@@ -199,8 +199,12 @@ enum Farben {
     /// Kopfblock der Stundendetails bei Entfall (Original: hellgrau #dfe1e6) und roter Balken „ENTFÄLLT“
     /// Startseiten-Widget (Original): geänderte Stunde – Fläche, Rand und Plakette des geänderten Werts
     static let widgetAenderungFlaeche = Color(hell: 0xE4FFF3, dunkel: 0x245542)
-    static let widgetAenderungRand = Color(hell: 0x00916D, dunkel: 0x60BDA2)
+    static let widgetAenderungRand = Color(hell: 0x00916D, dunkel: 0x5BBDA1)
     static let widgetPlaketteText = Color(hell: 0xFFFFFF, dunkel: 0x1C1C1E)
+    /// Original-Widget (dunkel nachgemessen): Wochentag #dddce2, Tageszahl und Monat #fef3ed, Trennstrich der Kopfzeile #3b3e43
+    static let widgetWochentag = Color(hell: 0x48606F, dunkel: 0xDDDCE2)
+    static let widgetDatum = Color(hell: 0xFE5F32, dunkel: 0xFEF3ED)
+    static let widgetTrenner = Color(hell: 0xC9D1D8, dunkel: 0x3B3E43)
     static let detailEntfallFlaeche = Color(hell: 0xDFE1E6, dunkel: 0x3F525F)
     static let detailEntfallBalken = Color(hexWert: 0xFF0000)
     // Abwesenheit auf der Startseite (graue Fläche)
