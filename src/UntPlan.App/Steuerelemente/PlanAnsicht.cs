@@ -1972,36 +1972,47 @@ public sealed partial class PlanAnsicht : Control
         else if (MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
     }
 
-    /// <summary>Elementzeilen untereinander, jede zentriert in eigener Farbe; reicht die Höhe nicht, werden die unteren zusammengefasst.</summary>
+    /// <summary>
+    /// Elementzeilen untereinander, jede zentriert in eigener Farbe. Reicht die Höhe nicht (kleiner Plan: zwei Zeilen je Stunde), werden
+    /// benachbarte Elemente gleicher Farbe in eine Zeile gesetzt („.E,.?M“ rot über „EK“), sonst die unteren beiden; jedes Element behält
+    /// Farbe und Durchstreichung.
+    /// </summary>
     private void KopplungsZeilen(Graphics g, RectangleF r, List<(string Text, Color Farbe, bool Weg)> zeilen)
     {
         if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
-        var liste = zeilen.ToList();
-        // kleiner Plan (25 Pixel je Stunde): bis zu drei Elemente untereinander
-        var maxZeilen = Math.Max(1, (int)((r.Height - 1) / 7f));
+        var liste = zeilen.Select(z => new List<(string Text, Color Farbe, bool Weg)> { z }).ToList();
+        var maxZeilen = Math.Max(1, (int)((r.Height - 2) / 10f));
         while (liste.Count > maxZeilen && liste.Count > 1)
         {
-            // möglichst gleich dargestellte Zeilen zusammenfassen (unveränderte mit unveränderten), sonst die unteren beiden
             var i = liste.Count - 1;
-            while (i > 1 && (liste[i].Farbe != liste[i - 1].Farbe || liste[i].Weg != liste[i - 1].Weg)) i--;
-            if (liste[i].Farbe != liste[i - 1].Farbe || liste[i].Weg != liste[i - 1].Weg) i = liste.Count - 1;
-            var (t1, f1, w1) = liste[i - 1];
-            liste[i - 1] = (t1 + "," + liste[i].Text.TrimStart('.'), f1, w1 && liste[i].Weg);
+            while (i > 1 && liste[i][0].Farbe != liste[i - 1][^1].Farbe) i--;
+            if (liste[i][0].Farbe != liste[i - 1][^1].Farbe) i = liste.Count - 1;
+            liste[i - 1].AddRange(liste[i]);
             liste.RemoveAt(i);
         }
-        const TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+        const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         var zh = (r.Height - 2) / liste.Count;
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse, zh / 1.4f));
+        // Teile einer Zeile mit Komma getrennt
+        List<(string Text, Color Farbe, bool Weg)> Teile(List<(string Text, Color Farbe, bool Weg)> z) =>
+            z.SelectMany((t, i) => i == 0 ? new[] { t } : new[] { (",", t.Farbe, false), t }).ToList();
+        int Breite(List<(string Text, Color Farbe, bool Weg)> z, float gr) =>
+            Teile(z).Sum(t => TextRenderer.MeasureText(g, t.Text, Schriftcache.Holen(gr, t.Weg ? FontStyle.Strikeout : FontStyle.Regular), Size.Empty, flags).Width);
         // Schrift verkleinern, bis die breiteste Zeile passt
-        while (groesse > 6f && liste.Max(z => TextRenderer.MeasureText(g, z.Text, Schriftcache.Holen(groesse), Size.Empty, flags).Width) > r.Width - 2) groesse -= 0.5f;
-        var normal = Schriftcache.Holen(groesse);
-        var weg = Schriftcache.Holen(groesse, FontStyle.Strikeout);
+        while (groesse > 6f && liste.Max(z => Breite(z, groesse)) > r.Width - 2) groesse -= 0.5f;
         var alt = g.Clip;
         g.SetClip(r);
         var y = r.Y + 1;
-        foreach (var (text, farbe, w) in liste)
+        foreach (var z in liste)
         {
-            TextRenderer.DrawText(g, text, w ? weg : normal, new Rectangle((int)r.X, (int)Math.Round(y), (int)r.Width, (int)Math.Ceiling(zh)), farbe, flags);
+            var x = r.X + Math.Max(1, (r.Width - Breite(z, groesse)) / 2);
+            foreach (var (text, farbe, w) in Teile(z))
+            {
+                var f = Schriftcache.Holen(groesse, w ? FontStyle.Strikeout : FontStyle.Regular);
+                var b = TextRenderer.MeasureText(g, text, f, Size.Empty, flags);
+                TextRenderer.DrawText(g, text, f, new Point((int)Math.Round(x), (int)Math.Round(y + (zh - b.Height) / 2)), farbe, flags);
+                x += b.Width;
+            }
             y += zh;
         }
         g.Clip = alt;
