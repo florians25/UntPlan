@@ -373,6 +373,20 @@ public static partial class Ui
     }
 
     /// <summary>
+    /// Einheitlich für alle Listen der Arbeitsfenster: schmale Zeilenköpfe ohne eigene Beschriftung (nur Zeilenmarke ▸) entfallen wie im
+    /// Vorbild; stattdessen zeigt die erste Zelle der aktuellen Zeile die Zeile an. Zeilenköpfe mit Beschriftung (Zeitraster, Tage)
+    /// bleiben erhalten.
+    /// </summary>
+    public static void ZeilenkoepfeWieVorbild(DataGridView g)
+    {
+        if (!g.RowHeadersVisible || g.EnableHeadersVisualStyles || g.RowHeadersWidth > 24) return;
+        foreach (DataGridViewRow r in g.Rows)
+            if (r.HeaderCell.Value is not null and not "") return;
+        g.RowHeadersVisible = false;
+        ZeilenmarkeErsteSpalte(g);
+    }
+
+    /// <summary>
     /// Tabellen ohne Zeilenköpfe (wie im Vorbild Absenzen/Vertretungen): die erste sichtbare Zelle der aktuellen Zeile ist hell
     /// orange und zeigt so die Zeile an.
     /// </summary>

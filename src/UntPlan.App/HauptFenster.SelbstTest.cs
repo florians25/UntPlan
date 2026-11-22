@@ -1185,6 +1185,8 @@ public sealed partial class HauptFenster
         }
         void Gesamtbild(string name, Form? dialog = null)
         {
+            // wie im Betrieb nach dem ersten Leerlauf: gemeinsame Gestaltung aller offenen Fenster angewandt
+            Steuerelemente.Auswahlbreite.AlleErfassen();
             Warten(500);
             if (dialog is null || dialog.IsMdiChild)
             {
@@ -1223,7 +1225,7 @@ public sealed partial class HauptFenster
         Schritt("V30_Veranstaltungen", () => { ModusFuerBild(true); Max(FensterOeffnen("veranst")!); Gesamtbild("V30_Veranstaltungen"); }, -1);
         Schritt("V31_Statistik", () => { ModusFuerBild(true); Max(FensterOeffnen("stat")!); Gesamtbild("V31_Statistik"); }, -1);
         Schritt("V32_Vertretungsautomatik", () => { ModusFuerBild(true); VertretungsautomatikDialog.Anzeigen(this, tag, tag); Gesamtbild("V32_Vertretungsautomatik", NeuesterDialog()); }, -1);
-        Schritt("V33_Seitenlayout", () => { ModusFuerBild(true); var f = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false); f.WindowState = FormWindowState.Maximized; Gesamtbild("V33_Seitenlayout"); }, -1);
+        Schritt("V33_Seitenlayout", () => { ModusFuerBild(true); var f = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false); f.WindowState = FormWindowState.Maximized; f.Activate(); Gesamtbild("V33_Seitenlayout", f); }, -1);
         Schritt("V34_Planungsdialog_Vertretung", () => { ModusFuerBild(true); Max(VertretungsPlanungsdialogFenster.Zeigen()); Gesamtbild("V34_Planungsdialog_Vertretung"); }, -1);
         Schritt("V35_Pausenaufsichten", () => { ModusFuerBild(true); Max(FensterOeffnen("pause")!); Gesamtbild("V35_Pausenaufsichten"); }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);

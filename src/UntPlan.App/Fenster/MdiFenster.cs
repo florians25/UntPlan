@@ -275,6 +275,8 @@ public class MdiFenster : Form
         var n = 0;
         var tabellen = Tabellen(this).ToList();
         foreach (var g in tabellen) Steuerelemente.TabellenFormate.Aktivieren(g, $"{GetType().Name}/{(string.IsNullOrEmpty(g.Name) ? (n++).ToString() : g.Name)}");
+        // wie im Vorbild (Absenzen, Vertretungen, Kalender, Vorschlag): Listen ohne Zeilenköpfe, die aktuelle Zeile zeigt ihre erste Zelle orange
+        foreach (var g in tabellen) Ui.ZeilenkoepfeWieVorbild(g);
         // Knopf „Spalten“ rechts in der Werkzeugleiste: Spalten ein-/ausblenden und Anordnung für die Haupttabelle
         if (tabellen.Count > 0 && Controls.OfType<ToolStrip>().FirstOrDefault(t => t is not MenuStrip && t.Dock == DockStyle.Top) is { } leiste)
         {

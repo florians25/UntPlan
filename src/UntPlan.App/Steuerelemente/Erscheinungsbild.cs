@@ -39,6 +39,17 @@ public static class Erscheinungsbild
         if (f.BackColor == SystemColors.Control) f.BackColor = Ui.DialogFlaeche;
         if (f.IsHandleCreated) Titelleiste(f);
         f.HandleCreated += (_, _) => Titelleiste(f);
+        // Knöpfe und Registerkarten schon vor dem ersten Zeichnen (nicht erst im nächsten Leerlauf: kein Aufblitzen grauer Knöpfe)
+        f.Load += (_, _) => Unterelemente(f);
+    }
+
+    private static void Unterelemente(Control c)
+    {
+        foreach (Control k in c.Controls)
+        {
+            Anwenden(k);
+            Unterelemente(k);
+        }
     }
 
     private static void Titelleiste(Form f) => Ui.TitelleisteFaerben(f, false);
