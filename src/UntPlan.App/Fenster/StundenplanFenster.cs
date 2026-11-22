@@ -50,7 +50,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Fläche des Vorbild-Stundenplanmodus um den Plan (Zeitzeile, Fuß, Ablage), gemessen in den Handbuch-Bildern: 227,233,240.</summary>
     internal static readonly Color PlanFlaeche = Color.FromArgb(227, 233, 240);
     private readonly ToolStripDropDownButton _typKnopf = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Planart: Klasse, Lehrer oder Raum" };
-    private readonly Panel _planRahmen = new() { Dock = DockStyle.Fill };
+    private readonly PlanRahmen _planRahmen = new() { Dock = DockStyle.Fill };
     private bool _laden;
     private bool _klein;
     private Action? _planGroesse;
@@ -76,8 +76,10 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Selbsttest: Der Plan ist höher als der sichtbare Bereich und kann gescrollt werden (Rollbalken statt Quetschen).</summary>
     internal bool PlanScrollbar => _planRahmen.AutoScroll && _plan.Height > _planRahmen.ClientSize.Height;
     /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
-    internal void SelbsttestScrollen(int y) => _planRahmen.AutoScrollPosition = new Point(0, y);
-    internal void SelbsttestScrollen(int x, int y) { _planRahmen.AutoScrollPosition = new Point(x, y); _planRahmen.Update(); }
+    internal void SelbsttestScrollen(int y) { _planRahmen.AutoScrollPosition = new Point(0, y); _planRahmen.Einrasten(); }
+    internal void SelbsttestScrollen(int x, int y) { _planRahmen.AutoScrollPosition = new Point(x, y); _planRahmen.Einrasten(); _planRahmen.Update(); }
+    /// <summary>Selbsttest: Scrollposition des Plans und ob sie auf einer Zeilen- bzw. Tagesgrenze liegt.</summary>
+    internal (Point Position, bool Eingerastet) SelbsttestScrollStand => (new Point(-_planRahmen.AutoScrollPosition.X, -_planRahmen.AutoScrollPosition.Y), _planRahmen.Eingerastet);
 
     /// <summary>Abstand des Planrahmens zum Fensterrahmen im Vertretungsmodus (Vorbild 9 px bei 1 px Fensterrahmen, hier 3 px Rahmen).</summary>
     private const int Einzug = 7;
@@ -327,6 +329,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         var planRahmen = _planRahmen;
         _plan.Dock = DockStyle.None;
         planRahmen.Controls.Add(_plan);
+        planRahmen.Plan = _plan;
         void PlanGroesse()
         {
             // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos: Plan in einem vertieften Rahmen (3D, 2 px), links und rechts
@@ -2062,6 +2065,16 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             return;
         }
         var keineEingabe = ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView);
+        // Bild auf/ab sowie Strg+Pos1/Ende scrollen den Plan zeilenweise (nie eine halbe Zeile unter dem Tageskopf)
+        if (keineEingabe && _planRahmen.AutoScroll && _planRahmen.VerticalScroll.Visible &&
+            e.KeyData is Keys.PageDown or Keys.PageUp or (Keys.Control | Keys.Home) or (Keys.Control | Keys.End))
+        {
+            if (e.KeyData == Keys.PageDown) _planRahmen.Seite(true, 1);
+            else if (e.KeyData == Keys.PageUp) _planRahmen.Seite(true, -1);
+            else _planRahmen.Schritte(true, e.KeyData == (Keys.Control | Keys.Home) ? -10000 : 10000);
+            e.Handled = e.SuppressKeyPress = true;
+            return;
+        }
         // Vorbild: Strg+D wechselt den Zeitbereich (Woche / Periode), Strg+R Raumdialog, F7 Stunde fixieren
         if (e.KeyData == (Keys.Control | Keys.D)) { ZeitbereichSetzen(!_plan.Woche.HasValue, false); e.Handled = e.SuppressKeyPress = true; return; }
         // Vorbild „Anzeige eines beliebigen Elementes“: Namen eintippen und mit der Eingabetaste bestätigen

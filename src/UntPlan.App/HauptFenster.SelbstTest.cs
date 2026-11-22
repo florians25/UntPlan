@@ -870,19 +870,31 @@ public sealed partial class HauptFenster
             f.WindowState = FormWindowState.Normal;
             f.Bounds = new Rectangle(100, 0, 272, 470);
             Warten(400);
-            f.SelbsttestScrollen(0, 25);
+            // ungerade Pixelwerte: der Plan rastet wie im Vorbild auf ganze Zeilen ein (nie eine halbe Zeile unter dem Kopf)
+            void Gerastet(string wo)
+            {
+                var (pos, ok) = f.SelbsttestScrollStand;
+                if (!ok) throw new InvalidOperationException($"{wo}: Scrollposition {pos} liegt nicht auf einer Zeilen-/Tagesgrenze");
+                log.Add($"INFO  {wo}: Scrollposition {pos.X}/{pos.Y} (eingerastet)");
+            }
+            f.SelbsttestScrollen(0, 13);
             Warten(200);
-            f.SelbsttestScrollen(0, 51);
+            Gerastet("V8 13");
+            f.SelbsttestScrollen(0, 38);
             Warten(200);
-            f.SelbsttestScrollen(0, 77);
+            Gerastet("V8 38");
+            f.SelbsttestScrollen(0, 67);
             Warten(300);
+            Gerastet("V8 67");
             Vergleich("V8_Plan_gescrollt", f, new Size(272, 470));
             f.Bounds = new Rectangle(100, 0, 190, 420);
             Warten(400);
-            f.SelbsttestScrollen(30, 60);
+            f.SelbsttestScrollen(17, 47);
             Warten(200);
-            f.SelbsttestScrollen(2000, 120);
+            Gerastet("V8b 17/47");
+            f.SelbsttestScrollen(2000, 121);
             Warten(300);
+            Gerastet("V8b 2000/121");
             Vergleich("V8b_Plan_quer_gescrollt", f, new Size(190, 420));
             f.Close();
         }, -1);
