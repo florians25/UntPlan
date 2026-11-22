@@ -125,9 +125,7 @@ public sealed class ElementRollup : Form
         _g.MouseMove += (_, e) =>
         {
             if (e.Button != MouseButtons.Left || (Math.Abs(e.X - _start.X) < 6 && Math.Abs(e.Y - _start.Y) < 6)) return;
-            var namen = _g.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).Select(r => r.Cells[0].Value?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList();
-            if (namen.Count == 0) return;
-            _g.DoDragDrop($"elemente:{Typen[_typIndex].Typ}:{string.Join(",", namen)}", DragDropEffects.Copy);
+            if (ZiehText() is { } text) _g.DoDragDrop(text, DragDropEffects.Copy);
         };
         // Vorbild: weitere Spalten über das Kontextmenü der rechten Maustaste
         _g.MouseUp += (_, e) => { if (e.Button == MouseButtons.Right) SpaltenMenue(e.Location); };
@@ -307,6 +305,34 @@ public sealed class ElementRollup : Form
                 }
             }
         }
+    }
+
+    /// <summary>Gezogener Text der markierten Elemente („elemente:Typ:Kurz1,Kurz2,…“), null ohne Markierung.</summary>
+    private string? ZiehText()
+    {
+        var namen = _g.SelectedRows.Cast<DataGridViewRow>().OrderBy(r => r.Index).Select(r => r.Cells[0].Value?.ToString()).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        return namen.Count == 0 ? null : $"elemente:{Typen[_typIndex].Typ}:{string.Join(",", namen)}";
+    }
+
+    /// <summary>Ein offenes Rollup folgt der Elementart des aktiven Fensters (z. B. Reiter Lehrer/Klassen/Räume der Absenzen).</summary>
+    internal static void TypFolgen(ElementTyp typ)
+    {
+        if (_instanz is null || _instanz.IsDisposed || !_instanz.Visible) return;
+        if (Array.FindIndex(Typen, x => x.Typ == typ) is var i and >= 0 && i != _instanz._typIndex) _instanz.TypWaehlen(i);
+    }
+
+    /// <summary>Elementart des offenen Rollups (null = nicht geöffnet).</summary>
+    internal static ElementTyp? OffenerTyp => _instanz is { IsDisposed: false, Visible: true } r ? Typen[r._typIndex].Typ : null;
+
+    /// <summary>Selbsttest: Elemente im Rollup markieren (wie Strg-Klick) und den Text liefern, der beim Ziehen übergeben wird.</summary>
+    internal static string? SelbsttestMarkieren(IEnumerable<string> kurznamen)
+    {
+        if (_instanz is null || _instanz.IsDisposed) return null;
+        var set = kurznamen.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _instanz._g.ClearSelection();
+        foreach (DataGridViewRow r in _instanz._g.Rows)
+            if (set.Contains(r.Cells[0].Value?.ToString() ?? "")) r.Selected = true;
+        return _instanz.ZiehText();
     }
 
     private void TypWaehlen(int i)

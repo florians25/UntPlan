@@ -1215,7 +1215,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                 var fach = vm.FachId is int fid ? Ix.Faecher.GetValueOrDefault(fid) : null;
                 var kachel = new Stapel(null, vm.Offen, 1, Ui.Farbe(fach?.Hintergrund ?? 0, Color.FromArgb(255, 236, 200)), fach?.Kurzname ?? "?", _typ == ElementTyp.Lehrer ? Ix.KKlassen(vm.KlassenIds) : string.Join(",", vm.LehrerIds.Select(Ix.KLehrer)), $"Vormerkung {vm.Id}: {vm.Text}");
                 var id = vm.Id;
-                kachel.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) kachel.DoDragDrop("vormerkung:" + id, DragDropEffects.Move); };
+                Steuerelemente.Ziehschwelle.Anbinden(kachel, _ => "vormerkung:" + id, DragDropEffects.Move);
                 _pool.Controls.Add(kachel);
             }
             _pool.ResumeLayout();
@@ -1251,10 +1251,14 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                             return;
                         }
                         LupeFuellen(null, u);
-                        var markiert = _pool.Controls.OfType<PoolBlock>().Where(x => x.Markiert).Select(x => x.Unterricht.Id).Distinct().ToList();
-                        var daten = markiert.Count > 1 && markiert.Contains(u.Id) ? "unterricht:" + string.Join(",", markiert) : $"unterricht:{u.Id}|{block.Laenge}";
-                        block.DoDragDrop(daten, DragDropEffects.Move);
                     };
+                    // Verplanen durch Ziehen erst nach echter Mausbewegung (ein Klick zeigt nur die Lupe)
+                    Steuerelemente.Ziehschwelle.Anbinden(block, _ =>
+                    {
+                        if ((ModifierKeys & (Keys.Control | Keys.Shift)) != 0) return null;
+                        var markiert = _pool.Controls.OfType<PoolBlock>().Where(x => x.Markiert).Select(x => x.Unterricht.Id).Distinct().ToList();
+                        return markiert.Count > 1 && markiert.Contains(u.Id) ? "unterricht:" + string.Join(",", markiert) : $"unterricht:{u.Id}|{block.Laenge}";
+                    }, DragDropEffects.Move);
                     _pool.Controls.Add(block);
                 }
             }

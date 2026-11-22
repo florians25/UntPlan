@@ -1033,15 +1033,31 @@ public static class AbwesenheitDialog
         var text = Ui.Zeile(f, "Text:", new TextBox { Text = a.Text }, ref y, 130, 280);
         ElementWahl? begleit = null;
         if (a.Art == AbwesenheitsArt.Klasse) begleit = Ui.Zeile(f, "Begleitlehrer:", new ElementWahl(ElementTyp.Lehrer, a.BegleitLehrerIds), ref y, 130, 280);
-        if (f.ShowDialog(owner) != DialogResult.OK || ElementListe.Id(element) is not int el) return false;
-        a.ElementId = el;
-        a.Von = DateOnly.FromDateTime(von.Value);
-        a.Bis = DateOnly.FromDateTime(bis.Value);
-        a.StundeVon = (int)sv.Value;
-        a.StundeBis = (int)sb.Value >= d.Zeitraster.StundenProTag ? 99 : (int)sb.Value;
-        a.GrundId = ElementListe.Id(grund);
-        a.Text = text.Text;
-        if (begleit != null) a.BegleitLehrerIds = begleit.Ids;
+        void Uebernehmen(Abwesenheit ziel)
+        {
+            ziel.ElementId = ElementListe.Id(element) ?? 0;
+            ziel.Von = DateOnly.FromDateTime(von.Value);
+            ziel.Bis = DateOnly.FromDateTime(bis.Value);
+            ziel.StundeVon = (int)sv.Value;
+            ziel.StundeBis = (int)sb.Value >= d.Zeitraster.StundenProTag ? 99 : (int)sb.Value;
+            ziel.GrundId = ElementListe.Id(grund);
+            ziel.Text = text.Text;
+            if (begleit != null) ziel.BegleitLehrerIds = begleit.Ids;
+        }
+        // OK nur mit gültigen Angaben: der Dialog bleibt mit allen Eingaben offen und nennt den Fehler (nichts geht verloren)
+        f.FormClosing += (_, e) =>
+        {
+            if (f.DialogResult != DialogResult.OK) return;
+            var probe = a.Kopie();
+            Uebernehmen(probe);
+            if (Core.Vertretungsplanung.Absenzpruefung.Fehler(d, probe).FirstOrDefault() is not { } fehler) return;
+            e.Cancel = true;
+            Ui.Warnung(fehler.Text, "UntPlan - Hinweis", f);
+            Control? feld = fehler.Feld switch { "E" => element, "V" => von, "SV" => sv, "B" => bis, "SB" => sb, _ => null };
+            feld?.Focus();
+        };
+        if (f.ShowDialog(owner) != DialogResult.OK || ElementListe.Id(element) is null) return false;
+        Uebernehmen(a);
         if (string.IsNullOrEmpty(a.Benutzer)) a.Benutzer = AppZustand.Benutzer;
         return true;
     }
