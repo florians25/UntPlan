@@ -372,7 +372,7 @@ public sealed class Ribbon : Control
                 {
                     // eingedrückt wie „Vertretungsplanung“: kräftige helle Modusfarbe, 1 Pixel Rand in der Titelfarbe, leicht abgerundete
                     // Ecken (Radius 2 wie die übrigen Knöpfe beim Überfahren)
-                    using var pfad = Ui.AbgerundetesRechteck(new RectangleF(it.Bounds.X + 0.5f, it.Bounds.Y + 0.5f, it.Bounds.Width - 1, it.Bounds.Height - 1), GedruecktRadius);
+                    using var pfad = Ui.AbgerundetesRechteck(new RectangleF(it.Bounds.X, it.Bounds.Y, it.Bounds.Width - 1, it.Bounds.Height - 1), GedruecktRadius);
                     using (var b = new SolidBrush(Ui.MenuebandGedrueckt)) g.FillPath(b, pfad);
                     using (var p = new Pen(it == _hover && aktiv ? Ui.HoverRand : Ui.Titel)) g.DrawPath(p, pfad);
                 }

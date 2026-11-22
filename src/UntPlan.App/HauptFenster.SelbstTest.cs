@@ -868,22 +868,22 @@ public sealed partial class HauptFenster
             // daneben schmal und nach unten/rechts gerollt (Tageskopf, Stundenspalte und Ecke)
             var f = StundenplanFenster.Neu(ElementTyp.Lehrer, null, false, true);
             f.WindowState = FormWindowState.Normal;
-            f.Bounds = new Rectangle(100, 0, 272, 330);
+            f.Bounds = new Rectangle(100, 0, 272, 470);
             Warten(400);
-            f.SelbsttestScrollen(0, 40);
+            f.SelbsttestScrollen(0, 25);
             Warten(200);
-            f.SelbsttestScrollen(0, 90);
+            f.SelbsttestScrollen(0, 51);
             Warten(200);
-            f.SelbsttestScrollen(0, 2000);
+            f.SelbsttestScrollen(0, 77);
             Warten(300);
-            Vergleich("V8_Plan_gescrollt", f, new Size(272, 330));
-            f.Bounds = new Rectangle(100, 0, 190, 300);
+            Vergleich("V8_Plan_gescrollt", f, new Size(272, 470));
+            f.Bounds = new Rectangle(100, 0, 190, 420);
             Warten(400);
             f.SelbsttestScrollen(30, 60);
             Warten(200);
             f.SelbsttestScrollen(2000, 120);
             Warten(300);
-            Vergleich("V8b_Plan_quer_gescrollt", f, new Size(190, 300));
+            Vergleich("V8b_Plan_quer_gescrollt", f, new Size(190, 420));
             f.Close();
         }, -1);
         Schritt("V9_Vorschlag_Trennlinien", () =>

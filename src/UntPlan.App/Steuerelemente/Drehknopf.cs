@@ -80,7 +80,9 @@ public sealed class Drehknopf : Control
     {
         const int zeilen = 3;
         var mx = innen.X + (innen.Width - 1) / 2;
-        var y0 = innen.Y + (innen.Height - zeilen) / 2;
+        // abgerundeter Rest liegt beim oberen Pfeil unten, beim unteren oben (Spiegelbild an der Mittellinie)
+        var rest = innen.Height - zeilen;
+        var y0 = innen.Y + (hoch ? rest / 2 : rest - rest / 2);
         using var b = new SolidBrush(farbe);
         for (var i = 0; i < zeilen; i++)
             g.FillRectangle(b, mx - i, hoch ? y0 + i : y0 + zeilen - 1 - i, 2 * i + 1, 1);
