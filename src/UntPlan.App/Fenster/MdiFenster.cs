@@ -392,7 +392,7 @@ public class MdiFenster : Form
     /// </summary>
     protected sealed class Fensterleiste : ToolStrip
     {
-        /// <summary>Abstand der hellen Leiste zum Fensterrand im Vertretungsmodus.</summary>
+        /// <summary>Abstand der hellen Leiste zum Fensterrand (beide Modi, wie im Vorbild).</summary>
         public const int Einzug = 7;
         /// <summary>false: Leiste ohne Einzug (z. B. Datumszeile der Stundenpläne, die auf der Fensterfläche liegt).</summary>
         public bool Einziehen { get; set; } = true;
@@ -410,18 +410,18 @@ public class MdiFenster : Form
         public void EinzugAnwenden()
         {
             if (IsDisposed) return;
-            var e = Einziehen && Ui.Vertretungsmodus ? Einzug : 0;
+            var e = Einziehen ? Einzug : 0;
             var soll = new Padding(Grundabstand.Left + e, Grundabstand.Top, Grundabstand.Right + e, Grundabstand.Bottom);
             if (Padding != soll) Padding = soll;
             Invalidate();
         }
 
-        /// <summary>Systemdarstellung, im Vertretungsmodus mit eingerückter Fläche und ohne Randlinie.</summary>
+        /// <summary>Systemdarstellung mit eingerückter Fläche und ohne Randlinie (beide Modi wie im Vorbild der Vertretungsplanung).</summary>
         public sealed class Darstellung : ToolStripSystemRenderer
         {
             protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
             {
-                if (e.ToolStrip is not Fensterleiste { Einziehen: true } l || !Ui.Vertretungsmodus) { base.OnRenderToolStripBackground(e); return; }
+                if (e.ToolStrip is not Fensterleiste { Einziehen: true } l) { base.OnRenderToolStripBackground(e); return; }
                 using (var aussen = new SolidBrush(Ui.Kopf)) e.Graphics.FillRectangle(aussen, 0, 0, l.Width, l.Height);
                 using var innen = new SolidBrush(l.BackColor);
                 e.Graphics.FillRectangle(innen, Einzug, 0, Math.Max(0, l.Width - 2 * Einzug), l.Height);
@@ -429,14 +429,14 @@ public class MdiFenster : Form
 
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {
-                if (e.ToolStrip is Fensterleiste && Ui.Vertretungsmodus) return;
+                if (e.ToolStrip is Fensterleiste) return;
                 base.OnRenderToolStripBorder(e);
             }
 
             /// <summary>Überlaufknopf im Vertretungsmodus wie in der Vorlage: kleines Dreieck (5 × 3 Pixel) unten rechts statt „»“.</summary>
             protected override void OnRenderOverflowButtonBackground(ToolStripItemRenderEventArgs e)
             {
-                if (e.ToolStrip is not Fensterleiste || !Ui.Vertretungsmodus) { base.OnRenderOverflowButtonBackground(e); return; }
+                if (e.ToolStrip is not Fensterleiste) { base.OnRenderOverflowButtonBackground(e); return; }
                 var it = e.Item;
                 using (var b = new SolidBrush(it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor)) e.Graphics.FillRectangle(b, 0, 0, it.Width, it.Height);
                 var m = new Point(it.Width / 2, it.Height - 9);

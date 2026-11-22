@@ -317,7 +317,7 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            Ui.TitelleisteFaerben(this);
+            Ui.TitelleisteFaerben(this, false);
         }
 
         private void Uebernehmen()

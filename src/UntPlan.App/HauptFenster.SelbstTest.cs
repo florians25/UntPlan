@@ -1186,7 +1186,15 @@ public sealed partial class HauptFenster
         void Gesamtbild(string name, Form? dialog = null)
         {
             Warten(500);
-            if (dialog is null || dialog.IsMdiChild) { Foto(Path.Combine(ordner, name + "_F.png")); return; }
+            if (dialog is null || dialog.IsMdiChild)
+            {
+                // Hauptfenster maximiert (Statusleiste sichtbar, nicht hinter der Taskleiste), danach wie vorher
+                var vorherZustand = WindowState;
+                if (vorherZustand != FormWindowState.Maximized) { WindowState = FormWindowState.Maximized; Warten(500); }
+                Foto(Path.Combine(ordner, name + "_F.png"));
+                if (vorherZustand != FormWindowState.Maximized) WindowState = vorherZustand;
+                return;
+            }
             dialog.Refresh();
             var r = Rectangle.Inflate(dialog.Bounds, 8, 8);
             r.Intersect(Screen.PrimaryScreen?.Bounds ?? r);
@@ -1203,7 +1211,7 @@ public sealed partial class HauptFenster
         Schritt("V25_Optimierung", () => { ModusFuerBild(false); var f = new OptimierungDialog(); f.Show(this); Gesamtbild("V25_Optimierung", f); }, 2);
         Schritt("V26_Zeitraster", () => { ModusFuerBild(false); var f = new ZeitrasterDialog(); f.Show(this); Gesamtbild("V26_Zeitraster", f); }, 0);
         Schritt("V27_Stundenplanformat", () => { ModusFuerBild(false); FormatKarte("Allgemein"); Gesamtbild("V27_Stundenplanformat", NeuesterDialog()); }, 3);
-        Schritt("V28_Dateimenue", () => { ModusFuerBild(false); var m = _ribbon.DateiMenueOeffnen(); Gesamtbild("V28_Dateimenue"); m.Close(); }, 0);
+        Schritt("V28_Dateimenue", () => { ModusFuerBild(false); WindowState = FormWindowState.Maximized; Warten(400); var m = _ribbon.DateiMenueOeffnen(); Warten(400); Foto(Path.Combine(ordner, "V28_Dateimenue_F.png")); m.Close(); WindowState = FormWindowState.Normal; }, 0);
         Schritt("V29_Meldung", () =>
         {
             ModusFuerBild(false);

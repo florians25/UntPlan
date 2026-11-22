@@ -145,6 +145,8 @@ public static partial class Ui
     public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
     /// <summary>Hintergrund einer Tabellenzelle mit ungültiger Eingabe (hellrot, dazu Fehlersymbol mit Tooltip).</summary>
     public static readonly Color FehlerHintergrund = Color.FromArgb(255, 205, 205);
+    /// <summary>Fläche aller Dialoge (wie Meldungsfenster und Arbeitsfenster: Listenfarbe des Modus statt Windows-Grau).</summary>
+    public static Color DialogFlaeche => Listenhintergrund;
     /// <summary>Werkzeugleisten der Arbeitsfenster.</summary>
     public static Color Leiste => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(246, 248, 251);
     /// <summary>Markierte Zeilen im Vertretungsmodus (gedecktes Grün wie im Vorbild).</summary>
@@ -516,7 +518,7 @@ public static partial class Ui
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || !f.IsHandleCreated) return;
         try
         {
-            var c = dunkel ? Titel : Kopf;
+            var c = dunkel ? Titel : MeldungTitel;
             var farbe = c.R | (c.G << 8) | (c.B << 16);
             var text = dunkel ? 0xFFFFFF : 0x000000;
             DwmSetWindowAttribute(f.Handle, 35, ref farbe, 4); // DWMWA_CAPTION_COLOR
