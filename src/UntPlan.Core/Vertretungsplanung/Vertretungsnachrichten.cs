@@ -59,7 +59,7 @@ public static class Vertretungsnachrichten
         ["Art"] = Vertretungsplan.ArtText(d, v.Art),
         ["Klassen"] = ix.KKlassen(v.NeueKlassenIds),
         ["Fach"] = ix.KFach(v.VertretungsfachId ?? v.FachId),
-        ["Raum"] = v.VertretungsraumId is int r ? ix.KRaum(r) : v.RaumVerdraengt ? "" : ix.KRaum(v.RaumId),
+        ["Raum"] = v.VertretungsraumId is int r ? ix.KRaum(r) : v.RaumVerdraengt || v.RaumGesperrt ? "" : ix.KRaum(v.RaumId),
         ["Lehrer"] = ix.KLehrer(v.LehrerId),
         ["Text"] = v.Text,
     };

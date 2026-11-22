@@ -304,6 +304,8 @@ public static class Vertretungen
             }
         }
 
+        RaumsperreErgaenzen(d, datum, benoetigt);
+
         // Abgleich
         var vorhanden = d.Vertretungen.Where(v => v.Datum == datum && IstAbgeleitet(v)).ToList();
         // nur ergänzen: Unterrichte mit verwaister Zeile (Stunde verschoben) überlässt man der Nacherfassung – sonst doppelte Zeilen
@@ -362,6 +364,29 @@ public static class Vertretungen
         RaumaenderungBeiLehrerabwesenheit(d, datum, tag);
         KlassenabwesenheitAnwenden(d, datum);
         Raumvertretungen.KopplungAngleichen(d, datum);
+    }
+
+    /// <summary>
+    /// Raumabsenz und Vertretung zusammen: Eine Stunde, die schon aus einem anderen Grund eine Zeile hat (abwesende Lehrkraft,
+    /// Klausuraufsicht …), deren Raum aber zur selben Stunde gesperrt ist (Raumabsenz bzw. Veranstaltung im Raum), bekommt zusätzlich
+    /// das Kennzeichen <see cref="Vertretung.RaumGesperrt"/> – sonst ginge die Raumabsenz verloren, weil die Zeile nur einen Grund hat.
+    /// Ohne Ersatzraum ist der Raum dann offen („???“), unabhängig davon, ob Lehrer- oder Raumabsenz zuerst eingetragen wurde.
+    /// </summary>
+    private static void RaumsperreErgaenzen(Schuldatei d, DateOnly datum, List<Vertretung> benoetigt)
+    {
+        if (!d.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Raum && datum >= a.Von && datum <= a.Bis)
+            && !d.Veranstaltungen.Any(va => va.RaumIds.Count > 0 && datum >= va.Von && datum <= va.Bis)) return;
+        foreach (var b in benoetigt)
+        {
+            if (b.UnterrichtId is null || b.RaumId is not int raum || b.GangId.HasValue) continue;
+            if (b.Art is VertretungsArt.Raumvertretung or VertretungsArt.Klausur or VertretungsArt.Veranstaltung) continue;
+            // anderer Raum (z. B. EVA-Raum): der gesperrte Raum wird nicht gebraucht
+            if (b.VertretungsraumId is int vr && vr != raum) continue;
+            if (!Absenzen.RaumGesperrt(d, raum, datum, b.Stunde)) continue;
+            b.RaumGesperrt = true;
+            b.RaumAbwesenheitId = Absenzen.Raum(d, raum, datum, b.Stunde)?.Id;
+            b.VertretungsraumId = null;
+        }
     }
 
     /// <summary>
@@ -525,6 +550,9 @@ public static class Vertretungen
             v.Quelle = b.Quelle;
             v.InVeranstaltung = b.InVeranstaltung;
             v.ErsatzFuerLehrerId = b.ErsatzFuerLehrerId;
+            // gesperrter Raum gilt neben dem Grund der Zeile (auch für bearbeitete Zeilen: ein gewählter Ersatzraum bleibt)
+            v.RaumGesperrt = b.RaumGesperrt;
+            v.RaumAbwesenheitId = b.RaumAbwesenheitId;
             // Statistik-Kennzeichen der Klausur gilt für ihre Klausurzeilen
             if (b.Art == VertretungsArt.Klausur && b.KlausurId.HasValue) v.Statistik = b.Statistik;
             if (b.RaumVerdraengt && !v.Bearbeitet) v.RaumVerdraengt = true;
@@ -562,6 +590,17 @@ public static class Vertretungen
             }
             // Wieder anwesend: zurück zur Raumvertretung mit der eigenen Lehrkraft (gewählter Raum bleibt)
             if (v.RaumvertretungVorAbsenz && b.Art == VertretungsArt.Raumvertretung)
+            {
+                v.Art = VertretungsArt.Raumvertretung;
+                v.VertreterId = b.VertreterId;
+                v.Mitbetreuung = false;
+                v.RaumvertretungVorAbsenz = false;
+                return;
+            }
+            // Bearbeitete Vertretung (z. B. Vertreter eingetragen), deren Lehrkraft wieder anwesend ist, während der Raum gesperrt bleibt:
+            // Ohne Raumabsenz verschwände die Zeile – jetzt bleibt die Raumvertretung mit der eigenen Lehrkraft (gewählter Raum bleibt)
+            if (v.Bearbeitet && b.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue
+                && v.Art is not (VertretungsArt.Raumvertretung or VertretungsArt.Klausur or VertretungsArt.Veranstaltung))
             {
                 v.Art = VertretungsArt.Raumvertretung;
                 v.VertreterId = b.VertreterId;

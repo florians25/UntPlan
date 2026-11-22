@@ -233,6 +233,7 @@ public static class Vertretungsimport
             if (v.GangId.HasValue && w.GangId is null) { Fehlt(ElementTyp.Gang, v.GangId.Value); continue; }
             if (v.VertreterId.HasValue && w.VertreterId is null) Fehlt(ElementTyp.Lehrer, v.VertreterId.Value);
             w.AbwesenheitId = v.AbwesenheitId is int a && absenzKarte.TryGetValue(a, out var na) ? na : null;
+            w.RaumAbwesenheitId = v.RaumAbwesenheitId is int ra && absenzKarte.TryGetValue(ra, out var nra) ? nra : null;
             w.VeranstaltungId = v.VeranstaltungId is int va && vaKarte.TryGetValue(va, out var nva) ? nva : null;
             w.KlausurId = v.KlausurId is int k && klausurKarte.TryGetValue(k, out var nk) ? nk : null;
             w.VormerkungId = v.VormerkungId is int vm && vmKarte.TryGetValue(vm, out var nvm) ? nvm : null;
