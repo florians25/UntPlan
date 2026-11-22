@@ -93,7 +93,7 @@ public static class StundenplanStundeDialog
         d.Controls.AddRange(new Control[] { liste, flaeche });
         foreach (Label chip in liste.Controls)
         {
-            chip.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) chip.DoDragDrop("feld:" + chip.Tag, DragDropEffects.Copy); };
+            Steuerelemente.Ziehschwelle.Anbinden(chip, _ => "feld:" + chip.Tag, DragDropEffects.Copy);
             chip.DoubleClick += (_, _) => editor.Hinzufuegen((StundenFeldArt)chip.Tag!, null);
         }
 

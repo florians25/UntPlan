@@ -616,16 +616,31 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
     {
         var hit = _grid.HitTest(e.X, e.Y);
         _ziehenZeile = -1;
+        _ziehenSpalte = null;
+        _ziehenStart = Cursor.Position;
+        if (e.Button != MouseButtons.Left) return;
         if (hit.Type == DataGridViewHitTestType.RowHeader && hit.RowIndex >= 0 && _grid.Rows[hit.RowIndex].Tag is Element) _ziehenZeile = hit.RowIndex;
         if (hit.Type == DataGridViewHitTestType.ColumnHeader && (ModifierKeys & Keys.Control) != 0)
         {
             var key = ((Feld)_grid.Columns[hit.ColumnIndex].Tag!).Schluessel;
-            if (key != "Kurzname") _grid.DoDragDrop("aus:" + key, DragDropEffects.Move);
+            if (key != "Kurzname") _ziehenSpalte = "aus:" + key;
         }
     }
 
+    private string? _ziehenSpalte;
+    private Point _ziehenStart;
+
     private void GridMouseMove(object? sender, MouseEventArgs e)
     {
+        if (e.Button != MouseButtons.Left) { _ziehenZeile = -1; _ziehenSpalte = null; }
+        // gezogen wird erst nach echter Mausbewegung (ein Klick auf Zeilen- bzw. Spaltenkopf verändert nichts)
+        if ((_ziehenZeile >= 0 || _ziehenSpalte != null) && !Steuerelemente.Ziehschwelle.Ueberschritten(_ziehenStart, Cursor.Position)) return;
+        if (_ziehenSpalte is { } spalte)
+        {
+            _ziehenSpalte = null;
+            _grid.DoDragDrop(spalte, DragDropEffects.Move);
+            return;
+        }
         if (_ziehenZeile >= 0 && e.Button == MouseButtons.Left)
         {
             var zeile = _ziehenZeile;
@@ -708,7 +723,7 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
                 var lbl = new Label { Text = f.Formulartext, Left = f.Art == FeldArt.Bool ? 20 : 132, Top = 4, Width = f.Art == FeldArt.Bool ? 226 : 156, AutoEllipsis = true, Cursor = Cursors.SizeAll, ForeColor = _spalten.Contains(f.Schluessel) ? Color.Gray : Color.Black };
                 _tip.SetToolTip(lbl, "Zum Einblenden in die Rasteransicht ziehen (Drag & Drop)");
                 var key = f.Schluessel;
-                lbl.MouseDown += (_, me) => { if (me.Button == MouseButtons.Left) lbl.DoDragDrop("ein:" + key, DragDropEffects.Copy); };
+                Steuerelemente.Ziehschwelle.Anbinden(lbl, _ => "ein:" + key, DragDropEffects.Copy);
                 Control ed;
                 if (f.Art == FeldArt.Bool)
                 {

@@ -1104,7 +1104,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         // Verplanung aus dem Unterrichtsfenster: Spalte "Nvpl. Std." per Drag & Drop in den Stundenplan ziehen
         if (e.Button == MouseButtons.Left && e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "Nvpl" &&
             _grid.Rows[e.RowIndex].Tag is ZeilenTag zt && Ix.NichtVerplant(zt.U) > 0)
-            _grid.DoDragDrop("unterricht:" + zt.U.Id, DragDropEffects.Move);
+            _ziehen = (e.RowIndex, Cursor.Position, "unterricht:" + zt.U.Id);
     }
 
     /// <summary>Kopierte Unterrichte (U-Nr.) und das Element der Ansicht, aus der kopiert wurde.</summary>
@@ -1273,7 +1273,7 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
         {
             if (_ziehen is not { } z || (m.Button & MouseButtons.Left) == 0) { _ziehen = null; return; }
             var p = Cursor.Position;
-            if (Math.Abs(p.X - z.Start.X) < SystemInformation.DragSize.Width && Math.Abs(p.Y - z.Start.Y) < SystemInformation.DragSize.Height) return;
+            if (!Steuerelemente.Ziehschwelle.Ueberschritten(z.Start, p)) return;
             _ziehen = null;
             _grid.DoDragDrop(z.Daten, DragDropEffects.Move);
         };

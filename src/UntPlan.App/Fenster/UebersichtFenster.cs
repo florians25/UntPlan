@@ -172,8 +172,28 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
             var p = AppZustand.Doc.Index.PlanVon(_f._typ, el.Id).FirstOrDefault(x => x.Tag == h.Value.Tag && x.Stunde == h.Value.Stunde);
             if (p is null) return;
             if (AppZustand.Doc.Index.Unterrichte.TryGetValue(p.UnterrichtId, out var u)) AppZustand.StundeWaehlen(u, p, this);
-            _drag = (h.Value.Zeile, p);
-            DoDragDrop("uebersicht", DragDropEffects.Move);
+            // Ziehen erst nach echter Mausbewegung (ein Klick wählt nur die Stunde, verschiebt nie)
+            _drag = null;
+            _ziehStart = e.Button == MouseButtons.Left ? (h.Value.Zeile, p, Cursor.Position) : null;
+        }
+
+        private (int Zeile, Planstunde P, Point Start)? _ziehStart;
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (_ziehStart is not { } z) return;
+            if ((e.Button & MouseButtons.Left) == 0) { _ziehStart = null; return; }
+            if (!Steuerelemente.Ziehschwelle.Ueberschritten(z.Start, Cursor.Position)) return;
+            _ziehStart = null;
+            _drag = (z.Zeile, z.P);
+            if (DoDragDrop("uebersicht", DragDropEffects.Move) == DragDropEffects.None) _drag = null;
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            _ziehStart = null;
         }
 
         protected override void OnDragOver(DragEventArgs e) => e.Effect = _drag.HasValue ? DragDropEffects.Move : DragDropEffects.None;

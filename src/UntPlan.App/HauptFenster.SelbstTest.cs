@@ -1024,6 +1024,157 @@ public sealed partial class HauptFenster
             Foto(Path.Combine(ordner, "V6_Gesamt_F.png"));
             WindowState = vorherZustand;
         }, -1);
+        // V12/V13: sichere und schnelle Absenzeingabe (Direktsuche, Prüfung mit roter Markierung, Überschneidungen, Esc, Entf, Strg+Z)
+        // sowie mehrere Elemente aus dem Element-Rollup auf einmal absent setzen und Grund bzw. Text für alle eintragen
+        void AbsenzFoto(string name, Form f, bool ganzerBildschirm = false)
+        {
+            Warten(500);
+            f.Refresh();
+            if (ganzerBildschirm) { Foto(Path.Combine(ordner, name + "_F.png")); return; }
+            var r = f.IsMdiChild ? f.Parent!.RectangleToScreen(f.Bounds) : f.RectangleToScreen(f.ClientRectangle);
+            r = new Rectangle(r.Location, new Size(Math.Min(r.Width, 1000), Math.Min(r.Height, 420)));
+            using var bmp = new Bitmap(r.Width, r.Height);
+            using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+            bmp.Save(Path.Combine(ordner, name + "_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        void Pruefen(bool ok, string text) { if (!ok) throw new InvalidOperationException(text); }
+        Schritt("V12_Absenzeingabe_sicher", () =>
+        {
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var auswahlFragen = new List<string>();
+            var antwort = 0;
+            Ui.AuswahlAntwort = (text, knoepfe) => { auswahlFragen.Add(text + " [" + string.Join("|", knoepfe) + "]"); return antwort; };
+            try
+            {
+                var datum = AppZustand.Datum;
+                var dd = AppZustand.D;
+                var f = Max(FensterOeffnen("abw")!) as AbwesenheitenFenster ?? throw new InvalidOperationException("Absenzfenster fehlt");
+                f.SelbsttestReiter(0);
+                Warten(400);
+                // Lehrkraft ohne Absenz an diesem Tag; kürzester eindeutiger Anfang des Kurznamens, klein geschrieben (Direktsuche)
+                var lehrer = dd.Lehrer.Where(l => l.Id != krank.Id && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l.Id))
+                    .OrderBy(l => l.Kurzname.Length).First();
+                var anfang = Enumerable.Range(1, lehrer.Kurzname.Length).Select(n => lehrer.Kurzname[..n])
+                    .FirstOrDefault(p => dd.Lehrer.Where(x => x.Kurzname.StartsWith(p, StringComparison.CurrentCultureIgnoreCase)).Select(x => x.Id).SequenceEqual(new[] { lehrer.Id }) &&
+                                         !Stammdaten.Sortiert(dd, ElementTyp.Lehrer).TakeWhile(x => x.Id != lehrer.Id).Any(x => x.Kurzname.Contains(p, StringComparison.CurrentCultureIgnoreCase)))
+                    ?? lehrer.Kurzname;
+                List<Abwesenheit> Absenzen() => AppZustand.D.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == lehrer.Id).ToList();
+                Pruefen(f.SelbsttestTippen("E", anfang.ToLowerInvariant()), $"Direktsuche „{anfang.ToLowerInvariant()}“ nicht übernommen");
+                Warten(500);
+                var abs = Absenzen();
+                Pruefen(abs.Count == 1 && abs[0].Von == datum && abs[0].Bis == datum && abs[0].StundeVon == 1 && abs[0].StundeBis >= dd.Zeitraster.StundenProTag,
+                    $"Absenz nach Direktsuche: {string.Join("; ", abs.Select(a => $"{a.Von:dd.MM.} {a.StundeVon}-{a.StundeBis}"))}");
+                var id = abs[0].Id;
+                log.Add($"INFO  V12: „{anfang.ToLowerInvariant()}“ eingetippt: {lehrer.Kurzname} am {datum:dd.MM.} ganztägig absent (Nr. {id})");
+                // ungültige Stunde: abgelehnt, rot markiert, nichts gespeichert
+                var zaehler = Ui.EingabeHinweisZaehler;
+                Pruefen(!f.SelbsttestTippen("SV", "99", id), "Stunde 99 wurde angenommen");
+                Pruefen(f.SelbsttestRot && f.SelbsttestFehlertext.Length > 0 && Ui.EingabeHinweisZaehler > zaehler, "ungültige Stunde nicht rot markiert bzw. ohne Hinweis");
+                log.Add($"INFO  V12: ab St. 99 abgelehnt: {f.SelbsttestFehlertext}");
+                AbsenzFoto("V12_Absenz_Fehler", f);
+                f.SelbsttestTaste(Keys.Escape);
+                Warten(200);
+                Pruefen(!f.SelbsttestRot && Absenzen().Single().StundeVon == 1, "Esc hat die ungültige Eingabe nicht verworfen");
+                // ab 4. Stunde gültig, bis 2. Stunde am selben Tag ungültig; Bis vor Von ungültig; Datum außerhalb des Schuljahres ungültig
+                Pruefen(f.SelbsttestTippen("SV", "4", id), "ab St. 4 abgelehnt");
+                Warten(400);
+                Pruefen(Absenzen().Single().StundeVon == 4, "ab St. 4 nicht gespeichert");
+                Pruefen(!f.SelbsttestTippen("SB", "2", id), "bis St. 2 vor ab St. 4 angenommen");
+                log.Add($"INFO  V12: bis St. 2 abgelehnt: {f.SelbsttestFehlertext}");
+                f.SelbsttestTaste(Keys.Escape);
+                Pruefen(!f.SelbsttestTippen("B", $"{datum.AddDays(-1):dd.MM.}", id), "Bis vor Von angenommen");
+                log.Add($"INFO  V12: Bis vor Von abgelehnt: {f.SelbsttestFehlertext}");
+                f.SelbsttestTaste(Keys.Escape);
+                var ausserhalb = dd.Einstellungen.SchuljahrBis.AddDays(3);
+                Pruefen(!f.SelbsttestTippen("B", $"{ausserhalb:dd.MM.yyyy}", id), "Bis außerhalb des Schuljahres angenommen");
+                f.SelbsttestTaste(Keys.Escape);
+                Warten(200);
+                var nachFehlern = Absenzen().Single();
+                Pruefen(nachFehlern.Bis == datum && nachFehlern.StundeVon == 4, "abgelehnte Eingaben haben die Absenz verändert");
+                // zweite Absenz derselben Lehrkraft (ganzer Tag) überschneidet die vorhandene: Zusammenfassen statt Doppelung
+                antwort = 0;
+                Pruefen(f.SelbsttestTippen("E", lehrer.Kurzname), "Lehrkraft in der Eingabezeile abgelehnt");
+                Warten(500);
+                abs = Absenzen();
+                Pruefen(auswahlFragen.Count == 1 && auswahlFragen[0].Contains("Zusammenfassen"), "keine Frage zur Überschneidung: " + string.Join(" / ", auswahlFragen));
+                Pruefen(abs.Count == 1 && abs[0].StundeVon == 1, $"Überschneidung nicht zusammengefasst: {abs.Count} Absenzen, ab St. {abs.FirstOrDefault()?.StundeVon}");
+                id = abs[0].Id;
+                // nochmals derselbe Tag: liegt ganz in der vorhandenen Absenz, keine zweite Absenz
+                Pruefen(f.SelbsttestTippen("E", lehrer.Kurzname), "Lehrkraft in der Eingabezeile abgelehnt (2)");
+                Warten(500);
+                Pruefen(auswahlFragen.Count == 2 && auswahlFragen[1].Contains("bereits abwesend") && Absenzen().Count == 1, "doppelte Absenz angelegt bzw. ohne Hinweis");
+                log.Add($"INFO  V12: Überschneidung zusammengefasst, Doppelung verhindert ({auswahlFragen.Count} Rückfragen)");
+                // Text eingeben und mit Esc (ohne laufende Eingabe) die Eingaben dieser Zeile zurücknehmen
+                Pruefen(f.SelbsttestTippen("T", "Probe Esc", id), "Text abgelehnt");
+                Warten(400);
+                Pruefen(Absenzen().Single().Text == "Probe Esc", "Text nicht gespeichert");
+                f.SelbsttestTaste(Keys.Escape);
+                Warten(400);
+                Pruefen(Absenzen().Single().Text == "", "Esc hat die Eingabe der Zeile nicht zurückgenommen");
+                // Entf auf dem Element löscht nach einer Rückfrage, Strg+Z stellt wieder her
+                var fragenVorher = fragen.Count;
+                f.SelbsttestWaehlen("E", id);
+                f.SelbsttestTaste(Keys.Delete);
+                Warten(400);
+                Pruefen(fragen.Count == fragenVorher + 1 && Absenzen().Count == 0, "Entf ohne genau eine Rückfrage bzw. nicht gelöscht");
+                Ui.Rueckgaengig();
+                Warten(400);
+                Pruefen(Absenzen().Count == 1, "Strg+Z hat die gelöschte Absenz nicht wiederhergestellt");
+                log.Add($"INFO  V12: Esc nimmt Zeile zurück, Entf fragt einmal, Strg+Z stellt wieder her");
+            }
+            finally
+            {
+                Ui.AuswahlAntwort = null;
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
+        Schritt("V13_Absenzen_mehrere_Elemente", () =>
+        {
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            try
+            {
+                var datum = AppZustand.Datum;
+                var dd = AppZustand.D;
+                var f = FensterOeffnen("abw") as AbwesenheitenFenster ?? throw new InvalidOperationException("Absenzfenster fehlt");
+                f.WindowState = FormWindowState.Normal;
+                f.Bounds = new Rectangle(10, 10, 760, 330);
+                f.SelbsttestReiter(0);
+                ElementRollup.Zeigen(ElementTyp.Lehrer);
+                Warten(400);
+                var frei = dd.Lehrer.Where(l => !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l.Id)).Take(4).ToList();
+                var text = ElementRollup.SelbsttestMarkieren(frei.Select(l => l.Kurzname)) ?? throw new InvalidOperationException("Rollup ohne Markierung");
+                Pruefen(text.StartsWith("elemente:Lehrer:") && text.Split(',').Length == frei.Count, "Ziehtext: " + text);
+                f.SelbsttestFallenlassen(text);
+                Warten(500);
+                var neu = AppZustand.D.Abwesenheiten.Where(a => a.Art == AbwesenheitsArt.Lehrer && frei.Any(l => l.Id == a.ElementId)).OrderBy(a => a.Id).ToList();
+                Pruefen(neu.Count == frei.Count, $"{neu.Count} statt {frei.Count} Absenzen angelegt");
+                Pruefen(neu.All(a => a.Von == datum && a.Bis == datum && a.StundeVon == 1 && a.StundeBis >= dd.Zeitraster.StundenProTag), "Absenzen nicht ganztägig am eingestellten Tag");
+                Pruefen(neu.Zip(neu.Skip(1)).All(x => x.Second.Id == x.First.Id + 1), "Absenznummern nicht fortlaufend: " + string.Join(",", neu.Select(a => a.Id)));
+                var ids = neu.Select(a => a.Id).ToList();
+                Pruefen(f.SelbsttestMarkierte("G").SequenceEqual(ids), "Grund-Felder der neuen Absenzen nicht markiert");
+                var grund = dd.Abwesenheitsgruende.FirstOrDefault() ?? throw new InvalidOperationException("kein Absenzgrund");
+                Pruefen(f.SelbsttestMehrfach("G", ids, grund.Kurzname), "Grund für alle abgelehnt");
+                Warten(500);
+                Pruefen(AppZustand.D.Abwesenheiten.Where(a => ids.Contains(a.Id)).All(a => a.GrundId == grund.Id), "Grund nicht für alle markierten Absenzen gesetzt");
+                Pruefen(f.SelbsttestMehrfach("T", ids, "Exkursion Probe"), "Text für alle abgelehnt");
+                Warten(500);
+                Pruefen(AppZustand.D.Abwesenheiten.Where(a => ids.Contains(a.Id)).All(a => a.Text == "Exkursion Probe"), "Text nicht für alle markierten Absenzen gesetzt");
+                // erneut dieselben Lehrkräfte ablegen: alle überschneiden sich, es entstehen keine Doppelungen (Vorgabe „Nur die übrigen“)
+                var anzahl = AppZustand.D.Abwesenheiten.Count;
+                f.SelbsttestFallenlassen(text);
+                Warten(400);
+                Pruefen(AppZustand.D.Abwesenheiten.Count == anzahl, "doppelte Absenzen beim erneuten Ablegen");
+                log.Add($"INFO  V13: {ids.Count} Lehrkräfte aus dem Rollup abgelegt (Nr. {ids.First()} bis {ids.Last()}), Grund {grund.Kurzname} und Text für alle gesetzt");
+                AbsenzFoto("V13_Absenzen_mehrere", f, ganzerBildschirm: true);
+            }
+            finally
+            {
+                AlleSchliessen();
+                if (Application.OpenForms.OfType<ElementRollup>().FirstOrDefault() is { } ro) ro.Close();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
         Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);

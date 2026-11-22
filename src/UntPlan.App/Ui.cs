@@ -143,6 +143,8 @@ public static partial class Ui
     public static Color ZelleGesperrt => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(228, 238, 248);
     /// <summary>Aktuelle Zelle im Vertretungsmodus (helles Orange wie im Vorbild).</summary>
     public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
+    /// <summary>Hintergrund einer Tabellenzelle mit ungültiger Eingabe (hellrot, dazu Fehlersymbol mit Tooltip).</summary>
+    public static readonly Color FehlerHintergrund = Color.FromArgb(255, 205, 205);
     /// <summary>Werkzeugleisten der Arbeitsfenster.</summary>
     public static Color Leiste => Vertretungsmodus ? Color.FromArgb(240, 246, 243) : Color.FromArgb(246, 248, 251);
     /// <summary>Markierte Zeilen im Vertretungsmodus (gedecktes Grün wie im Vorbild).</summary>
