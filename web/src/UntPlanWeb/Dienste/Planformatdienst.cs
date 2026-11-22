@@ -72,6 +72,9 @@ public sealed class Planformatdienst
     public static readonly string[] Namensformen = { "kurz", "lang", "langkurz" };
     private const string SchluesselFormate = "planformate";
     private const string SchluesselZuordnung = "planformate:zuordnung";
+    private const string SchluesselStandard = "planformate:standard";
+    /// <summary>Name des Standardformats (fest; in der Liste und im Menü „⋮“ des Stundenplans).</summary>
+    public const string StandardName = "Standard";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { DefaultIgnoreCondition = JsonIgnoreCondition.Never };
     private readonly Einstellungen _einst;
 
@@ -82,6 +85,35 @@ public sealed class Planformatdienst
         var json = _einst.Lesen(SchluesselFormate);
         if (string.IsNullOrWhiteSpace(json)) return new();
         try { return JsonSerializer.Deserialize<List<Planformat>>(json, Json) ?? new(); } catch (JsonException) { return new(); }
+    }
+
+    /// <summary>
+    /// Vorgabe des Standardformats (Id 0): alles wie die Standarddarstellung – alle Tage und Stunden des Zeitrasters, Anordnung auf dem
+    /// Stundenkärtchen je nach Plan (keine Elemente).
+    /// </summary>
+    public static Planformat StandardVorgabe => new() { Id = 0, Name = StandardName };
+
+    /// <summary>Bearbeitetes Standardformat (Id 0) bzw. null, solange es nicht bearbeitet wurde (dann gilt die Standarddarstellung unverändert).</summary>
+    public Planformat? Standard()
+    {
+        var json = _einst.Lesen(SchluesselStandard);
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { return JsonSerializer.Deserialize<Planformat>(json, Json) is { } f ? f with { Id = 0, Name = StandardName } : null; } catch (JsonException) { return null; }
+    }
+
+    /// <summary>Standardformat (Id 0) ändern: wie ein Format, aber mit festem Name; ohne Elemente gilt die Anordnung der Standarddarstellung.</summary>
+    public Planformat StandardSpeichern(Planformat f)
+    {
+        var neu = Pruefen(f with { Id = 0, Name = StandardName }, standard: true);
+        _einst.Schreiben(SchluesselStandard, JsonSerializer.Serialize(neu, Json));
+        return neu;
+    }
+
+    /// <summary>Standardformat auf die Vorgabe zurücksetzen (Standarddarstellung).</summary>
+    public Planformat StandardZuruecksetzen()
+    {
+        _einst.Schreiben(SchluesselStandard, "");
+        return StandardVorgabe;
     }
 
     public PlanformatZuordnung Zuordnung()
@@ -103,32 +135,12 @@ public sealed class Planformatdienst
     /// <summary>Format anlegen (Id null bzw. 0) oder ändern; prüft Name, Elemente, Tage und Uhrzeiten.</summary>
     public Planformat Speichern(Planformat f)
     {
-        var name = (f.Name ?? "").Trim();
-        if (name.Length == 0) throw new ArgumentException("Bitte einen Namen eingeben.");
-        if (name.Length > 60) throw new ArgumentException("Der Name ist zu lang (höchstens 60 Zeichen).");
-        var elemente = (f.Elemente ?? new()).Where(e => !string.IsNullOrWhiteSpace(e.Art)).Select(e => e with
-        {
-            Art = e.Art.Trim().ToLowerInvariant(), Name = string.IsNullOrWhiteSpace(e.Name) ? "kurz" : e.Name.Trim().ToLowerInvariant(),
-        }).ToList();
-        if (elemente.Count == 0) throw new ArgumentException("Bitte mindestens das 1. Element auf dem Stundenkärtchen wählen.");
-        if (elemente.Count > 5) throw new ArgumentException("Höchstens 5 Elemente auf dem Stundenkärtchen.");
-        if (elemente.FirstOrDefault(e => !Arten.Contains(e.Art)) is { } fa) throw new ArgumentException($"Unbekanntes Element „{fa.Art}“.");
-        if (elemente.FirstOrDefault(e => !Namensformen.Contains(e.Name)) is { } fn) throw new ArgumentException($"Unbekannte Namensform „{fn.Name}“.");
-        if (elemente.GroupBy(e => e.Art).Any(g => g.Count() > 1)) throw new ArgumentException("Jedes Element nur einmal auf dem Stundenkärtchen.");
-        var tage = (f.Tage ?? new()).Distinct().OrderBy(t => t).ToList();
-        if (tage.Any(t => t is < 0 or > 6)) throw new ArgumentException("Ungültiger Wochentag.");
-        string Uhrzeit(string? z, string feld)
-        {
-            var t = (z ?? "").Trim();
-            if (t.Length == 0) return "";
-            return TimeOnly.TryParseExact(t, "HH:mm", out var u) ? u.ToString("HH:mm") : throw new ArgumentException($"{feld}: Uhrzeit als HH:mm angeben.");
-        }
-        var von = Uhrzeit(f.ZeitVon, "Beginnzeit");
-        var bis = Uhrzeit(f.ZeitBis, "Endzeit");
-        if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) >= 0) throw new ArgumentException("Die Beginnzeit muss vor der Endzeit liegen.");
+        var neu = Pruefen(f, standard: false);
         var liste = Formate();
-        if (liste.Any(x => x.Id != f.Id && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("Ein Stundenplanformat mit diesem Namen gibt es schon.");
-        var neu = f with { Name = name, Elemente = elemente, Tage = tage, ZeitVon = von, ZeitBis = bis, Zeitraster = f.Zeitraster == "uhrzeit" ? "uhrzeit" : "raster" };
+        if (liste.Any(x => x.Id != f.Id && string.Equals(x.Name, neu.Name, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException("Ein Stundenplanformat mit diesem Namen gibt es schon.");
+        // „Standard“ heißt schon das Standardformat (ältere Formate dieses Namens bleiben erhalten)
+        if (string.Equals(neu.Name, StandardName, StringComparison.OrdinalIgnoreCase) && !liste.Any(x => x.Id == f.Id && string.Equals(x.Name, neu.Name, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("„Standard“ heißt bereits das Standardformat – bitte einen anderen Namen wählen.");
         if (f.Id <= 0)
         {
             neu = neu with { Id = liste.Count == 0 ? 1 : liste.Max(x => x.Id) + 1 };
@@ -144,8 +156,40 @@ public sealed class Planformatdienst
         return neu;
     }
 
+    /// <summary>Name, Elemente (beim Standardformat auch keine: Anordnung je nach Plan), Tage und Uhrzeiten prüfen und vereinheitlichen.</summary>
+    private static Planformat Pruefen(Planformat f, bool standard)
+    {
+        var name = (f.Name ?? "").Trim();
+        if (name.Length == 0) throw new ArgumentException("Bitte einen Namen eingeben.");
+        if (name.Length > 60) throw new ArgumentException("Der Name ist zu lang (höchstens 60 Zeichen).");
+        var elemente = (f.Elemente ?? new()).Where(e => !string.IsNullOrWhiteSpace(e.Art)).Select(e => e with
+        {
+            Art = e.Art.Trim().ToLowerInvariant(), Name = string.IsNullOrWhiteSpace(e.Name) ? "kurz" : e.Name.Trim().ToLowerInvariant(),
+        }).ToList();
+        if (elemente.Count == 0 && !standard) throw new ArgumentException("Bitte mindestens das 1. Element auf dem Stundenkärtchen wählen.");
+        if (elemente.Count > 5) throw new ArgumentException("Höchstens 5 Elemente auf dem Stundenkärtchen.");
+        if (elemente.FirstOrDefault(e => !Arten.Contains(e.Art)) is { } fa) throw new ArgumentException($"Unbekanntes Element „{fa.Art}“.");
+        if (elemente.FirstOrDefault(e => !Namensformen.Contains(e.Name)) is { } fn) throw new ArgumentException($"Unbekannte Namensform „{fn.Name}“.");
+        if (elemente.GroupBy(e => e.Art).Any(g => g.Count() > 1)) throw new ArgumentException("Jedes Element nur einmal auf dem Stundenkärtchen.");
+        var tage = (f.Tage ?? new()).Distinct().OrderBy(t => t).ToList();
+        if (tage.Any(t => t is < 0 or > 6)) throw new ArgumentException("Ungültiger Wochentag.");
+        string Uhrzeit(string? z, string feld)
+        {
+            var t = (z ?? "").Trim();
+            if (t.Length == 0) return "";
+            return TimeOnly.TryParseExact(t, "HH:mm", out var u) ? u.ToString("HH:mm") : throw new ArgumentException($"{feld}: Uhrzeit als HH:mm angeben.");
+        }
+        var von = Uhrzeit(f.ZeitVon, "Beginnzeit");
+        var bis = Uhrzeit(f.ZeitBis, "Endzeit");
+        if (von.Length > 0 && bis.Length > 0 && string.CompareOrdinal(von, bis) >= 0) throw new ArgumentException("Die Beginnzeit muss vor der Endzeit liegen.");
+        // alle sieben Tage gewählt = alle Tage des Zeitrasters
+        if (tage.Count == 7) tage = new();
+        return f with { Name = name, Elemente = elemente, Tage = tage, ZeitVon = von, ZeitBis = bis, Zeitraster = f.Zeitraster == "uhrzeit" ? "uhrzeit" : "raster" };
+    }
+
     public void Loeschen(int id)
     {
+        if (id == 0) throw new ArgumentException("Das Standardformat kann nicht gelöscht werden – es lässt sich nur auf die Vorgabe zurücksetzen.");
         var liste = Formate();
         if (liste.RemoveAll(x => x.Id == id) == 0) throw new ArgumentException("Unbekanntes Stundenplanformat.");
         _einst.Schreiben(SchluesselFormate, JsonSerializer.Serialize(liste, Json));
@@ -157,7 +201,10 @@ public sealed class Planformatdienst
         }, Json));
     }
 
-    /// <summary>Format für einen Plan des Typs (Klasse, Lehrkraft, Raum); Kollegium nur, wenn die Zuordnung es vorsieht. Null = Standard.</summary>
+    /// <summary>
+    /// Format für einen Plan des Typs (Klasse, Lehrkraft, Raum); Kollegium nur, wenn die Zuordnung es vorsieht. Ohne Zuordnung das
+    /// Standardformat (Id 0) – null, solange es nicht bearbeitet wurde (Standarddarstellung).
+    /// </summary>
     public Planformat? FormatFuer(string typ, bool kollegium)
     {
         var z = Zuordnung();
@@ -168,12 +215,12 @@ public sealed class Planformatdienst
             Elementtyp.Klasse when !kollegium && z.Schueler is not null => z.Schueler,
             Elementtyp.Klasse => z.Klasse, Elementtyp.Lehrer => z.Lehrer, Elementtyp.Raum => z.Raum, _ => null,
         };
-        return id is int i ? Formate().FirstOrDefault(f => f.Id == i) : null;
+        return (id is int i ? Formate().FirstOrDefault(f => f.Id == i) : null) ?? Standard();
     }
 
-    /// <summary>Gewähltes Format (Menü „⋮“ im Stundenplan): 0 = Standarddarstellung, sonst das Format mit dieser Id (unbekannt: Vorgabe).</summary>
+    /// <summary>Gewähltes Format (Menü „⋮“ im Stundenplan): 0 = Standardformat, sonst das Format mit dieser Id (unbekannt: Vorgabe).</summary>
     public Planformat? Gewaehlt(int? wahl, string typ, bool kollegium) =>
-        wahl switch { null => FormatFuer(typ, kollegium), 0 => null, int i => Formate().FirstOrDefault(f => f.Id == i) ?? FormatFuer(typ, kollegium) };
+        wahl switch { null => FormatFuer(typ, kollegium), 0 => Standard(), int i => Formate().FirstOrDefault(f => f.Id == i) ?? FormatFuer(typ, kollegium) };
 
     /// <summary>
     /// Format auf den Wochenplan anwenden: Tage und Uhrzeiten eingrenzen, Aktivitäten ausblenden, Hervorhebungen und Farben entfernen;

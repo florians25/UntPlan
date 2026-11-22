@@ -177,6 +177,11 @@ public sealed record Karte(
     /// (Speicherung mit negativer Stundennummer, siehe <see cref="Klassenbuchdienst.Schluessel"/>).
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore] public int? Einzelstunde { get; init; }
+    /// <summary>
+    /// Lehrerplan: entfallene Kopplungszeile einer Kollegin (nicht der angezeigten Lehrkraft) – nur, um sie in der gemeinsamen Karte
+    /// durchgestrichen zu zeigen (siehe <see cref="Plandienst.TeilentfallInKopplung"/>); allein erscheint sie nie.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore] public bool NurKopplung { get; init; }
 }
 
 /// <summary>
@@ -525,7 +530,8 @@ public sealed class Plandienst
         static bool GleicheKlassen(Rohstunde a, Rohstunde b) => a.Klassen.Count == b.Klassen.Count && a.Klassen.All(x => Enthaelt(b.Klassen, x));
         static bool GleicherZusatz(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && GleicherRaum(a, b) && GleicheKlassen(a, b)
             && (a.Fach.Length > 0 || Ci.Equals(a.Text.Trim(), b.Text.Trim()));
-        bool Mitgekoppelt(Rohstunde r) => r.Status is not ("entfall" or "vorgemerkt") &&
+        // auch entfallene Kopplungszeilen der Kolleg*innen: in der gemeinsamen Karte durchgestrichen (siehe TeilentfallInKopplung)
+        bool Mitgekoppelt(Rohstunde r) => r.Status is not "vorgemerkt" &&
             (r.Unterricht is int u
                 ? r.Fach.Length > 0 && roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz))
                 : ZusatzOhneUnterricht(r) && roh.Any(x => !ReferenceEquals(x, r) && ZusatzOhneUnterricht(x) && GleicherZusatz(x, r) && Enthaelt(x.Lehrer, kurz)));
@@ -575,6 +581,7 @@ public sealed class Plandienst
             // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
             if (!betrifft && !(r.Status == "vorgemerkt" && r.Unterricht.HasValue && r.Art != "Klausur")) continue;
             var k = KarteBauen(s, d, typ, kurz, r, v, zeiten);
+            if (typ == Elementtyp.Lehrer && r.Status == "entfall" && !Enthaelt(r.Lehrer, kurz) && !(v != null && Ci.Equals(v.Lehrer, kurz))) k = k with { NurKopplung = true };
             if (typ == Elementtyp.Klasse && r.Status != "vorgemerkt") k = MitklassenSetzen(k, r, roh, kurz, amPlatz, KlasseAbwesend(s, d));
             // Plan der abwesenden Lehrkraft: eine Stunde mehrerer Lehrkräfte (Kopplung, Konferenz) nennt weiter alle Kolleg*innen
             // Fachänderung im Plan der ursprünglichen (abwesenden bzw. ersetzten) Lehrkraft: ihre Stunde entfällt (rot, bisheriges Fach) – die
@@ -664,7 +671,7 @@ public sealed class Plandienst
         // Veranstaltung der Klassen erst nach dem Zusammenfassen der Kopplungen: entfällt nur, wenn alle Klassen der gemeinsamen Karte teilnehmen
         // Klassenabwesenheit je Stunde vor dem Zusammenfassen zu Blöcken: deckt die Absenz nur einen Teil eines Blocks, wird nur dieser Teil markiert
         // Zusatzstunden: Vertretungen erst jetzt (nach dem Zusammenfassen) auflösen – siehe ZusatzLehrer
-        var gekoppelt = Kopplungen(einzel).Select(k => k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null
+        var gekoppelt = Kopplungen(TeilentfallInKopplung(einzel)).Where(k => !k.NurKopplung).Select(k => k.Zusaetzlich && k.Status == "geaendert" && k.Verlegung is null
             && k.Lehrer.Any(w => w.K.Length > 0 && !string.IsNullOrEmpty(w.Alt)) ? k with { Lehrer = ZusatzLehrer(k.Lehrer) } : k).ToList();
         // erst nach ZusatzPruefen steht fest, welche Karten Zusatzstunden sind – deren Räume gelten dann als hinzugefügt („+B003“)
         return ZusatzRaeume(ZusatzPruefen(Zusammenfassen(KlassenAbwesenheit(s, d, KlassenVeranstaltung(s, d, gekoppelt), typ, kurz), zeiten))).Select(LabelVorne).ToList();
@@ -1224,6 +1231,45 @@ public sealed class Plandienst
             Zusaetzlich = false, VertretungOffen = false, LehrerAbwesend = false, Mitklassen = new(), NotizSchueler = "", NotizLehrer = "", HausaufgabeFaellig = false,
             Online = false, OnlineLink = "",
         };
+    }
+
+    /// <summary>
+    /// Kopplung, in der nur ein Teil entfällt (z. B. „SN, CS, SZ“, nur SN entfällt): Die Stunde findet für die übrigen statt – keine rote
+    /// Entfall-Karte daneben, sondern eine grüne Änderungskarte mit dem entfallenen Element durchgestrichen im Label (Lehrkraft
+    /// { K = "", Alt = "SN", Neu = true }; eine nur dort stehende Klasse ebenso als Mitklasse). Gleiche Stunde heißt: gleiche Zeit, gleiches
+    /// Fach und gleiche Räume laut Stundenplan wie eine stattfindende Zeile (wie beim Zusammenfassen in <see cref="Kopplungen"/>). Nicht bei
+    /// Verlegung, Prüfung, Veranstaltung, Klassenabwesenheit, Bereitschaft und Zusatzstunden. Entfallen alle Elemente, bleibt es ein Entfall.
+    /// </summary>
+    internal static List<Karte> TeilentfallInKopplung(List<Karte> einzel)
+    {
+        static bool Kandidat(Karte k) => k.Unterricht is int && k.Fach.Length > 0 && k.Verlegung is null && k.Klausur is null && !k.WegenVeranstaltung
+                                         && !k.Bereitschaft && !k.Zusaetzlich && k.AbwesendeKlassen.Count == 0 && k.Art != "Klasse abwesend";
+        static string Raeume(Karte k) => string.Join(",", k.Raeume.Select(w => (w.Alt is { Length: > 0 } a ? a : w.Plus ? "" : w.K).ToLowerInvariant()).Where(x => x.Length > 0).Distinct().OrderBy(x => x, StringComparer.Ordinal));
+        static string Schluessel(Karte k) => $"{k.Datum}|{k.Von}|{k.Bis}|{(string.IsNullOrEmpty(k.FachAlt) ? k.Fach : k.FachAlt).ToLowerInvariant()}|{k.Fach.ToLowerInvariant()}|{Raeume(k)}";
+        var entfall = einzel.Where(k => k.Status == "entfall" && Kandidat(k)).ToList();
+        if (entfall.Count == 0) return einzel;
+        var res = einzel.ToList();
+        foreach (var e in entfall)
+        {
+            var sk = Schluessel(e);
+            var ziele = res.Where(k => k.Status is "regulaer" or "geaendert" or "offen" && Kandidat(k) && Schluessel(k) == sk).ToList();
+            if (ziele.Count == 0) continue;
+            var ziel = ziele.FirstOrDefault(k => k.Unterricht == e.Unterricht) ?? ziele[0];
+            bool Steht(string kuerzel, Func<Karte, IEnumerable<Wert>> werte) => ziele.Any(z => werte(z).Any(w => Ci.Equals(w.K, kuerzel) || Ci.Equals(w.Alt, kuerzel)));
+            var lehrer = e.Lehrer.Select(w => w.K.Length > 0 ? w.K : w.Alt ?? "").Where(l => l.Length > 0 && !IstPlatzhalter(l) && !Steht(l, z => z.Lehrer)).Distinct(Ci).ToList();
+            var klassen = e.Klassen.Select(w => w.K).Where(c => c.Length > 0 && !Steht(c, z => z.Klassen.Concat(z.Mitklassen))).Distinct(Ci).ToList();
+            // nichts, was wegfällt (gleiche Lehrkraft und Klasse): wie bisher
+            if (lehrer.Count == 0 && klassen.Count == 0) continue;
+            var i = res.FindIndex(k => ReferenceEquals(k, ziel));
+            res[i] = ziel with
+            {
+                Status = ziel.Status == "regulaer" ? "geaendert" : ziel.Status,
+                Lehrer = ziel.Lehrer.Concat(lehrer.Select(l => new Wert("", l, true))).ToList(),
+                Mitklassen = ziel.Mitklassen.Concat(klassen.Select(c => new Wert("", c, true))).ToList(),
+            };
+            res.RemoveAll(k => ReferenceEquals(k, e));
+        }
+        return res;
     }
 
     /// <summary>
