@@ -17,8 +17,32 @@ internal sealed class PlanRahmen : Panel
 
     private int Pos(bool senkrecht) => senkrecht ? -AutoScrollPosition.Y : -AutoScrollPosition.X;
 
-    private void Setzen(bool senkrecht, int wert) =>
+    private void Setzen(bool senkrecht, int wert)
+    {
         AutoScrollPosition = senkrecht ? new Point(Pos(false), wert) : new Point(wert, Pos(true));
+        Neuzeichnen();
+    }
+
+    /// <summary>Nach jedem Scrollen den ganzen Plan sofort neu zeichnen: Windows verschiebt beim Scrollen die alten Bildpunkte samt
+    /// stehendem Kopf; ohne sofortiges Neuzeichnen ist der Kopf kurz doppelt zu sehen.</summary>
+    private void Neuzeichnen()
+    {
+        if (Plan is null) return;
+        Plan.Invalidate();
+        Plan.Update();
+    }
+
+    /// <summary>Gesamten Inhalt doppelt gepuffert zeichnen (WS_EX_COMPOSITED): kein Zwischenbild mit verschobenem Kopf.</summary>
+    protected override CreateParams CreateParams
+    {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x02000000; return cp; }
+    }
+
+    protected override void OnScroll(ScrollEventArgs se)
+    {
+        base.OnScroll(se);
+        Neuzeichnen();
+    }
 
     /// <summary>Größte erreichbare Scrollposition.</summary>
     private int Hoechste(bool senkrecht) =>
