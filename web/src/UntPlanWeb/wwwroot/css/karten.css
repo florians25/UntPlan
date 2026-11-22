@@ -24,6 +24,9 @@ html:root.is-win .std .z1 { font-weight: 500; }
 /* Label im Kopf wie Vorlage 305: Kasten oben an der Zeile ausgerichtet (unabhängig von der Grundlinie der Schrift), 16px hoch ab +7
    unter der Kartenkante, Versalien 4px unter der Oberkante und 2px über der Unterkante */
 .std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
+/* Firefox (Bild 319): der oben ausgerichtete Kasten steht 1px zu hoch, der Text richtig; Kasten 1px tiefer, Text bleibt */
+html:root.is-gecko .std .z1 .lbl { position: relative; top: 1px; padding-top: 1px; }
+html:root.is-gecko .std .z1:has(.lbl) { padding-bottom: 1px; margin-bottom: -3px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
