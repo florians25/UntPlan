@@ -1981,7 +1981,8 @@ public sealed partial class PlanAnsicht : Control
     {
         if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
         var liste = zeilen.Select(z => new List<(string Text, Color Farbe, bool Weg)> { z }).ToList();
-        var maxZeilen = Math.Max(1, (int)((r.Height - 2) / 10f));
+        // kleiner Plan: zwei Zeilen je Stunde, großer Plan: eine Zeile je Element, solange 9 Pixel bleiben
+        var maxZeilen = Math.Max(1, (int)((r.Height - 2) / (Format.Klein ? 10f : 9f)));
         while (liste.Count > maxZeilen && liste.Count > 1)
         {
             var i = liste.Count - 1;
