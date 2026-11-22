@@ -705,9 +705,42 @@ public sealed partial class PlanAnsicht : Control
         finally { _pausenCache = null; _druck = false; }
     }
 
-    /// <summary>Mausrad: den umgebenden Rahmen scrollen (der Plan ist höher als das Fenster).</summary>
+    /// <summary>Höhe des stehenden Tageskopfs bzw. Breite der stehenden Stundenspalte (für das zeilenweise Scrollen).</summary>
+    internal int FixHoehe => KopfHoehe;
+    internal int FixBreite => KopfBreite;
+
+    /// <summary>
+    /// Senkrechte Scrollpositionen, bei denen eine ganze Zeile (Stunde oder Pause) genau unter dem stehenden Tageskopf beginnt –
+    /// wie im Vorbild scrollt der Plan zeilenweise, es bleibt nie eine halbe Zeile unter dem Kopf stehen.
+    /// </summary>
+    internal List<int> ZeilenRaster()
+    {
+        if (Transponiert || !KlassikStil) return new();
+        var b = new Rectangle(0, 0, Width, Height);
+        var res = new SortedSet<int> { 0 };
+        for (var s = VonStd; s <= BisStd; s++) res.Add((int)Zelle(b, VonT, s).Y - KopfHoehe);
+        foreach (var p in PausenZeilen()) res.Add((int)PausenRechteck(b, p).Y - KopfHoehe);
+        return res.Where(y => y >= 0).ToList();
+    }
+
+    /// <summary>Waagrechte Scrollpositionen, bei denen ein ganzer Tag genau rechts der stehenden Stundenspalte beginnt.</summary>
+    internal List<int> SpaltenRaster()
+    {
+        if (Transponiert || !KlassikStil) return new();
+        var b = new Rectangle(0, 0, Width, Height);
+        var res = new SortedSet<int> { 0 };
+        for (var t = VonT; t <= BisT; t++) res.Add((int)Zelle(b, t, VonStd).X - KopfBreite);
+        return res.Where(x => x >= 0).ToList();
+    }
+
+    /// <summary>Mausrad: den umgebenden Rahmen scrollen (der Plan ist höher als das Fenster) – im Planrahmen zeilenweise.</summary>
     protected override void OnMouseWheel(MouseEventArgs e)
     {
+        if (Parent is PlanRahmen pr && pr.AutoScroll && (pr.VerticalScroll.Visible || pr.HorizontalScroll.Visible))
+        {
+            pr.Rad(e.Delta, ModifierKeys.HasFlag(Keys.Shift) || !pr.VerticalScroll.Visible);
+            return;
+        }
         if (Parent is ScrollableControl sc && sc.AutoScroll && sc.VerticalScroll.Visible)
         {
             var schritt = Math.Max(12, MindestZeile) * 2;
