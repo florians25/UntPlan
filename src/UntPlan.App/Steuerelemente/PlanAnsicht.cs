@@ -1978,12 +1978,16 @@ public sealed partial class PlanAnsicht : Control
         if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
         var liste = zeilen.ToList();
         // kleiner Plan (25 Pixel je Stunde): bis zu drei Elemente untereinander
-        var maxZeilen = Math.Max(1, (int)((r.Height - 2) / 7.5f));
+        var maxZeilen = Math.Max(1, (int)((r.Height - 1) / 7f));
         while (liste.Count > maxZeilen && liste.Count > 1)
         {
-            var (t1, f1, w1) = liste[^2];
-            liste[^2] = (t1 + "," + liste[^1].Text.TrimStart('.'), f1, w1 && liste[^1].Weg);
-            liste.RemoveAt(liste.Count - 1);
+            // möglichst gleich dargestellte Zeilen zusammenfassen (unveränderte mit unveränderten), sonst die unteren beiden
+            var i = liste.Count - 1;
+            while (i > 1 && (liste[i].Farbe != liste[i - 1].Farbe || liste[i].Weg != liste[i - 1].Weg)) i--;
+            if (liste[i].Farbe != liste[i - 1].Farbe || liste[i].Weg != liste[i - 1].Weg) i = liste.Count - 1;
+            var (t1, f1, w1) = liste[i - 1];
+            liste[i - 1] = (t1 + "," + liste[i].Text.TrimStart('.'), f1, w1 && liste[i].Weg);
+            liste.RemoveAt(i);
         }
         const TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         var zh = (r.Height - 2) / liste.Count;
