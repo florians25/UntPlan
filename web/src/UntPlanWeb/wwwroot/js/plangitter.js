@@ -240,10 +240,16 @@ function klassenReihe(k, eigene) {
 /** Kartenzeile: Text bzw. Werteliste ({ liste, html, inline, pillen }); voll = vollständiger Text für den Hover einer gekürzten Zeile. */
 function zeileHtml(klasse, x, kompakt = false, voll = '') {
   if (x && typeof x === 'object') {
-    if (kompakt) return `<div class="${klasse}">${x.inline}</div>`;
-    return `<div class="${klasse} z-liste" data-pillen="${e(JSON.stringify(x.pillen))}">${x.html}</div>`;
+    if (kompakt) return `<div class="${klasse}${mitText(klasse, x.inline)}">${x.inline}</div>`;
+    return `<div class="${klasse} z-liste${mitText(klasse, x.html)}" data-pillen="${e(JSON.stringify(x.pillen))}">${x.html}</div>`;
   }
-  return `<div class="${klasse}"${voll ? ` data-voll="${e(voll)}"` : ''}>${x}</div>`;
+  return `<div class="${klasse}${mitText(klasse, x)}"${voll ? ` data-voll="${e(voll)}"` : ''}>${x}</div>`;
+}
+/** Kopfzeile mit Label und weiterem Text (Kopplung „SN, CS, SZ“): Label auf der Grundlinie des übrigen Textes statt oben ausgerichtet. */
+function mitText(klasse, html) {
+  if (klasse !== 'z1' || typeof html !== 'string' || !html.includes('lbl')) return '';
+  const rest = html.replace(/<span[^>]*class="[^"]*\blbl\b[^"]*"[^>]*>.*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' ');
+  return /[A-Za-z0-9ÄÖÜäöüß?+]/.test(rest) ? ' mit-text' : '';
 }
 const zeilenText = x => x && typeof x === 'object' ? x.inline : x;
 

@@ -27,6 +27,10 @@ html:root.is-win .std .z1 { font-weight: 500; }
 /* Firefox (Bild 319): der oben ausgerichtete Kasten steht 1px zu hoch, der Text richtig; Kasten 1px tiefer, Text bleibt */
 html:root.is-gecko .std .z1 .lbl { position: relative; top: 1px; padding-top: 1px; }
 html:root.is-gecko .std .z1:has(.lbl) { padding-bottom: 1px; margin-bottom: -3px; }
+/* Kopplung mit Label und weiterem Text im Kopf (Bild „SN, CS, SZ“): Label auf derselben Grundlinie wie der übrige Text, in allen
+   Browsern gleich */
+.std .z1.mit-text .lbl, html:root.is-gecko .std .z1.mit-text .lbl { vertical-align: baseline; height: auto; padding-top: 0; line-height: 16px; top: 0; }
+html:root.is-gecko .std .z1.mit-text { padding-bottom: 0; margin-bottom: -2px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
