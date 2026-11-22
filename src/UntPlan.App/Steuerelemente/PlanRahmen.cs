@@ -126,6 +126,10 @@ internal sealed class PlanRahmen : Panel
         base.WndProc(ref m);
     }
 
+    /// <summary>Ein Klick in den Plan setzt den Fokus; dabei nicht automatisch scrollen (sonst verschiebt sich der Plan unter der Maus
+    /// und ein einfacher Klick würde wie Ziehen wirken).</summary>
+    protected override Point ScrollToControl(Control activeControl) => DisplayRectangle.Location;
+
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         if (Plan != null && AutoScroll && (VerticalScroll.Visible || HorizontalScroll.Visible))
