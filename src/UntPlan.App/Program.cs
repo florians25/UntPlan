@@ -20,6 +20,7 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.DpiUnawareGdiScaled);
         Application.EnableVisualStyles();
         Steuerelemente.Auswahlbreite.Einschalten();
+        Steuerelemente.Erscheinungsbild.Einschalten();
         Steuerelemente.Tabellenbedienung.Einschalten();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);

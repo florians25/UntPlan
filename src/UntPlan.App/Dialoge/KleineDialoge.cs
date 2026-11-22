@@ -26,6 +26,7 @@ public class Dialog : Form
         Abbrechen.Location = new Point(breite - 96, hoehe - 36);
         Controls.Add(Ok);
         Controls.Add(Abbrechen);
+        Steuerelemente.Erscheinungsbild.Dialog(this);
     }
 
     protected override void OnLoad(EventArgs e)
@@ -37,7 +38,7 @@ public class Dialog : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Ui.TitelleisteFaerben(this);
+        Ui.TitelleisteFaerben(this, false);
     }
 }
 

@@ -149,6 +149,8 @@ public static class Auswahlbreite
     {
         if (Erfasst.TryGetValue(c, out _)) return;
         Erfasst.Add(c, new object());
+        // einheitliches Erscheinungsbild (Dialogfläche, flache Knöpfe, Registerkarten) in allen Fenstern
+        Erscheinungsbild.Anwenden(c);
         switch (c)
         {
             case ComboBox cb:

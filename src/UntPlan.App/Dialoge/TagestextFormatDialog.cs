@@ -96,7 +96,7 @@ public sealed class TagestextFormatDialog : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Ui.TitelleisteFaerben(this);
+        Ui.TitelleisteFaerben(this, false);
     }
 
     /// <summary>Ergebnis aus dem Textfeld übernehmen (Ok).</summary>

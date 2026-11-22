@@ -538,12 +538,16 @@ public sealed class Ribbon : Control
             return mi;
         }).ToArray();
 
-    private void MenueZeigen(IEnumerable<RibbonEintrag?> eintraege, Point p)
+    /// <summary>Dateimenü öffnen (Selbsttest: Bildschirmfoto des Menüs).</summary>
+    internal ContextMenuStrip DateiMenueOeffnen() => MenueZeigen(DateiMenue, new Point(_dateiBounds.X, _dateiBounds.Bottom));
+
+    private ContextMenuStrip MenueZeigen(IEnumerable<RibbonEintrag?> eintraege, Point p)
     {
         var cm = new ContextMenuStrip { Font = Ui.Schrift };
         cm.Items.AddRange(MenueEintraege(eintraege));
         cm.Closed += (_, _) => BeginInvoke(() => cm.Dispose());
         cm.Show(this, p);
+        return cm;
     }
 
     /// <summary>Tastenkürzel der Menüeinträge auswerten.</summary>

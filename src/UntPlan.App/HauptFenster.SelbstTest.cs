@@ -1176,6 +1176,76 @@ public sealed partial class HauptFenster
                 AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
             }
         }, -1);
+        // V20–V39: einheitliches Erscheinungsbild aller Fenster und Dialoge beider Modi (Vergleichsbilder für die Gestaltung)
+        void ModusFuerBild(bool vertretung)
+        {
+            if (AppZustand.Vertretungsmodus != vertretung) VertretungsmodusUmschalten();
+            AlleSchliessen();
+            Warten(200);
+        }
+        void Gesamtbild(string name, Form? dialog = null)
+        {
+            // wie im Betrieb nach dem ersten Leerlauf: gemeinsame Gestaltung aller offenen Fenster angewandt
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            Warten(500);
+            if (dialog is null || dialog.IsMdiChild)
+            {
+                // Hauptfenster maximiert (Statusleiste sichtbar, nicht hinter der Taskleiste), danach wie vorher
+                var vorherZustand = WindowState;
+                if (vorherZustand != FormWindowState.Maximized) { WindowState = FormWindowState.Maximized; Warten(500); }
+                Foto(Path.Combine(ordner, name + "_F.png"));
+                if (vorherZustand != FormWindowState.Maximized) WindowState = vorherZustand;
+                return;
+            }
+            dialog.Refresh();
+            var r = Rectangle.Inflate(dialog.Bounds, 8, 8);
+            r.Intersect(Screen.PrimaryScreen?.Bounds ?? r);
+            using var bmp = new Bitmap(r.Width, r.Height);
+            using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+            bmp.Save(Path.Combine(ordner, name + "_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        Form NeuesterDialog() => Application.OpenForms.Cast<Form>().Last(f => f != this && f.Visible && !f.IsMdiChild);
+        Schritt("V20_Klassen", () =>
+        {
+            ModusFuerBild(false);
+            var f = Max(FensterOeffnen("st:Klasse")!);
+            Gesamtbild("V20_Klassen");
+            // wie im Vorbild: Liste ohne Zeilenköpfe
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Alle(x)));
+            if (Alle(f).OfType<DataGridView>().FirstOrDefault(g => g.Visible && g.RowHeadersVisible) is { } mitKopf) throw new InvalidOperationException($"Stammdatenliste mit Zeilenköpfen: {mitKopf.Name}");
+        }, 1);
+        Schritt("V21_Unterricht", () => { ModusFuerBild(false); Max(FensterOeffnen("u:Klasse")!); Gesamtbild("V21_Unterricht"); }, 1);
+        Schritt("V22_Stundenplan", () => { ModusFuerBild(false); Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false)); Gesamtbild("V22_Stundenplan"); }, 3);
+        Schritt("V23_Planungsdialog", () => { ModusFuerBild(false); Max(PlanungsdialogFenster.Zeigen()); Gesamtbild("V23_Planungsdialog"); }, 3);
+        Schritt("V24_Einstellungen", () =>
+        {
+            ModusFuerBild(false);
+            var f = new EinstellungenDialog();
+            f.Show(this);
+            Gesamtbild("V24_Einstellungen", f);
+            // gemeinsames Erscheinungsbild: Dialogfläche in der Modusfarbe, flache weiße Knöpfe, Standardknopf mit Rand in der Modusfarbe
+            if (f.BackColor != Ui.DialogFlaeche) throw new InvalidOperationException($"Dialogfläche {f.BackColor} statt {Ui.DialogFlaeche}");
+            if (f.Ok.FlatStyle != FlatStyle.Flat || f.Ok.BackColor != Color.White || f.Ok.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || f.Abbrechen.FlatStyle != FlatStyle.Flat)
+                throw new InvalidOperationException("Dialogknöpfe nicht im gemeinsamen Erscheinungsbild");
+        }, 0);
+        Schritt("V25_Optimierung", () => { ModusFuerBild(false); var f = new OptimierungDialog(); f.Show(this); Gesamtbild("V25_Optimierung", f); }, 2);
+        Schritt("V26_Zeitraster", () => { ModusFuerBild(false); var f = new ZeitrasterDialog(); f.Show(this); Gesamtbild("V26_Zeitraster", f); }, 0);
+        Schritt("V27_Stundenplanformat", () => { ModusFuerBild(false); FormatKarte("Allgemein"); Gesamtbild("V27_Stundenplanformat", NeuesterDialog()); }, 3);
+        Schritt("V28_Dateimenue", () => { ModusFuerBild(false); WindowState = FormWindowState.Maximized; Warten(400); var m = _ribbon.DateiMenueOeffnen(); Warten(400); Foto(Path.Combine(ordner, "V28_Dateimenue_F.png")); m.Close(); WindowState = FormWindowState.Normal; }, 0);
+        Schritt("V29_Meldung", () =>
+        {
+            ModusFuerBild(false);
+            var f = Ui.MeldungsFenster("Raum R104 ist in der 3. Stunde bereits belegt.", "UntPlan - Hinweis", MeldungsArt.Warnung, new[] { "Ja", "Nein" }, 0, true, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            f.Show(this);
+            Gesamtbild("V29_Meldung", f);
+            f.Close();
+        }, 0);
+        Schritt("V30_Veranstaltungen", () => { ModusFuerBild(true); Max(FensterOeffnen("veranst")!); Gesamtbild("V30_Veranstaltungen"); }, -1);
+        Schritt("V31_Statistik", () => { ModusFuerBild(true); Max(FensterOeffnen("stat")!); Gesamtbild("V31_Statistik"); }, -1);
+        Schritt("V32_Vertretungsautomatik", () => { ModusFuerBild(true); VertretungsautomatikDialog.Anzeigen(this, tag, tag); Gesamtbild("V32_Vertretungsautomatik", NeuesterDialog()); }, -1);
+        Schritt("V33_Seitenlayout", () => { ModusFuerBild(true); var f = Druck.SeitenlayoutFenster.Zeigen(this, tag, tag, false); f.WindowState = FormWindowState.Maximized; f.Activate(); Gesamtbild("V33_Seitenlayout", f); }, -1);
+        Schritt("V34_Planungsdialog_Vertretung", () => { ModusFuerBild(true); Max(VertretungsPlanungsdialogFenster.Zeigen()); Gesamtbild("V34_Planungsdialog_Vertretung"); }, -1);
+        Schritt("V35_Pausenaufsichten", () => { ModusFuerBild(true); Max(FensterOeffnen("pause")!); Gesamtbild("V35_Pausenaufsichten"); }, -1);
         Schritt("19_Absenzen", () => Max(FensterOeffnen("abw")!), -1);
         Schritt("19a_Tagesplan_Lehrer", () => Max(StundenplanFenster.Neu(ElementTyp.Lehrer, krank.Id, false)), -1);
         Schritt("27c_Leere_Zelle_Synchronisation_tagesaktuell", () => LeereZellePruefen(true), -1);

@@ -329,7 +329,7 @@ public sealed partial class HauptFenster
             if (c is MdiClient mdi) mdi.BackColor = Ui.MdiHintergrund;
         KopfFarben();
         // Statusleiste wie auf dem Original-Bildschirmfoto: im Vertretungsmodus grünlich (Kopffarbe der Tabellen)
-        _status.BackColor = AppZustand.Vertretungsmodus ? Ui.Kopf : SystemColors.Control;
+        _status.BackColor = Ui.Kopf;
         // Statuszeile wie im Vorbild: links der Hilfehinweis, in der Mitte der Modus („Vertr.“)
         _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
         _statusLinks.Font = Ui.DialogSchrift;
