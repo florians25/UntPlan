@@ -440,8 +440,23 @@ public sealed partial class PlanAnsicht : Control
                 // bilden wie im Vorbild einen Block mit allen Klassen statt paralleler Blöcke je Zeile
                 Typ == ElementTyp.Lehrer || Typ == ElementTyp.Raum
                     ? $"{e.FachId}|{string.Join(",", e.LehrerIds.Order())}|{string.Join(",", e.RaumIds.Order())}|{e.Status}" : "",
-                e.Status == TagesStatus.Entfall))
-          .Select(g => g.Count() == 1 ? g.First() : MitAllenKlassen(g.ToList())).OrderBy(e => e.Status == TagesStatus.Entfall).ToList();
+                // Klassenplan: alle Elemente einer Kopplung in einem Feld – entfällt nur ein Teil, ist die Stunde eine Änderung
+                !KopplungAlsEinheit(e) && e.Status == TagesStatus.Entfall))
+          .Select(g => Zusammenfassen(g.ToList())).OrderBy(e => e.Status == TagesStatus.Entfall).ToList();
+    }
+
+    /// <summary>Klassenplan: Einträge einer gekoppelten Stunde (mehrere Kopplungszeilen) gehören in ein Feld, auch einzeln entfallene.</summary>
+    private bool KopplungAlsEinheit(TagesEintrag e) => Typ == ElementTyp.Klasse && e.Unterricht is { Zeilen.Count: > 1 };
+
+    /// <summary>
+    /// Einträge eines Feldes: eine gekoppelte Stunde mit Änderungen als Elementliste (Änderungen oben, offene darunter, unveränderte
+    /// unten; Entfall nur, wenn alle Elemente entfallen), sonst wie bisher ein Eintrag mit den Klassen aller Zeilen.
+    /// </summary>
+    private TagesEintrag Zusammenfassen(List<TagesEintrag> g)
+    {
+        if (g.Count == 1) return g[0];
+        if (KopplungAlsEinheit(g[0]) && Kopplungsanzeige.AlsElementliste(g)) return Kopplungsanzeige.Zusammenfassen(g);
+        return MitAllenKlassen(g);
     }
 
     /// <summary>Gleich aussehende Kopplungszeilen als ein Eintrag: erste Zeile mit den Klassen aller Zeilen.</summary>
@@ -716,7 +731,7 @@ public sealed partial class PlanAnsicht : Control
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
         g.FillRectangle(Brushes.White, bounds);
         FreiBeschriftungen.Clear();
-        if (!druck) GezeichneteZeilen.Clear();
+        if (!druck) { GezeichneteZeilen.Clear(); GezeichneteKopplungen.Clear(); }
         var zr = D.Zeitraster;
         var klein = Format.Klein;
         var klassik = KlassikStil;
@@ -1877,6 +1892,7 @@ public sealed partial class PlanAnsicht : Control
     /// </summary>
     private void EintragKlassik(Graphics g, RectangleF r, TagesEintrag e, bool druck, bool gewaehlt)
     {
+        if (e.Kopplungsteile is { Count: > 0 }) { KopplungKlassik(g, r, e, druck, gewaehlt); return; }
         var v = e.Vertretung;
         var entfall = e.Status == TagesStatus.Entfall;
         var offen = e.Status == TagesStatus.Offen;
@@ -1913,6 +1929,94 @@ public sealed partial class PlanAnsicht : Control
         if (druck) return;
         if (gewaehlt) AuswahlRahmen(g, r);
         else if (MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? v?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
+    }
+
+    /// <summary>Zuletzt gezeichnete Elementzeilen gekoppelter Stunden (Text, rot, durchgestrichen) – für den Selbsttest.</summary>
+    internal List<(string Text, bool Rot, bool Weg)> GezeichneteKopplungen { get; } = new();
+
+    /// <summary>
+    /// Gekoppelte Stunde mit Änderungen wie im Vorbild: je Element eine Zeile, Änderungen oben rot mit Kopplungspunkt („.M_G“),
+    /// offene Änderungen rot mit „?“ („.?M_G“), unveränderte Elemente darunter in normaler Schrift. Ein einzeln entfallenes Element
+    /// ist eine Änderung (rot durchgestrichen) – das Feld bleibt eine stattfindende Stunde und wird nicht wie ein Entfall gezeigt.
+    /// </summary>
+    private void KopplungKlassik(Graphics g, RectangleF r, TagesEintrag e, bool druck, bool gewaehlt)
+    {
+        var (hgFarbe, schriftFarbe) = StundenFarben(e.Unterricht, e.Regel?.ZeilenIndex ?? 0, e.FachId ?? e.Regel?.FachId, false, false);
+        using (var b = new SolidBrush(hgFarbe)) g.FillRectangle(b, r);
+        var zeilen = new List<(string Text, Color Farbe, bool Weg)>();
+        foreach (var t in e.Kopplungsteile!)
+        {
+            var x = t.Eintrag;
+            var v = x.Vertretung;
+            var entfallen = t.Art == KopplungsteilArt.Entfallen;
+            // Layout 2: „Entfälle und Platzhalter nicht anzeigen“ – das entfallene Element fehlt dann
+            if (entfallen && !Format.EntfaelleDurchstreichen && Format.EntfaelleNichtAnzeigen) continue;
+            var fach = Kurz(ElementTyp.Fach, x.FachId ?? x.Regel?.FachId);
+            if (fach.Length == 0 && !string.IsNullOrWhiteSpace(v?.Text)) fach = v.Text.Trim().Split(' ')[0];
+            var lehrerIds = entfallen && x.LehrerIds.Count == 0 && v?.LehrerId is int ul ? new List<int> { ul } : x.LehrerIds;
+            var lehrer = t.Art == KopplungsteilArt.Offen ? "???" : v?.Art == VertretungsArt.VertretungOhneLehrer ? "+++" : string.Join(",", lehrerIds.Select(l => Kurz(ElementTyp.Lehrer, l)));
+            var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", x.RaumIds.Select(i => Kurz(ElementTyp.Raum, i)));
+            // „.“ = Kopplung vor jedem geänderten Element, „?“ = offene Änderung
+            var praefix = t.Hervorgehoben ? "." + (t.Art == KopplungsteilArt.Offen ? "?" : "") : "";
+            var werte = Format.Klein ? new[] { fach.Length > 0 ? fach : lehrer } : new[] { fach, lehrer, raum };
+            var text = praefix + string.Join(" ", werte.Where(w => w.Length > 0));
+            // Änderungen rot (großer Plan: laut „Geänderte Stunden rot“), offene und einzeln entfallene Elemente immer rot
+            var rot = t.Art is KopplungsteilArt.Offen or KopplungsteilArt.Entfallen || (t.Art == KopplungsteilArt.Geaendert && (Format.Klein || Format.GeaendertRot));
+            var zeile = (text, rot ? EntfallRot : schriftFarbe, entfallen && Format.EntfaelleDurchstreichen);
+            if (text.Length > 0 && !zeilen.Contains(zeile)) zeilen.Add(zeile);
+        }
+        KopplungsZeilen(g, r, zeilen);
+        if (!druck) GezeichneteKopplungen.AddRange(zeilen.Select(z => (z.Text, z.Farbe == EntfallRot, z.Weg)));
+        if (druck) return;
+        if (gewaehlt) AuswahlRahmen(g, r);
+        else if (MarkierterUnterricht is int mu && (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) == mu) VerknuepfungsRahmen(g, r);
+    }
+
+    /// <summary>
+    /// Elementzeilen untereinander, jede zentriert in eigener Farbe. Reicht die Höhe nicht (kleiner Plan: zwei Zeilen je Stunde), werden
+    /// benachbarte Elemente gleicher Farbe in eine Zeile gesetzt („.E,.?M“ rot über „EK“), sonst die unteren beiden; jedes Element behält
+    /// Farbe und Durchstreichung.
+    /// </summary>
+    private void KopplungsZeilen(Graphics g, RectangleF r, List<(string Text, Color Farbe, bool Weg)> zeilen)
+    {
+        if (zeilen.Count == 0 || r.Width < 6 || r.Height < 6) return;
+        var liste = zeilen.Select(z => new List<(string Text, Color Farbe, bool Weg)> { z }).ToList();
+        // kleiner Plan: zwei Zeilen je Stunde, großer Plan: eine Zeile je Element, solange 9 Pixel bleiben
+        var maxZeilen = Math.Max(1, (int)((r.Height - 2) / (Format.Klein ? 10f : 9f)));
+        while (liste.Count > maxZeilen && liste.Count > 1)
+        {
+            var i = liste.Count - 1;
+            while (i > 1 && liste[i][0].Farbe != liste[i - 1][^1].Farbe) i--;
+            if (liste[i][0].Farbe != liste[i - 1][^1].Farbe) i = liste.Count - 1;
+            liste[i - 1].AddRange(liste[i]);
+            liste.RemoveAt(i);
+        }
+        const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+        var zh = (r.Height - 2) / liste.Count;
+        var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse, zh / 1.4f));
+        // Teile einer Zeile mit Komma getrennt
+        List<(string Text, Color Farbe, bool Weg)> Teile(List<(string Text, Color Farbe, bool Weg)> z) =>
+            z.SelectMany((t, i) => i == 0 ? new[] { t } : new[] { (",", t.Farbe, false), t }).ToList();
+        int Breite(List<(string Text, Color Farbe, bool Weg)> z, float gr) =>
+            Teile(z).Sum(t => TextRenderer.MeasureText(g, t.Text, Schriftcache.Holen(gr, t.Weg ? FontStyle.Strikeout : FontStyle.Regular), Size.Empty, flags).Width);
+        // Schrift verkleinern, bis die breiteste Zeile passt
+        while (groesse > 6f && liste.Max(z => Breite(z, groesse)) > r.Width - 2) groesse -= 0.5f;
+        var alt = g.Clip;
+        g.SetClip(r);
+        var y = r.Y + 1;
+        foreach (var z in liste)
+        {
+            var x = r.X + Math.Max(1, (r.Width - Breite(z, groesse)) / 2);
+            foreach (var (text, farbe, w) in Teile(z))
+            {
+                var f = Schriftcache.Holen(groesse, w ? FontStyle.Strikeout : FontStyle.Regular);
+                var b = TextRenderer.MeasureText(g, text, f, Size.Empty, flags);
+                TextRenderer.DrawText(g, text, f, new Point((int)Math.Round(x), (int)Math.Round(y + (zh - b.Height) / 2)), farbe, flags);
+                x += b.Width;
+            }
+            y += zh;
+        }
+        g.Clip = alt;
     }
 
     private void EintragZeichnen(Graphics g, RectangleF r, TagesEintrag e, DateOnly datum, bool druck, bool gewaehlt)

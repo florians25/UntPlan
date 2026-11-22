@@ -35,6 +35,11 @@ public sealed class TagesEintrag
     public int? FachId { get; set; }
     public List<int> RaumIds { get; set; } = new();
     public Unterricht? Unterricht => Regel?.Unterricht;
+    /// <summary>
+    /// Nur zur Anzeige (Klassenplan): Elemente einer gekoppelten Stunde mit Änderungen in Anzeige-Reihenfolge, siehe
+    /// <see cref="Kopplungsanzeige.Zusammenfassen"/>; sonst null.
+    /// </summary>
+    public List<Kopplungsteil>? Kopplungsteile { get; init; }
     /// <summary>Findet tatsächlich statt (bindet Lehrer, Klassen und Räume).</summary>
     public bool Findetstatt => Status is TagesStatus.Regulaer or TagesStatus.Vertreten or TagesStatus.Offen or TagesStatus.Zusaetzlich;
 }

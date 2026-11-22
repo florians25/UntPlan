@@ -425,7 +425,13 @@ public static class ErweiterungApi
         admin.MapGet("/planformate", (HttpContext c, Planformatdienst pf) =>
         {
             Admin(c);
-            return Results.Json(new { formate = pf.Formate(), zuordnung = pf.Zuordnung(), arten = Planformatdienst.Arten, namensformen = Planformatdienst.Namensformen });
+            // Standardformat (Id 0): bearbeitbar wie die übrigen, nicht löschbar; standardGeaendert = weicht von der Vorgabe ab
+            var standard = pf.Standard();
+            return Results.Json(new
+            {
+                formate = pf.Formate(), standard = standard ?? Planformatdienst.StandardVorgabe, standardGeaendert = standard is not null,
+                zuordnung = pf.Zuordnung(), arten = Planformatdienst.Arten, namensformen = Planformatdienst.Namensformen,
+            });
         });
         admin.MapPost("/planformate", (Planformat f, HttpContext c, Planformatdienst pf, Protokoll prot) =>
         {
@@ -437,7 +443,7 @@ public static class ErweiterungApi
         admin.MapPut("/planformate/{id:int}", (int id, Planformat f, HttpContext c, Planformatdienst pf, Protokoll prot) =>
         {
             var b = Admin(c);
-            var neu = pf.Speichern(f with { Id = id });
+            var neu = id == 0 ? pf.StandardSpeichern(f) : pf.Speichern(f with { Id = id });
             prot.Schreiben(b.Login, "Stundenplanformat geändert", neu.Name);
             return Results.Json(neu);
         });
@@ -447,6 +453,13 @@ public static class ErweiterungApi
             pf.Loeschen(id);
             prot.Schreiben(b.Login, "Stundenplanformat gelöscht", id.ToString());
             return Results.Json(new { ok = true });
+        });
+        admin.MapPost("/planformate/0/zuruecksetzen", (HttpContext c, Planformatdienst pf, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var neu = pf.StandardZuruecksetzen();
+            prot.Schreiben(b.Login, "Stundenplanformat zurückgesetzt", neu.Name);
+            return Results.Json(neu);
         });
         admin.MapPut("/planformate-zuordnung", (PlanformatZuordnung z, HttpContext c, Planformatdienst pf, Protokoll prot) =>
         {

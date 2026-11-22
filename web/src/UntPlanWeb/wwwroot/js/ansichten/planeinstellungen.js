@@ -2,7 +2,9 @@
 // Sichtbarkeit einschränken | iCal“. „Allgemein“: Allgemeine Einstellungen (Links zu Videokonferenzen) und je ein Kasten für Klassen-, Lehrkraft-,
 // Schüler- und Raum-Stundenplan mit dem Format („Stundenplanformat“ als schwebendes Label), unten rechts „Speichern“. „Stundenplanformate“:
 // Liste (Name ↑, Zähler, „Neu“); Zeile anklicken öffnet das Panel „Stundenplanformat bearbeiten“ (zweispaltig: Beschriftung links, runde orange
-// Häkchen rechts; Anordnung auf dem Stundenkärtchen als ziehbare Liste mit türkisem Rand). Ohne Format gilt die Standarddarstellung.
+// Häkchen rechts; Anordnung auf dem Stundenkärtchen als ziehbare Liste mit türkisem Rand). Ohne Format gilt das Standardformat: es steht
+// oben in der Liste, lässt sich wie die übrigen bearbeiten (fester Name, Anordnung wahlweise „je nach Plan“), nicht löschen, aber
+// „Auf Standard zurücksetzen“ (Vorgabe = Standarddarstellung).
 import { e, holen, senden, api, toast, lade, bestaetigen } from '../ui.js';
 import { cssLaden } from './kbeinstellungen.js';
 
@@ -59,11 +61,13 @@ export async function zeigen(seite, kontext, [reiterParam]) {
 
   const formate = () => {
     const liste = [...d.formate].sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }) * (absteigend ? -1 : 1));
-    return `<div class="pe-listenkopf"><h3 class="pe-titel">Stundenplanformate <span class="pe-zahl">${d.formate.length}</span></h3>
+    // Standardformat immer oben (nicht mitsortiert), mit Hinweis, ob es von der Vorgabe abweicht
+    const standard = `<tr data-bearbeiten="0" data-standard tabindex="0" role="button" aria-label="Standardformat bearbeiten"><td>${e(d.standard?.name || 'Standard')}
+      <span class="pe-zahl pe-standard">${d.standardGeaendert ? 'Standard (angepasst)' : 'Standard'}</span></td></tr>`;
+    return `<div class="pe-listenkopf"><h3 class="pe-titel">Stundenplanformate <span class="pe-zahl">${d.formate.length + 1}</span></h3>
         <button type="button" class="pe-knopf klein" data-neu>Neu</button></div>
       <table class="pe-tabelle"><thead><tr><th><button type="button" data-sortieren aria-label="Nach Name sortieren">Name <i class="bi bi-arrow-${absteigend ? 'down' : 'up'}" aria-hidden="true"></i></button></th></tr></thead>
-        <tbody>${liste.map(f => `<tr data-bearbeiten="${f.id}" tabindex="0" role="button" aria-label="${e(f.name)} bearbeiten"><td>${e(f.name)}</td></tr>`).join('')
-          || '<tr class="leer"><td>Keine Stundenplanformate vorhanden. Alle Pläne erscheinen in der Standarddarstellung.</td></tr>'}</tbody></table>`;
+        <tbody>${standard}${liste.map(f => `<tr data-bearbeiten="${f.id}" tabindex="0" role="button" aria-label="${e(f.name)} bearbeiten"><td>${e(f.name)}</td></tr>`).join('')}</tbody></table>`;
   };
 
   // ---------------------------------------------------------------- Sichtbarkeit / iCal
@@ -84,6 +88,8 @@ export async function zeigen(seite, kontext, [reiterParam]) {
 
   const editor = f => {
     const alleTage = ALLE_TAGE.every(t => f.tage.includes(t));
+    // Standardformat: Anordnung „je nach Plan“ (keine Elemente) wie die Standarddarstellung
+    const jeNachPlan = f.standard && !f.elemente.length;
     const elementZeile = (x, i) => `<div class="pe-element ${x.art === 'notiz' ? 'notiz' : ''}" data-element="${i}" draggable="true">
         <span class="pe-griff" title="Ziehen zum Sortieren" aria-hidden="true"><i class="bi bi-grip-vertical"></i></span>
         <select class="pe-pille" data-nativ data-e-art aria-label="${i + 1}. Element">${Object.entries(ARTEN).map(([k, t]) => `<option value="${k}" ${x.art === k ? 'selected' : ''}>${e(t)}</option>`).join('')}</select>
@@ -94,10 +100,11 @@ export async function zeigen(seite, kontext, [reiterParam]) {
     const h = (n, text) => haken(`data-f="${n}"`, text, f[n]);
     return `<div class="pe-panel-hinter" data-schliessen></div>
     <section class="pe-panel" role="dialog" aria-modal="true" aria-labelledby="pe-panel-titel">
-      <header><h2 id="pe-panel-titel">${f.id ? 'Stundenplanformat bearbeiten' : 'Neues Stundenplanformat'}</h2>
+      <header><h2 id="pe-panel-titel">${f.standard ? 'Standardformat bearbeiten' : f.id ? 'Stundenplanformat bearbeiten' : 'Neues Stundenplanformat'}</h2>
         <button type="button" class="pe-x" data-abbrechen title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></header>
       <div class="pe-panel-rumpf">
-        ${abschnitt('Allgemein', '', feld('Name', `<input class="form-control" data-f="name" maxlength="60" value="${e(f.name)}" autocomplete="off">`, 'breit'))}
+        ${abschnitt('Allgemein', f.standard ? unter('Gilt für alle Pläne ohne zugeordnetes Format und im Menü „⋮“ unter „Standard“.') : '',
+          feld('Name', `<input class="form-control" data-f="name" maxlength="60" value="${e(f.name)}" autocomplete="off" ${f.standard ? 'readonly aria-readonly="true"' : ''}>`, 'breit'))}
         <div class="pe-paare">
           <span>Stundendetails</span>${h('details', 'Zugriff auf Stundendetails')}
           <span>Unangekündigte Prüfungen</span>${h('unangekuendigtePruefungen', 'Unangekündigte Prüfungen anzeigen')}
@@ -107,9 +114,11 @@ export async function zeigen(seite, kontext, [reiterParam]) {
           ${haken('data-raster value="raster"', 'Zeitraster', f.zeitraster !== 'uhrzeit', 'radio', 'pe-raster')}
           ${haken('data-raster value="uhrzeit"', 'Tatsächliche Uhrzeit', f.zeitraster === 'uhrzeit', 'radio', 'pe-raster')}</div>`)}
         ${abschnitt('', unter('Stundenbeschriftung'), `<div class="pe-stapel">${h('zeiten', 'Beginn- und Endzeit anzeigen')}${h('stundennummer', 'Stundennummer anzeigen')}${h('stundenname', 'Stundenname anzeigen')}</div>`)}
-        ${abschnitt('Anordnung auf dem Stundenkärtchen', [1, 2, 3, 4].map(n => `<p class="pe-unter pe-elementlabel">${n}. Element auf dem Kärtchen<br>(${n === 1 ? 'erforderlich' : 'optional'})</p>`).join(''),
-          `<div class="pe-elemente">${f.elemente.map(elementZeile).join('')}
-            ${f.elemente.length < 5 ? '<button type="button" class="pe-plus" data-e-neu aria-label="Element hinzufügen">+</button>' : ''}</div>`)}
+        ${abschnitt('Anordnung auf dem Stundenkärtchen', jeNachPlan ? unter('Wie in der Standarddarstellung: je nach Plan (Klassen-, Lehrkraft-, Raum-Stundenplan)')
+            : [1, 2, 3, 4].map(n => `<p class="pe-unter pe-elementlabel">${n}. Element auf dem Kärtchen<br>(${n === 1 ? 'erforderlich' : 'optional'})</p>`).join(''),
+          `${f.standard ? `<label class="kbe-schalter pe-schalter"><input type="checkbox" role="switch" data-jenachplan ${jeNachPlan ? 'checked' : ''}><span class="kbe-schiene" aria-hidden="true"></span><span>Anordnung je nach Plan</span></label>` : ''}
+          ${jeNachPlan ? '' : `<div class="pe-elemente">${f.elemente.map(elementZeile).join('')}
+            ${f.elemente.length < 5 ? '<button type="button" class="pe-plus" data-e-neu aria-label="Element hinzufügen">+</button>' : ''}</div>`}`)}
         ${abschnitt('Stundenplananzeige', unter('Tage auswählen, für die der Stundenplan angezeigt werden soll'), `<div class="pe-tagzeile">
           <div class="pe-tage" role="group" aria-label="Tage">${TAGE.map((t, i) => `<button type="button" class="${!alleTage && f.tage.includes(i) ? 'an' : ''}" data-tag="${i}" aria-pressed="${f.tage.includes(i)}" title="${TAGNAMEN[i]}" ${alleTage ? 'disabled' : ''}>${t}</button>`).join('')}</div>
           <label class="kbe-schalter pe-schalter"><input type="checkbox" role="switch" data-alletage ${alleTage ? 'checked' : ''}><span class="kbe-schiene" aria-hidden="true"></span><span>Alle Tage des Zeitrasters</span></label></div>`)}
@@ -125,7 +134,8 @@ export async function zeigen(seite, kontext, [reiterParam]) {
           ${h('aenderungen', 'Änderungen hervorheben')}${h('pruefungen', 'Prüfungen hervorheben')}${h('entfaelle', 'Entfälle hervorheben')}
           ${h('externeHervorheben', 'Externe Kalender hervorheben')}${h('symbole', 'Symbole auf Stundenkärtchen anzeigen')}</div>`)}
       </div>
-      <footer>${f.id ? '<button type="button" class="pe-knopf rot" data-format-loeschen>Löschen</button>' : ''}
+      <footer>${f.standard ? `<button type="button" class="pe-knopf" data-standard-zuruecksetzen ${d.standardGeaendert ? '' : 'disabled'}>Auf Standard zurücksetzen</button>`
+          : f.id ? '<button type="button" class="pe-knopf rot" data-format-loeschen>Löschen</button>' : ''}
         <button type="button" class="pe-knopf" data-abbrechen>Abbrechen</button>
         <button type="button" class="pe-knopf primaer" data-format-speichern>Speichern</button></footer>
     </section>`;
@@ -168,8 +178,11 @@ export async function zeigen(seite, kontext, [reiterParam]) {
     seite.querySelector('[data-sortieren]')?.addEventListener('click', () => { absteigend = !absteigend; zeichnen(); });
     seite.querySelectorAll('[data-bearbeiten]').forEach(z => {
       const oeffnen = () => {
-        const f = structuredClone(d.formate.find(x => x.id === Number(z.dataset.bearbeiten)));
+        const id = Number(z.dataset.bearbeiten);
+        const f = id === 0 ? { ...structuredClone(d.standard ?? { ...neuesFormat(), name: 'Standard', elemente: [] }), id: 0, standard: true }
+          : structuredClone(d.formate.find(x => x.id === id));
         if (!f.tage?.length) f.tage = [...ALLE_TAGE];
+        if (!f.elemente) f.elemente = [];
         zuEditor(f);
       };
       z.onclick = oeffnen;
@@ -189,6 +202,7 @@ export async function zeigen(seite, kontext, [reiterParam]) {
       if (x.type !== 'checkbox') x.addEventListener('input', lesen);
     });
     seite.querySelectorAll('[data-raster]').forEach(r => r.onchange = () => { if (r.checked) f.zeitraster = r.value; });
+    seite.querySelector('[data-jenachplan]')?.addEventListener('change', ev => { f.elemente = ev.target.checked ? [] : structuredClone(neuesFormat().elemente); zeichnen(); });
     seite.querySelector('[data-alletage]').onchange = ev => { f.tage = ev.target.checked ? [...ALLE_TAGE] : [0, 1, 2, 3, 4]; zeichnen(); };
     seite.querySelectorAll('[data-tag]').forEach(b => b.onclick = () => {
       const t = Number(b.dataset.tag);
@@ -226,12 +240,17 @@ export async function zeigen(seite, kontext, [reiterParam]) {
       if (!await bestaetigen('Format löschen', `Stundenplanformat „${f.name}“ löschen? Pläne, die es verwenden, erscheinen wieder in der Standarddarstellung.`, 'Löschen')) return;
       try { await api(`${BASIS}/${f.id}`, { methode: 'DELETE' }); d = await holen(BASIS); zuordnung = structuredClone(d.zuordnung); bearbeiten = null; toast('Format gelöscht.'); zeichnen(); } catch (err) { toast(err.message, true); }
     });
+    seite.querySelector('[data-standard-zuruecksetzen]')?.addEventListener('click', async () => {
+      if (!await bestaetigen('Auf Standard zurücksetzen', 'Standardformat auf die Vorgabe zurücksetzen? Alle Pläne ohne eigenes Format erscheinen wieder in der Standarddarstellung.', 'Zurücksetzen')) return;
+      try { await senden(`${BASIS}/0/zuruecksetzen`, {}, 'POST'); d = await holen(BASIS); zuordnung = structuredClone(d.zuordnung); bearbeiten = null; toast('Standardformat zurückgesetzt.'); zeichnen(); } catch (err) { toast(err.message, true); }
+    });
     seite.querySelector('[data-format-speichern]').onclick = async ev => {
       const knopf = ev.currentTarget;
       knopf.disabled = true;
       try {
-        const daten = { ...f, tage: ALLE_TAGE.every(t => f.tage.includes(t)) ? [] : f.tage };
-        await senden(f.id ? `${BASIS}/${f.id}` : BASIS, daten, f.id ? 'PUT' : 'POST');
+        const { standard, ...rest } = f;
+        const daten = { ...rest, tage: ALLE_TAGE.every(t => f.tage.includes(t)) ? [] : f.tage };
+        await senden(standard ? `${BASIS}/0` : f.id ? `${BASIS}/${f.id}` : BASIS, daten, standard || f.id ? 'PUT' : 'POST');
         d = await holen(BASIS);
         zuordnung = structuredClone(d.zuordnung);
         bearbeiten = null;
