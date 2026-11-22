@@ -1104,13 +1104,14 @@ public sealed partial class HauptFenster
                 Warten(500);
                 Pruefen(auswahlFragen.Count == 2 && auswahlFragen[1].Contains("bereits abwesend") && Absenzen().Count == 1, "doppelte Absenz angelegt bzw. ohne Hinweis");
                 log.Add($"INFO  V12: Überschneidung zusammengefasst, Doppelung verhindert ({auswahlFragen.Count} Rückfragen)");
-                // Text eingeben und mit Esc (ohne laufende Eingabe) die Eingaben dieser Zeile zurücknehmen
-                Pruefen(f.SelbsttestTippen("T", "Probe Esc", id), "Text abgelehnt");
+                // bis St. eingeben (Enter springt in derselben Zeile weiter) und mit Esc die Eingaben dieser Zeile zurücknehmen
+                var bisSt = Math.Max(1, dd.Zeitraster.StundenProTag - 1);
+                Pruefen(f.SelbsttestTippen("SB", bisSt.ToString(), id), "bis St. abgelehnt");
                 Warten(400);
-                Pruefen(Absenzen().Single().Text == "Probe Esc", "Text nicht gespeichert");
+                Pruefen(Absenzen().Single().StundeBis == bisSt, "bis St. nicht gespeichert");
                 f.SelbsttestTaste(Keys.Escape);
                 Warten(400);
-                Pruefen(Absenzen().Single().Text == "", "Esc hat die Eingabe der Zeile nicht zurückgenommen");
+                Pruefen(Absenzen().Single().StundeBis >= dd.Zeitraster.StundenProTag, "Esc hat die Eingabe der Zeile nicht zurückgenommen");
                 // Entf auf dem Element löscht nach einer Rückfrage, Strg+Z stellt wieder her
                 var fragenVorher = fragen.Count;
                 f.SelbsttestWaehlen("E", id);

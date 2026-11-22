@@ -192,6 +192,7 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
         // Prüfung vor der Übernahme: ungültige Daten bzw. Stunden bleiben rot markiert in der Zelle stehen (Hinweis unter der Zelle,
         // Tooltip am Fehlersymbol); Esc verwirft die Eingabe – nichts Ungültiges wird gespeichert
         _g.CellValidating += ZellePruefen;
+        Steuerelemente.Tabellenbedienung.PruefungSetzen(_g, (zelle, text) => ZelleGueltig(zelle, text));
         _g.CellEndEdit += (_, e) => { if (e.RowIndex >= 0 && e.RowIndex < _g.Rows.Count && e.ColumnIndex >= 0) FehlerAnzeigen(_g.Rows[e.RowIndex].Cells[e.ColumnIndex], null); };
         _g.CellEndEdit += ZelleGeaendert;
         // Zeilenwechsel: Esc nimmt danach nicht mehr die Eingaben der vorherigen Zeile zurück
@@ -874,17 +875,21 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
     private void ZellePruefen(object? sender, DataGridViewCellValidatingEventArgs e)
     {
         if (_laedt || e.Cancel || e.RowIndex < 0 || e.ColumnIndex < 0 || !_g.IsCurrentCellInEditMode || _g.CurrentCell?.RowIndex != e.RowIndex) return;
-        var zeile = _g.Rows[e.RowIndex];
-        if (zeile.Tag is Veranstaltung) return;
-        var spalte = _g.Columns[e.ColumnIndex].Name;
-        if (spalte is not ("V" or "B" or "SV" or "SB")) return;
-        var zelle = zeile.Cells[e.ColumnIndex];
-        var text = e.FormattedValue?.ToString()?.Trim() ?? "";
-        var fehler = text == (zelle.FormattedValue?.ToString()?.Trim() ?? "") ? null : EingabePruefen(zeile, spalte, text);
+        if (!ZelleGueltig(_g.Rows[e.RowIndex].Cells[e.ColumnIndex], e.FormattedValue?.ToString() ?? "")) e.Cancel = true;
+    }
+
+    /// <summary>Eingabe einer Zelle prüfen (Zellwechsel und Enter); ungültig: rot markieren, Hinweis zeigen, false.</summary>
+    private bool ZelleGueltig(DataGridViewCell zelle, string eingabe)
+    {
+        if (_laedt || zelle.RowIndex < 0 || zelle.OwningRow.Tag is Veranstaltung) return true;
+        var spalte = zelle.OwningColumn.Name;
+        if (spalte is not ("V" or "B" or "SV" or "SB")) return true;
+        var text = eingabe.Trim();
+        var fehler = text == (zelle.FormattedValue?.ToString()?.Trim() ?? "") ? null : EingabePruefen(zelle.OwningRow, spalte, text);
         FehlerAnzeigen(zelle, fehler);
-        if (fehler is null) return;
-        e.Cancel = true;
+        if (fehler is null) return true;
         Ui.EingabeHinweis(_g, fehler + " Bitte korrigieren oder mit Esc verwerfen.");
+        return false;
     }
 
     /// <summary>Fehlertext der Eingabe <paramref name="text"/> im Feld <paramref name="spalte"/> der Zeile (null = gültig).</summary>
@@ -1452,9 +1457,9 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
             case { } ec: ec.Text = text; break;
         }
         _g.NotifyCurrentCellDirty(true);
-        bool ok;
-        try { ok = _g.EndEdit(); } catch (InvalidOperationException) { ok = false; }
-        return ok && !_g.IsCurrentCellInEditMode;
+        // bestätigen wie mit der Enter-Taste (Prüfung, Übernahme, Weiterspringen)
+        Steuerelemente.Tabellenbedienung.Bearbeitungstaste(_g, Keys.Enter);
+        return !_g.IsCurrentCellInEditMode;
     }
 
     /// <summary>Selbsttest: Fehlertext (rote Markierung) der aktuellen Zelle.</summary>
@@ -1508,7 +1513,8 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
             case { } ec: ec.Text = text; break;
         }
         _g.NotifyCurrentCellDirty(true);
-        try { return _g.EndEdit(); } catch (InvalidOperationException) { return false; }
+        Steuerelemente.Tabellenbedienung.Bearbeitungstaste(_g, Keys.Enter);
+        return !_g.IsCurrentCellInEditMode;
     }
 
     /// <summary>Selbsttest: Absenz markieren und „Löschen“ (Rückfrage wird über den Antwort-Haken beantwortet).</summary>

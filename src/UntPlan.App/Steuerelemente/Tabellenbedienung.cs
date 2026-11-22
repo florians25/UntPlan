@@ -24,6 +24,13 @@ public static class Tabellenbedienung
     private static readonly ConditionalWeakTable<Type, object> EigeneEnterLogik = new();
     private static readonly ConditionalWeakTable<DataGridView, StrongBox<bool>> LoeschAntwort = new();
     private static bool _aktiv;
+    private static readonly ConditionalWeakTable<DataGridView, Func<DataGridViewCell, string, bool>> Pruefungen = new();
+
+    /// <summary>
+    /// Fenstereigene Prüfung einer Eingabe vor der Übernahme mit Enter (EndEdit prüft nicht wie der Zellwechsel über CellValidating):
+    /// false = ungültig, die Eingabe bleibt in der Zelle (die Prüfung zeigt den Hinweis).
+    /// </summary>
+    public static void PruefungSetzen(DataGridView g, Func<DataGridViewCell, string, bool> pruefen) => Pruefungen.AddOrUpdate(g, pruefen);
 
     /// <summary>Programmweit einschalten (einmal beim Start): Tasten während einer Zelleingabe und Strg+Z/Strg+Y.</summary>
     public static void Einschalten()
@@ -449,6 +456,9 @@ public static class Tabellenbedienung
                 ListenSuche.SuchtextUebernehmen(cb);
                 if (cb.DroppedDown) cb.DroppedDown = false;
             }
+            if (Pruefungen.TryGetValue(g, out var pruefen) && g.CurrentCell is { } zelle && g.EditingControl is IDataGridViewEditingControl ed &&
+                !pruefen(zelle, ed.GetEditingControlFormattedValue(DataGridViewDataErrorContexts.Commit)?.ToString() ?? ""))
+                return true;
             bool ok;
             try { ok = g.EndEdit(); }
             catch (InvalidOperationException) { ok = false; }
