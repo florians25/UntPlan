@@ -38,11 +38,12 @@ import { kalenderBinden } from '../kalender.js';
 /** Einstellungen der Legende (je Gerät). */
 export function planEinstellungen() {
   const w = { symbole: true, abwesenheiten: true, zeiten: true };
-  try { Object.assign(w, JSON.parse(localStorage.getItem('untplan:planeinstellungen') ?? '{}')); } catch { /* privat */ }
+  try { const g = JSON.parse(localStorage.getItem('untplan:planeinstellungen') ?? '{}'); Object.assign(w, g); w.zeitenGewaehlt = 'zeiten' in g; } catch { /* privat */ }
   try { const z = localStorage.getItem('untplan:kartenzeiten'); if (z !== null && !localStorage.getItem('untplan:planeinstellungen')) w.zeiten = z === '1'; } catch { /* privat */ }
   return w;
 }
-function einstellungenSpeichern(w) { try { localStorage.setItem('untplan:planeinstellungen', JSON.stringify(w)); } catch { /* privat */ } }
+// die eigene Wahl („Uhrzeiten anzeigen“ im Menü ⋮) bleibt gespeichert und hat Vorrang vor der Vorgabe des Stundenplanformats
+function einstellungenSpeichern(w) { try { const { zeitenGewaehlt, ...rest } = w; localStorage.setItem('untplan:planeinstellungen', JSON.stringify(rest)); w.zeitenGewaehlt = true; } catch { /* privat */ } }
 
 /** Legende als schwebende Pillenleiste; die Pillen blenden Statusfarben aus und ein, „⋮“ öffnet das Menü wie im Original. */
 /** Im Menü „⋮“ gewähltes Stundenplanformat (je Gerät): null = Vorgabe der Schule, 0 = Standarddarstellung, sonst die Id. */
@@ -249,7 +250,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       <div class="u-plantitel"><h2>${e(TYPEN[typ])} ${e(plan.element)}${langname(plan) ? ` (${e(langname(plan))})` : ''}</h2>
         <span class="text-body-secondary small ms-2">${wochenText(mo)}</span></div>
       ${tagAuswahl(plan, gewaehlt)}
-      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: plan.format?.kartenZeiten || einst.zeiten })}
+      ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeitenGewaehlt ? einst.zeiten : (plan.format?.kartenZeiten || einst.zeiten) })}
       ${legendeHtml(aus, einst, true, plan)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
     kartenBinden(inhalt, plan.karten, kontext, typ, plan.format);
