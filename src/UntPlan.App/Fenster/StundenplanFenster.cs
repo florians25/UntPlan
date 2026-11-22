@@ -77,6 +77,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     internal bool PlanScrollbar => _planRahmen.AutoScroll && _plan.Height > _planRahmen.ClientSize.Height;
     /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
     internal void SelbsttestScrollen(int y) => _planRahmen.AutoScrollPosition = new Point(0, y);
+    internal void SelbsttestScrollen(int x, int y) { _planRahmen.AutoScrollPosition = new Point(x, y); _planRahmen.Update(); }
 
     /// <summary>Abstand des Planrahmens zum Fensterrahmen im Vertretungsmodus (Vorbild 9 px bei 1 px Fensterrahmen, hier 3 px Rahmen).</summary>
     private const int Einzug = 7;

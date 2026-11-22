@@ -47,22 +47,65 @@ public sealed class Drehknopf : Control
         base.OnMouseUp(e);
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaint(PaintEventArgs e) => Zeichnen(e.Graphics, Size, _hover, _gedrueckt, Enabled);
+
+    /// <summary>
+    /// Hoch/Runter-Knopf zeichnen: zwei gleich hohe Hälften (bei ungerader Höhe mit gemeinsamer Mittellinie) und zwei pixelgenau
+    /// gespiegelte, gleich große Pfeile, jeweils gleich in ihrer Hälfte zentriert (wie im Vorbild „Kalenderwoche“).
+    /// </summary>
+    internal static void Zeichnen(Graphics g, Size groesse, int hover, int gedrueckt, bool aktiv)
     {
-        var g = e.Graphics;
-        var oben = new Rectangle(0, 0, Width - 1, Height / 2 - 1);
-        var unten = new Rectangle(0, Height / 2, Width - 1, Height - Height / 2 - 1);
-        foreach (var (r, richtung) in new[] { (oben, 1), (unten, -1) })
+        var (w, h) = (groesse.Width, groesse.Height);
+        if (w < 4 || h < 6) return;
+        var obenEnde = h % 2 == 1 ? h / 2 : h / 2 - 1;
+        var untenAnfang = h / 2;
+        var oben = new Rectangle(0, 0, w - 1, obenEnde);
+        var unten = new Rectangle(0, untenAnfang, w - 1, h - 1 - untenAnfang);
+        var alt = g.SmoothingMode;
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+        // die überfahrene Hälfte zuletzt, damit ihr Rand auf der gemeinsamen Mittellinie sichtbar bleibt
+        var reihenfolge = hover == 1 ? new[] { (unten, -1), (oben, 1) } : new[] { (oben, 1), (unten, -1) };
+        foreach (var (r, richtung) in reihenfolge)
         {
-            var farbe = _gedrueckt == richtung ? Ui.BlauHell : _hover == richtung ? Ui.Hover : Color.FromArgb(250, 250, 250);
+            var farbe = gedrueckt == richtung ? Ui.BlauHell : hover == richtung ? Ui.Hover : Color.FromArgb(250, 250, 250);
             using (var b = new SolidBrush(farbe)) g.FillRectangle(b, r);
-            using (var p = new Pen(_hover == richtung ? Ui.HoverRand : Color.FromArgb(170, 170, 170))) g.DrawRectangle(p, r);
-            var m = new Point(r.X + r.Width / 2 + 1, r.Y + r.Height / 2 + 1);
-            var dreieck = richtung > 0
-                ? new[] { new Point(m.X - 3, m.Y + 1), new Point(m.X + 2, m.Y + 1), new Point(m.X, m.Y - 2) }
-                : new[] { new Point(m.X - 3, m.Y - 1), new Point(m.X + 2, m.Y - 1), new Point(m.X, m.Y + 2) };
-            using var dunkel = new SolidBrush(Enabled ? Color.FromArgb(40, 40, 40) : Color.Silver);
-            g.FillPolygon(dunkel, dreieck);
+            using (var p = new Pen(hover == richtung ? Ui.HoverRand : Color.FromArgb(170, 170, 170))) g.DrawRectangle(p, r);
+            PfeilZeichnen(g, new Rectangle(r.X + 1, r.Y + 1, r.Width - 1, r.Height - 1), richtung > 0, aktiv ? Color.FromArgb(40, 40, 40) : Color.Silver);
         }
+        g.SmoothingMode = alt;
+    }
+
+    /// <summary>Pfeil aus drei Pixelzeilen (1, 3, 5 Pixel breit) mittig im Innenraum – oben und unten deckungsgleich gespiegelt.</summary>
+    internal static void PfeilZeichnen(Graphics g, Rectangle innen, bool hoch, Color farbe)
+    {
+        const int zeilen = 3;
+        var mx = innen.X + (innen.Width - 1) / 2;
+        var y0 = innen.Y + (innen.Height - zeilen) / 2;
+        using var b = new SolidBrush(farbe);
+        for (var i = 0; i < zeilen; i++)
+            g.FillRectangle(b, mx - i, hoch ? y0 + i : y0 + zeilen - 1 - i, 2 * i + 1, 1);
+    }
+
+    /// <summary>
+    /// Zahlenfelder (NumericUpDown): die von Windows gezeichneten Pfeile sind bei kleinen Höhen oben und unten verschieden groß –
+    /// darüber denselben Hoch/Runter-Knopf mit gleichen Pfeilen zeichnen (Zustand aus der Mausposition).
+    /// </summary>
+    internal static void PfeileEinheitlich(NumericUpDown n)
+    {
+        if (n.Controls.Cast<Control>().FirstOrDefault(c => c.GetType().Name == "UpDownButtons") is not { } knoepfe) return;
+        knoepfe.Paint += (_, e) =>
+        {
+            var pt = knoepfe.PointToClient(Cursor.Position);
+            var hover = knoepfe.ClientRectangle.Contains(pt) && knoepfe.Enabled ? (pt.Y < knoepfe.Height / 2 ? 1 : -1) : 0;
+            var gedrueckt = hover != 0 && (Control.MouseButtons & MouseButtons.Left) != 0 ? hover : 0;
+            using (var b = new SolidBrush(n.BackColor)) e.Graphics.FillRectangle(b, knoepfe.ClientRectangle);
+            Zeichnen(e.Graphics, knoepfe.ClientSize, hover, gedrueckt, n.Enabled);
+        };
+        // Überfahren/Verlassen neu zeichnen (Hervorhebung der Hälfte unter der Maus)
+        knoepfe.MouseMove += (_, _) => knoepfe.Invalidate();
+        knoepfe.MouseLeave += (_, _) => knoepfe.Invalidate();
+        knoepfe.MouseDown += (_, _) => knoepfe.Invalidate();
+        knoepfe.MouseUp += (_, _) => knoepfe.Invalidate();
+        knoepfe.Invalidate();
     }
 }

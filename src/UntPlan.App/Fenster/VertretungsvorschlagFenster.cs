@@ -981,9 +981,17 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                     using var p = new Pen(Color.Red, 1);
                     e.Graphics.DrawLine(p, zr.X + (zr.Width - breite) / 2, y, zr.X + (zr.Width + breite) / 2, y);
                 }
-                if (k < z.Count - 1) e.Graphics.DrawLine(linie, zr.Right, zr.Y, zr.Right, zr.Bottom);
-                if (zelle.Ziel) ZielMarkieren(e.Graphics, zr, e.RowIndex == 0, e.RowIndex == g.Rows.Count - 1);
             }
+            // Trennlinien zwischen allen Stunden der Spalte (Vorlage) – auch wenn am Tagesende weniger Stunden als Plätze folgen;
+            // vor der Markierung der Vertretungsstunde gezeichnet, damit deren gestrichelter Rahmen oben liegt
+            var plaetze = PlanAnzahl(spalte.Width);
+            for (var k = 1; k < plaetze; k++)
+            {
+                var x = r.X + k * w - 1;
+                if (x < r.Right - 1) e.Graphics.DrawLine(linie, x, r.Y, x, r.Bottom - 1);
+            }
+            for (var k = 0; k < z.Count; k++)
+                if (z[k].Ziel) ZielMarkieren(e.Graphics, new Rectangle(r.X + k * w, r.Y, w - 1, r.Height - 1), e.RowIndex == 0, e.RowIndex == g.Rows.Count - 1);
             e.Graphics.Clip = clip;
             e.Handled = true;
             return;

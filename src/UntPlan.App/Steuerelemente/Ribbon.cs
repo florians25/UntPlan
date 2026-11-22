@@ -370,11 +370,11 @@ public sealed class Ribbon : Control
                 var gedrueckt = it.Gedrueckt?.Invoke() == true;
                 if (gedrueckt)
                 {
-                    // eingedrückt wie „Vertretungsplanung“ in der Vorlage: eckig, kräftige helle Modusfarbe, Rand in der Titelfarbe
-                    g.SmoothingMode = SmoothingMode.None;
-                    using (var b = new SolidBrush(Ui.MenuebandGedrueckt)) g.FillRectangle(b, it.Bounds);
-                    using (var p = new Pen(it == _hover && aktiv ? Ui.HoverRand : Ui.Titel)) g.DrawRectangle(p, it.Bounds.X, it.Bounds.Y, it.Bounds.Width - 1, it.Bounds.Height - 1);
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    // eingedrückt wie „Vertretungsplanung“: kräftige helle Modusfarbe, 1 Pixel Rand in der Titelfarbe, leicht abgerundete
+                    // Ecken (Radius 2 wie die übrigen Knöpfe beim Überfahren)
+                    using var pfad = Ui.AbgerundetesRechteck(new RectangleF(it.Bounds.X + 0.5f, it.Bounds.Y + 0.5f, it.Bounds.Width - 1, it.Bounds.Height - 1), GedruecktRadius);
+                    using (var b = new SolidBrush(Ui.MenuebandGedrueckt)) g.FillPath(b, pfad);
+                    using (var p = new Pen(it == _hover && aktiv ? Ui.HoverRand : Ui.Titel)) g.DrawPath(p, pfad);
                 }
                 else if (it == _hover && aktiv)
                 {
@@ -413,6 +413,9 @@ public sealed class Ribbon : Control
             }
         }
     }
+
+    /// <summary>Eckenradius eingedrückter Knöpfe (z. B. „Vertretungsplanung“).</summary>
+    internal const float GedruecktRadius = 2.5f;
 
     private static readonly Color DatumBlau = Color.FromArgb(100, 150, 200);
     private static Rectangle DatumLinks(RibbonEintrag it) => new(it.Bounds.Right - 30, it.Bounds.Y + 4, 14, 14);
