@@ -1205,11 +1205,29 @@ public sealed partial class HauptFenster
             bmp.Save(Path.Combine(ordner, name + "_F.png"), System.Drawing.Imaging.ImageFormat.Png);
         }
         Form NeuesterDialog() => Application.OpenForms.Cast<Form>().Last(f => f != this && f.Visible && !f.IsMdiChild);
-        Schritt("V20_Klassen", () => { ModusFuerBild(false); Max(FensterOeffnen("st:Klasse")!); Gesamtbild("V20_Klassen"); }, 1);
+        Schritt("V20_Klassen", () =>
+        {
+            ModusFuerBild(false);
+            var f = Max(FensterOeffnen("st:Klasse")!);
+            Gesamtbild("V20_Klassen");
+            // wie im Vorbild: Liste ohne Zeilenköpfe
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Alle(x)));
+            if (Alle(f).OfType<DataGridView>().FirstOrDefault(g => g.Visible && g.RowHeadersVisible) is { } mitKopf) throw new InvalidOperationException($"Stammdatenliste mit Zeilenköpfen: {mitKopf.Name}");
+        }, 1);
         Schritt("V21_Unterricht", () => { ModusFuerBild(false); Max(FensterOeffnen("u:Klasse")!); Gesamtbild("V21_Unterricht"); }, 1);
         Schritt("V22_Stundenplan", () => { ModusFuerBild(false); Max(StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false)); Gesamtbild("V22_Stundenplan"); }, 3);
         Schritt("V23_Planungsdialog", () => { ModusFuerBild(false); Max(PlanungsdialogFenster.Zeigen()); Gesamtbild("V23_Planungsdialog"); }, 3);
-        Schritt("V24_Einstellungen", () => { ModusFuerBild(false); var f = new EinstellungenDialog(); f.Show(this); Gesamtbild("V24_Einstellungen", f); }, 0);
+        Schritt("V24_Einstellungen", () =>
+        {
+            ModusFuerBild(false);
+            var f = new EinstellungenDialog();
+            f.Show(this);
+            Gesamtbild("V24_Einstellungen", f);
+            // gemeinsames Erscheinungsbild: Dialogfläche in der Modusfarbe, flache weiße Knöpfe, Standardknopf mit Rand in der Modusfarbe
+            if (f.BackColor != Ui.DialogFlaeche) throw new InvalidOperationException($"Dialogfläche {f.BackColor} statt {Ui.DialogFlaeche}");
+            if (f.Ok.FlatStyle != FlatStyle.Flat || f.Ok.BackColor != Color.White || f.Ok.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || f.Abbrechen.FlatStyle != FlatStyle.Flat)
+                throw new InvalidOperationException("Dialogknöpfe nicht im gemeinsamen Erscheinungsbild");
+        }, 0);
         Schritt("V25_Optimierung", () => { ModusFuerBild(false); var f = new OptimierungDialog(); f.Show(this); Gesamtbild("V25_Optimierung", f); }, 2);
         Schritt("V26_Zeitraster", () => { ModusFuerBild(false); var f = new ZeitrasterDialog(); f.Show(this); Gesamtbild("V26_Zeitraster", f); }, 0);
         Schritt("V27_Stundenplanformat", () => { ModusFuerBild(false); FormatKarte("Allgemein"); Gesamtbild("V27_Stundenplanformat", NeuesterDialog()); }, 3);
