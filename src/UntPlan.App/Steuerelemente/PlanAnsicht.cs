@@ -224,6 +224,9 @@ public sealed partial class PlanAnsicht : Control
     private Feldstatus[,]? _status;
     private (int Tag, int Stunde)? _hover;
     private Point _down;
+    // Mausposition beim Drücken auf dem Bildschirm: die Ziehschwelle misst die echte Mausbewegung, nicht eine Verschiebung des
+    // Plans (Fokus oder Einrasten kann den Plan im Rahmen scrollen, ohne dass die Maus bewegt wurde)
+    private Point _downBildschirm;
     private Planstunde? _downStunde;
     private (DateOnly, TagesEintrag)? _downEintrag;
     private readonly ToolTip _tip = new() { InitialDelay = 500 };
@@ -2142,7 +2145,7 @@ public sealed partial class PlanAnsicht : Control
                 // nicht verplante Stunde: verknüpfte Pläne trotzdem auf Tag und Stunde setzen
                 LeereZelleGewaehlt?.Invoke(h2.Tag, h2.Stunde);
             }
-            if (e.Button == MouseButtons.Left) { _down = e.Location; _downEintrag = te; }
+            if (e.Button == MouseButtons.Left) { _down = e.Location; _downBildschirm = Cursor.Position; _downEintrag = te; }
             else if (e.Button == MouseButtons.Right && h is { } h3 && _woche is DateOnly w3) TagesKontext?.Invoke(e.Location, w3.AddDays(h3.Tag), h3.Stunde, te?.Eintrag);
             return;
         }
@@ -2151,6 +2154,7 @@ public sealed partial class PlanAnsicht : Control
         if (e.Button == MouseButtons.Left)
         {
             _down = e.Location;
+            _downBildschirm = Cursor.Position;
             _downStunde = p;
             // leere Zelle: Maustaste 2 Sekunden halten = Vorschläge für Hohlstunden; Klick hebt „Stunden einzeln ziehen“ auf
             if (p is null && (ModifierKeys & Keys.Control) == 0) { EinzelZiehen = false; HohlstundenBeginnen(_zelle); }
@@ -2192,7 +2196,8 @@ public sealed partial class PlanAnsicht : Control
     {
         // Ziehschwelle: erst nach einer deutlichen Bewegung ziehen (kein versehentliches Verlegen beim Klicken mit leichtem Verwackeln)
         var schwelle = Math.Max(6, Math.Max(SystemInformation.DragSize.Width, SystemInformation.DragSize.Height));
-        var weit = Math.Abs(e.X - _down.X) > schwelle || Math.Abs(e.Y - _down.Y) > schwelle;
+        var maus = Cursor.Position;
+        var weit = Math.Abs(maus.X - _downBildschirm.X) > schwelle || Math.Abs(maus.Y - _downBildschirm.Y) > schwelle;
         if (e.Button == MouseButtons.Left && weit && Bearbeitbar)
         {
             if (Tagesmodus && _downEintrag is { } de && de.Item2.Findetstatt)

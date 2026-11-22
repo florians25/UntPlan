@@ -31,6 +31,7 @@ public sealed class PlanungsRaster : Control
     private readonly HScrollBar _h = new() { Dock = DockStyle.Bottom };
     private readonly VScrollBar _v = new() { Dock = DockStyle.Right };
     private Point _down;
+    private Point _downBildschirm; // Ziehschwelle in Bildschirmkoordinaten (Scrollen verschiebt das Raster, nicht die Maus)
     private (int Z, int S)? _downZelle;
     private (int Z, int S)? _ziel;
 
@@ -215,6 +216,7 @@ public sealed class PlanungsRaster : Control
     {
         Focus();
         _down = e.Location;
+        _downBildschirm = Cursor.Position;
         var (z, s) = Bei(e.Location);
         _downZelle = null;
         if (z >= 0 && s == -1 && Baumbreite > 0 && e.X < Baumbreite && Zeilen[z].Offen is bool)
@@ -242,7 +244,8 @@ public sealed class PlanungsRaster : Control
         base.OnMouseMove(e);
         if (e.Button != MouseButtons.Left || _downZelle is not { } dz) return;
         var schwelle = Math.Max(5, SystemInformation.DragSize.Width);
-        if (Math.Abs(e.X - _down.X) < schwelle && Math.Abs(e.Y - _down.Y) < schwelle) return;
+        var maus = Cursor.Position;
+        if (Math.Abs(maus.X - _downBildschirm.X) < schwelle && Math.Abs(maus.Y - _downBildschirm.Y) < schwelle) return;
         _downZelle = null;
         var daten = ZiehenBeginnt?.Invoke(dz.Z, dz.S);
         if (daten is null) return;
