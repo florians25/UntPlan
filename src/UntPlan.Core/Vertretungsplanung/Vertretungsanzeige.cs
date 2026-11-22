@@ -95,7 +95,8 @@ public static class Kalenderkennzahlen
             d.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Klasse && Gilt(a)),
             liste.Count(v => v.Art == VertretungsArt.Freisetzung),
             d.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && Gilt(a)),
-            liste.Count(v => v.Art == VertretungsArt.Raumvertretung),
+            // Raumvertretungen: auch Vertretungen, deren Raum zusätzlich gesperrt ist (Lehrer- und Raumabsenz in derselben Stunde)
+            liste.Count(v => v.Art == VertretungsArt.Raumvertretung || (v.RaumGesperrt && !v.IstEntfall)),
             liste.Count(v => v.RaumOffen),
             d.Tagestexte.Count(x => x.GiltAm(datum)),
             liste.Count(v => v.Art == VertretungsArt.Entfall));

@@ -152,7 +152,7 @@ public sealed class Tagesplan
                 FachId = v.VertretungsfachId ?? v.FachId, KlassenIds = v.NeueKlassenIds.ToList(),
                 LehrerIds = v.VertreterId is int l ? new List<int> { l } : new(),
                 // Raum verdrängt (z. B. Raumvertretung für eine verlegte Stunde ohne freien Raum): belegt keinen Raum („???“)
-                RaumIds = v.VertretungsraumId is int vr ? new List<int> { vr } : !v.RaumVerdraengt && v.RaumId is int rm ? new List<int> { rm } : new(),
+                RaumIds = v.VertretungsraumId is int vr ? new List<int> { vr } : !v.RaumVerdraengt && !v.RaumGesperrt && v.RaumId is int rm ? new List<int> { rm } : new(),
             };
             e.RaumIds.AddRange(v.ZusatzraumIds);
             tp.Eintraege.Add(e);
@@ -172,7 +172,7 @@ public sealed class Tagesplan
         if (v.VertretungsfachId.HasValue) e.FachId = v.VertretungsfachId;
         if (v.VertretungsraumId.HasValue) e.RaumIds = new List<int> { v.VertretungsraumId.Value };
         // Raum verdrängt bzw. Raum gelöscht: die Stunde belegt keinen Raum mehr
-        else if (v.RaumVerdraengt || (v.Art == VertretungsArt.Raumvertretung && v.Quelle == VertretungsQuelle.Manuell && v.ZusatzraumIds.Count == 0)) e.RaumIds = new List<int>();
+        else if (v.RaumVerdraengt || v.RaumGesperrt || (v.Art == VertretungsArt.Raumvertretung && v.Quelle == VertretungsQuelle.Manuell && v.ZusatzraumIds.Count == 0)) e.RaumIds = new List<int>();
         e.RaumIds.AddRange(v.ZusatzraumIds);
         switch (v.Art)
         {

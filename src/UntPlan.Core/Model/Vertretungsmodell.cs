@@ -223,6 +223,14 @@ public sealed class Vertretung
     /// </summary>
     public bool RaumVerdraengt { get; set; }
     /// <summary>
+    /// Der Raum der Stunde ist gesperrt (Raumabsenz bzw. Veranstaltung im Raum), die Zeile hat aber einen anderen Grund (z. B. abwesende
+    /// Lehrkraft): Beide Gründe gelten – Vertretung und Raumvertretung in einer Zeile. Ohne Ersatzraum ist der Raum offen („???“).
+    /// Wird bei jeder Neuberechnung neu bestimmt (entfällt die Raumabsenz, entfällt das Kennzeichen; die Lehrervertretung bleibt).
+    /// </summary>
+    public bool RaumGesperrt { get; set; }
+    /// <summary>Raumabsenz zu <see cref="RaumGesperrt"/> (null: Raum durch eine Veranstaltung belegt bzw. nicht gesperrt).</summary>
+    public int? RaumAbwesenheitId { get; set; }
+    /// <summary>
     /// Die Klassen sind abwesend (Veranstaltung bzw. Klassenabsenz): Die Zeile wurde deshalb zur Freisetzung bzw. zum Entfall.
     /// Hält die bisherige Art (z. B. Sondereinsatz, Unterricht geändert), die zurückkehrt, sobald die Klasse wieder anwesend ist.
     /// </summary>
@@ -241,7 +249,7 @@ public sealed class Vertretung
     /// <summary>Veranstaltung, aus der eine Lehrkraft entfernt wurde und für die noch keine Ersatzlehrkraft eingetragen ist.</summary>
     [JsonIgnore] public bool VeranstaltungOffen => Art == VertretungsArt.Veranstaltung && ErsatzFuerLehrerId.HasValue && VertreterId == null;
     /// <summary>Raumvertretung wegen gesperrtem Raum, für die noch kein Ersatzraum eingetragen ist (offen wie eine fehlende Lehrkraft).</summary>
-    [JsonIgnore] public bool RaumOffen => VertretungsraumId == null && ((Art == VertretungsArt.Raumvertretung && Quelle != VertretungsQuelle.Manuell) || (RaumVerdraengt && !IstEntfall));
+    [JsonIgnore] public bool RaumOffen => VertretungsraumId == null && ((Art == VertretungsArt.Raumvertretung && Quelle != VertretungsQuelle.Manuell) || ((RaumVerdraengt || RaumGesperrt) && !IstEntfall));
     /// <summary>Offen im Sinne der Liste: Lehrkraft oder Raum fehlt.</summary>
     [JsonIgnore] public bool OffenOderRaumOffen => Offen || RaumOffen;
     [JsonIgnore] public bool IstEntfall => Art is VertretungsArt.Entfall or VertretungsArt.Freisetzung or VertretungsArt.BereitschaftEntfaellt;

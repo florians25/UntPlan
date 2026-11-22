@@ -529,7 +529,7 @@ public sealed class AbwesenheitenFenster : MdiFenster
         {
             case Abwesenheit a:
             {
-                var offen = D.Vertretungen.Count(v => v.AbwesenheitId == a.Id && v.OffenOderRaumOffen);
+                var offen = D.Vertretungen.Count(v => (v.AbwesenheitId == a.Id && v.OffenOderRaumOffen) || (v.RaumAbwesenheitId == a.Id && v.AbwesenheitId != a.Id && v.RaumOffen));
                 var grund = D.Abwesenheitsgruende.FirstOrDefault(x => x.Id == a.GrundId)?.Kurzname ?? "";
                 var absenztage = 0;
                 for (var t = a.Von; t <= a.Bis && absenztage < 400; t = t.AddDays(1)) if (Kalender.IstUnterrichtstag(D, t)) absenztage++;

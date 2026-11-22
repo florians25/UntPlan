@@ -196,7 +196,7 @@ public sealed class VertretungApi : IStudioModul
         id = $"A{x.Id}", nr = x.Id, element = ix.K(TypVon(x.Art), x.ElementId), elementId = x.ElementId, von = x.Von, bis = x.Bis, sv = x.StundeVon,
         sb = Math.Min(x.StundeBis, letzte), grund = ix.K(ElementTyp.Abwesenheitsgrund, x.GrundId), text = x.Text,
         begleit = string.Join(", ", x.BegleitLehrerIds.Select(ix.KLehrer)),
-        offen = d.Vertretungen.Count(v => v.AbwesenheitId == x.Id && v.OffenOderRaumOffen),
+        offen = d.Vertretungen.Count(v => (v.AbwesenheitId == x.Id && v.OffenOderRaumOffen) || (v.RaumAbwesenheitId == x.Id && v.AbwesenheitId != x.Id && v.RaumOffen)),
     };
 
     private static void AbsenzenRegistrieren(RouteGroupBuilder g)
