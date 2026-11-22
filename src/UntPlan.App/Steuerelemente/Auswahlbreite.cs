@@ -198,6 +198,10 @@ public static class Auswahlbreite
                 // nach Neuaufbau der Zeilen keine veraltete Hover-Zelle stehen lassen
                 g.RowsRemoved += (_, _) => HoverZelle.AddOrUpdate(g, new StrongBox<Point>(new Point(-1, -1)));
                 break;
+            case NumericUpDown n:
+                // Zahlenfelder überall mit gleich großen, gespiegelten Pfeilen (wie der eigene Hoch/Runter-Knopf)
+                Drehknopf.PfeileEinheitlich(n);
+                break;
             case RichTextBox rtb:
                 NurText.Textfeld(rtb);
                 break;

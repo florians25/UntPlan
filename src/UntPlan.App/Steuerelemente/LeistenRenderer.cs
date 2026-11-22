@@ -13,11 +13,27 @@ public sealed class LeistenRenderer : ToolStripProfessionalRenderer
         using var b = new SolidBrush(Ui.Titel);
         e.Graphics.FillRectangle(b, e.AffectedBounds);
         // Vorlage: oben 4 Pixel hellgrün, darunter dunkler bis zur Registerkarte (unter den Symbolen des Schnellzugriffs)
-        if (Band?.Invoke() is { Width: > 0 } band)
+        if (Band?.Invoke() is { Width: > 0 } band && SichtbaresBand(e.ToolStrip, band) is { Width: > 0 } frei)
         {
-            using (var d = new SolidBrush(Ribbon.KontextDunkel)) e.Graphics.FillRectangle(d, band.X, 0, band.Width, e.ToolStrip.Height);
-            using (var h = new SolidBrush(Ribbon.KontextHell)) e.Graphics.FillRectangle(h, band.X, 0, band.Width, 4);
+            using (var d = new SolidBrush(Ribbon.KontextDunkel)) e.Graphics.FillRectangle(d, frei.X, 0, frei.Width, e.ToolStrip.Height);
+            using (var h = new SolidBrush(Ribbon.KontextHell)) e.Graphics.FillRectangle(h, frei.X, 0, frei.Width, 4);
         }
+    }
+
+    /// <summary>
+    /// Teil des Kontextbands, der in der Schnellzugriffsleiste sichtbar ist: nur im Bereich der Registerkarte und nie hinter den
+    /// Einträgen der Leiste (Symbole, „UntPlanWeb“, Trennstriche, Fensterknöpfe behalten ihren normalen Grund).
+    /// </summary>
+    internal static Rectangle SichtbaresBand(ToolStrip leiste, Rectangle band)
+    {
+        var (von, bis) = (band.Left, band.Right);
+        foreach (ToolStripItem i in leiste.Items)
+        {
+            if (!i.Visible || i.Bounds.Width <= 0 || i.Bounds.Right <= von || i.Bounds.Left >= bis) continue;
+            if (i.Alignment == ToolStripItemAlignment.Left) von = Math.Max(von, i.Bounds.Right + i.Margin.Right);
+            else bis = Math.Min(bis, i.Bounds.Left - i.Margin.Left);
+        }
+        return bis > von ? new Rectangle(von, band.Y, bis - von, band.Height) : Rectangle.Empty;
     }
 
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e) { }

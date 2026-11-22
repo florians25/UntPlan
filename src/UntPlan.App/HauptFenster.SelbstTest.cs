@@ -862,6 +862,59 @@ public sealed partial class HauptFenster
             f.Bounds = new Rectangle(0, 0, 497, 297);
             Vergleich("V7_Kalender", f, new Size(497, 297));
         }, -1);
+        Schritt("V8_Plan_gescrollt", () =>
+        {
+            // kleiner Plan niedriger als nötig und nach unten gerollt (Stundenspalte bleibt stehen, je Zeile genau eine Nummer),
+            // daneben schmal und nach unten/rechts gerollt (Tageskopf, Stundenspalte und Ecke)
+            var f = StundenplanFenster.Neu(ElementTyp.Lehrer, null, false, true);
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(100, 0, 272, 470);
+            Warten(400);
+            f.SelbsttestScrollen(0, 25);
+            Warten(200);
+            f.SelbsttestScrollen(0, 51);
+            Warten(200);
+            f.SelbsttestScrollen(0, 77);
+            Warten(300);
+            Vergleich("V8_Plan_gescrollt", f, new Size(272, 470));
+            f.Bounds = new Rectangle(100, 0, 190, 420);
+            Warten(400);
+            f.SelbsttestScrollen(30, 60);
+            Warten(200);
+            f.SelbsttestScrollen(2000, 120);
+            Warten(300);
+            Vergleich("V8b_Plan_quer_gescrollt", f, new Size(190, 420));
+            f.Close();
+        }, -1);
+        Schritt("V9_Vorschlag_Trennlinien", () =>
+        {
+            // Spalte „Stundenplan“ breiter als die Stunden bis Tagesende: Trennlinien trotzdem zwischen allen Plätzen
+            var f = VorschlagNormal(0);
+            IEnumerable<Control> Alle(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Alle(x)));
+            var g = Alle(f).OfType<DataGridView>().FirstOrDefault(x => x.Visible && x.Columns.Contains("S1"));
+            if (g is null) { log.Add("INFO  V9: keine Spalte „Stundenplan“"); return; }
+            var alt = g.Columns["S1"]!.Width;
+            g.Columns["S1"]!.Width = 8 * 53 + 1;
+            Vergleich("V9_Vorschlag_Trennlinien", f, new Size(450, 300));
+            g.Columns["S1"]!.Width = alt;
+        }, -1);
+        Schritt("V10_Kopf", () =>
+        {
+            // Kopf mit Kontextband über „Vertretungsplanung“ (nicht hinter dem Schnellzugriff) und eingedrücktem großen Knopf
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            Refresh();
+            var r = RectangleToScreen(new Rectangle(0, 0, Math.Min(ClientSize.Width, 1300), _schnell.Height + _ribbon.Height));
+            using (var bmp = new Bitmap(r.Width, r.Height))
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, "V10_Kopf_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            var band = _ribbon.KontextBand;
+            log.Add($"MASS  V10_Kopf: Kontextband x {_ribbon.Left + band.X}–{_ribbon.Left + band.Right}, Schnellzugriff bis {_schnell.Items.Cast<ToolStripItem>().Where(i => i.Visible && i.Alignment == ToolStripItemAlignment.Left).Select(i => i.Bounds.Right).DefaultIfEmpty(0).Max()}");
+            WindowState = vorher;
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts

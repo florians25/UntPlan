@@ -631,16 +631,27 @@ public sealed partial class PlanAnsicht : Control
         var zustand = g.Save();
         try
         {
+            // Jeder Teil wird erst in ein eigenes Bild gezeichnet und dann an die Kante kopiert: TextRenderer beachtet die
+            // Beschneidung der Graphics nicht – sonst lägen die verschobenen Stundennummern bzw. Tagesnamen über dem ganzen Plan.
             void Teil(Rectangle clip, int vx, int vy)
             {
-                g.SetClip(clip);
-                var b = new Rectangle(vx, vy, Width, Height);
-                KlassikKoepfe(g, b, false, linie);
-                if (vx > 0) PausenZeichnen(g, b, linie);
-                g.FillRectangle(Brushes.Black, b.X, b.Y + KopfHoehe - 1, b.Width, 2);
-                g.FillRectangle(Brushes.Black, b.X + KopfBreite - 1, b.Y, 2, b.Height);
-                g.FillRectangle(Brushes.Black, b.X, b.Y, b.Width, 1);
-                g.FillRectangle(Brushes.Black, b.X, b.Y, 1, b.Height);
+                if (clip.Width <= 0 || clip.Height <= 0) return;
+                // deckend (GDI-Text auf transparentem Bild verlöre seine Deckkraft), Grund weiß wie der Plan
+                using var bild = new Bitmap(clip.Width, clip.Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                using (var bg = Graphics.FromImage(bild))
+                {
+                    bg.Clear(Color.White);
+                    bg.SmoothingMode = SmoothingMode.None;
+                    bg.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                    var b = new Rectangle(vx - clip.X, vy - clip.Y, Width, Height);
+                    KlassikKoepfe(bg, b, false, linie);
+                    if (vx > 0) PausenZeichnen(bg, b, linie);
+                    bg.FillRectangle(Brushes.Black, b.X, b.Y + KopfHoehe - 1, b.Width, 2);
+                    bg.FillRectangle(Brushes.Black, b.X + KopfBreite - 1, b.Y, 2, b.Height);
+                    bg.FillRectangle(Brushes.Black, b.X, b.Y, b.Width, 1);
+                    bg.FillRectangle(Brushes.Black, b.X, b.Y, 1, b.Height);
+                }
+                g.DrawImageUnscaled(bild, clip.X, clip.Y);
             }
             // Stundenspalte (samt Pausenzeilen) an der linken Kante, Tageskopf an der oberen, zuletzt die Ecke über beiden
             if (dx > 0) Teil(new Rectangle(dx, 0, KopfBreite + 1, Height), dx, 0);
