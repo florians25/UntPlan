@@ -915,6 +915,70 @@ public sealed partial class HauptFenster
             log.Add($"MASS  V10_Kopf: Kontextband x {_ribbon.Left + band.X}–{_ribbon.Left + band.Right}, Schnellzugriff bis {_schnell.Items.Cast<ToolStripItem>().Where(i => i.Visible && i.Alignment == ToolStripItemAlignment.Left).Select(i => i.Bounds.Right).DefaultIfEmpty(0).Max()}");
             WindowState = vorher;
         }, -1);
+        Schritt("V11_Kopplung_Aenderungen", () =>
+        {
+            // gekoppelte Stunden im tagesaktuellen Klassenplan: 1. Kopplung ein Element vertreten (oben rot „.Fach“), eines unverändert
+            // (darunter); 2. Kopplung ein Element offen („.?Fach“), eines einzeln entfallen (rot durchgestrichen, kein Entfall der
+            // ganzen Stunde), eines unverändert
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var dd = Dokument.Klonen(AppZustand.D);
+            var datum = AppZustand.Datum;
+            bool Geeignet(Core.Vertretungsplanung.RegelStunde r) => r.Stunde is >= 1 and <= 6 && r.Unterricht.Zeilen.Count == 1 && r.LehrerId.HasValue
+                && r.KlassenIds.Count == 1 && !Core.Vertretungsplanung.Absenzen.KlasseAbwesend(dd, r.KlassenIds[0], datum, r.Stunde)
+                && !Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, r.LehrerId.Value, datum, r.Stunde)
+                && !dd.Vertretungen.Any(v => v.Datum == datum && v.Stunde == r.Stunde && (v.UnterrichtId == r.Unterricht.Id || v.KlassenIds.Contains(r.KlassenIds[0])));
+            var kandidaten = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, datum).Where(Geeignet).ToList();
+            var paar = kandidaten.SelectMany(a => kandidaten.Where(b => b.KlassenIds[0] == a.KlassenIds[0] && b.Stunde > a.Stunde && b.Unterricht.Id != a.Unterricht.Id
+                && !dd.AktivePeriode.Plan.Any(p => p.UnterrichtId == a.Unterricht.Id && p.Tag == b.Planstunde.Tag && p.Stunde == b.Stunde)
+                && !dd.AktivePeriode.Plan.Any(p => p.UnterrichtId == b.Unterricht.Id && p.Tag == a.Planstunde.Tag && p.Stunde == a.Stunde)).Select(b => (a, b))).FirstOrDefault();
+            if (paar.a is null) { log.Add("INFO  V11: keine geeignete Stunde"); return; }
+            var klasse = paar.a.KlassenIds[0];
+            var andere = dd.Lehrer.Where(l => !l.Ignorieren && l.Id != paar.a.LehrerId && l.Id != paar.b.LehrerId).Select(l => l.Id).Take(4).ToList();
+            var faecher = dd.Faecher.Where(f => f.Id != paar.a.FachId && f.Id != paar.b.FachId && f.Kurzname.Length is > 0 and <= 4).Select(f => f.Id).Take(3).ToList();
+            paar.a.Unterricht.Zeilen.Add(new Kopplungszeile { LehrerId = andere[0], FachId = faecher[0], KlassenIds = new() { klasse } });
+            for (var i = 1; i < 3; i++) paar.b.Unterricht.Zeilen.Add(new Kopplungszeile { LehrerId = andere[i], FachId = faecher[i], KlassenIds = new() { klasse } });
+            Vertretung V(Core.Vertretungsplanung.RegelStunde r, int zeile, VertretungsArt art, int? vertreter) => new()
+            {
+                Id = dd.NeueId(), Datum = datum, Stunde = r.Stunde, Art = art, Quelle = VertretungsQuelle.Manuell, UnterrichtId = r.Unterricht.Id, ZeilenIndex = zeile,
+                LehrerId = r.Unterricht.Zeilen[zeile].LehrerId, VertreterId = vertreter, FachId = r.Unterricht.Zeilen[zeile].FachId, KlassenIds = new() { klasse },
+            };
+            dd.Vertretungen.Add(V(paar.a, 0, VertretungsArt.Vertretung, andere[3]));
+            dd.Vertretungen.Add(V(paar.b, 1, VertretungsArt.Vertretung, null));
+            dd.Vertretungen.Add(V(paar.b, 2, VertretungsArt.Entfall, null));
+            AppZustand.Setzen(new Dokument(dd), false);
+            try
+            {
+                var f = StundenplanFenster.Neu(ElementTyp.Klasse, klasse, false, true);
+                f.WindowState = FormWindowState.Normal;
+                f.Bounds = new Rectangle(100, 0, 272, 567);
+                Warten(400);
+                Vergleich("V11_Kopplung_klein", f, new Size(272, 567));
+                var zeilen = f.Plan.GezeichneteKopplungen.ToList();
+                var gross = StundenplanFenster.Neu(ElementTyp.Klasse, klasse, false);
+                gross.WindowState = FormWindowState.Normal;
+                gross.Bounds = new Rectangle(380, 0, 760, 560);
+                Warten(400);
+                Vergleich("V11b_Kopplung_gross", gross, new Size(760, 560));
+                zeilen.AddRange(gross.Plan.GezeichneteKopplungen);
+                log.Add($"INFO  V11 Kopplungen {dd.Klassen.First(k => k.Id == klasse).Kurzname} {paar.a.Stunde}./{paar.b.Stunde}. Stunde: {string.Join(" | ", zeilen.Select(z => z.Text + (z.Rot ? " (rot)" : "") + (z.Weg ? " (durchgestrichen)" : "")))}");
+                var fehlt = new List<string>();
+                if (!zeilen.Any(z => z.Rot && !z.Weg && z.Text.StartsWith('.') && !z.Text.StartsWith(".?"))) fehlt.Add("Änderung rot mit „.“");
+                if (!zeilen.Any(z => z.Rot && z.Text.StartsWith(".?"))) fehlt.Add("offene Änderung „.?“");
+                if (!zeilen.Any(z => z.Rot && z.Weg)) fehlt.Add("einzeln entfallenes Element durchgestrichen");
+                if (!zeilen.Any(z => !z.Rot && !z.Text.StartsWith('.'))) fehlt.Add("unverändertes Element");
+                if (fehlt.Count > 0) log.Add($"FEHLER V11: gekoppelte Stunde ohne {string.Join(", ", fehlt)}");
+                // Reihenfolge im kleinen Plan: Änderungen oben, offene darunter, unveränderte unten
+                var klein = f.Plan.GezeichneteKopplungen.Select(z => z.Text).ToList();
+                var folge = string.Concat(klein.Select(t => t.StartsWith(".?") ? "O" : t.StartsWith('.') ? "A" : "U"));
+                if (folge.Replace("AOU", "").Replace("AU", "").Length > 0)
+                    log.Add($"FEHLER V11: Reihenfolge im kleinen Plan {folge} ({string.Join(" / ", klein)})");
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts
