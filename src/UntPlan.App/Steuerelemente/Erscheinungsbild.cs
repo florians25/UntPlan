@@ -61,7 +61,8 @@ public static class Erscheinungsbild
     public static void Knopf(Button b)
     {
         if (b.IsDisposed || b.GetType() != typeof(Button) || b.FlatStyle != FlatStyle.Standard) return;
-        if (!b.UseVisualStyleBackColor && b.BackColor != SystemColors.Control && b.BackColor != Color.Empty) return;
+        // eigene Farbe gesetzt (Farbknöpfe, Signalknöpfe)? Eine nur von der Dialogfläche geerbte Farbe zählt nicht
+        if (!b.UseVisualStyleBackColor && b.BackColor != SystemColors.Control && b.BackColor != Color.Empty && b.BackColor != b.Parent?.BackColor) return;
         if (Gestaltet.TryGetValue(b, out _) || InEigenemFenster(b)) return;
         Gestaltet.Add(b, new object());
         b.FlatStyle = FlatStyle.Flat;
