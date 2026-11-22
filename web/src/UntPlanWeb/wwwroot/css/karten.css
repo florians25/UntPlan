@@ -24,6 +24,8 @@ html:root.is-win .std .z1 { font-weight: 500; }
 /* Label im Kopf wie Vorlage 305: Kasten oben an der Zeile ausgerichtet (unabhängig von der Grundlinie der Schrift), 16px hoch ab +7
    unter der Kartenkante, Versalien 4px unter der Oberkante und 2px über der Unterkante */
 .std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
+/* Wunsch (Bild 320): unter einem Label im Kopf 1px mehr Luft bis zur zweiten Zeile */
+.std .z1:has(.lbl) + .z2 { margin-top: 1px; }
 /* Firefox (Bild 319): der oben ausgerichtete Kasten steht 1px zu hoch, der Text richtig; Kasten 1px tiefer, Text bleibt */
 html:root.is-gecko .std .z1 .lbl { position: relative; top: 1px; padding-top: 1px; }
 html:root.is-gecko .std .z1:has(.lbl) { padding-bottom: 1px; margin-bottom: -3px; }
