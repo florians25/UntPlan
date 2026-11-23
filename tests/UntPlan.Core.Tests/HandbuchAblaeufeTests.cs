@@ -138,6 +138,9 @@ public class HandbuchAblaeufeTests
                     where a.KlassenIds[0] == b.KlassenIds[0] && b.Stunde > a.Stunde && a.Unterricht!.Id != b.Unterricht!.Id
                     select (a, b)).First();
         Vertretungen.Tauschen(d, paar.a.Unterricht!.Id, offen.Datum, paar.a.Stunde, paar.b.Unterricht!.Id, offen.Datum, paar.b.Stunde);
+        // offene Ursprünge werden nicht verdeckt; erst auf Entfall gesetzt (Rückfrage: Nein) fasst die Liste sie mit dem Tausch zusammen
+        Assert.Empty(Vertretungen.ZusammengefassteZeilen(Vertretungen.Am(d, offen.Datum)).Values.Where(v => v.NachDatum.HasValue));
+        foreach (var q in d.Vertretungen.Where(v => v.Datum == offen.Datum && Vertretungen.IstOffenerUrsprung(v)).ToList()) Verlegungsaufhebung.AufEntfallSetzen(d, q);
         var tag = Vertretungen.Am(d, offen.Datum);
         var paare = Vertretungen.ZusammengefassteZeilen(tag);
         var tausch = tag.Where(v => v.Art == VertretungsArt.Tausch).ToList();

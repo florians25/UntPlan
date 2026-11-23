@@ -28,7 +28,9 @@ public class VertretungErweitertTests
         Vertretungen.Verlegen(d, r.Unterricht.Id, null, tag, r.Stunde, tag, freieStunde);
         var quelle = d.Vertretungen.Single(v => v.Datum == tag && v.Stunde == r.Stunde && v.UnterrichtId == r.Unterricht.Id);
         var ziel = d.Vertretungen.Single(v => v.Datum == tag && v.Stunde == freieStunde && v.UnterrichtId == r.Unterricht.Id);
-        Assert.Equal(VertretungsArt.Entfall, quelle.Art);
+        // Ursprung bleibt offen (wie fehlende Lehrkraft), bis er auf Entfall gesetzt wird
+        Assert.Equal(VertretungsArt.Vertretung, quelle.Art);
+        Assert.True(quelle.Offen);
         Assert.Equal(freieStunde, quelle.NachStunde);
         Assert.Equal(VertretungsArt.Verlegung, ziel.Art);
         Assert.Equal(r.Stunde, ziel.VonStunde);
@@ -36,7 +38,9 @@ public class VertretungErweitertTests
         // Tagesplan: Klasse hat den Unterricht jetzt in der neuen Stunde
         var neu = Tagesplan.Berechnen(d, tag);
         Assert.Contains(neu.VonKlasse(r.KlassenIds[0]), e => e.Stunde == freieStunde && e.Unterricht?.Id == r.Unterricht.Id);
-        Assert.DoesNotContain(neu.VonKlasse(r.KlassenIds[0]), e => e.Stunde == r.Stunde && e.Unterricht?.Id == r.Unterricht.Id);
+        Assert.Contains(neu.VonKlasse(r.KlassenIds[0]), e => e.Stunde == r.Stunde && e.Unterricht?.Id == r.Unterricht.Id && e.Status == TagesStatus.Offen);
+        Verlegungsaufhebung.AufEntfallSetzen(d, quelle);
+        Assert.DoesNotContain(Tagesplan.Berechnen(d, tag).VonKlasse(r.KlassenIds[0]), e => e.Stunde == r.Stunde && e.Unterricht?.Id == r.Unterricht.Id);
         // Zurückziehen hebt die Verlegung auf
         Vertretungen.Verlegen(d, r.Unterricht.Id, null, tag, freieStunde, tag, r.Stunde);
         Assert.DoesNotContain(d.Vertretungen, v => v.UnterrichtId == r.Unterricht.Id && v.Datum == tag);
@@ -57,7 +61,11 @@ public class VertretungErweitertTests
         Vertretungen.Verlegen(d, r.Unterricht.Id, null, tag, r.Stunde, morgen, s);
         var ziel = d.Vertretungen.Single(v => v.Datum == morgen && v.Stunde == s && v.UnterrichtId == r.Unterricht.Id);
         Assert.Equal(r.LehrerId, ziel.VertreterId);
-        // Neuberechnung erzeugt an der Quelle keine offene Vertretung mehr
+        // Neuberechnung erzeugt an der Quelle keine zweite Zeile: die offene Vertretung ist jetzt der Ursprung der Verlegung
+        Vertretungen.Aktualisieren(d, tag);
+        var quelle = Assert.Single(d.Vertretungen, v => v.Datum == tag && v.Stunde == r.Stunde && v.UnterrichtId == r.Unterricht.Id);
+        Assert.True(Vertretungen.IstOffenerUrsprung(quelle));
+        Verlegungsaufhebung.AufEntfallSetzen(d, quelle);
         Vertretungen.Aktualisieren(d, tag);
         Assert.DoesNotContain(d.Vertretungen, v => v.Datum == tag && v.Stunde == r.Stunde && v.UnterrichtId == r.Unterricht.Id && v.Offen);
     }

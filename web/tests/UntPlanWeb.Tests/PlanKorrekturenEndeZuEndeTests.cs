@@ -388,12 +388,11 @@ public class PlanKorrekturenEndeZuEndeTests
     }
 
     /// <summary>
-    /// Verlegung in eine andere Stunde mit anderem Raum (Raum beim Verlegen gewählt): der Vertretungsplan nennt den Raum der Zielstunde als
-    /// Soll-Raum, die Karte kennzeichnet den gegenüber dem Stundenplan geänderten Raum aber wieder mit Label („SPO1 → SPO2“). Eine spätere
-    /// Raumänderung der Zielstunde erscheint ebenso als Raumänderung.
+    /// Verlegung in eine andere Stunde mit anderem Raum (Raum beim Verlegen gewählt): Bezug ist der Raum am Ursprung (SPO1) – die Karte
+    /// kennzeichnet den Raum am Ziel mit Label („SPO1 → SPO2“). Eine spätere Raumänderung der Zielstunde ebenso gegenüber dem Ursprung („SPO1 → SPO3“).
     /// </summary>
     [Fact]
-    public async Task Verlegung_Raum_der_Zielstunde_ist_Soll_Raum()
+    public async Task Verlegung_Raum_am_Ursprung_ist_Bezug_der_Raumaenderung()
     {
         var d = Demo.NeueDatei("Testschule", "GY");
         var bu = new Fach { Id = d.NeueId(), Kurzname = "BU" };
@@ -415,11 +414,11 @@ public class PlanKorrekturenEndeZuEndeTests
             var k = Assert.Single(await KartenAsync(c, typ, el, Freitag, Std));
             Assert.Equal("SPO1→SPO2", L(k, "raeume"));
         }
-        // spätere Raumänderung der Zielstunde: SPO2 → SPO3 als Raumänderung
+        // spätere Raumänderung der Zielstunde: SPO1 → SPO3 (Bezug bleibt der Raum am Ursprung)
         Raumvertretungen.Zuordnen(d, zv, ra[2].Id, false, RaumKollisionsLoesung.OhneKollision);
         await ErneutAsync(s, d, Freitag.AddDays(-4), 2);
         var neu = Assert.Single(await KartenAsync(c, "klasse", "BSO1", Freitag, Std));
-        Assert.Equal("SPO2→SPO3", L(neu, "raeume"));
+        Assert.Equal("SPO1→SPO3", L(neu, "raeume"));
     }
 
     /// <summary>

@@ -1328,11 +1328,10 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var sammeln = _vaSammeln.Checked;
         foreach (var g in liste.GroupBy(v => v.Art == VertretungsArt.Veranstaltung && v.VeranstaltungId is int va ? $"VA{va}/{v.Datum}"
                      : sammeln && Veranstaltungsfolge(v) ? $"VE{v.VeranstaltungId}/{v.Datum}/{v.Art}/{v.Text}"
-                     // Raumvertretung einer Kopplung im gemeinsamen Raum: eine Zeile mit allen Klassen („ET13,INF13,ING13“)
-                     // (auch parallele Unterrichte derselben Lehrkraft im selben Raum: wer gemeinsam aus einem Raum umzieht, ist eine Zeile)
-                     : v.Art == VertretungsArt.Raumvertretung && v.UnterrichtId.HasValue && v.RaumId.HasValue && !v.Fixiert
-                         ? $"KR{v.Datum}/{v.Stunde}/{v.RaumId}/{v.VertretungsraumId}/{string.Join(",", v.ZusatzraumIds)}/{v.RaumVerdraengt}/{v.Text}"
-                     : $"#{v.Id}"))
+                     // Kopplung wie im Vorbild: eine Zeile mit allen Klassen („HP12A, HP13A“) – Kopplungszeilen bzw. parallele Unterrichte
+                     // derselben Lehrkraft mit gleichem Fach und Raum und gleicher Vertretung; Raumvertretung: wer gemeinsam aus einem Raum umzieht.
+                     // Gerade bearbeitete bzw. gefilterte Zeilen bleiben zusammen, Bearbeitungen gelten für alle Zeilen der Gruppe.
+                     : Vertretungen.KopplungsSchluessel(v) ?? $"#{v.Id}"))
         {
             var zeilen = g.OrderBy(v => v.Stunde).ThenBy(v => v.Id).ToList();
             // Entfälle/Freisetzungen einer Veranstaltung: erst ab einigen Zeilen zusammenfassen, sonst wie bisher einzeln
@@ -1452,8 +1451,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var lehrer = va != null ? VeranstaltungsLogik.LehrerText(D, va, v.Datum, ", ")
             : (u is { Zeilen.Count: > 1 } && v.LehrerId.HasValue ? "*" : "") + Anzeige(ElementTyp.Lehrer, v.LehrerId, "Lehrer");
         // zusammengefasste Kopplungszeilen: Klassen aller Zeilen
-        var neueKlassen = Klassen(gruppe is { Count: > 1 } && v.Art == VertretungsArt.Raumvertretung
-            ? gruppe.SelectMany(x => x.NeueKlassenIds).Distinct().ToList() : v.NeueKlassenIds, "Klassen");
+        var kopplung = gruppe is { Count: > 1 } && !_vaSammel.Contains(v.Id) && v.Art != VertretungsArt.Veranstaltung ? gruppe : null;
+        var neueKlassen = Klassen(kopplung != null ? kopplung.SelectMany(x => x.NeueKlassenIds).Distinct().ToList() : v.NeueKlassenIds, "Klassen");
         // Tausch: bisheriger Unterricht dieser Position in den Klammerspalten
         var weg = _weg.GetValueOrDefault(v.Id);
         if (weg != null) lehrer = (Plan(weg.Datum).Unterrichte.GetValueOrDefault(weg.UnterrichtId ?? -1) is { Zeilen.Count: > 1 } && weg.LehrerId.HasValue ? "*" : "") + Anzeige(ElementTyp.Lehrer, weg.LehrerId, "Lehrer");
@@ -1471,8 +1470,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             v.Id == 0 ? "" : v.Id, ArtAnzeige(D, v.Art), $"{v.Datum:dd.MM.}", tag, stunde, zeit,
             // „Fach“ bleibt wie im Vorbild leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
-            lehrer, vertreter, Klassen((weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
-            v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, (weg ?? v).RaumId, "Raum"), raumNeu,
+            lehrer, vertreter, Klassen(weg is null && kopplung != null ? kopplung.SelectMany(x => x.KlassenIds).Distinct().ToList() : (weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
+            // Zielstunde einer Verlegung: der Raum am Ursprung – anderer Raum am Ziel = Raumänderung
+            v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, weg?.RaumId ?? Vertretungsplan.SollRaum(v), "Raum"), raumNeu,
             // „(Le.) nach“ wie im Vorbild: Ziel der wegverlegten Stunde, bei einem reinen Entfall „Entfall“
             Vertretungsanzeige.Von(v), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : ohneStriche ? "" : Vertretungsanzeige.Nach(v), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik,
             // Schülergruppe: eingetragene der Vertretung, sonst die des ursprünglichen Unterrichts (dann kursiv grau, siehe Formatieren)
@@ -2067,10 +2067,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         var liste = Bearbeitbare(ids).Where(v => v.Art != VertretungsArt.Freisetzung).ToList();
         if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
-        // Verlegung (Ziel oder verlegter Ursprung): zuerst fragen, ob die Verlegung rückgängig gemacht werden soll
+        // verlegte bzw. getauschte Stunde (Ziel oder noch offener Ursprung): „Verlegung rückgängig?“ – Ja hebt sie auf, Nein setzt
+        // den Entfall, Abbrechen ändert nichts
         var anzahl = liste.Count;
-        liste = VerlegungsAbfrage.VorEntfall(liste, Aendern);
-        if (liste.Count == 0) { NachZellwechsel(Neuaufbau); return; }
+        var rest = VerlegungsAbfrage.VorEntfall(liste, Aendern);
+        if (rest is null || rest.Count == 0) { NachZellwechsel(Neuaufbau); return; }
+        liste = rest;
         if (liste.Count != anzahl) liste = liste.Select(v => D.Vertretungen.FirstOrDefault(x => x.Id == v.Id)).OfType<Vertretung>().ToList();
         var zurueck = liste.All(v => v.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt);
         // Sondereinsatz auf Entfall: Rückfrage, ob er gelöscht werden soll (Nein = Entfall wie bisher)
@@ -2307,6 +2309,32 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     /// <summary>Selbsttest: die Auswahlliste „Vertreter“ öffnet breit genug für Kurz- und Langnamen (nie in Spaltenbreite).</summary>
     /// <summary>Selbsttest: ein Stundentausch steht wie im Vorbild je Position in einer Zeile „Tausch“ mit magenta hinterlegten geänderten Feldern.</summary>
+    /// <summary>
+    /// Selbsttest: Kopplungen stehen in EINER Zeile mit allen Klassen (keine zwei sichtbaren Zeilen mit demselben Kopplungsschlüssel).
+    /// </summary>
+    internal string SelbsttestKopplung()
+    {
+        var zeilen = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Id: > 0 }).ToList();
+        var doppelt = zeilen.Select(r => Vertretungen.KopplungsSchluessel((Vertretung)r.Tag!)).Where(k => k != null).GroupBy(k => k).Where(g => g.Count() > 1).ToList();
+        if (doppelt.Count > 0) throw new InvalidOperationException($"Kopplung: {doppelt.Count} Kopplung(en) in mehreren Zeilen.");
+        var gekoppelt = zeilen.Where(r => _gruppen.TryGetValue(((Vertretung)r.Tag!).Id, out var g) && g.Count > 1 && !_vaSammel.Contains(((Vertretung)r.Tag!).Id)
+                                          && ((Vertretung)r.Tag!).Art != VertretungsArt.Veranstaltung).ToList();
+        foreach (var r in gekoppelt)
+        {
+            var text = r.Cells["Klassen"].FormattedValue?.ToString() ?? "";
+            var fehlt = _gruppen[((Vertretung)r.Tag!).Id].SelectMany(v => v.NeueKlassenIds).Distinct().Select(k => Ix.K(ElementTyp.Klasse, k)).Where(k => !text.Contains(k)).ToList();
+            if (fehlt.Count > 0) throw new InvalidOperationException($"Kopplung Vtr-Nr. {((Vertretung)r.Tag!).Id}: Klassen {string.Join(",", fehlt)} fehlen in „{text}“.");
+        }
+        if (gekoppelt.Count > 0)
+        {
+            _g.ClearSelection();
+            _g.CurrentCell = gekoppelt[0].Cells["Nr"];
+            _g.FirstDisplayedScrollingRowIndex = Math.Max(0, gekoppelt[0].Index - 3);
+        }
+        return $"Kopplungen: {gekoppelt.Count} Zeile(n) mit mehreren Kopplungszeilen" +
+               (gekoppelt.Count > 0 ? $", z. B. Vtr-Nr. {((Vertretung)gekoppelt[0].Tag!).Id} „{gekoppelt[0].Cells["Klassen"].FormattedValue}“ ({_gruppen[((Vertretung)gekoppelt[0].Tag!).Id].Count} Zeilen)" : "");
+    }
+
     internal string SelbsttestTausch()
     {
         var tausch = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Art: VertretungsArt.Tausch }).ToList();

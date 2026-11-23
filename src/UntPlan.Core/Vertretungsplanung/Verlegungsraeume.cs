@@ -192,7 +192,9 @@ public static class Verlegungsraeume
     {
         var res = new List<Vertretung>();
         v.VertretungsraumId = raumId;
-        v.ZielraumId = raumId;   // gewählter Raum der verlegten Stunde = Soll-Raum der Zielstunde
+        // Bezugsraum der Zielstunde bleibt der Raum am Ursprung (Vertretungsplan.SollRaum): „Räume mitnehmen“ = keine Raumänderung,
+        // „Belassen“ in einen anderen Raum = Raumänderung („alt → neu“); ältere Zeilen ohne gemerkten Raum: der gewählte Raum
+        v.ZielraumId ??= raumId;
         v.RaumVerdraengt = false;
         v.ZusatzraumIds.Remove(raumId);
         var tp = Tagesplan.Berechnen(d, v.Datum);
@@ -224,7 +226,6 @@ public static class Verlegungsraeume
         v.RaumVerdraengt = true;
         var raum = FreierRaum(d, v, raumId);
         v.VertretungsraumId = raum;
-        v.ZielraumId = raum;
         v.RaumVerdraengt = raum is null;
         v.Bearbeitet = true;
         res.Add(v);

@@ -5,8 +5,9 @@ using Xunit;
 namespace UntPlan.Core.Tests;
 
 /// <summary>
-/// Entfälle beim Verlegen, Tauschen und Vorziehen wie im Vorbild: Ursprung „Entfall“ mit „(Le.) nach“, Ziel mit „Vertr. von“,
-/// keine doppelten Zeilen, Rücknahme stellt den alten Zustand wieder her, Kalender-Kennzahlen bleiben stimmig.
+/// Verlegen, Tauschen und Vorziehen wie im Vorbild: der Ursprung bleibt zunächst offene Vertretung („???“) mit „(Le.) nach“ und wird erst
+/// auf Rückfrage („Verlegung rückgängig?“, Nein) zum Entfall; Ziel mit „Vertr. von“, keine doppelten Zeilen, Rücknahme stellt den alten
+/// Zustand wieder her, Kalender-Kennzahlen bleiben stimmig. Vorziehungen lassen die spätere Stunde sofort entfallen.
 /// </summary>
 public class VerlegungEntfallTests
 {
@@ -54,25 +55,182 @@ public class VerlegungEntfallTests
     }
 
     [Fact]
-    public void VerlegungErzeugtEntfallMitNachUndZielMitVon()
+    public void VerlegungLaesstUrsprungOffenMitNachUndZielMitVon()
     {
         var s = new Schule();
         var u = s.U(0, 0, (0, 2));
         Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 5);
         var q = Assert.Single(s.An(s.Montag, 2));
         var z = Assert.Single(s.An(s.Montag, 5));
-        Assert.Equal(VertretungsArt.Entfall, q.Art);
+        // Ursprung: offene Vertretung (die Lehrkraft fehlt dort, sie unterrichtet in der 5. Stunde)
+        Assert.Equal(VertretungsArt.Vertretung, q.Art);
+        Assert.True(q.Offen);
+        Assert.True(Vertretungen.IstOffenerUrsprung(q));
         Assert.Equal((s.Montag, 5), (q.NachDatum!.Value, q.NachStunde!.Value));
         Assert.Null(q.VertreterId);
         Assert.Equal(VertretungsArt.Verlegung, z.Art);
         Assert.Equal((s.Montag, 2), (z.VonDatum!.Value, z.VonStunde!.Value));
         Assert.Equal(q.VerlegungsId, z.VerlegungsId);
         Assert.Equal(s.L[0].Id, z.VertreterId);
-        Assert.Equal("---", Vertretungsanzeige.Vertreter(s.D, q));
-        Assert.Equal("---", Vertretungsanzeige.NeuerRaum(s.D, q));
+        Assert.Equal("???", Vertretungsanzeige.Vertreter(s.D, q));
         Assert.Equal($"{s.Montag:d.M.} / 5", Vertretungsanzeige.Nach(q));
         Assert.Equal($"{s.Montag:d.M.} / 2", Vertretungsanzeige.Von(z));
         Assert.Equal("L0", Vertretungsanzeige.Vertreter(s.D, z));
+        var e = Tagesplan.Berechnen(s.D, s.Montag).Stunde(2).Single(x => x.Vertretung == q);
+        Assert.Equal(TagesStatus.Offen, e.Status);
+        var k = Kalenderkennzahlen.Tag(s.D, s.Montag);
+        Assert.Equal((2, 1, 0), (k.Vertretungen, k.Offen, k.Entfaelle));
+        // in der Vertretungsliste wird die offene Stunde nicht mit der ankommenden Verlegung zusammengefasst
+        Assert.Empty(Vertretungen.ZusammengefassteZeilen(s.D.Vertretungen));
+    }
+
+    [Fact]
+    public void RueckfrageTextWieImVorbild()
+    {
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 1));
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 1, s.Montag, 7);
+        var q = Assert.Single(s.An(s.Montag, 1));
+        var z = Assert.Single(s.An(s.Montag, 7));
+        var erwartet = $"Verlegung rückgängig?\n\nL0\n{s.Montag:d.M.} / 1 -> {s.Montag:d.M.} / 7\n\nJa = Verlegung/Tausch wird rückgängig gemacht\nNein = Stunde wird auf Entfall gesetzt";
+        Assert.Equal(erwartet, Verlegungsaufhebung.RueckfrageText(s.D, q));
+        Assert.Equal(erwartet, Verlegungsaufhebung.RueckfrageText(s.D, z));
+    }
+
+    [Fact]
+    public void UrsprungAufEntfallNeinSetztEntfallMitNach()
+    {
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 2));
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 5);
+        var q = Assert.Single(s.An(s.Montag, 2));
+        Assert.True(Verlegungsaufhebung.IstVerlegung(s.D, q));
+        // Nein = Stunde wird auf Entfall gesetzt: Entfall mit „(Le.) nach“, die Verlegung bleibt
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, q);
+        Assert.Equal(VertretungsArt.Entfall, q.Art);
+        Assert.False(Vertretungen.IstOffenerUrsprung(q));
+        Assert.Equal((s.Montag, 5), (q.NachDatum!.Value, q.NachStunde!.Value));
+        Assert.Equal("---", Vertretungsanzeige.Vertreter(s.D, q));
+        Assert.Equal("---", Vertretungsanzeige.NeuerRaum(s.D, q));
+        Assert.Equal($"{s.Montag:d.M.} / 5", Vertretungsanzeige.Nach(q));
+        Assert.Equal(VertretungsArt.Verlegung, Assert.Single(s.An(s.Montag, 5)).Art);
+        Assert.Equal(TagesStatus.Entfall, Tagesplan.Berechnen(s.D, s.Montag).Stunde(2).Single(x => x.Vertretung == q).Status);
+        var k = Kalenderkennzahlen.Tag(s.D, s.Montag);
+        Assert.Equal((2, 0, 1), (k.Vertretungen, k.Offen, k.Entfaelle));
+        // Entfall wieder aufheben: wieder offener Ursprung
+        Vertretungen.EntfallUmschalten(s.D, q);
+        Assert.True(Vertretungen.IstOffenerUrsprung(q));
+        Assert.True(q.Offen);
+    }
+
+    [Fact]
+    public void UrsprungAufEntfallJaHebtDieVerlegungAuf()
+    {
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 2));
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 5);
+        var q = Assert.Single(s.An(s.Montag, 2));
+        // Ja = Verlegung wird rückgängig gemacht: die Stunde liegt wieder an ihrer Position, keine Zeilen mehr
+        Assert.Equal(1, Verlegungsaufhebung.Aufheben(s.D, q));
+        Assert.Empty(s.D.Vertretungen);
+        var e = Tagesplan.Berechnen(s.D, s.Montag).Stunde(2).Single(x => x.Unterricht?.Id == u.Id);
+        Assert.Equal(TagesStatus.Regulaer, e.Status);
+        Assert.Empty(Tagesplan.Berechnen(s.D, s.Montag).Stunde(5));
+        Assert.Equal(0, Kalenderkennzahlen.Tag(s.D, s.Montag).Vertretungen);
+    }
+
+    [Fact]
+    public void ZielAufEntfallNeinLaesstDieStundeGanzEntfallen()
+    {
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 2));
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 5);
+        var z = Assert.Single(s.An(s.Montag, 5));
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, z);
+        Assert.Empty(s.An(s.Montag, 5));
+        var q = Assert.Single(s.D.Vertretungen);
+        Assert.Equal(VertretungsArt.Entfall, q.Art);
+        Assert.Null(q.NachDatum);
+        Assert.Equal("Entfall", Vertretungsanzeige.Nach(q));
+    }
+
+    [Fact]
+    public void TauschLaesstBeideUrsprungeOffenBisEntfall()
+    {
+        var s = new Schule();
+        var a = s.U(0, 0, (0, 1));
+        var b = s.U(1, 0, (0, 4));
+        Vertretungen.Tauschen(s.D, a.Id, s.Montag, 1, b.Id, s.Montag, 4);
+        var qA = s.D.Vertretungen.Single(v => v.UnterrichtId == a.Id && v.NachDatum.HasValue);
+        var qB = s.D.Vertretungen.Single(v => v.UnterrichtId == b.Id && v.NachDatum.HasValue);
+        Assert.True(qA.Offen && qB.Offen);
+        Assert.Equal("???", Vertretungsanzeige.Vertreter(s.D, qA));
+        Assert.Equal(2, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
+        Assert.Contains("1.", Verlegungsaufhebung.RueckfrageText(s.D, qA));
+        // Nein für A: A entfällt am Ursprung (mit „nach“), B bleibt offen
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, qA);
+        Assert.Equal(VertretungsArt.Entfall, qA.Art);
+        Assert.True(qB.Offen);
+        Assert.Equal(1, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
+        // Ja für B: der ganze Tausch wird rückgängig gemacht
+        Assert.Equal(2, Verlegungsaufhebung.Aufheben(s.D, qB));
+        Assert.Empty(s.D.Vertretungen);
+        var tp = Tagesplan.Berechnen(s.D, s.Montag);
+        Assert.Equal(TagesStatus.Regulaer, tp.Stunde(1).Single().Status);
+        Assert.Equal(a.Id, tp.Stunde(1).Single().Unterricht!.Id);
+        Assert.Equal(b.Id, tp.Stunde(4).Single().Unterricht!.Id);
+    }
+
+    [Fact]
+    public void RaeumeMitnehmenIstKeineRaumaenderungBelassenSchon()
+    {
+        // Bezug am Ziel ist der Raum am Ursprung: „Mitnehmen“ behält ihn (kein Label), „Belassen“ (Stammraum R1) ist eine Raumänderung R0 → R1
+        foreach (var mitnahme in new[] { RaumMitnahme.Mitnehmen, RaumMitnahme.Belassen })
+        {
+            var s = new Schule();
+            s.K[0].StammraumId = s.R[1].Id;
+            var u = s.U(0, 0, (0, 2));
+            var a = Tagesverlegung.Analysieren(s.D, s.Montag, 2, u.Id, null, 1, s.Montag, 6);
+            Assert.True(Verlegungsraeume.MitnahmeFrageNoetig(Verlegungsraeume.Zeilen(s.D, a)));
+            Tagesverlegung.Ausfuehren(s.D, a, VerlegeModus.Verlegen, raeume: new VerlegeRaumWahl(mitnahme));
+            var z = Assert.Single(s.An(s.Montag, 6));
+            Assert.Equal(s.R[0].Id, Vertretungsplan.SollRaum(z));
+            var zeile = Vertretungsplan.Zeilen(s.D, s.Montag).Single(x => x.Id == z.Id);
+            var k = Kalenderkennzahlen.Tag(s.D, s.Montag);
+            if (mitnahme == RaumMitnahme.Mitnehmen)
+            {
+                Assert.Equal(s.R[0].Id, z.VertretungsraumId);
+                Assert.False(Vertretungsplan.VerlegungMitRaumaenderung(z));
+                Assert.Equal(("R0", "R0"), (zeile.Raum, zeile.NeuerRaum));
+                Assert.Equal(0, k.Raumvertretungen);
+            }
+            else
+            {
+                Assert.Equal(s.R[1].Id, z.VertretungsraumId);
+                Assert.True(Vertretungsplan.VerlegungMitRaumaenderung(z));
+                Assert.Equal(("R0", "R1"), (zeile.Raum, zeile.NeuerRaum));
+                Assert.Equal(1, k.Raumvertretungen);
+            }
+        }
+    }
+
+    [Fact]
+    public void BezugsraumIstDerTatsaechlicheRaumAmUrsprung()
+    {
+        // am Ursprung schon in einen anderen Raum geändert (R2): Bezug ist R2, nicht der Raum laut Stundenplan (R0)
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 2));
+        Vertretungen.RaumAendern(s.D, u.Id, 0, s.Montag, 2, s.R[2].Id, false);
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 6);
+        var z = Assert.Single(s.An(s.Montag, 6));
+        Assert.Equal(s.R[2].Id, Vertretungsplan.SollRaum(z));
+        Assert.Equal(s.R[2].Id, z.VertretungsraumId);
+        Assert.False(Vertretungsplan.VerlegungMitRaumaenderung(z));
+        // am Ziel später in R3: Raumänderung R2 → R3
+        Verlegungsraeume.RaumSetzen(s.D, z, s.R[3].Id, RaumBelegtLoesung.Kollision);
+        Assert.True(Vertretungsplan.VerlegungMitRaumaenderung(z));
+        var zeile = Vertretungsplan.Zeilen(s.D, s.Montag).Single(x => x.Id == z.Id);
+        Assert.Equal(("R2", "R3"), (zeile.Raum, zeile.NeuerRaum));
     }
 
     [Fact]
@@ -107,8 +265,14 @@ public class VerlegungEntfallTests
         var tB = s.D.Vertretungen.Single(v => v.UnterrichtId == b.Id && v.Art == VertretungsArt.Tausch);
         Assert.Equal((4, 1), (tA.Stunde, tA.VonStunde!.Value));
         Assert.Equal((1, 4), (tB.Stunde, tB.VonStunde!.Value));
-        var qA = s.D.Vertretungen.Single(v => v.UnterrichtId == a.Id && v.Art == VertretungsArt.Entfall);
-        var qB = s.D.Vertretungen.Single(v => v.UnterrichtId == b.Id && v.Art == VertretungsArt.Entfall);
+        var qA = s.D.Vertretungen.Single(v => v.UnterrichtId == a.Id && v.NachDatum.HasValue);
+        var qB = s.D.Vertretungen.Single(v => v.UnterrichtId == b.Id && v.NachDatum.HasValue);
+        // beide Ursprünge bleiben offen, bis sie auf Entfall gesetzt werden (Rückfrage: Nein)
+        Assert.True(qA.Offen && qB.Offen);
+        Assert.Empty(Vertretungen.ZusammengefassteZeilen(s.D.Vertretungen));
+        Assert.Equal((4, 2), (Kalenderkennzahlen.Tag(s.D, s.Montag).Vertretungen, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen));
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, qA);
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, qB);
         Assert.Equal((1, 4), (qA.Stunde, qA.NachStunde!.Value));
         Assert.Equal((4, 1), (qB.Stunde, qB.NachStunde!.Value));
         // in der Liste je Position eine Zeile „Tausch“ (Ursprung verdeckt), Kennzahlen zählen die sichtbaren Zeilen
@@ -191,8 +355,10 @@ public class VerlegungEntfallTests
         Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag.AddDays(1), 3);
         var q = Assert.Single(s.An(s.Montag, 2));
         Assert.Same(v, q);
-        Assert.Equal(VertretungsArt.Entfall, q.Art);
+        // die Vertretung geht mit der Stunde (sie ist verlegt) – der Ursprung ist wieder offen, bis er auf Entfall gesetzt wird
+        Assert.Equal(VertretungsArt.Vertretung, q.Art);
         Assert.Null(q.VertreterId);
+        Assert.True(q.Offen);
         Assert.Equal(3, q.NachStunde);
         var z = Assert.Single(s.An(s.Montag.AddDays(1), 3));
         Assert.Equal(s.L[0].Id, z.VertreterId); // am Folgetag ist die Lehrkraft wieder da
@@ -200,6 +366,11 @@ public class VerlegungEntfallTests
         Vertretungen.Aktualisieren(s.D, s.Montag);
         Assert.Equal(2, s.D.Vertretungen.Count);
         var k = Kalenderkennzahlen.Tag(s.D, s.Montag);
+        Assert.Equal((1, 1, 0), (k.Vertretungen, k.Offen, k.Entfaelle));
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, q);
+        Vertretungen.Aktualisieren(s.D, s.Montag);
+        Assert.Equal(2, s.D.Vertretungen.Count);
+        k = Kalenderkennzahlen.Tag(s.D, s.Montag);
         Assert.Equal((1, 0, 1), (k.Vertretungen, k.Offen, k.Entfaelle));
     }
 
@@ -226,6 +397,11 @@ public class VerlegungEntfallTests
         s.Absent(0, s.Montag);
         Assert.Equal(1, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
         Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag.AddDays(1), 3);
+        // der Ursprung bleibt offen (jetzt mit „(Le.) nach“), bis er auf Entfall gesetzt wird
+        Assert.Equal(1, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
+        Vertretungen.Aktualisieren(s.D, s.Montag);
+        Assert.Equal(2, s.D.Vertretungen.Count);
+        Verlegungsaufhebung.AufEntfallSetzen(s.D, s.An(s.Montag, 2).Single());
         Assert.Equal(0, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
         Assert.Equal(1, Kalenderkennzahlen.Tag(s.D, s.Montag).Entfaelle);
         // Verlegung aufheben: wieder offene Vertretung, keine Entfall-Zeile
@@ -320,7 +496,9 @@ public class VerlegungEntfallTests
         var a = Tagesverlegung.Analysieren(s.D, s.Montag, 5, b.Id, null, 1, s.Montag, 2);
         Tagesverlegung.Ausfuehren(s.D, a, VerlegeModus.Verlegen);
         Assert.Equal(VertretungsArt.Entfall, offen.Art);
-        Assert.Equal(0, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
+        // offen ist jetzt nur noch der Ursprung der verlegten Stunde (5. Stunde), bis er auf Entfall gesetzt wird
+        Assert.Equal(1, Kalenderkennzahlen.Tag(s.D, s.Montag).Offen);
+        Assert.True(Assert.Single(s.An(s.Montag, 5)).Offen);
         var ziel = s.D.Vertretungen.Single(v => v.VonDatum.HasValue);
         Verlegungsaufhebung.Aufheben(s.D, ziel);
         Assert.True(Assert.Single(s.D.Vertretungen).Offen);

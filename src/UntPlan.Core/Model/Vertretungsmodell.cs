@@ -160,8 +160,9 @@ public sealed class Vertretung
     public int? RaumId { get; set; }
     public int? VertretungsraumId { get; set; }
     /// <summary>
-    /// Zielstunde einer Verlegung: der Raum, den die Verlegung der Stunde gibt (Soll-Raum der Zielstunde). Vertretungsplan und Export
-    /// zeigen ihn als bisherigen Raum – nur eine spätere Raumänderung erscheint als Raumänderung. Ältere Dateien: null.
+    /// Zielstunde einer Verlegung: der Raum, den die Stunde an ihrem Ursprung hatte (Bezugsraum). Vertretungsliste, Vertretungsplan und
+    /// Export zeigen ihn als bisherigen Raum – findet die Stunde am Ziel in einem anderen Raum statt, ist das eine Raumänderung („alt → neu“);
+    /// „Räume mitnehmen“ behält ihn. Ältere Dateien: null (dann der Raum, den die Verlegung gab).
     /// </summary>
     public int? ZielraumId { get; set; }
     /// <summary>Zusätzliche Räume (Zusätzlichen Raum zuordnen).</summary>

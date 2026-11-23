@@ -182,7 +182,9 @@ public class TauschTests
         Assert.True(an.TauschMoeglich);
         Assert.Equal(b.Id, an.TauschUnterricht);
         Tagesverlegung.Ausfuehren(s.D, an, VerlegeModus.Tauschen);
-        var neu = Tagesplan.Berechnen(s.D, tag).VonKlasse(s.K[0].Id).Where(e => e.Findetstatt).ToList();
+        // die Ursprünge bleiben offen (bis Entfall) – gezählt wird, wo die Stunden jetzt stattfinden
+        var neu = Tagesplan.Berechnen(s.D, tag).VonKlasse(s.K[0].Id).Where(e => e.Findetstatt && !Vertretungen.IstUrsprung(e.Vertretung)).ToList();
+        Assert.Equal(4, Tagesplan.Berechnen(s.D, tag).VonKlasse(s.K[0].Id).Count(e => e.Status == TagesStatus.Offen));
         Assert.Equal(new[] { 4, 5 }, neu.Where(e => e.Unterricht?.Id == a.Id || e.Vertretung?.UnterrichtId == a.Id).Select(e => e.Stunde).OrderBy(x => x));
         Assert.Equal(new[] { 1, 2 }, neu.Where(e => e.Unterricht?.Id == b.Id || e.Vertretung?.UnterrichtId == b.Id).Select(e => e.Stunde).OrderBy(x => x));
         // überlappender Block (eine Stunde weiter) ist kein Tausch

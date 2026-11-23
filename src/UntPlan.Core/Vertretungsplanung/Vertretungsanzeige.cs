@@ -78,7 +78,8 @@ public static class Kalenderkennzahlen
     {
         var alle = Vertretungen.Am(d, datum).Where(v => v.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Unterricht) && !Vertretungen.NichtInListe(d, v)).ToList();
         var verdeckt = Vertretungen.ZusammengefassteZeilen(alle).Values.Select(v => v.Id).ToHashSet();
-        return alle.Where(v => !verdeckt.Contains(v.Id)).ToList();
+        // Kopplung: eine Zeile mit allen Klassen (siehe Vertretungen.KopplungsSchluessel)
+        return Vertretungen.NachKopplung(alle.Where(v => !verdeckt.Contains(v.Id))).Select(x => x.Zeile).ToList();
     }
 
     public static Tageskennzahlen Tag(Schuldatei d, DateOnly datum)
@@ -96,7 +97,7 @@ public static class Kalenderkennzahlen
             liste.Count(v => v.Art == VertretungsArt.Freisetzung),
             d.Abwesenheiten.Count(a => a.Art == AbwesenheitsArt.Raum && Gilt(a)),
             // Raumvertretungen: auch Vertretungen, deren Raum zusätzlich gesperrt ist (Lehrer- und Raumabsenz in derselben Stunde)
-            liste.Count(v => v.Art == VertretungsArt.Raumvertretung || (v.RaumGesperrt && !v.IstEntfall)),
+            liste.Count(v => v.Art == VertretungsArt.Raumvertretung || (v.RaumGesperrt && !v.IstEntfall) || Vertretungsplan.VerlegungMitRaumaenderung(v)),
             liste.Count(v => v.RaumOffen),
             d.Tagestexte.Count(x => x.GiltAm(datum)),
             liste.Count(v => v.Art == VertretungsArt.Entfall));

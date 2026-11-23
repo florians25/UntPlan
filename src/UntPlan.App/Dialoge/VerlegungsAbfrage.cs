@@ -7,44 +7,86 @@ namespace UntPlan.App.Dialoge;
 /// <summary>
 /// Rückfragen rund um Verlegungen und Sondereinsätze:
 /// <list type="bullet">
-/// <item>„Entfall“ bzw. „-“ bei einer Verlegung: „Soll die Verlegung rückgängig gemacht werden?“ – Ja hebt die Verlegung auf
-/// (Stunde wieder an der ursprünglichen Position, kein Entfall), Nein setzt wie bisher den Entfall.</item>
+/// <item>„Entfall“ bzw. „-“ bei einer verlegten bzw. getauschten Stunde (offener Ursprung oder Ziel) wie im Vorbild:
+/// „Verlegung rückgängig?“ mit Lehrkraft und „Ursprung -> Ziel“ – Ja hebt die Verlegung bzw. den Tausch auf (Stunde wieder an der
+/// ursprünglichen Position), Nein setzt die Stunde auf Entfall, Abbrechen ändert nichts.</item>
 /// <item>Neue Lehrer-Absenz: Verlegungen bzw. Sondereinsätze der Lehrkraft im Absenzzeitraum aufheben bzw. löschen?</item>
 /// </list>
-/// Die Fragen laufen über <see cref="Ui.Frage"/> (im Selbsttest automatisch beantwortet und protokolliert).
+/// Die Fragen laufen über <see cref="Ui.JaNeinAbbrechen"/> bzw. <see cref="Ui.Frage"/> (im Selbsttest automatisch beantwortet und protokolliert).
 /// </summary>
 internal static class VerlegungsAbfrage
 {
     public const string FrageVerlegung = "Soll die Verlegung rückgängig gemacht werden?";
     public const string FrageSondereinsatz = "Sollen die Sondereinsätze gelöscht werden?";
+    /// <summary>Titel der Rückfrage vor dem Entfall einer verlegten Stunde (wie im Vorbild „… - Frage“).</summary>
+    public const string Titel = "UntPlan - Frage";
+
+    /// <summary>Braucht die Zeile vor dem Entfall die Rückfrage? Verlegte bzw. getauschte Stunde, die nicht schon entfallen ist.</summary>
+    public static bool RueckfrageNoetig(Schuldatei d, Vertretung v) => !v.IstEntfall && Verlegungsaufhebung.IstVerlegung(d, v);
+
+    /// <summary>Rückfrage „Verlegung rückgängig?“ (Ja = Yes, Nein = No, Abbrechen = Cancel); Ja ist vorgewählt.</summary>
+    public static DialogResult Fragen(Schuldatei d, Vertretung v, IWin32Window? owner = null) =>
+        Ui.JaNeinAbbrechen(Verlegungsaufhebung.RueckfrageText(d, v), Titel, MeldungsArt.Frage, 0, owner);
 
     /// <summary>
-    /// Vor einem Entfall: Zeilen, die zu einer Verlegung gehören, nach Rückfrage aufheben.
-    /// Liefert die Zeilen, für die danach noch wie bisher der Entfall gesetzt werden soll.
+    /// Vor einem Entfall (Vertretungsliste, Vertretungsvorschlag): je verlegter bzw. getauschter Stunde nachfragen.
+    /// Ja hebt die Verlegung auf, Nein setzt die Stunde auf Entfall (offener Ursprung: Entfall mit „(Le.) nach“; Ziel: die Stunde
+    /// entfällt ganz). Liefert die übrigen Zeilen, für die der Entfall wie bisher umgeschaltet werden soll, bzw. null bei Abbrechen.
     /// </summary>
-    public static List<Vertretung> VorEntfall(IReadOnlyList<Vertretung> liste, Func<string, AenderungsArt, Action<Schuldatei>, bool> aendern)
+    public static List<Vertretung>? VorEntfall(IReadOnlyList<Vertretung> liste, Func<string, AenderungsArt, Action<Schuldatei>, bool> aendern)
     {
-        var d = AppZustand.D;
-        var verlegt = liste.Where(v => Verlegungsaufhebung.IstVerlegung(d, v)).ToList();
+        var verlegt = liste.Where(v => RueckfrageNoetig(AppZustand.D, v)).ToList();
         if (verlegt.Count == 0) return liste.ToList();
-        var text = Verlegungsaufhebung.FrageText(d, verlegt.Count == 1 ? "Die Stunde ist verlegt:" : "Die Stunden sind verlegt:", verlegt, FrageVerlegung);
-        if (!Ui.Frage(text, "UntPlan - Frage")) return liste.ToList();
-        var ids = verlegt.Select(v => v.Id).ToList();
-        aendern(ids.Count > 1 ? $"Verlegung aufgehoben ({ids.Count})" : "Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, ids));
-        return liste.Where(v => !ids.Contains(v.Id) && AppZustand.D.Vertretungen.Any(x => x.Id == v.Id)).ToList();
+        var erledigt = new HashSet<int>();
+        // Kopplung (eine Zeile in der Liste): einmal fragen, die Antwort gilt für alle Zeilen der Kopplung
+        foreach (var gruppe in Vertretungen.NachKopplung(verlegt).Select(x => x.Gruppe))
+        {
+            var d = AppZustand.D;
+            // bereits mit erledigt (z. B. Gegenrichtung eines Tausches, der aufgehoben wurde)
+            var aktuell = gruppe.Select(v => d.Vertretungen.FirstOrDefault(x => x.Id == v.Id)).OfType<Vertretung>().Where(v => RueckfrageNoetig(d, v)).ToList();
+            erledigt.UnionWith(gruppe.Select(v => v.Id));
+            if (aktuell.Count == 0) continue;
+            var ids = aktuell.Select(v => v.Id).ToList();
+            switch (Fragen(d, aktuell[0]))
+            {
+                case DialogResult.Yes:
+                    aendern("Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, ids));
+                    break;
+                case DialogResult.No:
+                    aendern("Entfall", AenderungsArt.Vertretung, x =>
+                    {
+                        foreach (var z in x.Vertretungen.Where(y => ids.Contains(y.Id)).ToList()) Verlegungsaufhebung.AufEntfallSetzen(x, z, AppZustand.Benutzer);
+                    });
+                    break;
+                default:
+                    return null;
+            }
+        }
+        return liste.Where(v => !erledigt.Contains(v.Id) && AppZustand.D.Vertretungen.Any(x => x.Id == v.Id)).ToList();
     }
 
     /// <summary>
-    /// Vor einem Entfall im Stundenplan (Position eines Unterrichts): liegt dort eine Verlegung, nachfragen.
-    /// true = Verlegung wurde aufgehoben (kein Entfall mehr nötig).
+    /// Vor einem Entfall im Stundenplan bzw. Planungsdialog (Position eines Unterrichts): liegt dort eine verlegte Stunde bzw. ein noch
+    /// offener Ursprung, nachfragen. true = erledigt (Verlegung aufgehoben oder abgebrochen – kein Entfall mehr nötig);
+    /// false = wie bisher entfallen lassen (keine Verlegung bzw. Antwort Nein).
     /// </summary>
     public static bool VorEntfall(DateOnly datum, int stunde, int unterrichtId, Func<string, AenderungsArt, Action<Schuldatei>, bool> aendern)
     {
         var d = AppZustand.D;
-        if (Verlegungsaufhebung.VerlegungAn(d, datum, stunde, unterrichtId) is not { } v) return false;
-        if (!Ui.Frage(Verlegungsaufhebung.FrageText(d, "Die Stunde ist verlegt:", new[] { v }, FrageVerlegung), "UntPlan - Frage")) return false;
-        var id = v.Id;
-        return aendern("Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, new[] { id }));
+        var v = d.Vertretungen.Where(x => x.Datum == datum && x.Stunde == stunde && x.UnterrichtId == unterrichtId && RueckfrageNoetig(d, x))
+            .OrderBy(x => x.VonDatum.HasValue ? 0 : 1).FirstOrDefault();
+        if (v is null) return false;
+        switch (Fragen(d, v))
+        {
+            case DialogResult.Yes:
+                var id = v.Id;
+                aendern("Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, new[] { id }));
+                return true;
+            case DialogResult.No:
+                return false;
+            default:
+                return true;
+        }
     }
 
     /// <summary>
