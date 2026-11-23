@@ -61,6 +61,8 @@ struct StundendetailInhalt: View {
     @State private var seitenPosition: Int?
     /// Ziel eines angetippten Reiters, solange die Seiten dorthin gleiten (Zwischenseiten wählen dabei keinen Reiter)
     @State private var reiterZiel: Int? = nil
+    /// Blätterfläche steht nach dem Öffnen auf der Seite der angetippten Stunde (erst danach wählt Wischen einen Reiter)
+    @State private var seitenAusgerichtet = false
     /// Sichtbarer Reiter in der Reiterleiste (der gewählte steht mittig)
     @State private var reiterSicht: Int?
     /// Daten der beim Öffnen gewählten Stunde sind da (danach nie wieder das Ladebild, außer beim Ein- und Ausfahren)
@@ -209,31 +211,62 @@ struct StundendetailInhalt: View {
     @ViewBuilder
     private var seiten: some View {
         if karten.count > 1 {
-            ScrollView(.horizontal) {
-                HStack(spacing: 0) {
-                    ForEach(karten.indices, id: \.self) { i in
-                        seitenansicht(i)
-                            .environmentObject(datenListe[i])
-                            // nur in der Breite an der Fläche ausrichten; die Höhe gibt die Seitenfläche vor (sonst wurde der
-                            // Inhalt höher als das Blatt und schob den Kopf mit X, Datum und ⋮ nach oben aus dem Bild)
-                            .containerRelativeFrame(.horizontal)
-                            .frame(maxHeight: .infinity, alignment: .top)
+            ScrollViewReader { leser in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 0) {
+                        ForEach(karten.indices, id: \.self) { i in
+                            seitenansicht(i)
+                                .environmentObject(datenListe[i])
+                                // nur in der Breite an der Fläche ausrichten; die Höhe gibt die Seitenfläche vor (sonst wurde der
+                                // Inhalt höher als das Blatt und schob den Kopf mit X, Datum und ⋮ nach oben aus dem Bild)
+                                .containerRelativeFrame(.horizontal)
+                                .frame(maxHeight: .infinity, alignment: .top)
+                                .id(i)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollIndicators(.hidden)
+                .frame(maxHeight: .infinity)
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $seitenPosition)
+                .onChange(of: seitenPosition) { _, neu in
+                    // Beim ersten Aufbau meldet die Blätterfläche oft kurz die erste Seite (Breite noch unbekannt) – das
+                    // darf nie den Reiter der angetippten Stunde überschreiben: bis die Seiten ausgerichtet sind, gilt
+                    // allein die Auswahl
+                    guard seitenAusgerichtet else {
+                        if neu != auswahl { seitenAusrichten(leser) }
+                        return
+                    }
+                    // Gewischt: der Reiter folgt (Unterstreichung gleitet mit)
+                    guard let neu, reiterZiel == nil, neu != auswahl, karten.indices.contains(neu) else { return }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { auswahl = neu }
+                }
+                .onAppear {
+                    seitenAusgerichtet = false
+                    seitenAusrichten(leser)
+                    // Nach dem ersten Layout (Breite bekannt) noch einmal ausrichten, danach folgt der Reiter dem Wischen
+                    DispatchQueue.main.async { seitenAusrichten(leser) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        seitenAusrichten(leser)
+                        seitenAusgerichtet = true
                     }
                 }
-                .scrollTargetLayout()
-            }
-            .scrollIndicators(.hidden)
-            .frame(maxHeight: .infinity)
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: $seitenPosition)
-            .onChange(of: seitenPosition) { _, neu in
-                // Gewischt: der Reiter folgt (Unterstreichung gleitet mit)
-                guard let neu, reiterZiel == nil, neu != auswahl, karten.indices.contains(neu) else { return }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { auswahl = neu }
             }
         } else {
             seitenansicht(0)
                 .environmentObject(datenListe[0])
+        }
+    }
+
+    /// Blätterfläche ohne Animation auf die Seite des gewählten Reiters stellen (beim Öffnen: die angetippte Stunde).
+    private func seitenAusrichten(_ leser: ScrollViewProxy) {
+        let ziel = index
+        var transaktion = Transaction()
+        transaktion.disablesAnimations = true
+        withTransaction(transaktion) {
+            if seitenPosition != ziel { seitenPosition = ziel }
+            leser.scrollTo(ziel, anchor: .leading)
         }
     }
 

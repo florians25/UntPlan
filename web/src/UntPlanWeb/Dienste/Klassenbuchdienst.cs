@@ -115,6 +115,27 @@ public sealed partial class Klassenbuchdienst
     /// <summary>Karte (Block) einer Stunde für die Stundendetails bzw. die App-API.</summary>
     public Karte? Blockkarte(Benutzer b, Stand s, DateOnly d, int stunde, int unterricht, string? lehrerHinweis = null) => KarteZu(b, s, d, stunde, unterricht, lehrerHinweis);
 
+    /// <summary>
+    /// Filter für den Blockeintrag (ohne Einzelstunde) einer Stunde: nur Einträge genau dieses Blocks – nie der Lehrstoff (bzw. die
+    /// Notizen) einer früheren Stunde oder eines früheren Blocks desselben Unterrichts am selben Tag. Jeder Block erhält seinen Lehrstoff
+    /// einzeln, nichts wird automatisch übernommen. Eigener Unterricht: Eintrag ab Blockbeginn der Karte bis zur Stunde; gekoppelter
+    /// Unterricht (Eintrag unter einem anderen Unterricht, dessen Block früher beginnen kann): nur, wenn dieser ohne Unterbrechung bis zur
+    /// Stunde läuft.
+    /// </summary>
+    public Func<Klassenbucheintrag, bool> ZumBlock(Stand s, DateOnly d, int stunde, int unterricht, Karte? karte)
+    {
+        var von = karte is not null && karte.Von <= stunde && stunde <= karte.Bis ? karte.Von : stunde;
+        List<Rohstunde>? roh = null;
+        bool Durchgehend(Klassenbucheintrag e)
+        {
+            roh ??= _plan.Rohstunden(s, d);
+            for (var n = e.Stunde; n <= stunde; n++)
+                if (!roh.Any(r => r.Unterricht == e.Unterricht && r.Stunde == n)) return false;
+            return true;
+        }
+        return e => e.Einzelstunde is null && e.Stunde <= stunde && (e.Stunde >= von || (e.Unterricht != unterricht && Durchgehend(e)));
+    }
+
     private static Fehlzeit LesenFehlzeit(System.Data.Common.DbDataReader r) => new(r.Zahl("id"), r.Text("datum"), r.Zahl("stunde"), r.Zahl("unterricht"),
         r.Zahl("schueler_id"), r.Text("klasse"), r.Text("fach"), r.Text("art"), r.Zahl("minuten"), r.Text("status"), r.Text("bemerkung"), r.Text("lehrer"), r.Text("erstellt"),
         r.Text("grund"), r.Text("gruppe"))

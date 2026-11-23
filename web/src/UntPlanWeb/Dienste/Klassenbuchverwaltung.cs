@@ -121,7 +121,8 @@ public sealed partial class Klassenbuchverwaltung
         var lehrer = alle
             ? (lehrerWahl.Any() ? lehrerWahl.Where(l => s.Lehrer.ContainsKey(l)).ToList() : s.Paket.Elemente.Lehrer.Select(l => l.Kurz).ToList())
             : b.LehrerKuerzel is string eigen ? new List<string> { eigen } : new List<string>();
-        var eintraege = _kb.Zeitraum(von, bis);
+        // mit den Einträgen der Einzelstunden: Lehrstoff, der in einem Block für jede Stunde einzeln eingetragen wurde, zählt ebenfalls
+        var eintraege = _kb.Zeitraum(von, bis, true);
         var res = new List<Stundenzeile>();
         for (var d = von; d <= bis; d = d.AddDays(1))
         {
@@ -133,11 +134,17 @@ public sealed partial class Klassenbuchverwaltung
                 {
                     if (d == heute && string.CompareOrdinal(k.Ende, jetzt) > 0) continue;
                     if (klasse is not null && !k.Klassen.Any(x => Ci.Equals(x.K, klasse))) continue;
-                    var zur = tag.Where(e => e.Unterricht == k.Unterricht && e.Stunde >= k.Von && e.Stunde <= k.Bis).ToList();
+                    var imBlock = tag.Where(e => e.Unterricht == k.Unterricht && e.Stunde >= k.Von && e.Stunde <= k.Bis).ToList();
+                    var zur = imBlock.Where(e => e.Einzelstunde is null).ToList();
+                    // Lehrstoff: Eintrag des ganzen Blocks oder für jede Stunde des Blocks ein eigener (je Stunde einzeln gezählt)
+                    bool Eigen(Klassenbucheintrag e, List<Klassenbucheintrag> gruppe) => e.Thema.Length > 0 && (Ci.Equals(e.Lehrer, l) || gruppe.All(z => !Ci.Equals(z.Lehrer, l)));
+                    var einzeln = imBlock.Where(e => e.Einzelstunde is not null).ToList();
+                    var lehrstoff = zur.Any(e => Eigen(e, zur))
+                        || (k.Von < k.Bis && Enumerable.Range(k.Von, k.Bis - k.Von + 1).All(n => einzeln.Where(e => e.Stunde == n).ToList() is var g && g.Any(e => Eigen(e, g))));
                     res.Add(new Stundenzeile(l, k.Klassen.Select(x => x.K).Where(x => x.Length > 0).ToList(), k.Fach, k.FachName, k.Farbe, iso, k.Von, k.Bis, k.Beginn, k.Ende,
                         k.Status == "geaendert" ? (k.Art.Length > 0 ? k.Art : "Vertretung") : k.Status == "klausur" ? "Prüfung" : "",
                         k.Status, k.Raeume.Select(x => x.K).Where(x => x.Length > 0).ToList(),
-                        zur.Any(e => e.Anwesenheit != null), zur.Any(e => e.Thema.Length > 0 && (Ci.Equals(e.Lehrer, l) || zur.All(z => !Ci.Equals(z.Lehrer, l)))), k.Unterricht!.Value));
+                        zur.Any(e => e.Anwesenheit != null), lehrstoff, k.Unterricht!.Value));
                 }
         }
         return res.OrderBy(x => x.Datum).ThenBy(x => x.Von).ThenBy(x => x.Lehrer, De).ToList();
@@ -468,12 +475,14 @@ public sealed partial class Klassenbuchverwaltung
         if (!_kb.DarfSchreiben(b, s, d, stunde, unterricht)) throw new UnauthorizedAccessException("Diese Stunde gehört nicht zu Ihrem Unterricht.");
         var url = link is null ? null : OnlineLinkPruefen(link);
         // Einzelstunde eines Blocks: eigener Eintrag nur dieser Stunde
-        var block = einzelstunde.HasValue ? _kb.Blockkarte(b, s, d, stunde, unterricht) : null;
-        var einzeln = block != null && block.Von < block.Bis;
+        var block = _kb.Blockkarte(b, s, d, stunde, unterricht);
+        var einzeln = einzelstunde.HasValue && block != null && block.Von < block.Bis;
+        // Blockeintrag nur dieses Blocks (nie der Eintrag einer früheren Stunde desselben Unterrichts)
+        var zumBlock = _kb.ZumBlock(s, d, stunde, unterricht, block);
         if (einzeln && (einzelstunde < block!.Von || einzelstunde > block.Bis)) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
         var e = einzeln
             ? _kb.EinzelEintraege(d, unterricht, einzelstunde!.Value, einzelstunde.Value, b.LehrerKuerzel).FirstOrDefault()
-            : _kb.Zeitraum(d, d).Where(x => x.Unterricht == unterricht && stunde >= x.Stunde && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)))
+            : _kb.Zeitraum(d, d).Where(x => x.Unterricht == unterricht && zumBlock(x) && (b.LehrerKuerzel is null || Ci.Equals(x.Lehrer, b.LehrerKuerzel)))
                 .OrderByDescending(x => x.Stunde).FirstOrDefault();
         var id = e?.Id ?? _kb.Speichern(b, s, d, stunde, unterricht, "", "", null, "", einzelstunde: einzeln ? einzelstunde : null).Id;
         if (url is null) _db.Ausfuehren("UPDATE klassenbuch SET online = @o WHERE id = @i", Db.P("@o", online), Db.P("@i", id));
