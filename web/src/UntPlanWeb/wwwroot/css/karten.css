@@ -414,6 +414,80 @@ input.sd-eingabe { min-height: 56px; }
 /* Pfeil im grünen Hover-Label wie Vorlage: klein und fein, Luft links ca. 0,57 em, rechts ca. 0,7 em */
 .u-hover-label .u-hover-pfeil { display: inline-block; width: .64em; height: .5em; margin: 0 .55em 0 .5em; vertical-align: 0; overflow: visible; }
 
+/* ------------------------------------------------------------------ Stundendetails nachgemessen (Vorlagen 323–325)
+
+   Vorlagen: Bildschirm 2560 px, auf 2000 px verkleinert (Faktor 0,78125; Seitenleiste 280 px wie bei uns), alle Maße hier in CSS-Pixeln.
+   Einzug links und rechts je 10 % der Fensterbreite (bei 2272 px: Titel, Reiter, Inhalt und Knöpfe ab 228 px, Notizfelder enden 226 px
+   vor dem Rand). Kopf: Titel 20,8 px (Versalien ab 21 px), Zeile darunter 14,6 px (ab 55 px), Reiter-Text ab 89 px, Linie bei 120 px,
+   Unterstrich 4 px. Oben rechts feiner Winkel 16 × 9 px und X 17 px (X immer 20 px unter dem oberen Rand, auch über dem Balken
+   „ENTFÄLLT“). Inhalt: erste Zeile 60 px unter der Linie, Symbole 22 px (Online 28 px), Bezeichnung 14 px Demi 23,5 px neben dem Symbol,
+   9 px darüber das Feld (56 px hoch, Ecken 4 px), 32 px zwischen den Zeilen, Schalter 44 × 22 px. Fuß 77 px: Linie, Knöpfe 45 px hoch
+   (15 px Abstand oben, 16 px unten), 8 px Abstand, Schrift Arial 16 px fett (600 wählt den Bold-Schnitt) wie im Original, Winkel 9 × 17 px. Entfall: Balken 28 px
+   #f34a46, „ENTFÄLLT“ 15 px fett, Kopf #dedfe6 ohne zusätzliche Höhe. */
+@media (min-width: 992px) {
+  .stundendetails .sd-kopf:not(.rv-kopf) { position: relative; padding: 15px 150px 4px calc(10% + 1px); }
+  .stundendetails .sd-titel h2 { margin-bottom: 10px; }
+  .stundendetails .sd-kopf.grau { padding-bottom: 4px; background: #dedfe6; }
+  .stundendetails .sd-reiter.grau { background: #dedfe6; }
+  .stundendetails .sd-zeile { font-size: 14.6px; }
+  .stundendetails .sd-titel .trenn { margin: 0 calc(.38rem + 1.5px) 0 .38rem; }
+  .stundendetails .sd-zeile .trenn { margin: 0 8px; }
+  .stundendetails .sd-kopf .sd-knoepfe { position: static; margin: 0; }
+  .stundendetails .sd-kopf .sd-knoepfe > button, .stundendetails .sd-kopf .sd-knoepfe > .sd-blockwahl > button {
+    display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #8a96a1; }
+  .stundendetails .sd-kopf .sd-knoepfe > button:last-child { position: absolute; top: 8px; right: 8px; z-index: 2; }
+  .stundendetails .sd-entfall-leiste + .sd-kopf .sd-knoepfe > button:last-child { top: -20px; }
+  .stundendetails .sd-kopf .sd-knoepfe > :first-child:not(:last-child) { position: absolute; top: 6px; right: 105px; }
+  .stundendetails .sd-kopf .sd-knoepfe > button .bi-x-lg { font-size: 21.6px; line-height: 1; }
+  .stundendetails .sd-reiter { padding-left: calc(10% + 1px - 16px); }
+  .stundendetails .sd-reiter > li:first-child { margin-left: 14px; }
+  .stundendetails .sd-reiter button { padding-top: 7.8px; padding-bottom: 12px; }
+  .stundendetails .sd-reiter button.aktiv::after { bottom: -3px; height: 4px; border-radius: 4px 4px 0 0; }
+  .stundendetails .modal .sd-entfall-leiste, .stundendetails .sd-entfall-leiste { padding: 0 calc(10% - 1px) 6px calc(10% + 1px); font-size: 15px; line-height: 22px; background: #f34a46; }
+  .stundendetails .sd-rumpf { padding-left: calc(10% + 1px); padding-right: calc(10% - 1px); }
+  .stundendetails .sd-rumpf-details { padding-top: 59px; }
+  .sd-rumpf-details .sd-detail { gap: 22.5px; padding: 0; max-width: none; }
+  .sd-rumpf-details .sd-detail + .sd-detail { margin-top: 32px; }
+  .sd-rumpf-details .sd-detail.sd-online { min-height: 36px; }
+  .sd-rumpf-details .sd-detail > .u-sym, .sd-rumpf-details .sd-detail > .kb-icon, .sd-rumpf-details .sd-detail > .bi { width: 22px; height: 22px; margin: 2.5px 0 0 2px; font-size: 20px; line-height: 22px; }
+  .sd-rumpf-details .sd-detail.sd-online > .u-sym { width: 28px; height: 28px; margin: 0 -3.75px 0 -.75px; }
+  .sd-rumpf-details .sd-detail-titel { font-size: 14px; line-height: 21px; margin-bottom: 9px; }
+  .sd-rumpf-details .sd-schalter { min-height: 22px; gap: 8px; }
+  .sd-rumpf-details .sd-schalter .sd-detail-titel { margin: 0; }
+  .sd-rumpf-details .sd-text { font-size: 14px; line-height: 21px; }
+  .sd-rumpf-details .sd-notiz { max-width: none; height: 56px; min-height: 56px; resize: none; }
+  .sd-rumpf-details .sd-schalter-spur { width: 44px; height: 22px; border-radius: 11px; background: #bfbfbf; }
+  .sd-rumpf-details .sd-schalter-spur::after { top: 2px; left: 2px; width: 18px; height: 18px; }
+  .sd-rumpf-details .sd-schalter input:checked + .sd-schalter-spur::after { transform: translateX(22px); }
+  .stundendetails .sd-fuss:not(.sd-status):not(.rechts) { gap: 8px; padding: 15px calc(10% - 1px) 16px 10%; }
+  .stundendetails .sd-fuss .sd-pille.gross { height: 45px; padding: 0 31.5px; gap: 17px; border-width: 1px; font-family: Arial, "Liberation Sans", Helvetica, sans-serif; font-size: 16px; font-weight: 600; }
+  .sd-pille .sd-winkel { flex: none; }
+}
+/* Farben der Details wie in den Vorlagen (verkleinert und verglichen): Titel #333f48, Zeile #414d55, Trennstriche #a8b1b9, aktiver Reiter
+   #fa6e42, Bezeichnungen #727e88, Texte #67747e, Knopfschrift #74808a (Rand #b4bdc4), Symbole und Winkel #8a96a1, Linien unter dem Kopf und über dem Fuß #c9ced4 wie die Feldränder;
+   nur eine Linie zur Seitenleiste (deren Rand) */
+.stundendetails .modal-content { border-left-color: transparent; }
+.stundendetails .sd-titel h2 { color: #333f48; }
+.stundendetails .sd-zeile { color: #414d55; }
+.stundendetails .sd-reiter button.aktiv { color: #fa6e42; }
+.stundendetails .sd-reiter button.aktiv::after { background: #fa6e42; }
+.stundendetails .sd-titel .trenn, .stundendetails .sd-zeile .trenn { color: #a8b1b9; }
+.stundendetails .sd-reiter { border-bottom-color: #c9ced4; }
+.stundendetails .sd-fuss { border-top-color: #c9ced4; }
+.sd-rumpf-details .sd-detail-titel { color: #727e88; }
+.sd-rumpf-details .sd-text { color: #67747e; }
+.sd-rumpf-details .sd-detail > .u-sym, .sd-rumpf-details .sd-detail > .kb-icon, .sd-rumpf-details .sd-detail > .bi { color: #8a96a1; }
+.stundendetails .sd-fuss .sd-pille.gross { color: #74808a; border-color: #b4bdc4; }
+.stundendetails .sd-fuss .sd-pille.gross .sd-winkel { color: #8a96a1; }
+.stundendetails .sd-fuss .sd-pille.gross:hover:not(:disabled) { color: #414d55; border-color: #8a96a1; }
+.stundendetails .sd-fuss .sd-pille.gross:hover:not(:disabled) .sd-winkel { color: #67747e; }
+.sd-winkel { display: block; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
+.sd-pille .sd-winkel { display: inline-block; }
+/* Pausenaufsicht im Wochenplan: antippbar wie die Stundenkarten (Details der Aufsicht) */
+.aufsicht[data-aufsicht][role="button"] { cursor: pointer; }
+.aufsicht[data-aufsicht]:focus-visible { z-index: 5; outline: 2px solid rgba(245, 107, 42, .55); outline-offset: 1px; }
+.aufsicht.ohne-details { cursor: default; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die

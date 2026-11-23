@@ -734,8 +734,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       // Label direkt hinter dem Ort (ein Leerzeichen), Hover „ALT → NEU“ wie auf den Stundenkarten – dann ohne Browser-Tooltip.
       // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie – füllt genau die Pausenzeile, deren Höhe
       // aus der Pausendauer im Zeitraster kommt –, gleiche Breite und Einrückung
+      // Klick bzw. Enter öffnet die Details der Aufsicht (wie bei den Stundenkarten)
       html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
-        ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
+        data-aufsicht="${plan.aufsichten.indexOf(a)}" tabindex="0" role="button" ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
     }
     const abw = abwesenheitFlaechen((plan.abwesenheiten || []).filter(a => a.datum === t.datum), zeiten, aufbau, belegt);
     if (abw) html = html.slice(0, vorKarten) + abw + html.slice(vorKarten);
@@ -838,10 +839,17 @@ export function listenKuerzen(wurzel) {
   for (const mehr of wurzel.querySelectorAll('.std .z-liste > .mehr')) mehr.remove();
 }
 
-/** Klick auf eine Karte öffnet den Detaildialog. */
-export function kartenBinden(wurzel, karten, kontext, typ = null, format = null) {
-  // Stundenplanformat ohne „Zugriff auf Stundendetails“: Karten sind nicht antippbar
-  if (format?.details === false) { listenKuerzen(wurzel); wurzel.querySelectorAll('[data-karte]').forEach(el => { el.removeAttribute('tabindex'); el.removeAttribute('role'); el.classList.add('ohne-details'); }); return; }
+/** Klick auf eine Karte (bzw. Pausenaufsicht, Liste aufsichten) öffnet den Detaildialog. */
+export function kartenBinden(wurzel, karten, kontext, typ = null, format = null, aufsichten = []) {
+  // Stundenplanformat ohne „Zugriff auf Stundendetails“: Karten und Aufsichten sind nicht antippbar
+  if (format?.details === false) { listenKuerzen(wurzel); wurzel.querySelectorAll('[data-karte], [data-aufsicht]').forEach(el => { el.removeAttribute('tabindex'); el.removeAttribute('role'); el.classList.add('ohne-details'); }); return; }
+  // Pausenaufsichten: Details mit „Vorherige/Nächste Aufsicht“ durch die Aufsichten des Plans
+  const aufsichtOeffnen = el => { const a = aufsichten[Number(el.dataset.aufsicht)]; if (a) aufsichtDialog(a, { ...kontext, aufsichten, typ }); };
+  wurzel.querySelectorAll('[data-aufsicht]').forEach(el => {
+    if (!aufsichten[Number(el.dataset.aufsicht)]) { el.removeAttribute('tabindex'); el.removeAttribute('role'); return; }
+    el.addEventListener('click', () => aufsichtOeffnen(el));
+    el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); aufsichtOeffnen(el); } });
+  });
   const oeffnen = el => { const k = karten[Number(el.dataset.karte)]; if (k) karteDialog(k, { ...kontext, liste: karten, typ }); };
   listenKuerzen(wurzel);
   if (!wurzel.__kuerzen && typeof ResizeObserver === 'function') {
@@ -856,8 +864,8 @@ export function kartenBinden(wurzel, karten, kontext, typ = null, format = null)
 }
 
 /** Detailansicht einer Stunde (Aufbau wie im Original) – siehe stundendetails.js. */
-export { karteDialog } from './stundendetails.js';
-import { karteDialog } from './stundendetails.js';
+export { karteDialog, aufsichtDialog } from './stundendetails.js';
+import { karteDialog, aufsichtDialog } from './stundendetails.js';
 
 /** Tagesübersicht (Elemente × Stunden). */
 export function tagesGitter(tag) {
