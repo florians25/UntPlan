@@ -43,14 +43,15 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     private readonly Klappleiste _optLeiste = new(false) { Offen = true };
     // Maße wie im Handbuch-Bild (96 dpi, Kap. 7.3): Leisten 20 hoch, Optionen 38 hoch (Häkchen bei x = 13 bzw. 229, Zeilen 19 Pixel),
     // Reiter 22 hoch, Tabellenzeilen 17, Spalten Name 42 / Merker zur Stunde 110 / je Stunde 42, Vorziehungen-Kopf 40 hoch
-    private readonly Panel _optionen = new() { Dock = DockStyle.Top, Height = 38 };
-    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(13, 2) };
-    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(229, 2) };
-    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(13, 21) };
-    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(229, 21), Visible = false };
+    // Vorbild (gemessen): Bereich der Häkchen 40 Pixel hoch, Zeilen im Abstand von 20 Pixeln
+    private readonly Panel _optionen = new() { Dock = DockStyle.Top, Height = 40 };
+    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(13, 4) };
+    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(229, 4) };
+    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(13, 24) };
+    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(229, 24), Visible = false };
     // Reiter „Räume“ wie in der Vorlage: rechts neben Stundenblock bzw. Dauervertretung untereinander, „Auch besetzte Räume anzeigen“ vorbelegt
-    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(229, 2), Visible = false, Checked = true };
-    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(229, 21), Visible = false };
+    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(229, 4), Visible = false, Checked = true };
+    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(229, 24), Visible = false };
     private readonly Reiterleiste _reiter = new() { Dock = DockStyle.Top };
     private readonly Panel _inhalt = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _vorschlag = new() { Dock = DockStyle.Fill, Name = "Vorschlag" };
@@ -259,7 +260,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         _reiter.Gewechselt += ReiterGewechselt;
         // Reiter wie im Original-Bildschirmfoto: Microsoft Sans Serif 8,25, Leiste 22 Pixel hoch
         _reiter.Font = Ui.DialogSchrift;
-        _reiter.Height = 22;
+        _reiter.Height = 23;
         _inhalt.Controls.Add(_vorschlag);
         _inhalt.Controls.Add(_betreuung);
         _inhalt.Controls.Add(_raeume);
@@ -269,7 +270,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         LayoutUmstellen();
 
         // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (die Tabellen haben ihre eigene Schrift)
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(5, 1, 2, 4), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
+        // Vorbild (gemessen): Leisten, Reiter und Tabelle 9 Pixel innerhalb des 1-Pixel-Fensterrands, erste Leiste 2 Pixel unter der Werkzeugleiste
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 2, 9, 4), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);
@@ -389,6 +391,8 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     {
         Ui.RasterGestalten(g, false);
         g.RowHeadersVisible = false;
+        // Vorbild (gemessen): klassisch vertiefter Rahmen direkt unter den Reitern
+        g.BorderStyle = BorderStyle.Fixed3D;
         g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         g.MultiSelect = false;
         // wie im Original-Bildschirmfoto: Arial 9, Überschrift und Zeilen 21 Pixel hoch, Spaltenbreiten fest (Überschriften abgeschnitten)
@@ -1517,9 +1521,10 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.Clear(Parent?.BackColor ?? Ui.BlauSehrHell);
-            var r = _unten ? new Rectangle(0, 0, Width - 1, Height - 1) : new Rectangle(0, 0, Width - 1, Height);
+            // Vorbild (gemessen): jede Leiste ein eigener weißer Kasten mit Rand (171,171,171), übereinander ohne gemeinsame Linie
+            var r = new Rectangle(0, 0, Width - 1, Height - 1);
             e.Graphics.FillRectangle(Brushes.White, r);
-            using (var p = new Pen(Color.FromArgb(160, 160, 160))) e.Graphics.DrawRectangle(p, r);
+            using (var p = new Pen(Color.FromArgb(171, 171, 171))) e.Graphics.DrawRectangle(p, r);
             // Pfeil: oben ▲ = aufgeklappt, unten ▲ = zugeklappt (klappt nach oben auf)
             var hoch = _unten ? !_offen : _offen;
             // schwarzes Dreieck ▼ bzw. ▲ wie auf dem Original-Bildschirmfoto (8 × 4 Pixel ab x = 6)
@@ -1576,29 +1581,68 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             if (i >= 0) Index = i;
         }
 
+        /// <summary>
+        /// Klassische Karteireiter wie im Vorbild (gemessen, Bild 308): Band (175,223,204); jeder Reiter erhaben (links/oben Weiß und
+        /// (227,227,227), rechts (160,160,160) und (105,105,105), Ecken (240,240,240)), Breite = Text + 12; der gewählte Reiter 2 Pixel
+        /// breiter je Seite und 2 Pixel höher, hell (225,243,236) und nach unten offen; darunter die Kante Weiß/(227,227,227)/(105,105,105).
+        /// </summary>
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.Clear(Color.FromArgb(175, 223, 204));
             _flaechen.Clear();
+            var h = Height;
+            using var weiss = new Pen(Color.White);
+            using var hell = new Pen(Color.FromArgb(227, 227, 227));
+            using var grau = new Pen(Color.FromArgb(160, 160, 160));
+            using var dunkel = new Pen(Color.FromArgb(105, 105, 105));
+            using var ecke = new Pen(Color.FromArgb(240, 240, 240));
             var x = 2;
-            using var rand = new Pen(Color.FromArgb(150, 150, 150));
-            for (var i = 0; i < _texte.Length; i++)
+            foreach (var t in _texte)
             {
-                var w = TextRenderer.MeasureText(_texte[i], Font).Width + 10;
-                var gewaehlt = i == _index;
-                var r = gewaehlt ? new Rectangle(x, 2, w, Height - 2) : new Rectangle(x, 4, w, Height - 5);
-                _flaechen.Add(r);
-                using (var br = new SolidBrush(gewaehlt ? Color.FromArgb(246, 251, 249) : Color.FromArgb(229, 239, 235))) g.FillRectangle(br, r);
-                g.DrawLine(rand, r.X, r.Bottom, r.X, r.Y);
-                g.DrawLine(rand, r.X, r.Y, r.Right, r.Y);
-                g.DrawLine(rand, r.Right, r.Y, r.Right, r.Bottom);
-                TextRenderer.DrawText(g, _texte[i], Font, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-                x += w + 1;
+                var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 12;
+                _flaechen.Add(new Rectangle(x, 2, w, h - 5));
+                x += w;
             }
-            g.DrawLine(rand, 0, Height - 1, Width, Height - 1);
+            // Kante unter den Reitern (Seite ohne Inhalt): Weiß, Hellgrau, darunter dunkel; rechts dunkel abgeschlossen
+            g.DrawLine(weiss, 0, h - 5, Width - 2, h - 5);
+            g.DrawLine(hell, 0, h - 4, Width - 3, h - 4);
+            g.DrawLine(grau, Width - 2, h - 4, Width - 2, h - 4);
+            g.DrawLine(dunkel, Width - 1, h - 5, Width - 1, h - 3);
+            g.DrawLine(dunkel, 0, h - 3, Width - 1, h - 3);
+            using (var band = new SolidBrush(Color.FromArgb(175, 223, 204))) g.FillRectangle(band, 0, h - 2, Width, 2);
+            void Reiter(Rectangle r, bool gewaehlt, string text)
+            {
+                using (var b = new SolidBrush(gewaehlt ? Color.FromArgb(225, 243, 236) : Color.FromArgb(175, 223, 204)))
+                    g.FillRectangle(b, r.Left + 2, r.Top + 2, r.Width - 4, r.Height - 2);
+                g.DrawLine(ecke, r.Left, r.Top, r.Left + 1, r.Top);
+                g.DrawLine(ecke, r.Left, r.Top + 1, r.Left, r.Top + 1);
+                g.DrawLine(ecke, r.Right - 2, r.Top, r.Right - 1, r.Top);
+                g.DrawLine(ecke, r.Right - 1, r.Top + 1, r.Right - 1, r.Top + 1);
+                g.DrawLine(weiss, r.Left + 2, r.Top, r.Right - 3, r.Top);
+                g.DrawLine(weiss, r.Left + 1, r.Top + 1, r.Left + 1, r.Top + 1);
+                g.DrawLine(weiss, r.Left, r.Top + 2, r.Left, r.Bottom - 1);
+                g.DrawLine(hell, r.Left + 2, r.Top + 1, r.Right - 3, r.Top + 1);
+                g.DrawLine(hell, r.Left + 1, r.Top + 2, r.Left + 1, r.Bottom - 1);
+                g.DrawLine(dunkel, r.Right - 2, r.Top + 1, r.Right - 2, r.Top + 1);
+                g.DrawLine(grau, r.Right - 2, r.Top + 2, r.Right - 2, r.Bottom - 1);
+                g.DrawLine(dunkel, r.Right - 1, r.Top + 2, r.Right - 1, r.Bottom - 1);
+                var textR = new Rectangle(r.Left + 6, r.Top + (gewaehlt ? 6 : 5), r.Width - 12, Font.Height);
+                TextRenderer.DrawText(g, text, Font, textR, Color.Black, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
+            }
+            for (var i = 0; i < _texte.Length; i++)
+                if (i != _index) Reiter(_flaechen[i], false, _texte[i]);
             if (_index < _flaechen.Count)
-                using (var br = new SolidBrush(Color.FromArgb(246, 251, 249))) g.FillRectangle(br, _flaechen[_index].X + 1, Height - 1, _flaechen[_index].Width - 1, 1);
+            {
+                var r = _flaechen[_index];
+                // gewählter Reiter: 2 Pixel breiter je Seite, 2 Pixel höher, unten offen bis in die Kante (Weiß/Hellgrau überdeckt)
+                var gr = Rectangle.FromLTRB(Math.Max(0, r.Left - 2), 0, r.Right + 2, h - 3);
+                Reiter(gr, true, _texte[_index]);
+                using var b = new SolidBrush(Color.FromArgb(225, 243, 236));
+                g.FillRectangle(b, gr.Left + 2, h - 5, gr.Width - 2, 2);
+                g.DrawLine(weiss, gr.Left, h - 5, gr.Left, h - 4);
+                g.DrawLine(hell, gr.Left + 1, h - 5, gr.Left + 1, h - 4);
+            }
         }
     }
 }

@@ -28,6 +28,12 @@ public sealed class Reiterleiste : Control
 
     protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); Height = HoeheNachSchrift(); }
 
+    /// <summary>
+    /// Waagrechter Abschnitt (x von–bis) der Unterkante eines Rahmens darüber, die wie im Vorbild in der obersten Zeile der Leiste
+    /// liegt (z. B. der Gruppenrahmen „Von-Bis“ der Absenzen); null = keine.
+    /// </summary>
+    public Func<(int Von, int Bis)?>? Oberlinie { get; set; }
+
     public int Count => _texte.Count;
 
     public void Hinzufuegen(string text) { _texte.Add(text); Invalidate(); }
@@ -85,6 +91,8 @@ public sealed class Reiterleiste : Control
         // Kopfbereich oberhalb des Bandes, Band in der Farbe des Arbeitsbereichs
         using (var kopf = new SolidBrush(Ui.Kopf)) g.FillRectangle(kopf, 0, 0, Width, 1);
         using (var band = new SolidBrush(Band)) g.FillRectangle(band, 0, 1, Width, Height - 1);
+        if (Oberlinie?.Invoke() is { } linie)
+            using (var p = new Pen(Color.FromArgb(213, 213, 213))) g.DrawLine(p, linie.Von, 0, linie.Bis, 0);
         var unten = Height - 5;
         // Kante unter den Reitern (hell) und Rahmen der Tabelle darunter (vertieft)
         using var weiss = new Pen(Color.White);

@@ -21,7 +21,7 @@ public sealed partial class HauptFenster : Form
     // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (1916 px): Hilfehinweis links (dehnbar), „Vertr.“ ab x 1089 in einem
     // 685 px breiten Feld, dann die Felder „DE“ (32 px) und „Vertretung“ (98 px) vor dem Größengriff
     private readonly ToolStripStatusLabel _statusSprache = new("DE") { AutoSize = false, Width = 32, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
-    private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 118, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
+    private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 119, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
     /// <summary>Updateanzeige (GitHub-Releases) mit Hinweis rechts in der Statusleiste.</summary>
     internal Updateanzeige Updates { get; }
     private readonly Eingabeassistent _assistent;
@@ -62,7 +62,7 @@ public sealed partial class HauptFenster : Form
         _status.SizingGrip = false;
         _status.AutoSize = false;
         _status.Height = LogicalToDeviceUnits(19);
-        _status.Padding = new Padding(1, 3, 0, 0);
+        _status.Padding = new Padding(1, 1, 0, 0);
         _status.Renderer = new StatusDarstellung();
 
         _assistent = new Eingabeassistent { Dock = DockStyle.Right, Width = 230, Visible = AppZustand.Einstellungen.AssistentZeigen };

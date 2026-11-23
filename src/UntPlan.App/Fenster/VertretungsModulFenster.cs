@@ -48,7 +48,7 @@ public sealed class KalenderFenster : MdiFenster
         Size = new Size(682, 487);
         Positionieren();
         // Vorbild: Tabelle beginnt 52 px unter der Titelleiste, links und rechts 9 px vom Fensterrand
-        var kopf = new Panel { Dock = DockStyle.Top, Height = 52, Font = Ui.DialogSchrift, BackColor = Color.Transparent };
+        var kopf = new Panel { Dock = DockStyle.Top, Height = 52, Font = Ui.DialogSchrift, BackColor = Ui.Kopf };
         kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(14, 13) });
         _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
@@ -186,7 +186,7 @@ public sealed class KalenderFenster : MdiFenster
         _tabs.TabPages.Add(seiteTexte);
         _tabs.TabPages.Add(seiteTag);
 
-        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
+        var split = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, BackColor = Ui.Kopf };
         split.Panel1.Controls.Add(_woche);
         split.Panel2.Controls.Add(_tabs);
         // wie im Vorbild: kleiner schwarzer Pfeil links unten klappt den Detailbereich (Tagestexte, Kalendertag) aus bzw. ein

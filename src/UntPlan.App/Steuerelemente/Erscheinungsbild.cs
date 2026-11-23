@@ -135,15 +135,16 @@ public static class Erscheinungsbild
             if (gb.FlatStyle != FlatStyle.Standard || gb.Width < 8 || gb.Height < 8) return;
             var g = e.Graphics;
             var oben = gb.Font.Height / 2;
-            int r = gb.Width - 1, u = gb.Height - 1;
+            // Windows zeichnet die Unterkante eine Zeile über dem unteren Rand: dort liegt auch die neue Linie
+            int r = gb.Width - 1, u = gb.Height - 2;
             var text = string.IsNullOrEmpty(gb.Text) ? 0 : TextRenderer.MeasureText(g, gb.Text, gb.Font, Size.Empty, TextFormatFlags.NoPrefix).Width;
-            int textVon = 6, textBis = text == 0 ? 6 : 8 + text + 1;
+            int textVon = 7, textBis = text == 0 ? 7 : 8 + text + 1;
             var grund = gb.BackColor.A == 255 ? gb.BackColor : Ui.Kopf;
             using (var weg = new Pen(grund))
             {
                 g.DrawLine(weg, 0, oben, textVon - 1, oben);
                 g.DrawLine(weg, textBis, oben, r, oben);
-                g.DrawLine(weg, 0, oben, 0, u); g.DrawLine(weg, r, oben, r, u); g.DrawLine(weg, 0, u, r, u);
+                g.DrawLine(weg, 0, oben, 0, u + 1); g.DrawLine(weg, r, oben, r, u + 1); g.DrawLine(weg, 0, u, r, u); g.DrawLine(weg, 0, u + 1, r, u + 1);
             }
             using var p = new Pen(Color.FromArgb(213, 213, 213));
             g.DrawLine(p, 2, oben, textVon - 2, oben);
@@ -162,7 +163,7 @@ public static class Erscheinungsbild
     /// </summary>
     internal sealed class KlassischVertieft : NativeWindow
     {
-        private static readonly ConditionalWeakTable<Control, KlassischVertieft> Angemeldet = new();
+        private static readonly ConditionalWeakTable<Control, KlassischVertieft?> Angemeldet = new();
         private readonly Control _c;
 
         private KlassischVertieft(Control c)
@@ -176,7 +177,24 @@ public static class Erscheinungsbild
         public static void Anmelden(Control c)
         {
             if (!OperatingSystem.IsWindows() || Angemeldet.TryGetValue(c, out _)) return;
+            if (c is DataGridView g)
+            {
+                // die Tabelle zeichnet ihren Rahmen (2 Pixel) selbst in der Clientfläche: danach klassisch übermalen
+                Angemeldet.Add(c, null!);
+                g.Paint += (_, e) => { if (g.BorderStyle == BorderStyle.Fixed3D) Zeichnen(e.Graphics, g.Width, g.Height); };
+                g.Invalidate();
+                return;
+            }
             Angemeldet.Add(c, new KlassischVertieft(c));
+        }
+
+        private static void Zeichnen(Graphics g, int w, int h)
+        {
+            void Linie(Color c, int x1, int y1, int x2, int y2) { using var p = new Pen(c); g.DrawLine(p, x1, y1, x2, y2); }
+            Linie(Color.FromArgb(160, 160, 160), 0, 0, w - 2, 0); Linie(Color.FromArgb(160, 160, 160), 0, 0, 0, h - 2);
+            Linie(Color.White, 0, h - 1, w - 1, h - 1); Linie(Color.White, w - 1, 0, w - 1, h - 1);
+            Linie(Color.FromArgb(105, 105, 105), 1, 1, w - 3, 1); Linie(Color.FromArgb(105, 105, 105), 1, 1, 1, h - 3);
+            Linie(Color.FromArgb(227, 227, 227), 1, h - 2, w - 2, h - 2); Linie(Color.FromArgb(227, 227, 227), w - 2, 1, w - 2, h - 2);
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetWindowDC(IntPtr hwnd);
@@ -200,12 +218,7 @@ public static class Erscheinungsbild
                 try
                 {
                     using var g = Graphics.FromHdc(dc);
-                    int w = _c.Width, h = _c.Height;
-                    void Linie(Color c, int x1, int y1, int x2, int y2) { using var p = new Pen(c); g.DrawLine(p, x1, y1, x2, y2); }
-                    Linie(Color.FromArgb(160, 160, 160), 0, 0, w - 2, 0); Linie(Color.FromArgb(160, 160, 160), 0, 0, 0, h - 2);
-                    Linie(Color.White, 0, h - 1, w - 1, h - 1); Linie(Color.White, w - 1, 0, w - 1, h - 1);
-                    Linie(Color.FromArgb(105, 105, 105), 1, 1, w - 3, 1); Linie(Color.FromArgb(105, 105, 105), 1, 1, 1, h - 3);
-                    Linie(Color.FromArgb(227, 227, 227), 1, h - 2, w - 2, h - 2); Linie(Color.FromArgb(227, 227, 227), w - 2, 1, w - 2, h - 2);
+                    Zeichnen(g, _c.Width, _c.Height);
                 }
                 finally { ReleaseDC(m.HWnd, dc); }
             }
