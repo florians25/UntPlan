@@ -60,12 +60,13 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         {
             f.Format = DateTimePickerFormat.Custom;
             f.CustomFormat = "dd.MM.yyyy";
+            Ui.DatumsfeldHoehe(f);
         }
         _von.Margin = new Padding(0, 0, 0, 0);
         _bis.Margin = new Padding(0, 0, 0, 0);
         // Breite nach der tatsächlichen Schrift: das Datum passt auch bei größerer Windows-Schrift vollständig hinein
         var muster = new DateTime(2026, 11, 25).ToString("dd.MM.yyyy");
-        var noetig = Math.Max(TextRenderer.MeasureText(muster, _von.Font).Width, TextRenderer.MeasureText(muster, Ui.Schrift).Width) + SystemInformation.VerticalScrollBarWidth + 6;
+        var noetig = Math.Max(TextRenderer.MeasureText(muster, _von.Font).Width, TextRenderer.MeasureText(muster, Ui.Schrift).Width) + SystemInformation.VerticalScrollBarWidth + 2;
         _von.Width = _bis.Width = noetig;
         // wie im Vorbild: unter jedem Datum links der Wochentag, rechts bündig zwei kleine weiße Pfeilfelder
         PfeilKnopf Klein(PfeilKnopf.Art art, string hinweis) => new(art, hinweis) { Klassisch = true, Size = new Size(15, 14), Margin = Padding.Empty, Cursor = Cursors.Default };
@@ -124,12 +125,12 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         _bisZeile = Spalte(_bis, _wochentagBis, bisZurueck, bisVor);
         _bisZeile.Margin = new Padding(0, 0, 0, 0);
         Controls.Add(Spalte(_von, _wochentag, zurueck, vor));
-        _schlossPlatz = new Panel { Size = new Size(39, 1), Margin = Padding.Empty, BackColor = Color.Transparent };
+        _schlossPlatz = new Panel { Size = new Size(34, 1), Margin = Padding.Empty, BackColor = Color.Transparent };
         if (schloss)
         {
             _schloss = new CheckBox
             {
-                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(23, 23), Margin = new Padding(6, 0, 10, 0),
+                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(26, 24), Margin = new Padding(4, 0, 4, 0),
                 FlatStyle = FlatStyle.Flat, BackColor = Color.White, Text = "", Visible = false,
             };
             _schloss.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
@@ -154,7 +155,7 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         Controls.Add(_bisZeile);
         if (!kalenderAussen) Controls.Add(kalender);
         // wie im Vorbild bleibt der Platz für das Bis-Datum auch bei „Tag“ frei (Rahmen „Von-Bis“ immer gleich breit)
-        _volleBreite = _von.Width + 6 + 23 + 10 + _bis.Width + (kalenderAussen ? 0 : kalender.Width + kalender.Margin.Horizontal);
+        _volleBreite = _von.Width + 4 + 26 + 4 + _bis.Width + (kalenderAussen ? 0 : kalender.Width + kalender.Margin.Horizontal);
         _von.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(true); };
         _bis.ValueChanged += (_, _) => { if (!_setzen) Abgleichen(false); };
         var gespeichert = AppZustand.Einstellungen.Zeitraumarten.TryGetValue(schluessel, out var g) && Enum.TryParse<Zeitraumart>(g, out var z) ? z : Zeitraumart.Tag;
@@ -177,9 +178,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
             }
             else if (p is FlowLayoutPanel kopf && kopf.Dock == DockStyle.Top)
             {
+                // Kopf mit fester Höhe (z. B. Absenzen: Rahmenunterkante in der Reiterzeile) regelt seine Höhe selbst
+                if (!kopf.AutoSize) break;
                 var noetig = 0;
                 foreach (Control k in kopf.Controls) if (k.Visible) noetig = Math.Max(noetig, k.Bottom + k.Margin.Bottom);
-                noetig += kopf.Padding.Bottom + 2;
+                noetig += kopf.Padding.Bottom;
                 if (kopf.Height < noetig) { kopf.MinimumSize = new Size(kopf.MinimumSize.Width, noetig); kopf.Height = noetig; }
                 break;
             }
@@ -213,11 +216,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
     /// In den Rahmen „Von-Bis“ setzen – Abstände wie im Vorbild nachgemessen: Datum knapp unter dem Rahmentitel, unter den Pfeilen
     /// 6 Pixel bis zur Rahmenlinie, rechts 8 Pixel.
     /// </summary>
-    public void InRahmen(GroupBox gb)
+    public void InRahmen(GroupBox gb, int links = 7)
     {
         gb.AutoSize = false;
         gb.Controls.Add(this);
-        Location = new Point(9, Math.Max(16, gb.Font.Height + 1));
+        Location = new Point(links, Math.Max(16, gb.Font.Height + 1));
         void Groesse() => gb.Size = new Size(Right + 8, Bottom + 6);
         SizeChanged += (_, _) => Groesse();
         Groesse();

@@ -1037,6 +1037,49 @@ public static class Vertretungen
             if (z.VertreterId is null && zielArt == VertretungsArt.Verlegung) z.Art = VertretungsArt.Verlegt;
             d.Vertretungen.Add(z);
         }
+        KettenKuerzen(d, unterrichtId);
+    }
+
+    private static bool IstVerlegungsZiel(Vertretung x) => x is { Art: VertretungsArt.Verlegung or VertretungsArt.Verlegt, VonDatum: not null, VerlegungsId: not null };
+
+    /// <summary>
+    /// Verlegungsketten desselben Unterrichts (derselben Kopplungszeile) kürzen: kommt eine verlegte Stunde an einer Position an, die selbst
+    /// noch offener Ursprung derselben Stunde ist (Block um eine bis drei Stunden verschoben, z. B. 1–4 nach 3–6, bzw. erneut verschoben),
+    /// findet die Stunde dort ja statt – die Position bleibt, was sie war (keine offene Zeile „???“, kein „(Le.) nach“). Die Stunden sind
+    /// gleichwertig, daher wird die Kette Y → P → X zu Y → X: aus 1–4 nach 3–6 wird 1–2 nach 5–6, die Stunden 3–4 bleiben unverändert.
+    /// Nur unveränderte Ursprünge (vorher reguläre Stunde, noch nicht auf Entfall gesetzt) und keine Tausche.
+    /// </summary>
+    public static void KettenKuerzen(Schuldatei d, int unterrichtId)
+    {
+        for (var runde = 0; runde < 100; runde++)
+        {
+            var paar = d.Vertretungen.Where(o => o.UnterrichtId == unterrichtId && IstOffenerUrsprung(o) && o.ArtVorVerlegung is null && o.VormerkungId is null && o.Art != VertretungsArt.Tausch)
+                .SelectMany(o => d.Vertretungen.Where(t => t.UnterrichtId == unterrichtId && t.ZeilenIndex == o.ZeilenIndex && t.Datum == o.Datum && t.Stunde == o.Stunde &&
+                                                           t.VerlegungsId != o.VerlegungsId && IstVerlegungsZiel(t) && t.VormerkungId is null).Select(t => (O: o, T: t)))
+                .FirstOrDefault();
+            if (paar.O is null) return;
+            var (o, t) = paar;
+            // o: Ursprung an P (Stunde ging nach X = Ziel z); t: Ziel an P (Stunde kam von Y = Ursprung q)
+            var z = d.Vertretungen.FirstOrDefault(x => x != o && x.VerlegungsId == o.VerlegungsId && IstVerlegungsZiel(x));
+            var q = d.Vertretungen.FirstOrDefault(x => x != t && x.VerlegungsId == t.VerlegungsId && IstUrsprung(x));
+            if (z is null || q is null) return;
+            d.Vertretungen.Remove(t);
+            UrsprungZuruecknehmen(d, o);
+            if (q.Datum == z.Datum && q.Stunde == z.Stunde)
+            {
+                // Y = X: die Stunde ist wieder an ihrem Platz
+                d.Vertretungen.Remove(z);
+                UrsprungZuruecknehmen(d, q);
+                continue;
+            }
+            z.VerlegungsId = q.VerlegungsId;
+            z.VonDatum = q.Datum;
+            z.VonStunde = q.Stunde;
+            z.ZielraumId = t.ZielraumId ?? z.ZielraumId;
+            z.BlockId = q.BlockId ?? z.BlockId;
+            q.NachDatum = z.Datum;
+            q.NachStunde = z.Stunde;
+        }
     }
 
     /// <summary>
@@ -1137,6 +1180,7 @@ public static class Vertretungen
         q.NachDatum = null;
         q.NachStunde = null;
         q.VerlegungsId = null;
+        q.BlockId = null;
         if (q.ArtVorVerlegung is null)
         {
             d.Vertretungen.Remove(q);
@@ -1246,6 +1290,7 @@ public static class Vertretungen
                         q.NachDatum = null;
                         q.NachStunde = null;
                         q.VerlegungsId = null;
+                        q.BlockId = null;
                         q.ArtVorVerlegung = null;
                         q.VertreterVorVerlegung = null;
                     }

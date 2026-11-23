@@ -57,7 +57,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private const int VaSammelAb = 4;
     /// <summary>„Felder der Ansicht“ während eines Neuaufbaus (sonst je Zelle neu gelesen).</summary>
     private Dictionary<string, string>? _felder;
-    private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 107 };
+    private readonly ComboBox _element = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 103 };
     private readonly ToolStripButton _inhalt = new("Felder mit Inhalt", Symbole.Get("uebersicht", 16)) { CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Felder mit Inhalt: alle Spalten mit einer Eingabe zeigen. Ein erneuter Klick stellt die ursprünglichen Spalten wieder her." };
     /// <summary>Spalten, die vor „Felder mit Inhalt“ sichtbar waren.</summary>
     private HashSet<string>? _vorInhalt;
@@ -69,7 +69,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// </summary>
     private readonly Dictionary<int, Vertretung> _weg = new();
     /// <summary>Beschriftung über der Elementauswahl („Klasse(n)“ bzw. „Vertreter“).</summary>
-    private readonly Label _elementGruppe = new() { AutoSize = true, Margin = new Padding(0, 0, 0, 3) };
+    private readonly Label _elementGruppe = new() { AutoSize = true, Margin = new Padding(0, 0, 0, 5) };
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
     /// <summary>Vtr-Nr. als Zahlenfeld mit Auf-/Ab-Pfeilen wie im Vorbild: die Pfeile springen zur nächsten bzw. vorigen Vertretung, Enter zur eingegebenen.</summary>
@@ -181,9 +181,11 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // Kopf wie im Vorbild: „Klasse(n)“ mit Auswahlfeld (ohne Rahmen), Rahmen „Von-Bis“ (Platz für Von, Schloss und Bis),
         // rechts daneben der Kalenderknopf, dann der Rahmen „Ansicht einschränken auf...“ mit den Kästchen untereinander
         // Beschriftungen und Häkchen wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25
-        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(14, 5, 0, 2), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
-        var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 2, 6, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
-        _element.Margin = new Padding(2, 0, 0, 0);
+        // nachgemessen (Bild 302): „Klasse(n)“ ab x 18 / y 63, Auswahlfeld 101 × 21 ab x 19 / y 79, Rahmen „Von-Bis“ 209 breit ab x 124,
+        // Kalenderknopf ab x 340, „Ansicht einschränken auf...“ 210 breit ab x 391; Ansichtsname 5 Pixel unter der Rahmenlinie
+        var filter = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 5, 0, 0), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
+        var elementSpalte = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 0, 2, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
+        _element.Margin = new Padding(4, 0, 0, 0);
         Ui.KlassischeDarstellung(_element);
         elementSpalte.Controls.Add(_elementGruppe);
         elementSpalte.Controls.Add(_element);
@@ -191,11 +193,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
         filter.Controls.Add(elementSpalte);
         var vonBis = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
-        _zeitraum.InRahmen(vonBis);
+        // Vorbild: Datum hier 8 Pixel innerhalb des Rahmens (bei den Absenzen 7)
+        _zeitraum.InRahmen(vonBis, 8);
         filter.Controls.Add(vonBis);
-        _zeitraum.Kalender.Margin = new Padding(9, 16, 0, 0);
+        _zeitraum.Kalender.Margin = new Padding(7, 16, 0, 0);
         filter.Controls.Add(_zeitraum.Kalender);
-        var ansicht = new GroupBox { Text = "Ansicht einschränken auf...", Size = new Size(222, 65), MinimumSize = new Size(222, 65), Margin = new Padding(21, 0, 0, 0) };
+        var ansicht = new GroupBox { Text = "Ansicht einschränken auf...", Size = new Size(210, 65), MinimumSize = new Size(210, 65), Margin = new Padding(16, 0, 0, 0) };
         _offen.Location = new Point(10, 22);
         _kollisionen.Location = new Point(10, 43);
         _offen.Padding = _kollisionen.Padding = Padding.Empty;
@@ -377,7 +380,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             Neuaufbau(true);
         };
         _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
-        var ansichtName = new Label { Dock = DockStyle.Top, Height = 24, Padding = new Padding(14, 4, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
+        var ansichtName = new Label { Dock = DockStyle.Top, Height = 19, Padding = new Padding(13, 0, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
             if (_laedtAnsicht) return;

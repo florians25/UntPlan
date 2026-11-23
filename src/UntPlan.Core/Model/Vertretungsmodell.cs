@@ -182,6 +182,11 @@ public sealed class Vertretung
     /// <summary>Verknüpft beide Zeilen einer Verlegung/eines Tausches.</summary>
     public int? VerlegungsId { get; set; }
     /// <summary>
+    /// Block-Verlegung (Doppelstunde, 3er-, 4er-Block, auch Kopplungen): alle Zeilen der Verlegungen bzw. Tausche, die gemeinsam als ein Block
+    /// verschoben wurden, tragen dieselbe Kennung. Rückfrage, Aufheben und Entfall gelten für den ganzen Block. null = einzelne Stunde.
+    /// </summary>
+    public int? BlockId { get; set; }
+    /// <summary>
     /// Zeile, die durch eine Verlegung zum Entfall wurde (Ursprung einer wegverlegten Stunde, die schon eine Zeile hatte, bzw. offene Stunde,
     /// in die eine Stunde vorgezogen wurde): bisherige Art (z. B. offene Vertretung, Vertretung, Entfall). Wird die Verlegung aufgehoben,
     /// kehrt die Zeile in diesen Zustand zurück, statt zu verschwinden bzw. Entfall zu bleiben.

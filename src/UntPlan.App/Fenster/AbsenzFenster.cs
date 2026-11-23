@@ -291,12 +291,19 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
         // Kopf wie im Vorbild: Rahmen „Von-Bis“ (Von, Schloss, Bis – darunter Wochentag und Pfeile), rechts daneben der
         // Kalenderknopf und darunter die Anzahl der Tage („329 Tage“)
         // Beschriftungen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (Reiterleiste 24 Pixel hoch)
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(12, 6, 0, 2), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
+        // Vorbild (gemessen): Rahmen „Von-Bis“ 15 Pixel vom Fensterrand, Oberkante 11 Pixel unter der Werkzeugleiste; seine Unterkante
+        // liegt in der obersten Zeile der Reiterleiste (26 Pixel hoch bis zum vertieften Tabellenrahmen)
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = false, Padding = new Padding(14, 5, 0, 0), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
         _tabs.Font = Ui.DialogSchrift;
-        _tabs.Height = 24;
+        _tabs.Height = 26;
         var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
         _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);
+        void KopfHoehe() { var h = gruppe.Bottom - 2; if (h > 0 && kopf.Height != h) kopf.Height = h; }
+        gruppe.SizeChanged += (_, _) => KopfHoehe();
+        gruppe.LocationChanged += (_, _) => KopfHoehe();
+        kopf.Layout += (_, _) => KopfHoehe();
+        _tabs.Oberlinie = () => gruppe.Height <= 1 ? null : (gruppe.Left + 2, gruppe.Right - 3);
         var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(7, 8, 0, 0), Padding = Padding.Empty, BackColor = Color.Transparent };
         _zeitraum.Kalender.Margin = Padding.Empty;
         rechts.Controls.Add(_zeitraum.Kalender);

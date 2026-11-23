@@ -22,8 +22,32 @@ public static partial class Ui
     public static Color MeldungLeiste => Vertretungsmodus ? Color.FromArgb(223, 235, 230) : Color.FromArgb(228, 236, 240);
     /// <summary>Rand des Standardknopfes (dunkle Modusfarbe wie im Vorbild).</summary>
     public static Color MeldungKnopfRand => Vertretungsmodus ? Color.FromArgb(81, 132, 111) : Color.FromArgb(52, 106, 128);
-    /// <summary>Fensterrahmen der Meldungsfenster.</summary>
+    /// <summary>Fensterrahmen der Meldungsfenster (inaktiv).</summary>
     internal static readonly Color MeldungRahmen = Color.FromArgb(131, 131, 131);
+    /// <summary>Titelleiste des aktiven Meldungsfensters (Vorbild: dunkle Modusfarbe mit weißer Schrift wie aktive Arbeitsfenster).</summary>
+    public static Color MeldungTitelAktiv => Vertretungsmodus ? Color.FromArgb(88, 150, 125) : Titel;
+    /// <summary>Standardknopf (Enter) wie im Vorbild: gefüllt in heller Modusfarbe, 1 Pixel Rand in der dunklen Modusfarbe.</summary>
+    public static Color StandardKnopfFlaeche => Vertretungsmodus ? Color.FromArgb(144, 205, 181) : Color.FromArgb(158, 202, 218);
+
+    /// <summary>
+    /// Knopf als Standardknopf darstellen: Fläche <see cref="StandardKnopfFlaeche"/>, genau 1 Pixel Rand <see cref="MeldungKnopfRand"/>
+    /// (Windows zeichnet beim flachen Standardknopf sonst einen doppelten Rand).
+    /// </summary>
+    internal static void StandardKnopf(Button b)
+    {
+        b.BackColor = StandardKnopfFlaeche;
+        b.FlatAppearance.BorderColor = MeldungKnopfRand;
+        if (b.Tag as string == "StandardRand") return;
+        b.Tag ??= "StandardRand";
+        b.Paint += (_, e) =>
+        {
+            if (b.BackColor != StandardKnopfFlaeche) return;
+            using var r = new Pen(MeldungKnopfRand);
+            using var i = new Pen(b.ClientRectangle.Contains(b.PointToClient(Cursor.Position)) ? b.FlatAppearance.MouseOverBackColor : b.BackColor);
+            e.Graphics.DrawRectangle(r, 0, 0, b.Width - 1, b.Height - 1);
+            e.Graphics.DrawRectangle(i, 1, 1, b.Width - 3, b.Height - 3);
+        };
+    }
 
     /// <summary>
     /// Meldung mit eigenen Knöpfen anzeigen. Liefert den Index des gewählten Knopfes; null bei „Abbrechen“ bzw. Escape (mit
@@ -51,28 +75,32 @@ public static partial class Ui
         var f = new MeldungsForm { Text = titel, Art = art };
         var liste = knoepfe.Where(k => !abbrechen || k != "Abbrechen").ToList();
         var alle = abbrechen ? liste.Append("Abbrechen").ToList() : liste;
-        // Maße wie im Vorbild: Titelleiste 30, Knopfleiste 53, Knöpfe 88 × 26, Symbol links (32), Text ab 64
-        const int rand = 1, titelHoehe = MeldungsForm.TitelHoehe, leiste = 53, textLinks = 64, knopfHoehe = 26;
-        int KnopfBreite(string k) => Math.Max(88, TextRenderer.MeasureText(k, Schrift).Width + 24);
-        var knopfSumme = alle.Sum(k => KnopfBreite(k) + 8) - 8 + 28;
+        // Maße wie im Vorbild (gemessen): Titelleiste 30, Knopfleiste 54 samt Linie, Knöpfe 88 × 26 im Abstand von 7 Pixeln, 13 Pixel
+        // unter der Linie und 14 vor dem rechten Rand; Symbol (32) 26 Pixel unter der Titelleiste, Text ab 64 Pixeln
+        const int rand = 1, titelHoehe = MeldungsForm.TitelHoehe, leiste = 54, textLinks = 64, knopfHoehe = 26, knopfAbstand = 7;
+        int KnopfBreite(string k) => Math.Max(88, TextRenderer.MeasureText(k, Schrift).Width + 22);
+        var knopfSumme = alle.Sum(k => KnopfBreite(k) + knopfAbstand) - knopfAbstand + 28;
         var normal = text.Replace("\r\n", "\n").Trim('\n');
         var einzeilig = TextRenderer.MeasureText(normal, Schrift, new Size(int.MaxValue, 0), TextFormatFlags.TextBoxControl);
         var maxText = 460;
         var textBreite = Math.Min(maxText, einzeilig.Width + 8);
-        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 30, knopfSumme), 206, 900);
-        textBreite = breite - textLinks - 30;
+        // Vorbild: rechts neben der längsten Zeile 21 Pixel bis zum Rand
+        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 3, knopfSumme), 206, 900);
+        textBreite = breite - textLinks - 3;
         var groesse = TextRenderer.MeasureText(normal, Schrift, new Size(textBreite, 0), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
         var hoehe = Math.Clamp(groesse.Height + 4, 16, 440);
-        var flaeche = Math.Max(84, hoehe + 48);
+        // kurze Meldungen mittig in der Mindestfläche; längere wie im Vorbild 45 Pixel unter der Titelleiste und 27 über der Knopfleiste
+        var flaeche = Math.Max(84, hoehe + 63);
+        var oben = flaeche == 84 ? (flaeche - hoehe) / 2 : 41;
         var label = new TextBox
         {
-            Text = normal.Replace("\n", Environment.NewLine), Left = rand + textLinks, Top = rand + titelHoehe + (flaeche - hoehe) / 2, Width = textBreite, Height = hoehe,
+            Text = normal.Replace("\n", Environment.NewLine), Left = rand + textLinks - 4, Top = rand + titelHoehe + oben, Width = textBreite, Height = hoehe,
             Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = MeldungFlaeche, ForeColor = Color.Black, TabStop = false, Font = Schrift,
             ScrollBars = groesse.Height + 4 > 440 ? ScrollBars.Vertical : ScrollBars.None, Name = "Meldungstext",
         };
         f.Padding = new Padding(rand);
         f.ClientSize = new Size(breite + 2 * rand, titelHoehe + flaeche + leiste + 2 * rand);
-        f.SymbolBereich = new Rectangle(rand + 21, rand + titelHoehe + (flaeche - 32) / 2, 32, 32);
+        f.SymbolBereich = new Rectangle(rand + 19, rand + titelHoehe + 26, 32, 32);
         f.Controls.Add(label);
         var unten = new Panel { Dock = DockStyle.Bottom, Height = leiste, BackColor = MeldungLeiste, Name = "Knopfleiste" };
         unten.Paint += (_, e) => { using var p = new Pen(Rasterlinie); e.Graphics.DrawLine(p, 0, 0, unten.Width, 0); };
@@ -91,11 +119,11 @@ public static partial class Ui
             x -= w;
             var b = new Button
             {
-                Text = t, Left = x, Top = 12, Width = w, Height = knopfHoehe, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.Black,
+                Text = t, Left = x, Top = 13, Width = w, Height = knopfHoehe, FlatStyle = FlatStyle.Flat, BackColor = Color.White, ForeColor = Color.Black,
                 Font = Schrift, UseVisualStyleBackColor = false,
                 Enabled = istAbbrechen || aktiv is null || index >= aktiv.Count || aktiv[index],
             };
-            b.FlatAppearance.BorderColor = Color.FromArgb(173, 173, 173);
+            b.FlatAppearance.BorderColor = Steuerelemente.Erscheinungsbild.KnopfRand;
             b.FlatAppearance.BorderSize = 1;
             b.FlatAppearance.MouseOverBackColor = Hover;
             b.FlatAppearance.MouseDownBackColor = BlauHell;
@@ -104,13 +132,13 @@ public static partial class Ui
             if (istAbbrechen) f.CancelButton = b;
             else if (!abbrechen && pos == liste.Count - 1) f.CancelButton = b;
             if (!istAbbrechen && index == vorgabe && b.Enabled) vorgabeKnopf = b;
-            x -= 8;
+            x -= knopfAbstand;
         }
         vorgabeKnopf ??= unten.Controls.OfType<Button>().Where(b => b.Enabled && b != f.CancelButton).LastOrDefault() ?? unten.Controls.OfType<Button>().FirstOrDefault();
         if (vorgabeKnopf != null)
         {
-            // Standardknopf wie im Vorbild: weiß mit dunklem Rand in der Modusfarbe (keine fette Schrift)
-            vorgabeKnopf.FlatAppearance.BorderColor = MeldungKnopfRand;
+            // Standardknopf wie im Vorbild: hell gefüllt mit dunklem Rand in der Modusfarbe (keine fette Schrift)
+            StandardKnopf(vorgabeKnopf);
             f.AcceptButton = vorgabeKnopf;
             f.ActiveControl = vorgabeKnopf;
         }
@@ -134,11 +162,51 @@ public static partial class Ui
 
         public MeldungsArt Art { get; init; }
         public Rectangle SymbolBereich { get; set; }
-        /// <summary>Farbe der eigenen Titelleiste (hell in der Modusfarbe wie im Vorbild).</summary>
-        public Color TitelFarbe => MeldungTitel;
+        /// <summary>Aktives Fenster (dunkle Titelleiste wie im Vorbild); inaktiv hell.</summary>
+        public bool Aktiv { get; private set; }
+        /// <summary>Farbe der eigenen Titelleiste: aktiv dunkel, inaktiv hell in der Modusfarbe (wie im Vorbild).</summary>
+        public Color TitelFarbe => Aktiv ? MeldungTitelAktiv : MeldungTitel;
+        private static readonly Font TitelSchrift = new("Segoe UI", 8.25f);
 
         /// <summary>Bereich des Schließen-Knopfes (×) in der Titelleiste.</summary>
         internal Rectangle SchliessenBereich => new(ClientSize.Width - 1 - SchliessenBreite, 1, SchliessenBreite, TitelHoehe);
+
+        protected override void OnActivated(EventArgs e) { base.OnActivated(e); Aktiv = true; RandfarbeSetzen(); Invalidate(); }
+        protected override void OnDeactivate(EventArgs e) { base.OnDeactivate(e); Aktiv = false; RandfarbeSetzen(); Invalidate(); }
+
+        /// <summary>Windows 11 zeichnet um das Fenster eine eigene Randlinie: in der Farbe des Vorbilds (aktiv dunkelgrün, sonst grau).</summary>
+        private void RandfarbeSetzen()
+        {
+            if (!IsHandleCreated || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+            try
+            {
+                var c = Aktiv ? MeldungKnopfRand : MeldungRahmen;
+                var farbe = c.R | (c.G << 8) | (c.B << 16);
+                DwmSetWindowAttribute(Handle, 34 /* DWMWA_BORDER_COLOR */, ref farbe, 4);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct Raender { public int L, R, O, U; }
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Raender r);
+        [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int wert, int groesse);
+
+        /// <summary>Weicher Schatten rundum wie im Vorbild (Fensterschatten des Systems auch ohne Rahmen).</summary>
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            if (!OperatingSystem.IsWindowsVersionAtLeast(6, 2)) return;
+            try
+            {
+                var an = 2; // DWMNCRP_ENABLED
+                DwmSetWindowAttribute(Handle, 2, ref an, 4);
+                var r = new Raender { L = 1, R = 1, O = 1, U = 1 };
+                DwmExtendFrameIntoClientArea(Handle, ref r);
+                RandfarbeSetzen();
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
 
         public MeldungsForm()
         {
@@ -216,20 +284,12 @@ public static partial class Ui
             using (var b = new SolidBrush(TitelFarbe)) g.FillRectangle(b, titel);
             if (_schliessenHover)
                 using (var rot = new SolidBrush(Color.FromArgb(232, 17, 35))) g.FillRectangle(rot, SchliessenBereich);
-            TextRenderer.DrawText(g, Text, Schrift, new Rectangle(13, 1, w - 13 - SchliessenBreite, TitelHoehe), Color.Black,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-            // × als zwei dünne Linien (9 × 9 wie im Vorbild)
-            var s = SchliessenBereich;
-            var m = new Point(s.X + s.Width / 2, s.Y + s.Height / 2);
-            var zustand = g.Save();
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var p = new Pen(_schliessenHover ? Color.White : Color.FromArgb(48, 48, 48), 1.1f))
-            {
-                g.DrawLine(p, m.X - 4.5f, m.Y - 4.5f, m.X + 4.5f, m.Y + 4.5f);
-                g.DrawLine(p, m.X + 4.5f, m.Y - 4.5f, m.X - 4.5f, m.Y + 4.5f);
-            }
-            g.Restore(zustand);
-            using (var r = new Pen(MeldungRahmen)) g.DrawRectangle(r, 0, 0, w - 1, ClientSize.Height - 1);
+            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(12, 5, w - 12 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+            // × wie bei den Arbeitsfenstern (9 × 9 mit weichen Kanten), Mitte 24 Pixel vor dem rechten Rand und 11 unter dem oberen
+            var grund = _schliessenHover ? Color.FromArgb(232, 17, 35) : TitelFarbe;
+            Steuerelemente.FensterTitel.GlypheZeichnen(g, 2, new Point(w - 1 - 24, 11), _schliessenHover || Aktiv ? Color.White : Color.FromArgb(72, 72, 72), grund);
+            using (var r = new Pen(Aktiv ? MeldungKnopfRand : MeldungRahmen)) g.DrawRectangle(r, 0, 0, w - 1, ClientSize.Height - 1);
             if (!SymbolBereich.IsEmpty) SymbolZeichnen(g, SymbolBereich, Art);
         }
     }

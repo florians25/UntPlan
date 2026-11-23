@@ -46,6 +46,8 @@ internal static class VerlegungsAbfrage
             var aktuell = gruppe.Select(v => d.Vertretungen.FirstOrDefault(x => x.Id == v.Id)).OfType<Vertretung>().Where(v => RueckfrageNoetig(d, v)).ToList();
             erledigt.UnionWith(gruppe.Select(v => v.Id));
             if (aktuell.Count == 0) continue;
+            // Block (Doppelstunde, 4er-Block): einmal fragen, die Antwort gilt für alle Stunden des Blocks
+            erledigt.UnionWith(aktuell.SelectMany(v => Verlegungsaufhebung.BlockZeilen(d, v)).Select(v => v.Id));
             var ids = aktuell.Select(v => v.Id).ToList();
             switch (Fragen(d, aktuell[0]))
             {
@@ -53,10 +55,7 @@ internal static class VerlegungsAbfrage
                     aendern("Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, ids));
                     break;
                 case DialogResult.No:
-                    aendern("Entfall", AenderungsArt.Vertretung, x =>
-                    {
-                        foreach (var z in x.Vertretungen.Where(y => ids.Contains(y.Id)).ToList()) Verlegungsaufhebung.AufEntfallSetzen(x, z, AppZustand.Benutzer);
-                    });
+                    aendern("Entfall", AenderungsArt.Vertretung, x => Verlegungsaufhebung.BlockAufEntfallSetzen(x, ids, AppZustand.Benutzer));
                     break;
                 default:
                     return null;
@@ -83,7 +82,11 @@ internal static class VerlegungsAbfrage
                 aendern("Verlegung aufgehoben", AenderungsArt.Vertretung, x => Verlegungsaufhebung.AlleAufheben(x, new[] { id }));
                 return true;
             case DialogResult.No:
-                return false;
+                // Block: alle Stunden des Blocks auf Entfall (eine einzelne Stunde entfällt wie bisher beim Aufrufer)
+                if (Verlegungsaufhebung.BlockZeilen(d, v).Count < 2) return false;
+                var bid = v.Id;
+                aendern("Entfall", AenderungsArt.Vertretung, x => Verlegungsaufhebung.BlockAufEntfallSetzen(x, new[] { bid }, AppZustand.Benutzer));
+                return true;
             default:
                 return true;
         }

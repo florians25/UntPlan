@@ -242,6 +242,12 @@ public static class Vertretungsimport
                 if (!verlegungKarte.TryGetValue(vl, out var nvl)) verlegungKarte[vl] = nvl = ziel.NeueId();
                 w.VerlegungsId = nvl;
             }
+            // Block-Verlegung: eigene Kennung (aus demselben Nummernkreis wie die Verlegungen)
+            if (v.BlockId is int bl)
+            {
+                if (!verlegungKarte.TryGetValue(-bl, out var nbl)) verlegungKarte[-bl] = nbl = ziel.NeueId();
+                w.BlockId = nbl;
+            }
             if (v.Kopplung > 0)
             {
                 if (!kopplungKarte.TryGetValue(v.Kopplung, out var nkp)) kopplungKarte[v.Kopplung] = nkp = naechsteKopplung++;
