@@ -45,7 +45,26 @@ public sealed record VerlegeAnalyse(DateOnly Von, int VonStunde, int UnterrichtI
 public static class Tagesverlegung
 {
     private static List<TagesEintrag> Quelle(Tagesplan tp, int stunde, int unterrichtId, int? zeile) =>
-        tp.Stunde(stunde).Where(e => (e.Findetstatt || IstVerlegbarerEntfall(e)) && Raumvertretungen.Gehoert(e, unterrichtId, zeile)).ToList();
+        tp.Stunde(stunde).Where(e => (e.Findetstatt || IstVerlegbarerEntfall(e)) && !Vertretungen.IstUrsprung(e.Vertretung) && Raumvertretungen.Gehoert(e, unterrichtId, zeile)).ToList();
+
+    /// <summary>
+    /// Ganzer Block zum Ziehen: das angeklickte Feld (<paramref name="start"/>, <paramref name="laenge"/>) wird um unmittelbar angrenzende
+    /// Stunden desselben Unterrichts erweitert, wenn eine der beiden Stunden eine verlegte Stunde ist (z. B. 4er-Block 1–4 nach 3–6
+    /// verschoben: 3–4 regulär, 5–6 verlegt – gezogen wird wieder der ganze Block 3–6).
+    /// </summary>
+    public static (int Start, int Laenge) Blockumfang(Tagesplan tp, int start, int laenge, int unterrichtId, int? zeile)
+    {
+        TagesEintrag? Am(int s) => tp.Stunde(s).FirstOrDefault(e => e.Findetstatt && !Vertretungen.IstUrsprung(e.Vertretung) && Raumvertretungen.Gehoert(e, unterrichtId, zeile));
+        static bool Verlegt(TagesEintrag? e) => e?.Vertretung is { VerlegungsId: not null, VonDatum: not null };
+        laenge = Math.Max(1, laenge);
+        var verlegt = Enumerable.Range(start, laenge).Any(s => Verlegt(Am(s)));
+        while (true)
+        {
+            if (start > 1 && Am(start - 1) is { } v && (verlegt || Verlegt(v))) { start--; laenge++; verlegt |= Verlegt(v); continue; }
+            if (Am(start + laenge) is { } n && (verlegt || Verlegt(n))) { laenge++; verlegt |= Verlegt(n); continue; }
+            return (start, laenge);
+        }
+    }
 
     /// <summary>
     /// Entfallene Unterrichtsstunde (Entfall ohne Verlegung), die sich wie im Vorbild trotzdem verlegen lässt: ihr Entfall wird zum
@@ -199,8 +218,27 @@ public static class Tagesverlegung
         if (a.Schritte.Count == 0) return;
         var raumZeilen = raeume is null ? null : Verlegungsraeume.Zeilen(d, a);
         var partnerZeilen = raeume is null || modus != VerlegeModus.Tauschen ? new List<VerlegeRaumZeile>() : Verlegungsraeume.PartnerZeilen(d, a, raumZeilen!);
+        var vorher = d.Vertretungen.ToDictionary(v => v.Id, v => (v.VerlegungsId, v.Datum, v.Stunde, v.NachDatum, v.NachStunde, v.VonDatum, v.VonStunde));
         AusfuehrenOhneRaeume(d, a, modus, benutzer);
         if (raeume != null) Verlegungsraeume.Anwenden(d, a, modus, raeume, raumZeilen!, partnerZeilen, benutzer);
+        BlockKennzeichnen(d, vorher);
+    }
+
+    /// <summary>
+    /// Nach dem Verschieben: alle Verlegungen bzw. Tausche, die dabei entstanden oder verändert wurden, als ein Block kennzeichnen
+    /// (<see cref="Vertretung.BlockId"/>), sobald mehr als eine Stunde betroffen ist – Rückfrage, Aufheben und Entfall gelten dann für den
+    /// ganzen Block. Eine einzeln verschobene Stunde gehört zu keinem Block mehr.
+    /// </summary>
+    private static void BlockKennzeichnen(Schuldatei d, Dictionary<int, (int? Vid, DateOnly Datum, int Stunde, DateOnly? Nd, int? Ns, DateOnly? Vd, int? Vs)> vorher)
+    {
+        var vids = d.Vertretungen.Where(v => v.VerlegungsId.HasValue &&
+                (!vorher.TryGetValue(v.Id, out var x) || x != (v.VerlegungsId, v.Datum, v.Stunde, v.NachDatum, v.NachStunde, v.VonDatum, v.VonStunde)))
+            .Select(v => v.VerlegungsId!.Value).ToHashSet();
+        if (vids.Count == 0) return;
+        var zeilen = d.Vertretungen.Where(v => v.VerlegungsId is int i && vids.Contains(i)).ToList();
+        var positionen = zeilen.Where(v => v.VonDatum.HasValue).GroupBy(v => v.UnterrichtId).Select(g => g.Select(v => (v.Datum, v.Stunde)).Distinct().Count()).DefaultIfEmpty(0).Max();
+        int? block = positionen > 1 ? d.NeueId() : null;
+        foreach (var v in zeilen) v.BlockId = block;
     }
 
     private static void AusfuehrenOhneRaeume(Schuldatei d, VerlegeAnalyse a, VerlegeModus modus, string benutzer)
@@ -225,6 +263,37 @@ public static class Tagesverlegung
             Vertretungen.Verlegen(d, a.UnterrichtId, a.Zeile, a.Von, s.VonStunde, a.Ziel, s.NachStunde, VertretungsArt.Verlegung, benutzer);
             LueckenFuellen(d, a.Ziel, s.NachStunde, a.UnterrichtId, klassenJeStunde[s.VonStunde], benutzer);
         }
+        if (a.Schritte.Count > 1) ReihenfolgeOrdnen(d, a);
+    }
+
+    /// <summary>
+    /// Block überlappend verschoben (Ketten gekürzt, siehe <see cref="Vertretungen.KettenKuerzen"/>): Ursprünge und Ziele je Kopplungszeile in
+    /// der Reihenfolge der Stunden zuordnen – aus 1–4 nach 4–7 wird 1→5, 2→6, 3→7 (nicht 1→7, 2→5, 3→6). Der Bezugsraum (Raum am Ursprung)
+    /// wandert mit dem Ursprung.
+    /// </summary>
+    private static void ReihenfolgeOrdnen(Schuldatei d, VerlegeAnalyse a)
+    {
+        static bool IstZiel(Vertretung v) => v is { Art: VertretungsArt.Verlegung or VertretungsArt.Verlegt, VonDatum: not null, VerlegungsId: not null, VormerkungId: null };
+        var ziele = d.Vertretungen.Where(v => v.UnterrichtId == a.UnterrichtId && v.Datum == a.Ziel && IstZiel(v) &&
+                                              a.Schritte.Any(s => s.NachStunde == v.Stunde)).ToList();
+        foreach (var gruppe in ziele.GroupBy(v => v.ZeilenIndex))
+        {
+            var paare = gruppe.Select(z => (Z: z, Q: d.Vertretungen.FirstOrDefault(x => x != z && x.VerlegungsId == z.VerlegungsId && Vertretungen.IstUrsprung(x))))
+                .Where(p => p.Q != null).ToList();
+            if (paare.Count < 2) continue;
+            var raum = paare.ToDictionary(p => p.Q!, p => p.Z.ZielraumId);
+            var q = paare.Select(p => p.Q!).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
+            var z = paare.Select(p => p.Z).OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ToList();
+            for (var i = 0; i < q.Count; i++)
+            {
+                z[i].VerlegungsId = q[i].VerlegungsId;
+                z[i].VonDatum = q[i].Datum;
+                z[i].VonStunde = q[i].Stunde;
+                z[i].ZielraumId = raum[q[i]];
+                q[i].NachDatum = z[i].Datum;
+                q[i].NachStunde = z[i].Stunde;
+            }
+        }
     }
 
     /// <summary>
@@ -244,6 +313,7 @@ public static class Tagesverlegung
             ursprung.NachDatum = null;
             ursprung.NachStunde = null;
             ursprung.VerlegungsId = null;
+            ursprung.BlockId = null;
             ursprung.ArtVorVerlegung = null;
             ursprung.VertreterVorVerlegung = null;
             // eine Lücke, die die verlegte Stunde gefüllt hatte, ist wieder offen

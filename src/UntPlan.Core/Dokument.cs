@@ -310,7 +310,7 @@ public sealed class Dokument
             d.Schueler.Select(x => x.Id), d.Unterrichte.Select(x => x.Id), d.Perioden.Select(x => x.Id), d.Abwesenheiten.Select(x => x.Id),
             d.Vertretungen.Select(x => x.Id), d.Kommentare.Select(x => x.Id), d.Ferien.Select(x => x.Id),
             d.Perioden.SelectMany(p => p.Unterrichte ?? new()).Select(x => x.Id), d.Veranstaltungen.Select(x => x.Id), d.Vormerkungen.Select(x => x.Id),
-            d.Klausuren.Select(x => x.Id), d.UGruppen.Select(x => x.Id), d.Vertretungen.Select(x => x.VerlegungsId ?? 0),
+            d.Klausuren.Select(x => x.Id), d.UGruppen.Select(x => x.Id), d.Vertretungen.Select(x => x.VerlegungsId ?? 0), d.Vertretungen.Select(x => x.BlockId ?? 0),
         }.SelectMany(x => x).DefaultIfEmpty(0).Max();
         if (d.NaechsteId <= maxId) d.NaechsteId = maxId + 1;
         foreach (var per in d.Perioden)

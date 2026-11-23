@@ -594,7 +594,7 @@ public sealed partial class PlanAnsicht : Control
     /// <summary>Schlüssel für zusammenhängende Stunden im tagesaktuellen Plan (gleicher Unterricht, gleiche Änderung).</summary>
     private static string? TagesSchluessel(TagesEintrag e) =>
         (e.Unterricht?.Id ?? e.Vertretung?.UnterrichtId) is int u
-            ? $"{u}/{e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex}/{e.Status}/{e.Vertretung?.Art}/{string.Join(",", e.LehrerIds)}/{string.Join(",", e.RaumIds)}/{e.Vertretung?.VerlegungsId}"
+            ? $"{u}/{e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex}/{e.Status}/{e.Vertretung?.Art}/{string.Join(",", e.LehrerIds)}/{string.Join(",", e.RaumIds)}/{(e.Vertretung?.BlockId is int bk ? "B" + bk : e.Vertretung?.VerlegungsId?.ToString())}"
             : null;
 
     private PlanBlock<TagesEintrag>? TagesFeld(int tag, int stunde, TagesEintrag e) =>
@@ -2213,6 +2213,8 @@ public sealed partial class PlanAnsicht : Control
                 var feld = TagesFeld(tagIdx, de.Item2.Stunde, de.Item2);
                 var start = feld?.Start ?? de.Item2.Stunde;
                 var laenge = feld?.Laenge ?? 1;
+                // verschobener Block (teils regulär, teils verlegt): wieder als Ganzes ziehen
+                if (_tage.TryGetValue(tagIdx, out var tpZ)) (start, laenge) = Tagesverlegung.Blockumfang(tpZ, start, laenge, uid.Value, zeile < 0 ? null : zeile);
                 if (DoDragDrop($"tag:{de.Item1:yyyyMMdd}:{start}:{uid}:{zeile}:{laenge}", DragDropEffects.Move) == DragDropEffects.None) ZiehenBeenden();
                 return;
             }

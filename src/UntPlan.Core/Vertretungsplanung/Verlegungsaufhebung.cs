@@ -34,18 +34,55 @@ public static class Verlegungsaufhebung
     /// </summary>
     public static List<Vertretung> Zeilen(Schuldatei d, Vertretung v)
     {
-        if (v.VerlegungsId is not int vid) return new();
-        var ids = new HashSet<int> { vid };
-        var gruppe = d.Vertretungen.Where(x => x.VerlegungsId == vid).ToList();
-        if (gruppe.Any(x => x.Art == VertretungsArt.Tausch) && gruppe.FirstOrDefault(x => x.Art == VertretungsArt.Tausch && x.VonDatum.HasValue) is { } ziel)
+        if (v.VerlegungsId is not int vid0) return new();
+        // Block (Doppelstunde, 3er-, 4er-Block, Kopplung): alle Verlegungen des Blocks
+        var start = v.BlockId is int b
+            ? d.Vertretungen.Where(x => x.BlockId == b && x.VerlegungsId.HasValue).Select(x => x.VerlegungsId!.Value).Append(vid0).ToHashSet()
+            : new HashSet<int> { vid0 };
+        var ids = new HashSet<int>(start);
+        foreach (var vid in start)
         {
-            // Gegenrichtung: Tausch-Ziel an der Ursprungsposition dieser Stunde, das von der Zielposition dieser Stunde kommt
-            foreach (var g in d.Vertretungen.Where(x => x.Art == VertretungsArt.Tausch && x.VerlegungsId is int o && o != vid && x.VonDatum.HasValue &&
-                                                        x.Datum == ziel.VonDatum && x.Stunde == ziel.VonStunde && x.VonDatum == ziel.Datum && x.VonStunde == ziel.Stunde))
-                ids.Add(g.VerlegungsId!.Value);
+            var gruppe = d.Vertretungen.Where(x => x.VerlegungsId == vid).ToList();
+            if (gruppe.Any(x => x.Art == VertretungsArt.Tausch) && gruppe.FirstOrDefault(x => x.Art == VertretungsArt.Tausch && x.VonDatum.HasValue) is { } ziel)
+            {
+                // Gegenrichtung: Tausch-Ziel an der Ursprungsposition dieser Stunde, das von der Zielposition dieser Stunde kommt
+                foreach (var g in d.Vertretungen.Where(x => x.Art == VertretungsArt.Tausch && x.VerlegungsId is int o && o != vid && x.VonDatum.HasValue &&
+                                                            x.Datum == ziel.VonDatum && x.Stunde == ziel.VonStunde && x.VonDatum == ziel.Datum && x.VonStunde == ziel.Stunde))
+                    ids.Add(g.VerlegungsId!.Value);
+            }
         }
         return d.Vertretungen.Where(x => x.VerlegungsId is int i && ids.Contains(i)).ToList();
     }
+
+    /// <summary>
+    /// Zeilen, für die eine Antwort auf die Rückfrage gilt: bei einer Block-Verlegung alle Zeilen des Blocks mit derselben Rolle (alle
+    /// Ursprünge bzw. alle Ziele) desselben Unterrichts (alle Kopplungszeilen), sonst nur die Zeile selbst.
+    /// </summary>
+    public static List<Vertretung> BlockZeilen(Schuldatei d, Vertretung v)
+    {
+        if (v.BlockId is not int b) return new List<Vertretung> { v };
+        var ziel = IstZielArt(v.Art) && v.VonDatum.HasValue;
+        var res = d.Vertretungen.Where(x => x.BlockId == b && x.UnterrichtId == v.UnterrichtId && x.VerlegungsId.HasValue && (IstZielArt(x.Art) && x.VonDatum.HasValue) == ziel)
+            .OrderBy(x => x.Datum).ThenBy(x => x.Stunde).ThenBy(x => x.ZeilenIndex).ToList();
+        if (!res.Contains(v)) res.Insert(0, v);
+        return res;
+    }
+
+    /// <summary>Stunden als Bereich je Tag: „1.9. / 1-4“, Lücken mit Komma („1.9. / 1-2,5“), mehrere Tage mit „, “.</summary>
+    public static string Bereich(IEnumerable<(DateOnly Datum, int Stunde)> stunden) =>
+        string.Join(", ", stunden.Distinct().GroupBy(x => x.Datum).OrderBy(g => g.Key).Select(g =>
+        {
+            var s = g.Select(x => x.Stunde).OrderBy(x => x).ToList();
+            var teile = new List<string>();
+            for (var i = 0; i < s.Count;)
+            {
+                var j = i;
+                while (j + 1 < s.Count && s[j + 1] == s[j] + 1) j++;
+                teile.Add(j > i ? $"{s[i]}-{s[j]}" : $"{s[i]}");
+                i = j + 1;
+            }
+            return $"{g.Key:d.M.} / {string.Join(",", teile)}";
+        }));
 
     /// <summary>
     /// Verlegung aufheben: Zielzeile(n) und Ursprung (Entfall „nach“) werden entfernt, die Stunde findet wieder an ihrer
@@ -70,6 +107,7 @@ public static class Verlegungsaufhebung
                 z.NachDatum = null;
                 z.NachStunde = null;
                 z.VerlegungsId = null;
+                z.BlockId = null;
                 continue;
             }
             // Ursprung, der vorher schon eine Zeile war (offene Vertretung, Vertretung, Entfall): wieder deren Zustand statt entfernt
@@ -99,6 +137,19 @@ public static class Verlegungsaufhebung
     /// </summary>
     public static string RueckfrageText(Schuldatei d, Vertretung v)
     {
+        if (v.BlockId is int b)
+        {
+            // Block: „1.9. / 1-4 -> 1.9. / 5-8“ (alle verlegten Stunden dieses Unterrichts im Block)
+            var ziele = d.Vertretungen.Where(x => x.BlockId == b && x.UnterrichtId == v.UnterrichtId && IstZielArt(x.Art) && x.VonDatum.HasValue).ToList();
+            if (ziele.Select(x => (x.Datum, x.Stunde)).Distinct().Count() > 1)
+            {
+                var bl = v.LehrerId ?? ziele[0].LehrerId;
+                var n = bl is int li ? DatenIndex.Fuer(d).KLehrer(li) : "";
+                var von = Bereich(ziele.Select(x => (x.VonDatum!.Value, x.VonStunde ?? 0)));
+                var nach = Bereich(ziele.Select(x => (x.Datum, x.Stunde)));
+                return $"{RueckfrageKopf}\n\n{n}\n{von} -> {nach}\n\n{RueckfrageJa}\n{RueckfrageNein}";
+            }
+        }
         var ziel = IstZielArt(v.Art) && v.VonDatum.HasValue ? v : Ziel(d, v);
         var ursprung = ziel is null ? v : Ursprung(d, ziel) ?? v;
         var (vonDatum, vonStunde) = ziel?.VonDatum is DateOnly vd ? (vd, ziel.VonStunde) : (ursprung.Datum, (int?)ursprung.Stunde);
@@ -120,6 +171,24 @@ public static class Verlegungsaufhebung
             return;
         }
         if (!v.IstEntfall) Vertretungen.EntfallUmschalten(d, v, benutzer);
+    }
+
+    /// <summary>
+    /// Antwort „Nein“ für den ganzen Block: alle Ursprünge (bzw. alle Ziele, wenn ein Ziel gewählt war) des Blocks werden auf Entfall
+    /// gesetzt (siehe <see cref="AufEntfallSetzen"/>). Ergebnis: Anzahl der Zeilen.
+    /// </summary>
+    public static int BlockAufEntfallSetzen(Schuldatei d, IEnumerable<int> vertretungsIds, string benutzer = "")
+    {
+        var zeilen = vertretungsIds.Select(id => d.Vertretungen.FirstOrDefault(x => x.Id == id)).OfType<Vertretung>()
+            .SelectMany(v => BlockZeilen(d, v)).Distinct().ToList();
+        var n = 0;
+        foreach (var z in zeilen)
+        {
+            if (!d.Vertretungen.Contains(z) || z.IstEntfall) continue;
+            AufEntfallSetzen(d, z, benutzer);
+            n++;
+        }
+        return n;
     }
 
     /// <summary>Verlegung über die Position im tagesaktuellen Plan aufheben (Unterricht an Datum/Stunde, Ziel oder Ursprung).</summary>

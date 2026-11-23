@@ -1726,6 +1726,69 @@ public sealed partial class HauptFenster
             Warten(400);
             Foto(Path.Combine(ordner, "V37_Kopplung_eine_Zeile_F.png"));
         }, -1);
+        Schritt("V38_Block_verschieben", () =>
+        {
+            // 4er-Block um zwei Stunden verschieben (z. B. 1–4 nach 3–6): nur die frei gewordenen Stunden bleiben offen („???“, „(Le.) nach“),
+            // die überlappenden finden weiter statt; Rückfrage nennt den Bereich, Ja hebt den ganzen Block auf
+            AppZustand.DatumSetzen(tag);
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            var n = dd.Zeitraster.StundenProTag;
+            bool Frei(int l, int st) => dd.Zeitraster.Verfuegbar(tp.Tag, st) && !tp.Stunde(st).Any(e => e.LehrerIds.Contains(l)) && !Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, l, tag, st);
+            var wahl = dd.Lehrer.Where(l => l.Id != krank.Id && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l.Id && a.Von <= tag && a.Bis >= tag))
+                .SelectMany(l => Enumerable.Range(1, Math.Max(0, n - 5)).Where(st => Enumerable.Range(st, 6).All(x => Frei(l.Id, x))).Select(st => (L: l.Id, S: st))).FirstOrDefault();
+            if (wahl.L == 0) { log.Add("INFO  V38: keine Lehrkraft mit sechs freien Stunden in Folge"); return; }
+            var (lehrer, s0) = wahl;
+            var uid = 0;
+            AppZustand.Doc.Aendern("4er-Block (Selbsttest)", AenderungsArt.Stundenplan, x =>
+            {
+                var periode = x.PeriodeAm(tag);
+                var u = new Unterricht { Id = x.NeueId(), Wochenstunden = 4 };
+                u.Zeilen.Add(new Kopplungszeile { LehrerId = lehrer, FachId = x.Faecher.First().Id });
+                (periode.Unterrichte ?? x.Unterrichte).Add(u);
+                for (var i = 0; i < 4; i++) periode.Plan.Add(new Planstunde { UnterrichtId = u.Id, Tag = tp.Tag, Stunde = s0 + i, Raeume = new List<int?> { null } });
+                uid = u.Id;
+            });
+            var sp = Max(StundenplanFenster.Neu(ElementTyp.Lehrer, lehrer, false));
+            Warten(300);
+            var offenVorher = Core.Vertretungsplanung.Kalenderkennzahlen.Tag(AppZustand.D, tag).Offen;
+            AppZustand.Doc.Aendern("Block verlegen (4 Stunden)", AenderungsArt.Vertretung, x =>
+            {
+                var a = Core.Vertretungsplanung.Tagesverlegung.Analysieren(x, tag, s0, uid, null, 4, tag, s0 + 2);
+                if (a.Schritte.Count != 4) throw new InvalidOperationException($"Block: {a.Schritte.Count} Stunden statt 4.");
+                Core.Vertretungsplanung.Tagesverlegung.Ausfuehren(x, a, Core.Vertretungsplanung.VerlegeModus.Verlegen, AppZustand.Benutzer);
+            });
+            var zeilen = AppZustand.D.Vertretungen.Where(v => v.Datum == tag && v.UnterrichtId == uid).OrderBy(v => v.Stunde).ToList();
+            var stunden = string.Join(",", zeilen.Select(v => v.Stunde));
+            if (stunden != $"{s0},{s0 + 1},{s0 + 4},{s0 + 5}") throw new InvalidOperationException($"Block: Zeilen in den Stunden {stunden}.");
+            if (!zeilen.Take(2).All(Core.Vertretungsplanung.Vertretungen.IstOffenerUrsprung)) throw new InvalidOperationException("Block: frei gewordene Stunden nicht offen.");
+            var offenNachher = Core.Vertretungsplanung.Kalenderkennzahlen.Tag(AppZustand.D, tag).Offen;
+            if (offenNachher != offenVorher + 2) throw new InvalidOperationException($"Kalender: offen {offenVorher} → {offenNachher} statt +2.");
+            var umfang = Core.Vertretungsplanung.Tagesverlegung.Blockumfang(Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, tag), s0 + 4, 2, uid, null);
+            if (umfang != (s0 + 2, 4)) throw new InvalidOperationException($"Block zum Ziehen: {umfang} statt ({s0 + 2}, 4).");
+            var text = Core.Vertretungsplanung.Verlegungsaufhebung.RueckfrageText(AppZustand.D, zeilen[0]);
+            if (!text.Contains($"/ {s0}-{s0 + 1} -> ") || !text.Contains($"/ {s0 + 4}-{s0 + 5}")) throw new InvalidOperationException("Rückfrage ohne Bereich: " + text.Replace("\n", " / "));
+            Warten(500);
+            Foto(Path.Combine(ordner, "V38_Block_verschieben_F.png"));
+            bool Aendern4(string t, AenderungsArt art, Action<Schuldatei> a) { AppZustand.Doc.Aendern(t, art, a); return true; }
+            var hookVorher = Ui.AuswahlAntwort;
+            try
+            {
+                Ui.AuswahlAntwort = (_, _) => 0;
+                if (!VerlegungsAbfrage.VorEntfall(tag, s0 + 1, uid, Aendern4)) throw new InvalidOperationException("Ja: nicht erledigt.");
+            }
+            finally { Ui.AuswahlAntwort = hookVorher; }
+            if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == uid)) throw new InvalidOperationException("Ja: Block nicht ganz aufgehoben.");
+            log.Add($"INFO  V38 Block U{uid} {s0}-{s0 + 3} → {s0 + 2}-{s0 + 5}: offen {offenVorher} → {offenNachher}; Rückfrage „{text.Replace("\n", " / ")}“; Ja = ganzer Block zurück");
+            // Beispielunterricht wieder entfernen
+            AppZustand.Doc.Aendern("4er-Block entfernen (Selbsttest)", AenderungsArt.Stundenplan, x =>
+            {
+                var periode = x.PeriodeAm(tag);
+                periode.Plan.RemoveAll(p => p.UnterrichtId == uid);
+                (periode.Unterrichte ?? x.Unterrichte).RemoveAll(u => u.Id == uid);
+            });
+            sp.Focus();
+        }, -1);
         Schritt("19d9_Verlegung_Absenz_Abfragen", () =>
         {
             // Z1/Z2: Verlegung bei „Entfall“ rückgängig machen; neue Lehrer-Absenz fragt nach Verlegungen und Sondereinsätzen
