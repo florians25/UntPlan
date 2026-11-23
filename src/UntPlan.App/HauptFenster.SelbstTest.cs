@@ -2604,8 +2604,9 @@ public sealed partial class HauptFenster
             }
 
             // 2. Enter prüft und übernimmt die Eingabe und springt zum nächsten Feld
-            var historieVorher = AppZustand.Doc.Historie.Count;
-            var rueckVorher = AppZustand.Doc.RueckgaengigText;
+            // ganze Historie vergleichen: bei voller Historie (50 Stufen) bleibt die Anzahl gleich und der letzte Text kann
+            // derselbe sein („Klausur geändert“) – dann verschiebt sich trotzdem die Liste um einen Eintrag
+            var historieVorher = AppZustand.Doc.Historie;
             R3BWaehlen(g, R3BZelle(g, key, si));
             g.BeginEdit(true);
             Warten(80);
@@ -2617,7 +2618,7 @@ public sealed partial class HauptFenster
                 if (g.IsCurrentCellInEditMode) fehler.Add("Enter beendet die Bearbeitung nicht");
                 if (R3BText(R3BZelle(g, key, si)) != neu) fehler.Add($"Enter übernimmt die Eingabe nicht („{R3BText(R3BZelle(g, key, si))}“)");
                 if (g.CurrentCell is { } cc && R3BSchl(cc.OwningRow) == key && cc.ColumnIndex == si) fehler.Add("Enter springt nicht zum nächsten Feld");
-                if (historie && AppZustand.Doc.Historie.Count == historieVorher && AppZustand.Doc.RueckgaengigText == rueckVorher) fehler.Add("Eingabe steht nicht in der Historie");
+                if (historie && AppZustand.Doc.Historie.SequenceEqual(historieVorher)) fehler.Add($"Eingabe steht nicht in der Historie ({historieVorher.Count} Stufen, zuletzt „{historieVorher.FirstOrDefault()}“)");
             }
             else fehler.Add("Bearbeitung lässt sich nicht starten");
 
