@@ -193,7 +193,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         _elementGruppe.Text = LehrerSicht ? "Vertreter" : "Klasse(n)";
         filter.Controls.Add(elementSpalte);
         var vonBis = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
-        _zeitraum.InRahmen(vonBis);
+        // Vorbild: Datum hier 8 Pixel innerhalb des Rahmens (bei den Absenzen 7)
+        _zeitraum.InRahmen(vonBis, 8);
         filter.Controls.Add(vonBis);
         _zeitraum.Kalender.Margin = new Padding(7, 16, 0, 0);
         filter.Controls.Add(_zeitraum.Kalender);

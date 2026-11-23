@@ -342,7 +342,8 @@ public sealed partial class HauptFenster
         _statusLinks.TextAlign = ContentAlignment.MiddleLeft;
         _statusMitte.Spring = !vm;
         _statusMitte.AutoSize = !vm;
-        if (vm) _statusMitte.Width = 685;
+        // nachgemessen: „Vertr.“ ab x 1087, „DE“ ab 1774, „Vertretung“ ab 1804 (Bildschirmbreite 1920)
+        if (vm) _statusMitte.Width = 686;
         _statusMitte.TextAlign = vm ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter;
         _statusMitte.Font = _statusSprache.Font = _statusModus.Font = vm ? Ui.AbsenzSchrift : _status.Font;
         _statusRechts.Visible = !vm;

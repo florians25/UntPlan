@@ -20,7 +20,7 @@ public sealed partial class HauptFenster : Form
     private readonly ToolStripStatusLabel _statusRechts = new();
     // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (1916 px): Hilfehinweis links (dehnbar), „Vertr.“ ab x 1089 in einem
     // 685 px breiten Feld, dann die Felder „DE“ (32 px) und „Vertretung“ (98 px) vor dem Größengriff
-    private readonly ToolStripStatusLabel _statusSprache = new("DE") { AutoSize = false, Width = 32, Padding = new Padding(1, 0, 0, 0), TextAlign = ContentAlignment.MiddleLeft, Visible = false };
+    private readonly ToolStripStatusLabel _statusSprache = new("DE") { AutoSize = false, Width = 31, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
     private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 119, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
     /// <summary>Updateanzeige (GitHub-Releases) mit Hinweis rechts in der Statusleiste.</summary>
     internal Updateanzeige Updates { get; }

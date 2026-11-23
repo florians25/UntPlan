@@ -1607,26 +1607,29 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
             // Kante unter den Reitern (Seite ohne Inhalt): Weiß, Hellgrau, darunter dunkel; rechts dunkel abgeschlossen
             g.DrawLine(weiss, 0, h - 3, Width - 2, h - 3);
             g.DrawLine(hell, 0, h - 2, Width - 3, h - 2);
-            g.DrawLine(grau, Width - 2, h - 2, Width - 2, h - 2);
+            using (var b = new SolidBrush(grau.Color)) g.FillRectangle(b, Width - 2, h - 2, 1, 1);
             g.DrawLine(dunkel, Width - 1, h - 3, Width - 1, h - 1);
             g.DrawLine(dunkel, 0, h - 1, Width - 1, h - 1);
             void Reiter(Rectangle r, bool gewaehlt, string text)
             {
                 using (var b = new SolidBrush(gewaehlt ? Color.FromArgb(225, 243, 236) : Color.FromArgb(175, 223, 204)))
                     g.FillRectangle(b, r.Left + 2, r.Top + 2, r.Width - 4, r.Height - 2);
+                // einzelne Pixel als Rechteck (eine Linie der Länge 0 zeichnet GDI+ nicht)
+                void Punkt(Pen p, int px, int py) { using var b = new SolidBrush(p.Color); g.FillRectangle(b, px, py, 1, 1); }
                 g.DrawLine(ecke, r.Left, r.Top, r.Left + 1, r.Top);
-                g.DrawLine(ecke, r.Left, r.Top + 1, r.Left, r.Top + 1);
+                Punkt(ecke, r.Left, r.Top + 1);
                 g.DrawLine(ecke, r.Right - 2, r.Top, r.Right - 1, r.Top);
-                g.DrawLine(ecke, r.Right - 1, r.Top + 1, r.Right - 1, r.Top + 1);
+                Punkt(ecke, r.Right - 1, r.Top + 1);
                 g.DrawLine(weiss, r.Left + 2, r.Top, r.Right - 3, r.Top);
-                g.DrawLine(weiss, r.Left + 1, r.Top + 1, r.Left + 1, r.Top + 1);
+                Punkt(weiss, r.Left + 1, r.Top + 1);
                 g.DrawLine(weiss, r.Left, r.Top + 2, r.Left, r.Bottom - 1);
                 g.DrawLine(hell, r.Left + 2, r.Top + 1, r.Right - 3, r.Top + 1);
                 g.DrawLine(hell, r.Left + 1, r.Top + 2, r.Left + 1, r.Bottom - 1);
-                g.DrawLine(dunkel, r.Right - 2, r.Top + 1, r.Right - 2, r.Top + 1);
+                Punkt(dunkel, r.Right - 2, r.Top + 1);
                 g.DrawLine(grau, r.Right - 2, r.Top + 2, r.Right - 2, r.Bottom - 1);
                 g.DrawLine(dunkel, r.Right - 1, r.Top + 2, r.Right - 1, r.Bottom - 1);
-                var textR = new Rectangle(r.Left + 6, r.Top + (gewaehlt ? 6 : 5), r.Width - 12, Font.Height);
+                // Vorbild (gemessen): Text 8 (gewählt) bzw. 6 Pixel nach dem linken Rand, Schrift 6 bzw. 5 Pixel unter der Oberkante
+                var textR = new Rectangle(r.Left + (gewaehlt ? 8 : 6), r.Top + (gewaehlt ? 4 : 3), r.Width - 12, Font.Height);
                 TextRenderer.DrawText(g, text, Font, textR, Color.Black, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
             }
             for (var i = 0; i < _texte.Length; i++)

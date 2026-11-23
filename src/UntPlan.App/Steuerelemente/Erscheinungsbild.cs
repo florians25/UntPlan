@@ -179,9 +179,22 @@ public static class Erscheinungsbild
             if (!OperatingSystem.IsWindows() || Angemeldet.TryGetValue(c, out _)) return;
             if (c is DataGridView g)
             {
-                // die Tabelle zeichnet ihren Rahmen (2 Pixel) selbst in der Clientfläche: danach klassisch übermalen
+                // die Tabelle zeichnet ihren Rahmen mit Designs selbst (1 Pixel) in der Clientfläche: danach klassisch (2 Pixel) übermalen;
+                // die überdeckte oberste Zeile der Überschrift kommt als zusätzliches Pixel dazu (Trennlinien wie im Vorbild)
                 Angemeldet.Add(c, null!);
                 g.Paint += (_, e) => { if (g.BorderStyle == BorderStyle.Fixed3D) Zeichnen(e.Graphics, g.Width, g.Height); };
+                if (Application.RenderWithVisualStyles)
+                {
+                    var gesetzt = -1;
+                    void Kopf()
+                    {
+                        if (g.BorderStyle != BorderStyle.Fixed3D || g.ColumnHeadersHeight == gesetzt || g.ColumnHeadersHeightSizeMode == DataGridViewColumnHeadersHeightSizeMode.AutoSize) return;
+                        gesetzt = g.ColumnHeadersHeight + 1;
+                        g.ColumnHeadersHeight = gesetzt;
+                    }
+                    Kopf();
+                    g.ColumnHeadersHeightChanged += (_, _) => Kopf();
+                }
                 g.Invalidate();
                 return;
             }

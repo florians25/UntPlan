@@ -216,11 +216,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
     /// In den Rahmen „Von-Bis“ setzen – Abstände wie im Vorbild nachgemessen: Datum knapp unter dem Rahmentitel, unter den Pfeilen
     /// 6 Pixel bis zur Rahmenlinie, rechts 8 Pixel.
     /// </summary>
-    public void InRahmen(GroupBox gb)
+    public void InRahmen(GroupBox gb, int links = 7)
     {
         gb.AutoSize = false;
         gb.Controls.Add(this);
-        Location = new Point(7, Math.Max(16, gb.Font.Height + 1));
+        Location = new Point(links, Math.Max(16, gb.Font.Height + 1));
         void Groesse() => gb.Size = new Size(Right + 8, Bottom + 6);
         SizeChanged += (_, _) => Groesse();
         Groesse();
