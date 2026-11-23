@@ -466,11 +466,13 @@ public static class AppApi
             // gekoppelter Unterricht (getrennte Unterrichte, gemeinsame Stunde): Einträge gelten für alle, gleich unter welchem gespeichert
             var unterrichte = kb.KoppelUnterrichte(s, datum, stunde, unterricht);
             // die nächstliegende Stunde (Blockbeginn) zuerst – bei Kopplungen mit Einzel- und Doppelstunden nicht den Eintrag einer anderen Lehrkraft
-            var kandidaten = kb.Zeitraum(datum, datum).Where(e => unterrichte.Contains(e.Unterricht) && stunde >= e.Stunde && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
+            // nur Einträge dieses Blocks: nie der Lehrstoff einer früheren Stunde desselben Unterrichts (keine automatische Übernahme)
+            var karte = kb.Blockkarte(b, s, datum, stunde, unterricht, lehrer);
+            var zumBlock = kb.ZumBlock(s, datum, stunde, unterricht, karte);
+            var kandidaten = kb.Zeitraum(datum, datum).Where(e => unterrichte.Contains(e.Unterricht) && zumBlock(e) && (lehrer is null || e.Lehrer.Equals(lehrer, StringComparison.OrdinalIgnoreCase)) &&
                                                                   (b.Kollegium || e.Klassen.Any(b.HatKlasse))).ToList();
             var blockEintrag = kandidaten.Count == 0 ? null
                 : Klassenbuchdienst.Waehlen(kandidaten.Where(e => e.Stunde == kandidaten.Max(x => x.Stunde)), unterricht) is { } be ? Sichtbar(be) : null;
-            var karte = kb.Blockkarte(b, s, datum, stunde, unterricht, lehrer);
             var istBlock = karte != null && karte.Von < karte.Bis;
             int? einzel = istBlock && einzelstunde is int n ? n : null;
             if (einzel is int en && (en < karte!.Von || en > karte.Bis)) throw new ArgumentException("Die Einzelstunde gehört nicht zu diesem Block.");
@@ -501,13 +503,17 @@ public static class AppApi
             if (d.OnlineLink is not null) Klassenbuchverwaltung.OnlineLinkPruefen(d.OnlineLink);   // vor dem Speichern prüfen
             var eigener = b.LehrerKuerzel ?? d.Lehrer;
             // Einzelstunde nur bei Blöcken (sonst gilt der Eintrag ohnehin genau dieser Stunde)
-            int? einzel = d.Einzelstunde is int en && kb.Blockkarte(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.Lehrer) is { } bk && bk.Von < bk.Bis ? en : null;
-            // gekoppelter Unterricht: ein vorhandener Eintrag (mit Inhalt) eines der gekoppelten Unterrichte wird geändert – nie ein zweiter angelegt
             var st = Paket(p);
+            var bk = kb.Blockkarte(b, st, d.Datum, d.Stunde, d.Unterricht, d.Lehrer);
+            int? einzel = d.Einzelstunde is int en && bk is not null && bk.Von < bk.Bis ? en : null;
+            // gekoppelter Unterricht: ein vorhandener Eintrag (mit Inhalt) eines der gekoppelten Unterrichte wird geändert – nie ein zweiter angelegt.
+            // Nicht mitgeschickte Felder kommen nur aus dem Eintrag dieses Blocks bzw. dieser Einzelstunde – nie aus einer früheren Stunde
+            // desselben Unterrichts (der Lehrstoff wird für jeden Block einzeln eingegeben, keine automatische Übernahme)
             var unterrichte = kb.KoppelUnterrichte(st, d.Datum, d.Stunde, d.Unterricht);
+            var zumBlock = kb.ZumBlock(st, d.Datum, d.Stunde, d.Unterricht, bk);
             var kandidaten = einzel is int x
                 ? unterrichte.SelectMany(u => kb.EinzelEintraege(d.Datum, u, x, x, eigener)).ToList()
-                : kb.Zeitraum(d.Datum, d.Datum).Where(e => unterrichte.Contains(e.Unterricht) && d.Stunde >= e.Stunde && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase))).ToList();
+                : kb.Zeitraum(d.Datum, d.Datum).Where(e => unterrichte.Contains(e.Unterricht) && zumBlock(e) && (eigener is null || e.Lehrer.Equals(eigener, StringComparison.OrdinalIgnoreCase))).ToList();
             var alt = kandidaten.Count == 0 ? null : Klassenbuchdienst.Waehlen(kandidaten.Where(e => e.Stunde == kandidaten.Max(y => y.Stunde)), d.Unterricht);
             var ziel = kb.KoppelZiel(b, st, d.Datum, d.Stunde, d.Unterricht);
             DateOnly? faellig = d.Hausaufgabe is null && d.Faellig is null ? (DateOnly.TryParse(alt?.Faellig, out var f) ? f : null) : d.Faellig;
