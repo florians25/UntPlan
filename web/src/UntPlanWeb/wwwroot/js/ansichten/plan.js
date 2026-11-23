@@ -213,6 +213,9 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   // Elementwahl wie im Original: Pille als Suchfeld, Menü mit „Alle anzeigen“ (alle Elemente als Pillen unter dem Kopf)
   seite.querySelector('[data-wahl]')?.replaceWith(kopfWahl({
     eintraege: liste, wert: element, bezeichnung: TYPEN[typ], info: x => elementInfo(typ, x), raster: seite.querySelector('[data-raster]'),
+    // Raumplan wie im Original: Filter „Raumgruppen“ und „Gebäude“ unter „Alle anzeigen“ (nur mit Daten)
+    filter: typ === 'raum' ? [{ schluessel: 'raumgruppe', name: 'Raumgruppen', werte: x => x.raumgruppen ?? [] },
+      { schluessel: 'gebaeude', name: 'Gebäude', werte: x => (x.gebaeude ? [x.gebaeude] : []) }] : null,
     beiWahl: x => kontext.navigieren(ziel(typ, x, gemerkterTag || datum)),
   }));
   // anderes Element: gleiche Woche und gleicher Tag (Tagesansicht)

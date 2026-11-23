@@ -232,6 +232,9 @@ public static class UntPlanWebExport
                 Raeume = d.Raeume.Where(r => !r.Ignorieren).Select(r => new WebRaum
                 {
                     Id = r.Id, Kurz = r.Kurzname, Name = r.Langname, Farbe = Farbe(r.Hintergrund), Buchbar = r.Buchbar, Raumart = r.Raumart, Kapazitaet = r.Kapazitaet,
+                    // Raumgruppen und Gebäude (Abteilung des Raumes) für den Filter der Raumauswahl im Stundenplan
+                    Raumgruppen = Stammdaten.Sortiert(d.Raumgruppen).Where(g => g.RaumIds.Contains(r.Id) && g.Kurzname.Length > 0).Select(g => g.Kurzname).ToList(),
+                    Gebaeude = r.AbteilungId is int ab && d.Abteilungen.FirstOrDefault(a => a.Id == ab) is { } abt ? (abt.Langname.Length > 0 ? abt.Langname : abt.Kurzname) : "",
                 }).ToList(),
                 Schueler = !o.Schueler ? new List<WebSchueler>() : d.Schueler.Where(x => !x.Ignorieren && x.KlasseId.HasValue)
                     .Select(x => new WebSchueler(x.Id, x.Vorname, x.Langname.Length > 0 ? x.Langname : x.Kurzname, K(ElementTyp.Klasse, x.KlasseId))).ToList(),

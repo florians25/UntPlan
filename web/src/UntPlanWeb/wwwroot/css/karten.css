@@ -404,11 +404,28 @@ input.sd-eingabe { min-height: 56px; }
 .kw-balken { position: absolute; top: 0; right: 4px; width: 8px; pointer-events: none; }
 .kw-balken[hidden], .kw-balken:not(.zeigt) { display: none; }
 .kw-balken i { display: block; width: 100%; border-radius: 4px; background: #bfc8cf; }
-.kw-raster { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 4.5px; margin: 3px 0 1px 38px; }
+.kw-raster { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 4.5px; margin: 3px 0 3px 38px; }
 .kw-raster[hidden] { display: none; }
 .kw-chip { position: relative; top: 2px; height: 28px; padding: 0 8.75px 4px; border: 0; border-radius: 999px; background: transparent; font-size: 14px; font-weight: 600; color: #67747e; white-space: nowrap; cursor: pointer; }
 .kw-chip:hover { background: rgba(255, 255, 255, .7); color: #414d55; }
 .kw-chip.aktiv { background: #414d55; color: #fff; }
+/* Raumplan (Vorlage 328): Menü 285 px breit, unter „Alle anzeigen“ zwischen zwei Linien (#8a96a1, 4 px eingerückt) die Filterpillen
+   „Raumgruppen ˅“ und „Gebäude ˅“ (32 px hoch, Rahmen #bfc8cf, Schrift 14 px #8a96a1, Winkel 14 × 8 px im Abstand 6 px, links 16 px,
+   rechts 12 px), Abstand 8 px. Die Liste behält ihre Höhe (Menü 50 px höher). Die Pille ist mindestens 120 px breit, Inhalt mittig. */
+.kopfwahl.mit-filter .kw-pille { min-width: 120px; justify-content: center; }
+.kopfwahl.mit-filter .kw-menue { width: 285px; max-height: 441px; }
+.kw-filter { flex: none; display: flex; gap: 8px; margin: 1px 4px 0; padding: 8px 4px; border-top: 1px solid #8a96a1; border-bottom: 1px solid #8a96a1; }
+.kw-filter-feld { position: relative; min-width: 0; }
+.kw-filter-pille { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 32px; padding: 0 12px 0 16px; border: 1px solid #bfc8cf; border-radius: 999px;
+  background: #fff; font-size: 14px; font-weight: 500; line-height: 1; color: #8a96a1; white-space: nowrap; cursor: pointer; }
+.kw-filter-text { position: relative; top: -1px; overflow: hidden; text-overflow: ellipsis; }
+.kw-filter-pfeil { flex: none; }
+.kw-filter-pille:hover, .kw-filter-pille[aria-expanded="true"] { border-color: #8a96a1; color: #67747e; }
+.kw-filter-pille.aktiv { border-color: #414d55; color: #414d55; }
+.kw-filter-menue { position: absolute; top: calc(100% + 4px); left: 0; z-index: 2; min-width: 100%; max-height: 264px; overflow-y: auto; padding: 4px; background: #fff; border-radius: 4px;
+  box-shadow: 0 3px 6px -4px rgba(0, 0, 0, .12), 0 6px 16px 0 rgba(0, 0, 0, .08), 0 9px 28px 8px rgba(0, 0, 0, .05); }
+.kw-filter-menue[hidden] { display: none; }
+.kw-filter-menue .kw-option { padding-right: 16px; }
 @media (max-width: 767.98px) { .kw-raster { display: none; } }
 
 /* Pfeil im grünen Hover-Label wie Vorlage: klein und fein, Luft links ca. 0,57 em, rechts ca. 0,7 em */

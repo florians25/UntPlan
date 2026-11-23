@@ -233,20 +233,26 @@ public static class AppApi
 
         // ---------------------------------------------------------------- Stammdaten und Pläne
 
-        api.MapGet("/elemente", (HttpContext c, Paketdienst p) =>
+        api.MapGet("/elemente", (HttpContext c, Paketdienst p, Buchungsdienst bu) =>
         {
             var b = Ich(c);
             var s = p.Aktuell;
             if (s is null) return Results.Json(new { klassen = Array.Empty<object>(), lehrer = Array.Empty<object>(), raeume = Array.Empty<object>(), faecher = Array.Empty<object>(), stunden = Array.Empty<object>(), ferien = Array.Empty<object>() });
             var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
+            var raumdaten = bu.Raeume(s).ToDictionary(r => r.Kurz, StringComparer.OrdinalIgnoreCase);
             return Results.Json(new
             {
                 klassen = s.Paket.Elemente.Klassen.Where(k => b.Kollegium || b.HatKlasse(k.Kurz) || AndereKlassen(b))
                     .OrderBy(k => k.Kurz, de).Select(k => new { kurz = k.Kurz, name = k.Name, k.Jahrgang, leitung = k.Klassenleitung }),
                 lehrer = b.Kollegium ? s.Paket.Elemente.Lehrer.OrderBy(l => l.Kurz, de).Select(l => new { kurz = l.Kurz, name = string.Join(" ", new[] { l.Vorname, l.Name }.Where(x => x.Length > 0)) }).Cast<object>().ToList() : new List<object>(),
                 // Räume und (fürs Kollegium) Aufsichtsorte ohne eigenen Raum (z. B. „Einfahrt“, „Hof“): ihr Raumplan zeigt die Pausenaufsichten
-                raeume = s.Paket.Elemente.Raeume.Select(r => new { kurz = r.Kurz, name = r.Name, aufsichtsort = false })
-                    .Concat((b.Kollegium ? Plandienst.Aufsichtsorte(s) : new List<UntPlan.Web.Contracts.WebElement>()).Select(g => new { kurz = g.Kurz, name = g.Name, aufsichtsort = true }))
+                // mit Raumgruppen und Gebäude (aus UntPlan bzw. den Raumdaten in UntPlanWeb) für die Filter der Raumauswahl
+                raeume = s.Paket.Elemente.Raeume.Select(r => (r, d: raumdaten.GetValueOrDefault(r.Kurz)))
+                    .Select(x => new { kurz = x.r.Kurz, name = x.r.Name, aufsichtsort = false,
+                        raumgruppen = (x.r.Raumgruppen ?? new()).Append(x.d?.Raumgruppe ?? "").Select(g => g.Trim()).Where(g => g.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                        gebaeude = x.d?.Gebaeude is { Length: > 0 } g ? g : x.r.Gebaeude ?? "" })
+                    .Concat((b.Kollegium ? Plandienst.Aufsichtsorte(s) : new List<UntPlan.Web.Contracts.WebElement>())
+                        .Select(g => new { kurz = g.Kurz, name = g.Name, aufsichtsort = true, raumgruppen = new List<string>(), gebaeude = "" }))
                     .OrderBy(r => r.kurz, de),
                 faecher = s.Paket.Elemente.Faecher.Select(f => new { kurz = f.Kurz, name = f.Name, farbe = f.Farbe }),
                 stunden = s.Paket.Zeitraster.Stunden,
