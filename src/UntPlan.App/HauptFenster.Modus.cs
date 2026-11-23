@@ -332,7 +332,8 @@ public sealed partial class HauptFenster
         _status.BackColor = Ui.Kopf;
         // Statuszeile wie im Vorbild: links der Hilfehinweis, in der Mitte der Modus („Vertr.“)
         _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
-        _statusLinks.Font = Ui.DialogSchrift;
+        // Vorbild (gemessen): Statuszeile in Segoe UI 8,25 („Vertr.“ 26, „Vertretung“ 54 Pixel breit)
+        _statusLinks.Font = Ui.AbsenzSchrift;
         _statusLinks.ForeColor = Color.Black;
         // Vorbild-Bildschirmfoto: Hilfehinweis nimmt den freien Platz ein, „Vertr.“ linksbündig in einem festen Feld, rechts „DE“ und
         // „Vertretung“; die Kennzahlen der Datei (Periode, Klassen, Lehrkräfte) nur im Stundenplanmodus
@@ -343,7 +344,7 @@ public sealed partial class HauptFenster
         _statusMitte.AutoSize = !vm;
         if (vm) _statusMitte.Width = 685;
         _statusMitte.TextAlign = vm ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter;
-        _statusMitte.Font = _statusSprache.Font = _statusModus.Font = vm ? Ui.DialogSchrift : _status.Font;
+        _statusMitte.Font = _statusSprache.Font = _statusModus.Font = vm ? Ui.AbsenzSchrift : _status.Font;
         _statusRechts.Visible = !vm;
         _statusSprache.Visible = _statusModus.Visible = vm;
 

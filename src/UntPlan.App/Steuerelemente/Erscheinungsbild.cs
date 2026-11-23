@@ -17,8 +17,8 @@ namespace UntPlan.App.Steuerelemente;
 /// </summary>
 public static class Erscheinungsbild
 {
-    /// <summary>Rand der flachen Knöpfe (wie im Meldungsfenster).</summary>
-    public static readonly Color KnopfRand = Color.FromArgb(173, 173, 173);
+    /// <summary>Rand der flachen Knöpfe (wie im Meldungsfenster, gemessen (171,171,171)).</summary>
+    public static readonly Color KnopfRand = Color.FromArgb(171, 171, 171);
 
     private static readonly ConditionalWeakTable<Control, object> Gestaltet = new();
 
@@ -115,9 +115,102 @@ public static class Erscheinungsbild
                 case Form f: Dialog(f); break;
                 case Button b: Knopf(b); break;
                 case TabPage p: Karte(p); break;
+                case DataGridView g when g.BorderStyle == BorderStyle.Fixed3D: KlassischVertieft.Anmelden(g); break;
+                case GroupBox gb when gb.FlatStyle == FlatStyle.Standard: Gruppenrahmen(gb); break;
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Rahmen der Gruppenfelder wie im Vorbild (gemessen, „Von-Bis“): Linie (213,213,213) mit abgerundeten Ecken (2 Pixel) statt der
+    /// eckigen hellgrauen Linie von Windows; Beschriftung unverändert. Windows zeichnet zuerst, danach wird nur die Linie ersetzt.
+    /// </summary>
+    private static void Gruppenrahmen(GroupBox gb)
+    {
+        if (Gestaltet.TryGetValue(gb, out _) || InEigenemFenster(gb)) return;
+        Gestaltet.Add(gb, new object());
+        gb.Paint += (_, e) =>
+        {
+            if (gb.FlatStyle != FlatStyle.Standard || gb.Width < 8 || gb.Height < 8) return;
+            var g = e.Graphics;
+            var oben = gb.Font.Height / 2;
+            int r = gb.Width - 1, u = gb.Height - 1;
+            var text = string.IsNullOrEmpty(gb.Text) ? 0 : TextRenderer.MeasureText(g, gb.Text, gb.Font, Size.Empty, TextFormatFlags.NoPrefix).Width;
+            int textVon = 6, textBis = text == 0 ? 6 : 8 + text + 1;
+            var grund = gb.BackColor.A == 255 ? gb.BackColor : Ui.Kopf;
+            using (var weg = new Pen(grund))
+            {
+                g.DrawLine(weg, 0, oben, textVon - 1, oben);
+                g.DrawLine(weg, textBis, oben, r, oben);
+                g.DrawLine(weg, 0, oben, 0, u); g.DrawLine(weg, r, oben, r, u); g.DrawLine(weg, 0, u, r, u);
+            }
+            using var p = new Pen(Color.FromArgb(213, 213, 213));
+            g.DrawLine(p, 2, oben, textVon - 2, oben);
+            if (textBis + 1 <= r - 2) g.DrawLine(p, textBis + 1, oben, r - 2, oben);
+            g.DrawLine(p, 0, oben + 2, 0, u - 2); g.DrawLine(p, r, oben + 2, r, u - 2);
+            g.DrawLine(p, 2, u, r - 2, u);
+            using var punkt = new SolidBrush(p.Color);
+            foreach (var (x, y) in new[] { (1, oben + 1), (r - 1, oben + 1), (1, u - 1), (r - 1, u - 1) }) g.FillRectangle(punkt, x, y, 1, 1);
+        };
+        gb.Invalidate();
+    }
+
+    /// <summary>
+    /// Vertiefter Tabellenrahmen wie im Vorbild (gemessen): klassisch zweifarbig – oben/links außen (160,160,160), innen (105,105,105),
+    /// unten/rechts außen (255,255,255), innen (227,227,227) – statt der einfarbigen Linie, die Windows mit Designs zeichnet.
+    /// </summary>
+    internal sealed class KlassischVertieft : NativeWindow
+    {
+        private static readonly ConditionalWeakTable<Control, KlassischVertieft> Angemeldet = new();
+        private readonly Control _c;
+
+        private KlassischVertieft(Control c)
+        {
+            _c = c;
+            if (c.IsHandleCreated) { AssignHandle(c.Handle); Neuzeichnen(); }
+            c.HandleCreated += (_, _) => { if (Handle == IntPtr.Zero) AssignHandle(c.Handle); };
+            c.HandleDestroyed += (_, _) => ReleaseHandle();
+        }
+
+        public static void Anmelden(Control c)
+        {
+            if (!OperatingSystem.IsWindows() || Angemeldet.TryGetValue(c, out _)) return;
+            Angemeldet.Add(c, new KlassischVertieft(c));
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetWindowDC(IntPtr hwnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+        [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool RedrawWindow(IntPtr hwnd, IntPtr r, IntPtr rgn, uint flags);
+
+        private void Neuzeichnen()
+        {
+            try { RedrawWindow(_c.Handle, IntPtr.Zero, IntPtr.Zero, 0x0400 | 0x0001 /* RDW_FRAME | RDW_INVALIDATE */); }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg != 0x85 /* WM_NCPAINT */ || _c is DataGridView { BorderStyle: not BorderStyle.Fixed3D }) return;
+            try
+            {
+                var dc = GetWindowDC(m.HWnd);
+                if (dc == IntPtr.Zero) return;
+                try
+                {
+                    using var g = Graphics.FromHdc(dc);
+                    int w = _c.Width, h = _c.Height;
+                    void Linie(Color c, int x1, int y1, int x2, int y2) { using var p = new Pen(c); g.DrawLine(p, x1, y1, x2, y2); }
+                    Linie(Color.FromArgb(160, 160, 160), 0, 0, w - 2, 0); Linie(Color.FromArgb(160, 160, 160), 0, 0, 0, h - 2);
+                    Linie(Color.White, 0, h - 1, w - 1, h - 1); Linie(Color.White, w - 1, 0, w - 1, h - 1);
+                    Linie(Color.FromArgb(105, 105, 105), 1, 1, w - 3, 1); Linie(Color.FromArgb(105, 105, 105), 1, 1, 1, h - 3);
+                    Linie(Color.FromArgb(227, 227, 227), 1, h - 2, w - 2, h - 2); Linie(Color.FromArgb(227, 227, 227), w - 2, 1, w - 2, h - 2);
+                }
+                finally { ReleaseDC(m.HWnd, dc); }
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
     }
 
     /// <summary>Kontext- und Aufklappmenüs in den Modusfarben (Farben werden bei jedem Zeichnen gelesen: Moduswechsel wirkt sofort).</summary>

@@ -451,9 +451,13 @@ public class MdiFenster : Form
             {
                 if (e.ToolStrip is not Fensterleiste) { base.OnRenderOverflowButtonBackground(e); return; }
                 var it = e.Item;
-                using (var b = new SolidBrush(it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor)) e.Graphics.FillRectangle(b, 0, 0, it.Width, it.Height);
-                // Vorbild (gemessen): 5 × 3 Pixel in (119,119,119) mit weichen Kanten
-                var m = new Point(it.Width / 2, it.Height - 9);
+                var l = (Fensterleiste)e.ToolStrip;
+                // die helle Leiste endet wie im Vorbild 7 Pixel vor dem Fensterrand, auch unter dem Überlaufknopf
+                var hellBis = l.Einziehen ? l.Width - Einzug - it.Bounds.X : it.Width;
+                using (var aussen = new SolidBrush(Ui.Kopf)) e.Graphics.FillRectangle(aussen, 0, 0, it.Width, it.Height);
+                using (var b = new SolidBrush(it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor)) e.Graphics.FillRectangle(b, 0, 0, Math.Min(it.Width, hellBis), it.Height);
+                // Vorbild (gemessen): 5 × 3 Pixel in (119,119,119) mit weichen Kanten, Mitte 14 Pixel vor dem Fensterrand
+                var m = new Point(l.Einziehen ? l.Width - 14 - it.Bounds.X : it.Width / 2, it.Height - 9);
                 var grund = it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor;
                 float[,] maske = { { .55f, 1, 1, 1, .55f }, { 0, .74f, 1, .74f, 0 }, { 0, .07f, .69f, .07f, 0 } };
                 for (var y = 0; y < 3; y++)

@@ -223,6 +223,34 @@ public static partial class Ui
         foreach (var k in kaestchen) k.FlatStyle = FlatStyle.Standard;
     }
 
+    /// <summary>Feld der Datumsauswahl, das Windows sonst auf die Schrifthöhe festlegt (zwischengespeicherte Wunschhöhe).</summary>
+    private static readonly System.Reflection.FieldInfo? DatumHoeheFeld = typeof(DateTimePicker)
+        .GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+        .FirstOrDefault(f => f.Name.Contains("prefHeight", StringComparison.OrdinalIgnoreCase) && (f.FieldType == typeof(short) || f.FieldType == typeof(int)));
+
+    /// <summary>Lässt sich die Höhe der Datumsfelder festlegen (für den Selbsttest)?</summary>
+    internal static bool DatumHoeheMoeglich => DatumHoeheFeld != null;
+
+    /// <summary>
+    /// Datumsfeld in der Höhe des Vorbilds (gemessen: 24 Pixel samt Rand, Ziffern 7 Pixel unter der oberen Randlinie) statt der von
+    /// Windows aus der Schrift berechneten 20 Pixel. Die Höhe bleibt auch nach einem Schriftwechsel erhalten.
+    /// </summary>
+    public static void DatumsfeldHoehe(DateTimePicker d, int hoehe = 24)
+    {
+        if (DatumHoeheFeld is null) return;
+        void Setzen()
+        {
+            var soll = d.LogicalToDeviceUnits(hoehe);
+            if (d.Height == soll) return;
+            try { DatumHoeheFeld.SetValue(d, Convert.ChangeType(soll, DatumHoeheFeld.FieldType)); }
+            catch (Exception ex) when (ex is ArgumentException or InvalidCastException or FieldAccessException) { return; }
+            d.Height = soll;
+        }
+        Setzen();
+        d.SizeChanged += (_, _) => Setzen();
+        d.FontChanged += (_, _) => { if (d.IsHandleCreated) d.BeginInvoke(Setzen); };
+    }
+
     public static void RasterGestalten(DataGridView g, bool editierbar = true)
     {
         RasterFarben(g);

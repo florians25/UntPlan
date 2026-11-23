@@ -60,6 +60,7 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         {
             f.Format = DateTimePickerFormat.Custom;
             f.CustomFormat = "dd.MM.yyyy";
+            Ui.DatumsfeldHoehe(f);
         }
         _von.Margin = new Padding(0, 0, 0, 0);
         _bis.Margin = new Padding(0, 0, 0, 0);

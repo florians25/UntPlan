@@ -123,7 +123,7 @@ public static partial class Ui
                 Font = Schrift, UseVisualStyleBackColor = false,
                 Enabled = istAbbrechen || aktiv is null || index >= aktiv.Count || aktiv[index],
             };
-            b.FlatAppearance.BorderColor = Color.FromArgb(173, 173, 173);
+            b.FlatAppearance.BorderColor = Steuerelemente.Erscheinungsbild.KnopfRand;
             b.FlatAppearance.BorderSize = 1;
             b.FlatAppearance.MouseOverBackColor = Hover;
             b.FlatAppearance.MouseDownBackColor = BlauHell;
@@ -171,8 +171,21 @@ public static partial class Ui
         /// <summary>Bereich des Schließen-Knopfes (×) in der Titelleiste.</summary>
         internal Rectangle SchliessenBereich => new(ClientSize.Width - 1 - SchliessenBreite, 1, SchliessenBreite, TitelHoehe);
 
-        protected override void OnActivated(EventArgs e) { base.OnActivated(e); Aktiv = true; Invalidate(); }
-        protected override void OnDeactivate(EventArgs e) { base.OnDeactivate(e); Aktiv = false; Invalidate(); }
+        protected override void OnActivated(EventArgs e) { base.OnActivated(e); Aktiv = true; RandfarbeSetzen(); Invalidate(); }
+        protected override void OnDeactivate(EventArgs e) { base.OnDeactivate(e); Aktiv = false; RandfarbeSetzen(); Invalidate(); }
+
+        /// <summary>Windows 11 zeichnet um das Fenster eine eigene Randlinie: in der Farbe des Vorbilds (aktiv dunkelgrün, sonst grau).</summary>
+        private void RandfarbeSetzen()
+        {
+            if (!IsHandleCreated || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+            try
+            {
+                var c = Aktiv ? MeldungKnopfRand : MeldungRahmen;
+                var farbe = c.R | (c.G << 8) | (c.B << 16);
+                DwmSetWindowAttribute(Handle, 34 /* DWMWA_BORDER_COLOR */, ref farbe, 4);
+            }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
         private struct Raender { public int L, R, O, U; }
@@ -190,6 +203,7 @@ public static partial class Ui
                 DwmSetWindowAttribute(Handle, 2, ref an, 4);
                 var r = new Raender { L = 1, R = 1, O = 1, U = 1 };
                 DwmExtendFrameIntoClientArea(Handle, ref r);
+                RandfarbeSetzen();
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
         }
@@ -270,7 +284,7 @@ public static partial class Ui
             using (var b = new SolidBrush(TitelFarbe)) g.FillRectangle(b, titel);
             if (_schliessenHover)
                 using (var rot = new SolidBrush(Color.FromArgb(232, 17, 35))) g.FillRectangle(rot, SchliessenBereich);
-            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(12, 4, w - 12 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
+            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(12, 5, w - 12 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             // × wie bei den Arbeitsfenstern (9 × 9 mit weichen Kanten), Mitte 24 Pixel vor dem rechten Rand und 11 unter dem oberen
             var grund = _schliessenHover ? Color.FromArgb(232, 17, 35) : TitelFarbe;

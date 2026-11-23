@@ -21,7 +21,7 @@ public sealed partial class HauptFenster : Form
     // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos (1916 px): Hilfehinweis links (dehnbar), „Vertr.“ ab x 1089 in einem
     // 685 px breiten Feld, dann die Felder „DE“ (32 px) und „Vertretung“ (98 px) vor dem Größengriff
     private readonly ToolStripStatusLabel _statusSprache = new("DE") { AutoSize = false, Width = 32, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
-    private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 98, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
+    private readonly ToolStripStatusLabel _statusModus = new("Vertretung") { AutoSize = false, Width = 118, TextAlign = ContentAlignment.MiddleLeft, Visible = false };
     /// <summary>Updateanzeige (GitHub-Releases) mit Hinweis rechts in der Statusleiste.</summary>
     internal Updateanzeige Updates { get; }
     private readonly Eingabeassistent _assistent;
@@ -57,11 +57,12 @@ public sealed partial class HauptFenster : Form
         Updates = new Updateanzeige(this);
         _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts, _statusSprache, _statusModus, Updates.Label });
         _status.Font = Ui.Schrift;
-        // Statusleiste wie im Vorbild (gemessen): 20 Pixel hoch samt 1 Pixel Linie (213,213,213) oben, ohne Größengriff
+        // Statusleiste wie im Vorbild (gemessen): 19 Pixel hoch direkt unter dem Rand des Arbeitsbereichs, ohne eigene Linie und
+        // ohne Größengriff; Text 7 Pixel unter der Oberkante
         _status.SizingGrip = false;
         _status.AutoSize = false;
-        _status.Height = LogicalToDeviceUnits(20);
-        _status.Padding = new Padding(1, 1, 0, 0);
+        _status.Height = LogicalToDeviceUnits(19);
+        _status.Padding = new Padding(1, 3, 0, 0);
         _status.Renderer = new StatusDarstellung();
 
         _assistent = new Eingabeassistent { Dock = DockStyle.Right, Width = 230, Visible = AppZustand.Einstellungen.AssistentZeigen };
@@ -965,7 +966,7 @@ public sealed partial class HauptFenster : Form
         catch (Exception ex) { Ui.Fehler(ex); }
     }
 
-    /// <summary>Statusleiste: Fläche in der Kopffarbe, oben eine einzelne graue Linie (statt der hellen Doppellinie).</summary>
+    /// <summary>Statusleiste: Fläche in der Kopffarbe ohne Randlinie (die Linie darüber ist der Rand des Arbeitsbereichs).</summary>
     private sealed class StatusDarstellung : ToolStripProfessionalRenderer
     {
         protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
@@ -974,11 +975,7 @@ public sealed partial class HauptFenster : Form
             e.Graphics.FillRectangle(b, e.AffectedBounds);
         }
 
-        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
-        {
-            using var p = new Pen(Color.FromArgb(213, 213, 213));
-            e.Graphics.DrawLine(p, 0, 0, e.ToolStrip.Width, 0);
-        }
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e) { }
     }
 }
 
