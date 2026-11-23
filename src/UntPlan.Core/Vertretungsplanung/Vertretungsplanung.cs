@@ -988,7 +988,7 @@ public static class Vertretungen
                 ziel.VertreterId = ZielLehrer(d, tpNach, ziel.LehrerId, nachStunde);
                 if (ziel.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt) ziel.Art = ziel.VertreterId is null ? VertretungsArt.Verlegt : VertretungsArt.Verlegung;
                 ziel.VertretungsraumId = ZielRaum(tpNach, nachStunde, ziel.VertretungsraumId ?? ziel.RaumId, e.Unterricht, zeile, d);
-                ziel.ZielraumId = ziel.VertretungsraumId;
+                ziel.ZielraumId ??= ziel.RaumId; // Bezug bleibt der Raum am Ursprung
                 if (quelle != null) { quelle.NachDatum = nachDatum; quelle.NachStunde = nachStunde; }
                 Markieren(ziel, benutzer);
                 // eine offene Stunde, die die verlegte Stunde bisher gefüllt hatte (Vorziehung), ist wieder offen
@@ -1030,7 +1030,9 @@ public static class Vertretungen
             };
             z.VertreterId = ZielLehrer(d, tpNach, lehrer, nachStunde) ?? (vertreterVorher is int vv && LehrerBelegt(d, tpNach, vv, nachStunde) is null ? vv : null);
             z.VertretungsraumId = ZielRaum(tpNach, nachStunde, q.VertretungsraumId ?? q.RaumId, e.Unterricht, zeile, d);
-            z.ZielraumId = z.VertretungsraumId;
+            // Bezugsraum am Ziel: der Raum, den die Stunde an ihrem Ursprung tatsächlich hatte (auch ein dort geänderter Raum) – findet sie am
+            // Ziel in einem anderen Raum statt, ist das eine Raumänderung („alt → neu“); „Räume mitnehmen“ behält ihn (keine Raumänderung)
+            z.ZielraumId = e.RaumIds.Count > 0 ? e.RaumIds[0] : q.VertretungsraumId ?? q.RaumId ?? z.VertretungsraumId;
             // Lehrkraft ist an der Zielposition nicht verfügbar: „verlegt“ – offene Vertretung
             if (z.VertreterId is null && zielArt == VertretungsArt.Verlegung) z.Art = VertretungsArt.Verlegt;
             d.Vertretungen.Add(z);
@@ -2258,14 +2260,22 @@ public sealed record PlanZeile(DateOnly Datum, int Stunde, string Klassen, strin
 public static class Vertretungsplan
 {
     /// <summary>
-    /// Bisheriger (Soll-)Raum einer Zeile: bei der Zielstunde einer Verlegung der Raum, den die Verlegung ihr gibt (wie in der Vorlage –
-    /// nur eine spätere Raumänderung ist eine Raumänderung); ältere Verlegungen ohne gemerkten Zielraum: der aktuelle Raum. Sonst der Raum
-    /// des Unterrichts.
+    /// Bisheriger (Soll-)Raum einer Zeile: bei der Zielstunde einer Verlegung der Raum, den die Stunde an ihrem Ursprung hatte (findet sie am
+    /// Ziel woanders statt, ist das eine Raumänderung; „Räume mitnehmen“ = keine); ältere Verlegungen ohne gemerkten Raum: der aktuelle Raum.
+    /// Sonst der Raum des Unterrichts.
     /// </summary>
     public static int? SollRaum(Vertretung v) =>
         v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch
             ? v.ZielraumId ?? v.VertretungsraumId ?? v.RaumId
             : v.RaumId;
+
+    /// <summary>
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als an ihrem Ursprung (z. B. „Belassen“ bzw. Raum am Ziel belegt):
+    /// eine Raumänderung – „(Raum)“ und „Raum“ unterscheiden sich, Kalender zählt sie bei „Raum-V.“.
+    /// </summary>
+    public static bool VerlegungMitRaumaenderung(Vertretung v) =>
+        v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch
+        && SollRaum(v) is int soll && (v.VertretungsraumId ?? v.RaumId) is int ist && soll != ist;
 
     public static string ArtText(VertretungsArt a) => a switch
     {

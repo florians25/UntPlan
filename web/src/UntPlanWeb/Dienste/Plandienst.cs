@@ -577,7 +577,8 @@ public sealed class Plandienst
                 Elementtyp.Lehrer => IstVeranstaltung(r) ? Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz) && !Abwesend(kurz, r.Stunde))
                     : Enthaelt(r.Lehrer, kurz) || (v != null && Ci.Equals(v.Lehrer, kurz)) || Mitgekoppelt(r),
                 // Veranstaltung mit Raum: der Raum steht (bei älteren Paketen) nur in der Vertretung
-                Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && (RaumListe(v.Raum).Contains(kurz, Ci) || (r.Raeume.Count == 0 && r.Status != "entfall" && RaumListe(v.NeuerRaum).Contains(kurz, Ci)))),
+                // (Zielstunde einer Verlegung: „Raum“ ist der Raum am Ursprung – zur Zielzeit war die Stunde nie dort)
+                Elementtyp.Raum => Enthaelt(r.Raeume, kurz) || (v != null && ((v.VertrVon.Trim().Length == 0 && RaumListe(v.Raum).Contains(kurz, Ci)) || (r.Raeume.Count == 0 && r.Status != "entfall" && RaumListe(v.NeuerRaum).Contains(kurz, Ci)))),
                 _ => false,
             };
             // vorgemerkte Raumänderung eines Unterrichts: wird unten auf die Stunde gelegt, falls diese im Plan steht
@@ -1625,9 +1626,10 @@ public sealed class Plandienst
     }
 
     /// <summary>
-    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als laut Stundenplan: der Raum als grünes Label („alt → neu“,
-    /// hinzugefügter Raum „+R“) wie bei jeder Raumänderung. Der Vertretungsplan nennt am Ziel den Raum der Zielstunde als Soll-Raum (Raum
-    /// gleich neuer Raum) – verglichen wird daher mit den Räumen des Unterrichts laut Stundenplan an der ursprünglichen Stunde.
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als an ihrem Ursprung: der Raum als grünes Label („alt → neu“,
+    /// hinzugefügter Raum „+R“) wie bei jeder Raumänderung. Bezug ist der Raum, den die Stunde an ihrem Ursprung tatsächlich hatte – UntPlan
+    /// nennt ihn in der Vertretung als bisherigen Raum („Raum“; auch ein am Ursprung geänderter Raum). „Räume mitnehmen“ behält ihn: kein Label.
+    /// Ältere Pakete ohne diesen Raum: die Räume des Unterrichts laut Stundenplan an der ursprünglichen Stunde.
     /// </summary>
     private Karte VerlegungsRaum(Stand s, Karte k, WebVertretung? v)
     {
@@ -1635,11 +1637,17 @@ public sealed class Plandienst
             || !DateOnly.TryParse(von.Datum, out var vd) || k.Raeume.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt))) return k;
         var jetzt = k.Raeume.Select(w => w.K).Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
         if (jetzt.Count == 0) return k;
-        var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == von.Stunde).ToList();
-        // Kopplung: die Zeile(n) der Lehrkraft dieser Karte
-        var lehrer = k.Lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Append(v?.Lehrer ?? "").Where(x => x.Length > 0).ToList();
-        var eigene = zeilen.Where(r => r.Lehrer.Any(l => Enthaelt(lehrer, l))).ToList();
-        var regel = (eigene.Count > 0 ? eigene : zeilen).SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
+        var ursprung = RaumListe(v?.Raum ?? "").Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
+        List<string> regel;
+        if (ursprung.Count > 0) regel = ursprung;
+        else
+        {
+            var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == von.Stunde).ToList();
+            // Kopplung: die Zeile(n) der Lehrkraft dieser Karte
+            var lehrer = k.Lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Append(v?.Lehrer ?? "").Where(x => x.Length > 0).ToList();
+            var eigene = zeilen.Where(r => r.Lehrer.Any(l => Enthaelt(lehrer, l))).ToList();
+            regel = (eigene.Count > 0 ? eigene : zeilen).SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
+        }
         if (regel.Count == 0 || jetzt.All(x => Enthaelt(regel, x))) return k;
         return k with { Raeume = RaeumeNachBuchung(regel.Select(x => new Wert(x)).ToList(), jetzt) };
     }

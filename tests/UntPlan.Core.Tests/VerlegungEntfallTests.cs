@@ -182,6 +182,58 @@ public class VerlegungEntfallTests
     }
 
     [Fact]
+    public void RaeumeMitnehmenIstKeineRaumaenderungBelassenSchon()
+    {
+        // Bezug am Ziel ist der Raum am Ursprung: „Mitnehmen“ behält ihn (kein Label), „Belassen“ (Stammraum R1) ist eine Raumänderung R0 → R1
+        foreach (var mitnahme in new[] { RaumMitnahme.Mitnehmen, RaumMitnahme.Belassen })
+        {
+            var s = new Schule();
+            s.K[0].StammraumId = s.R[1].Id;
+            var u = s.U(0, 0, (0, 2));
+            var a = Tagesverlegung.Analysieren(s.D, s.Montag, 2, u.Id, null, 1, s.Montag, 6);
+            Assert.True(Verlegungsraeume.MitnahmeFrageNoetig(Verlegungsraeume.Zeilen(s.D, a)));
+            Tagesverlegung.Ausfuehren(s.D, a, VerlegeModus.Verlegen, raeume: new VerlegeRaumWahl(mitnahme));
+            var z = Assert.Single(s.An(s.Montag, 6));
+            Assert.Equal(s.R[0].Id, Vertretungsplan.SollRaum(z));
+            var zeile = Vertretungsplan.Zeilen(s.D, s.Montag).Single(x => x.Id == z.Id);
+            var k = Kalenderkennzahlen.Tag(s.D, s.Montag);
+            if (mitnahme == RaumMitnahme.Mitnehmen)
+            {
+                Assert.Equal(s.R[0].Id, z.VertretungsraumId);
+                Assert.False(Vertretungsplan.VerlegungMitRaumaenderung(z));
+                Assert.Equal(("R0", "R0"), (zeile.Raum, zeile.NeuerRaum));
+                Assert.Equal(0, k.Raumvertretungen);
+            }
+            else
+            {
+                Assert.Equal(s.R[1].Id, z.VertretungsraumId);
+                Assert.True(Vertretungsplan.VerlegungMitRaumaenderung(z));
+                Assert.Equal(("R0", "R1"), (zeile.Raum, zeile.NeuerRaum));
+                Assert.Equal(1, k.Raumvertretungen);
+            }
+        }
+    }
+
+    [Fact]
+    public void BezugsraumIstDerTatsaechlicheRaumAmUrsprung()
+    {
+        // am Ursprung schon in einen anderen Raum geändert (R2): Bezug ist R2, nicht der Raum laut Stundenplan (R0)
+        var s = new Schule();
+        var u = s.U(0, 0, (0, 2));
+        Vertretungen.RaumAendern(s.D, u.Id, 0, s.Montag, 2, s.R[2].Id, false);
+        Vertretungen.Verlegen(s.D, u.Id, null, s.Montag, 2, s.Montag, 6);
+        var z = Assert.Single(s.An(s.Montag, 6));
+        Assert.Equal(s.R[2].Id, Vertretungsplan.SollRaum(z));
+        Assert.Equal(s.R[2].Id, z.VertretungsraumId);
+        Assert.False(Vertretungsplan.VerlegungMitRaumaenderung(z));
+        // am Ziel später in R3: Raumänderung R2 → R3
+        Verlegungsraeume.RaumSetzen(s.D, z, s.R[3].Id, RaumBelegtLoesung.Kollision);
+        Assert.True(Vertretungsplan.VerlegungMitRaumaenderung(z));
+        var zeile = Vertretungsplan.Zeilen(s.D, s.Montag).Single(x => x.Id == z.Id);
+        Assert.Equal(("R2", "R3"), (zeile.Raum, zeile.NeuerRaum));
+    }
+
+    [Fact]
     public void ReinerEntfallZeigtStricheUndEntfallBeiNach()
     {
         var s = new Schule();

@@ -2089,6 +2089,9 @@ public sealed partial class PlanAnsicht : Control
             _ => lehrer,
         };
         var raum = Typ == ElementTyp.Raum ? "" : string.Join(",", e.RaumIds.Select(x => Kurz(ElementTyp.Raum, x)));
+        // verlegte Stunde in einem anderen Raum als am Ursprung: Raumänderung „alt→neu“
+        if (!entfall && raum.Length > 0 && v != null && Core.Vertretungsplanung.Vertretungsplan.VerlegungMitRaumaenderung(v) && Core.Vertretungsplanung.Vertretungsplan.SollRaum(v) is int altRaum)
+            raum = $"{Kurz(ElementTyp.Raum, altRaum)}→{raum}";
         if (entfall)
         {
             // Entfall wie im Vorbild: alle Werte einzeln durchgestrichen (kein Schrägbalken), ggf. Ziel der Verlegung darunter
