@@ -234,6 +234,10 @@ public class VertretungsmodusDetailTests
         Vertretungen.VertreterSetzen(d, v, vertreter.Id);
         var a = Tagesverlegung.Analysieren(d, tag, r.Stunde, r.Unterricht.Id, null, 1, tag, frei);
         Tagesverlegung.Ausfuehren(d, a, VerlegeModus.Kollision);
+        // die Vertretung geht mit der Stunde; der Ursprung bleibt offen, bis er auf Entfall gesetzt wird
+        Assert.True(v.Offen);
+        Assert.True(Vertretungen.IstOffenerUrsprung(v));
+        Verlegungsaufhebung.AufEntfallSetzen(d, v);
         Assert.Equal(VertretungsArt.Entfall, v.Art);
         Assert.Contains(d.Vertretungen, x => x.Datum == tag && x.Stunde == frei && x.Art == VertretungsArt.Verlegung && x.UnterrichtId == r.Unterricht.Id);
     }

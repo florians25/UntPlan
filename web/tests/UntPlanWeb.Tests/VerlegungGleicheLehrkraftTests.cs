@@ -98,13 +98,25 @@ public class VerlegungGleicheLehrkraftTests
         }
         foreach (var v in d.Vertretungen) _aus.WriteLine($"Zeile: {v.Art} U{v.UnterrichtId} {v.Stunde} → {v.Text}");
         var p = new PortalEinstellungen { Adresse = s.Adresse.ToString(), SchulId = Testserver.SchulId, ApiSchluessel = Testserver.ApiSchluessel };
-        var paket = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7 });
-        Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = 1 })).Ok);
-        if (nurVertretungen)
+        var revision = 0;
+        async Task HochladenAsync()
         {
-            var nur = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7, Teile = new() { WebTeile.Vertretungen } });
-            Assert.True((await UntPlanWebExport.HochladenAsync(p, nur with { Revision = 2 })).Ok);
+            var paket = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7 });
+            Assert.True((await UntPlanWebExport.HochladenAsync(p, paket with { Revision = ++revision })).Ok);
+            if (nurVertretungen)
+            {
+                var nur = UntPlanWebExport.PaketErstellen(d, Freitag.AddDays(-4), new WebExportOptionen { TageVoraus = 7, Teile = new() { WebTeile.Vertretungen } });
+                Assert.True((await UntPlanWebExport.HochladenAsync(p, nur with { Revision = ++revision })).Ok);
+            }
         }
+        await HochladenAsync();
+        // wie im Vorbild bleibt der Ursprung zunächst offene Vertretung („???“), bis er auf Entfall gesetzt wird
+        var offenerUrsprung = Assert.Single(await KartenAsync(s, "klasse", "FIS4H", StundeFis));
+        Assert.Equal("offen", Status(offenerUrsprung));
+        Assert.Equal("von", Verlegung(offenerUrsprung));
+        OhneFremdeKlassen(offenerUrsprung);
+        foreach (var q in d.Vertretungen.Where(Vertretungen.IstOffenerUrsprung).ToList()) Verlegungsaufhebung.AufEntfallSetzen(d, q);
+        await HochladenAsync();
 
         // Ziel der Verlegung von ITS41 (= Ursprung von FIS4H): im Plan von ITS41 nur die verlegte Stunde, FIS4H nicht durchgestrichen
         var itsZiel = Assert.Single(await KartenAsync(s, "klasse", "ITS41", StundeFis));

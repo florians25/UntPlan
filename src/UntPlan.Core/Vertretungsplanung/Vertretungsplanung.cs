@@ -684,6 +684,8 @@ public static class Vertretungen
         foreach (var e in tp.Stunde(stunde))
         {
             if (!e.Findetstatt || !e.LehrerIds.Contains(lehrerId) || (ausser != null && e.Vertretung == ausser)) continue;
+            // andere Zeile derselben Kopplung (eine Zeile in der Liste): dieselbe Stunde, keine Doppelbelegung
+            if (ausser != null && e.Vertretung != null && GleicheKopplung(ausser, e.Vertretung)) continue;
             if (e.Status == TagesStatus.Regulaer && IstBereitschaftsfach(d, e.FachId)) continue; // Bereitschaft = verfügbar
             if (e.Vertretung?.Mitbetreuung == true) continue;
             return e.Status == TagesStatus.Regulaer ? "eigener Unterricht" : "vertritt bereits";
@@ -797,7 +799,7 @@ public static class Vertretungen
         else if (mitbetreuung) v.Art = VertretungsArt.Betreuung;
         else if (frei) v.Art = VertretungsArt.StattVertretung;
         else if (v.Art == VertretungsArt.Bereitschaftsvertretung) { }
-        else if (tp.VonLehrer(l).Any(e => e.Stunde == stunde && e.Vertretung != v && !IstBereitschaftsfach(d, e.FachId))) v.Art = VertretungsArt.Lehrertausch;
+        else if (tp.VonLehrer(l).Any(e => e.Stunde == stunde && e.Vertretung != v && !(e.Vertretung != null && GleicheKopplung(v, e.Vertretung)) && !IstBereitschaftsfach(d, e.FachId))) v.Art = VertretungsArt.Lehrertausch;
         else v.Art = VertretungsArt.Vertretung;
         v.Mehrarbeit = !bereit && !frei && !mitbetreuung && v.Art is VertretungsArt.Vertretung or VertretungsArt.Lehrertausch or VertretungsArt.Sondereinsatz or VertretungsArt.Klausur;
         // Lehrer-Raum-Prinzip: Raum des Vertreters
@@ -946,16 +948,20 @@ public static class Vertretungen
 
     /// <summary>
     /// Verlegt den Unterricht (alle aktiven Kopplungszeilen oder eine Zeile) von einer Position auf eine andere.
-    /// An der Ursprungsposition entsteht ein Entfall ("(Le.) nach"), an der Zielposition eine Verlegung ("Vertr. von").
-    /// Wird eine verlegte Stunde zurück an ihren Ursprung gezogen, wird die Verlegung aufgehoben.
+    /// An der Zielposition entsteht eine Verlegung ("Vertr. von"). Die Ursprungsposition bleibt wie im Vorbild zunächst als offene
+    /// Vertretung stehen (Vertreter „???“, "(Le.) nach" = Ziel) – die Lehrkraft fehlt dort, weil sie in der Zielstunde unterrichtet. Erst wenn
+    /// der Ursprung auf Entfall gesetzt wird (Rückfrage „Verlegung rückgängig?“, Nein), wird er zum Entfall; war die Stunde schon entfallen,
+    /// bleibt sie Entfall. Wird eine verlegte Stunde zurück an ihren Ursprung gezogen, wird die Verlegung aufgehoben.
     /// </summary>
+    /// <param name="ursprungEntfall">true = der Ursprung entfällt sofort (Vorziehung: die spätere Stunde entfällt).</param>
     public static void Verlegen(Schuldatei d, int unterrichtId, int? zeilenIndex, DateOnly vonDatum, int vonStunde, DateOnly nachDatum, int nachStunde,
-        VertretungsArt zielArt = VertretungsArt.Verlegung, string benutzer = "")
+        VertretungsArt zielArt = VertretungsArt.Verlegung, string benutzer = "", bool ursprungEntfall = false)
     {
         if (vonDatum == nachDatum && vonStunde == nachStunde) return;
         var tpVon = Tagesplan.Berechnen(d, vonDatum);
         // auch eine bereits entfallene Stunde lässt sich verlegen: ihr Entfall wird zum Ursprung der Verlegung (keine zweite Zeile)
-        var eintraege = tpVon.Stunde(vonStunde).Where(e => (e.Findetstatt || IstEinfacherEntfall(e.Vertretung)) &&
+        // ein (noch offener) Ursprung einer Verlegung ist nicht der Unterricht selbst – dieser liegt an der Zielposition
+        var eintraege = tpVon.Stunde(vonStunde).Where(e => (e.Findetstatt || IstEinfacherEntfall(e.Vertretung)) && !IstUrsprung(e.Vertretung) &&
             (e.Regel?.Unterricht.Id == unterrichtId || e.Vertretung?.UnterrichtId == unterrichtId) &&
             (zeilenIndex is null || (e.Regel?.ZeilenIndex ?? e.Vertretung?.ZeilenIndex) == zeilenIndex)).ToList();
         if (eintraege.Count == 0) throw new InvalidOperationException("An dieser Position findet der Unterricht nicht statt.");
@@ -1005,7 +1011,9 @@ public static class Vertretungen
                 q.VertreterVorVerlegung = q.VertreterId;
             }
             var vertreterVorher = q.VertreterId;
-            q.Art = VertretungsArt.Entfall;
+            var warEntfall = q.Art is VertretungsArt.Entfall or VertretungsArt.BereitschaftEntfaellt;
+            // Ursprung: offene Vertretung (Lehrkraft fehlt dort), bis er auf Entfall gesetzt wird; eine entfallene Stunde bleibt Entfall
+            q.Art = ursprungEntfall || warEntfall ? VertretungsArt.Entfall : IstBereitschaftsfach(d, q.FachId) ? VertretungsArt.BereitschaftEntfaellt : VertretungsArt.Vertretung;
             q.Quelle = IstAbgeleitet(q) ? q.Quelle : VertretungsQuelle.Verlegung;
             if (q.Quelle == VertretungsQuelle.Absenz && q.AbwesenheitId is null) q.Quelle = VertretungsQuelle.Verlegung;
             q.VertreterId = null;
@@ -1058,6 +1066,62 @@ public static class Vertretungen
         }
         return res;
     }
+
+    /// <summary>
+    /// Schlüssel einer Kopplung in der Vertretungsliste: Zeilen derselben Stunde, die zu einer gemeinsam unterrichteten Stunde gehören
+    /// (Kopplungszeilen bzw. parallele Unterrichte derselben Lehrkraft mit gleichem Fach und Raum) und gleich vertreten werden, stehen wie
+    /// im Vorbild in EINER Zeile mit allen Klassen („HP12A, HP13A“). Die Zeilen bleiben einzeln gespeichert (je Kopplungszeile, wie die
+    /// Statistik zählt); Liste, Kalender-Kennzahlen und Vertretungsplan (Druck, UntPlanWeb) fassen sie über diesen Schlüssel zusammen,
+    /// Bearbeitungen in der Liste gelten für alle Zeilen der Gruppe. null = einzeln (keine Kopplung möglich).
+    /// </summary>
+    public static string? KopplungsSchluessel(Vertretung v)
+    {
+        if (v.UnterrichtId is not int uid || v.Id == 0 || v.Fixiert || v.GangId.HasValue) return null;
+        if (v.Art is VertretungsArt.Veranstaltung or VertretungsArt.Pausenaufsicht or VertretungsArt.Vormerkung or VertretungsArt.Unterricht
+            or VertretungsArt.Klausur or VertretungsArt.Sondereinsatz or VertretungsArt.SondereinsatzVormerkung) return null;
+        // Raumvertretung einer Kopplung im gemeinsamen Raum: alle, die gemeinsam aus einem Raum umziehen (auch andere Lehrkräfte)
+        if (v.Art == VertretungsArt.Raumvertretung)
+            return v.RaumId.HasValue ? $"KR{v.Datum}/{v.Stunde}/{v.RaumId}/{v.VertretungsraumId}/{string.Join(",", v.ZusatzraumIds)}/{v.RaumVerdraengt}/{v.Text}" : null;
+        // sonst: dieselbe Lehrkraft (ohne Lehrkraft: derselbe Unterricht) mit gleichem Fach und Raum und gleicher Vertretung
+        // geteilte Vertretung (Vertretung teilen): jede Hälfte bleibt eine eigene Zeile
+        if (v.VertretungsKlassenIds != null) return null;
+        var wer = v.LehrerId is int l ? $"L{l}" : $"U{uid}";
+        return $"KV{v.Datum}/{v.Stunde}/{v.Art}/{wer}/{v.FachId}/{v.RaumId}/{v.VertreterId}/{v.VertretungsfachId}/{v.VertretungsraumId}/" +
+               $"{string.Join(",", v.ZusatzraumIds)}/{v.Mitbetreuung}/{v.NachDatum}/{v.NachStunde}/{v.VonDatum}/{v.VonStunde}/{v.Text}";
+    }
+
+    /// <summary>
+    /// Gehören zwei Zeilen zur selben gemeinsam unterrichteten Stunde (Kopplung bzw. paralleler Unterricht derselben Lehrkraft mit gleichem
+    /// Fach und Raum)? Unabhängig davon, wie sie gerade vertreten sind – ein Vertreter für beide ist keine Doppelbelegung.
+    /// </summary>
+    public static bool GleicheKopplung(Vertretung a, Vertretung b) =>
+        a != b && a.Datum == b.Datum && a.Stunde == b.Stunde && a.UnterrichtId is int ua && b.UnterrichtId is int ub && a.GangId is null && b.GangId is null
+        && (ua != ub || a.ZeilenIndex != b.ZeilenIndex) && a.VertretungsKlassenIds is null && b.VertretungsKlassenIds is null
+        && a.FachId == b.FachId && a.RaumId == b.RaumId && (a.LehrerId is int la ? la == b.LehrerId : ua == ub && b.LehrerId is null);
+
+    /// <summary>
+    /// Zeilen der Liste je Kopplung zusammenfassen (siehe <see cref="KopplungsSchluessel"/>): je Gruppe die erste Zeile (kleinste Vtr-Nr.)
+    /// mit allen Zeilen der Gruppe, in der Reihenfolge der Eingabe.
+    /// </summary>
+    public static List<(Vertretung Zeile, List<Vertretung> Gruppe)> NachKopplung(IEnumerable<Vertretung> liste)
+    {
+        var res = new List<(Vertretung, List<Vertretung>)>();
+        var gruppen = new Dictionary<string, List<Vertretung>>();
+        foreach (var v in liste)
+        {
+            if (KopplungsSchluessel(v) is not { } k) { res.Add((v, new List<Vertretung> { v })); continue; }
+            if (gruppen.TryGetValue(k, out var g)) { g.Add(v); continue; }
+            gruppen[k] = g = new List<Vertretung> { v };
+            res.Add((v, g));
+        }
+        return res.Select(x => x.Item2.Count > 1 ? (x.Item2.OrderBy(v => v.Id).First(), x.Item2.OrderBy(v => v.Id).ToList()) : x).ToList();
+    }
+
+    /// <summary>Ursprung einer Verlegung bzw. eines Tausches (Zeile mit "(Le.) nach"), gleich ob noch offen oder schon Entfall.</summary>
+    public static bool IstUrsprung(Vertretung? v) => v is { NachDatum: not null, VerlegungsId: not null };
+
+    /// <summary>Noch offener Ursprung einer Verlegung (nicht auf Entfall gesetzt): Rückfrage „Verlegung rückgängig?“ vor dem Entfall.</summary>
+    public static bool IstOffenerUrsprung(Vertretung? v) => IstUrsprung(v) && !v!.IstEntfall;
 
     /// <summary>Entfall ohne Verlegung (Stunde entfallen lassen, Entfall laut Vertretungsregel).</summary>
     public static bool IstEinfacherEntfall(Vertretung? v) => v is { Art: VertretungsArt.Entfall, NachDatum: null, VerlegungsId: null, VonDatum: null };
@@ -1168,7 +1232,15 @@ public static class Vertretungen
                 if (e.Vertretung.VerlegungsId is int vid)
                     foreach (var q in d.Vertretungen.Where(x => x.VerlegungsId == vid && x != e.Vertretung).ToList())
                     {
-                        // der Ursprung bleibt Entfall (die Stunde fällt jetzt ganz aus), ohne „(Le.) nach“
+                        // der Ursprung wird bzw. bleibt Entfall (die Stunde fällt jetzt ganz aus), ohne „(Le.) nach“
+                        if (!q.IstEntfall)
+                        {
+                            q.Art = IstBereitschaftsfach(d, q.FachId) ? VertretungsArt.BereitschaftEntfaellt : VertretungsArt.Entfall;
+                            q.VertreterId = null;
+                            q.VertretungsraumId = null;
+                            q.Mehrarbeit = false;
+                            Markieren(q, benutzer);
+                        }
                         q.NachDatum = null;
                         q.NachStunde = null;
                         q.VerlegungsId = null;
@@ -2005,7 +2077,7 @@ public static class VertretungsVorschlag
             try
             {
                 if (offen != null) VorziehungAusfuehren(probe, offen, s1);
-                else Vertretungen.Verlegen(probe, s1.Eintrag.Unterricht!.Id, null, s1.Datum, s1.Stunde, v.Datum, v.Stunde);
+                else Vertretungen.Verlegen(probe, s1.Eintrag.Unterricht!.Id, null, s1.Datum, s1.Stunde, v.Datum, v.Stunde, ursprungEntfall: true);
             }
             catch (InvalidOperationException) { continue; }
             var luecke = new Vertretung { Datum = s1.Datum, Stunde = s1.Stunde, KlassenIds = v.KlassenIds.ToList(), UnterrichtId = s1.Eintrag.Unterricht!.Id, Art = VertretungsArt.Vertretung };
@@ -2058,7 +2130,7 @@ public static class VertretungsVorschlag
             var zweite = vz.Schritt2VertretungId is int id ? d.Vertretungen.FirstOrDefault(x => x.Id == id) ?? throw new InvalidOperationException("Die zweite Stunde der Doppelstunde ist nicht mehr offen.") : null;
             VorziehungAusfuehren(d, offen, vz with { Schritt2 = null, Schritt2VertretungId = null }, benutzer);
             if (zweite != null) VorziehungAusfuehren(d, zweite, s2, benutzer);
-            else Vertretungen.Verlegen(d, s2.Eintrag.Unterricht!.Id, null, s2.Datum, s2.Stunde, vz.Datum, vz.Stunde, VertretungsArt.Verlegung, benutzer);
+            else Vertretungen.Verlegen(d, s2.Eintrag.Unterricht!.Id, null, s2.Datum, s2.Stunde, vz.Datum, vz.Stunde, VertretungsArt.Verlegung, benutzer, ursprungEntfall: true);
             return;
         }
         var uid = vz.Eintrag.Unterricht!.Id;
@@ -2068,7 +2140,8 @@ public static class VertretungsVorschlag
         offen.Art = VertretungsArt.Entfall;
         offen.VertreterId = null;
         offen.Bearbeitet = true;
-        Vertretungen.Verlegen(d, uid, null, vz.Datum, vz.Stunde, offen.Datum, offen.Stunde, VertretungsArt.Verlegung, benutzer);
+        // vorgezogen: die spätere Stunde entfällt sofort (dafür wird sie ja vorgezogen)
+        Vertretungen.Verlegen(d, uid, null, vz.Datum, vz.Stunde, offen.Datum, offen.Stunde, VertretungsArt.Verlegung, benutzer, ursprungEntfall: true);
     }
 
     /// <summary>

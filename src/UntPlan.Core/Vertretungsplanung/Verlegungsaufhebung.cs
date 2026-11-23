@@ -88,6 +88,40 @@ public static class Verlegungsaufhebung
         return anzahl;
     }
 
+    /// <summary>Frage vor dem Entfall einer verlegten bzw. getauschten Stunde (Titel „UntPlan - Frage“, Knöpfe Ja/Nein/Abbrechen).</summary>
+    public const string RueckfrageKopf = "Verlegung rückgängig?";
+    public const string RueckfrageJa = "Ja = Verlegung/Tausch wird rückgängig gemacht";
+    public const string RueckfrageNein = "Nein = Stunde wird auf Entfall gesetzt";
+
+    /// <summary>
+    /// Text der Rückfrage wie im Vorbild:
+    /// „Verlegung rückgängig?“, Leerzeile, Lehrkraft, „1.9. / 1 -> 1.9. / 7“ (Ursprung -> Ziel), Leerzeile, Ja-/Nein-Erklärung.
+    /// </summary>
+    public static string RueckfrageText(Schuldatei d, Vertretung v)
+    {
+        var ziel = IstZielArt(v.Art) && v.VonDatum.HasValue ? v : Ziel(d, v);
+        var ursprung = ziel is null ? v : Ursprung(d, ziel) ?? v;
+        var (vonDatum, vonStunde) = ziel?.VonDatum is DateOnly vd ? (vd, ziel.VonStunde) : (ursprung.Datum, (int?)ursprung.Stunde);
+        var (nachDatum, nachStunde) = ziel is not null ? (ziel.Datum, (int?)ziel.Stunde) : (ursprung.NachDatum ?? ursprung.Datum, ursprung.NachStunde);
+        var lehrer = v.LehrerId ?? ursprung.LehrerId ?? ziel?.LehrerId;
+        var name = lehrer is int l ? DatenIndex.Fuer(d).KLehrer(l) : "";
+        return $"{RueckfrageKopf}\n\n{name}\n{Vertretungsanzeige.Position(vonDatum, vonStunde)} -> {Vertretungsanzeige.Position(nachDatum, nachStunde)}\n\n{RueckfrageJa}\n{RueckfrageNein}";
+    }
+
+    /// <summary>
+    /// Antwort „Nein“ auf die Rückfrage: die Zeile wird auf Entfall gesetzt. Ein (offener) Ursprung wird zum Entfall mit „(Le.) nach“ –
+    /// die Verlegung bleibt bestehen; eine verlegte Stunde an ihrem Ziel entfällt ganz (der Ursprung bleibt Entfall ohne „nach“).
+    /// </summary>
+    public static void AufEntfallSetzen(Schuldatei d, Vertretung v, string benutzer = "")
+    {
+        if (IstZielArt(v.Art) && v.VonDatum.HasValue && v.UnterrichtId is int uid)
+        {
+            Vertretungen.Entfallen(d, uid, v.ZeilenIndex, v.Datum, v.Stunde, benutzer);
+            return;
+        }
+        if (!v.IstEntfall) Vertretungen.EntfallUmschalten(d, v, benutzer);
+    }
+
     /// <summary>Verlegung über die Position im tagesaktuellen Plan aufheben (Unterricht an Datum/Stunde, Ziel oder Ursprung).</summary>
     public static int Aufheben(Schuldatei d, DateOnly datum, int stunde, int unterrichtId)
     {

@@ -699,6 +699,10 @@ public sealed partial class HauptFenster
                 .FirstOrDefault(p => Core.Vertretungsplanung.Tagesverlegung.Zielstatus(dd, tp, p.a.Stunde, p.a.Unterricht!.Id, null, tp, p.b.Stunde) == Core.Planung.Feldstatus.TauschMoeglich);
             if (paar.a is null) throw new InvalidOperationException("Kein Stundentausch möglich.");
             Core.Vertretungsplanung.Vertretungen.Tauschen(dd, paar.a.Unterricht!.Id, tag, paar.a.Stunde, paar.b.Unterricht!.Id, tag, paar.b.Stunde);
+            // wie im Vorbild bleiben beide Ursprünge zunächst offen („???“); auf Entfall gesetzt (Rückfrage: Nein) zeigt die Liste je Position eine Zeile „Tausch“
+            var urspruenge = dd.Vertretungen.Where(v => v.Datum == tag && Core.Vertretungsplanung.Vertretungen.IstUrsprung(v) && (v.UnterrichtId == paar.a.Unterricht!.Id || v.UnterrichtId == paar.b.Unterricht!.Id)).ToList();
+            if (urspruenge.Count != 2 || !urspruenge.All(v => v.Offen)) throw new InvalidOperationException($"Stundentausch: Ursprünge nicht offen ({urspruenge.Count}).");
+            foreach (var q in urspruenge) Core.Vertretungsplanung.Verlegungsaufhebung.AufEntfallSetzen(dd, q);
             var f = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
             Warten(400);
             log.Add("INFO  " + f.SelbsttestTausch());
@@ -1620,6 +1624,107 @@ public sealed partial class HauptFenster
             if (!klein.Plan.FreiBeschriftungen.Any(x => x.Text.EndsWith("…"))) throw new InvalidOperationException("Miniplan kürzt die Bezeichnung nicht: " + string.Join(" | ", klein.Plan.FreiBeschriftungen.Select(x => x.Text)));
             log.Add("INFO  Unterrichtsfrei: " + string.Join(" | ", texte) + " / klein: " + string.Join(" | ", klein.Plan.FreiBeschriftungen.Select(x => x.Text)));
         }, -1);
+        Schritt("V36_Verlegung_Rueckfrage", () =>
+        {
+            // Verlegen: der Ursprung bleibt offene Vertretung („???“, Lehrkraft fehlt dort); Entfall darauf fragt wie im Vorbild
+            // „Verlegung rückgängig?“ (Ja = Verlegung rückgängig, Nein = Entfall, Abbrechen = nichts)
+            AppZustand.DatumSetzen(tag);
+            var dd = AppZustand.D;
+            bool Aendern3(string text, AenderungsArt art, Action<Schuldatei> a) { AppZustand.Doc.Aendern(text, art, a); return true; }
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            var r = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, tag).First(x => x.LehrerId is int l && l != krank.Id && tp.Stunde(x.Stunde).Any(e => e.Findetstatt && e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht?.Id == x.Unterricht.Id) && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == x.Unterricht.Id) && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l && a.Von <= tag && a.Bis >= tag) && x.Unterricht.Zeilen.Count == 1 && string.IsNullOrEmpty(x.Unterricht.Band) &&
+                Enumerable.Range(1, dd.Zeitraster.StundenProTag).Any(s => s != x.Stunde && !tp.Regel.Any(y => y.Unterricht.Id == x.Unterricht.Id && y.Stunde == s) && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { l }, x.KlassenIds, s, x.Unterricht.Id, x.RaumId) == Core.Planung.Feldstatus.Frei));
+            var ziel = Enumerable.Range(1, dd.Zeitraster.StundenProTag).First(s => s != r.Stunde && !tp.Regel.Any(y => y.Unterricht.Id == r.Unterricht.Id && y.Stunde == s) && Core.Vertretungsplanung.Vertretungen.Feldstatus(dd, tp, new[] { r.LehrerId!.Value }, r.KlassenIds, s, r.Unterricht.Id, r.RaumId) == Core.Planung.Feldstatus.Frei);
+            var offenVorher = Core.Vertretungsplanung.Kalenderkennzahlen.Tag(dd, tag).Offen;
+            void Verlegen() => AppZustand.Doc.Aendern("Verlegen (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, r.Unterricht.Id, null, tag, r.Stunde, tag, ziel));
+            Vertretung Ursprung() => AppZustand.D.Vertretungen.Single(v => v.Datum == tag && v.Stunde == r.Stunde && v.UnterrichtId == r.Unterricht.Id);
+            Verlegen();
+            var q = Ursprung();
+            if (!q.Offen || !Core.Vertretungsplanung.Vertretungen.IstOffenerUrsprung(q) || q.NachStunde != ziel) throw new InvalidOperationException($"Verlegung: Ursprung nicht offen ({q.Art}, nach {q.NachStunde}).");
+            if (Core.Vertretungsplanung.Vertretungsanzeige.Vertreter(AppZustand.D, q) != "???") throw new InvalidOperationException("Verlegung: offener Ursprung ohne „???“.");
+            var offenNachher = Core.Vertretungsplanung.Kalenderkennzahlen.Tag(AppZustand.D, tag).Offen;
+            if (offenNachher != offenVorher + 1) throw new InvalidOperationException($"Kalender: offen {offenVorher} → {offenNachher} statt +1.");
+            var vf = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            // Rückfrage wie im Vorbild zeigen und fotografieren, dann per Knopf „Nein“ beantworten
+            var text = Core.Vertretungsplanung.Verlegungsaufhebung.RueckfrageText(AppZustand.D, q);
+            var antwort = new System.Runtime.CompilerServices.StrongBox<int?>();
+            var frage = Ui.MeldungsFenster(text, VerlegungsAbfrage.Titel, MeldungsArt.Frage, new[] { "Ja", "Nein" }, 0, true, null, antwort);
+            frage.StartPosition = FormStartPosition.CenterScreen;
+            frage.Show(this);
+            Warten(700);
+            Foto(Path.Combine(ordner, "V36_Verlegung_Rueckfrage_F.png"));
+            var knoepfe = frage.Controls.Find("Knopfleiste", false).SelectMany(p => p.Controls.OfType<Button>()).Select(b => b.Text).ToList();
+            if (!knoepfe.Contains("Ja") || !knoepfe.Contains("Nein") || !knoepfe.Contains("Abbrechen")) throw new InvalidOperationException("Rückfrage: Knöpfe " + string.Join("/", knoepfe));
+            if ((frage.AcceptButton as Button)?.Text != "Ja") throw new InvalidOperationException("Rückfrage: Ja ist nicht vorgewählt.");
+            frage.Controls.Find("Knopfleiste", false).SelectMany(p => p.Controls.OfType<Button>()).First(b => b.Text == "Nein").PerformClick();
+            frage.Close();
+            if (antwort.Value != 1) throw new InvalidOperationException($"Rückfrage: Antwort {antwort.Value} statt Nein.");
+            // dieselbe Antwort über den Ablauf der Vertretungsliste: Nein = Entfall (mit „(Le.) nach“), Verlegung bleibt
+            var auswahl = new List<string>();
+            var hookVorher = Ui.AuswahlAntwort;
+            try
+            {
+                Ui.AuswahlAntwort = (t, _) => { auswahl.Add(t); return 1; };
+                var rest = VerlegungsAbfrage.VorEntfall(new[] { Ursprung() }, Aendern3);
+                if (rest is null || rest.Count != 0) throw new InvalidOperationException("Nein: Zeile nicht erledigt.");
+                q = Ursprung();
+                if (q.Art != VertretungsArt.Entfall || q.NachStunde != ziel) throw new InvalidOperationException($"Nein: Ursprung {q.Art}, nach {q.NachStunde} statt Entfall.");
+                if (!AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.Stunde == ziel && v.UnterrichtId == r.Unterricht.Id)) throw new InvalidOperationException("Nein: Verlegung fehlt.");
+                if (auswahl.Count != 1 || auswahl[0] != text) throw new InvalidOperationException("Nein: Rückfragetext abweichend: " + string.Join(" | ", auswahl));
+                // Entfall aufheben: wieder offener Ursprung; Abbrechen ändert nichts
+                AppZustand.Doc.Aendern("Entfall aufgehoben (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.EntfallUmschalten(x, x.Vertretungen.First(v => v.Id == q.Id)));
+                if (!Core.Vertretungsplanung.Vertretungen.IstOffenerUrsprung(Ursprung())) throw new InvalidOperationException("Entfall aufgehoben: Ursprung nicht wieder offen.");
+                Ui.AuswahlAntwort = (_, _) => null;
+                if (VerlegungsAbfrage.VorEntfall(new[] { Ursprung() }, Aendern3) is not null) throw new InvalidOperationException("Abbrechen: nicht abgebrochen.");
+                if (!Core.Vertretungsplanung.Vertretungen.IstOffenerUrsprung(Ursprung())) throw new InvalidOperationException("Abbrechen: Ursprung verändert.");
+                // Ja über den Stundenplan bzw. Planungsdialog (Position): Verlegung rückgängig, Stunde wieder an ihrem Platz
+                Ui.AuswahlAntwort = (_, _) => 0;
+                if (!VerlegungsAbfrage.VorEntfall(tag, r.Stunde, r.Unterricht.Id, Aendern3)) throw new InvalidOperationException("Ja: nicht erledigt.");
+                if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id)) throw new InvalidOperationException("Ja: Verlegung nicht rückgängig gemacht.");
+            }
+            finally { Ui.AuswahlAntwort = hookVorher; }
+            log.Add($"INFO  V36 Verlegung U{r.Unterricht.Id} {r.Stunde}. → {ziel}. Std.: Ursprung offen (Kalender offen {offenVorher} → {offenNachher}); Rückfrage „{text.Replace("\n", " / ")}“; Nein = Entfall, Abbrechen = unverändert, Ja = rückgängig");
+            vf.Focus();
+        }, -1);
+        Schritt("V37_Kopplung_eine_Zeile", () =>
+        {
+            // Kopplung wie im Vorbild: eine Zeile mit allen Klassen; Lehrkraft einer Kopplung mit mehreren Zeilen (gleiches Fach, gleicher Raum) fehlt
+            AppZustand.DatumSetzen(tag);
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            var kandidat = tp.Regel.Where(r => r.LehrerId is int l && l != krank.Id && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id))
+                .GroupBy(r => (r.Unterricht.Id, r.Stunde)).Select(g => g.ToList())
+                .FirstOrDefault(g => g.Count > 1 && g.Select(r => r.KlassenIds.FirstOrDefault()).Distinct().Count() > 1 && g.Select(r => (r.LehrerId, r.FachId, r.RaumId)).Distinct().Count() < g.Count);
+            if (kandidat is null)
+            {
+                // keine passende Kopplung im Beispiel: eine anlegen (zwei Zeilen derselben Lehrkraft mit gleichem Fach und Raum)
+                var r0 = tp.Regel.FirstOrDefault(r => r.LehrerId is int l && l != krank.Id && r.Unterricht.Zeilen.Count == 1 && r.KlassenIds.Count == 1 && r.RaumId.HasValue
+                                                     && !dd.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id)
+                                                     && dd.Klassen.Any(k => !r.KlassenIds.Contains(k.Id) && !tp.Stunde(r.Stunde).Any(e => e.KlassenIds.Contains(k.Id))));
+                if (r0 is null) { log.Add("INFO  V37: keine Stunde für eine Kopplung gefunden"); return; }
+                var k2 = dd.Klassen.First(k => !r0.KlassenIds.Contains(k.Id) && !tp.Stunde(r0.Stunde).Any(e => e.KlassenIds.Contains(k.Id)));
+                AppZustand.Doc.Aendern("Kopplung (Selbsttest)", AenderungsArt.Stundenplan, x =>
+                {
+                    var periode = x.PeriodeAm(tag);
+                    var u = (periode.Unterrichte ?? x.Unterrichte).First(y => y.Id == r0.Unterricht.Id);
+                    u.Zeilen.Add(new Kopplungszeile { LehrerId = r0.LehrerId, FachId = r0.FachId, KlassenIds = { k2.Id } });
+                    foreach (var p in periode.Plan.Where(p => p.UnterrichtId == u.Id)) p.Raeume = Enumerable.Repeat(p.Raeume.FirstOrDefault(), u.Zeilen.Count).ToList();
+                });
+                kandidat = Core.Vertretungsplanung.Tagesplan.Berechnen(AppZustand.D, tag).Regel.Where(r => r.Unterricht.Id == r0.Unterricht.Id && r.Stunde == r0.Stunde).ToList();
+            }
+            var lehrer = kandidat.GroupBy(r => (r.LehrerId, r.FachId, r.RaumId)).First(g => g.Count() > 1).Key.LehrerId!.Value;
+            var abs = new Abwesenheit { Art = AbwesenheitsArt.Lehrer, ElementId = lehrer, Von = tag, Bis = tag, StundeVon = kandidat[0].Stunde, StundeBis = kandidat[0].Stunde };
+            AppZustand.Doc.Aendern("Absenz (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.AbsenzVerwaltung.Speichern(x, new[] { abs }, Array.Empty<Abwesenheit>()));
+            var zeilen = AppZustand.D.Vertretungen.Where(v => v.Datum == tag && v.Stunde == kandidat[0].Stunde && v.UnterrichtId == kandidat[0].Unterricht.Id && v.LehrerId == lehrer).ToList();
+            if (zeilen.Count < 2) throw new InvalidOperationException($"Kopplung: {zeilen.Count} Vertretungszeile(n) statt mehrerer.");
+            if (Core.Vertretungsplanung.Vertretungen.NachKopplung(zeilen).Count != 1) throw new InvalidOperationException("Kopplung: nicht in einer Gruppe.");
+            var vf = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+            Warten(400);
+            log.Add("INFO  V37 " + vf.SelbsttestKopplung());
+            Warten(400);
+            Foto(Path.Combine(ordner, "V37_Kopplung_eine_Zeile_F.png"));
+        }, -1);
         Schritt("19d9_Verlegung_Absenz_Abfragen", () =>
         {
             // Z1/Z2: Verlegung bei „Entfall“ rückgängig machen; neue Lehrer-Absenz fragt nach Verlegungen und Sondereinsätzen
@@ -1634,7 +1739,7 @@ public sealed partial class HauptFenster
             AppZustand.Doc.Aendern("Verlegen (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.Vertretungen.Verlegen(x, r.Unterricht.Id, null, tag, r.Stunde, tag, ziel));
             fragen.Clear();
             if (!VerlegungsAbfrage.VorEntfall(tag, ziel, r.Unterricht.Id, Aendern2)) throw new InvalidOperationException("Entfall bei Verlegung: keine Rückfrage bzw. nicht aufgehoben.");
-            if (!fragen.Any(f => f.Contains(VerlegungsAbfrage.FrageVerlegung))) throw new InvalidOperationException("Rückfrage „Soll die Verlegung rückgängig gemacht werden?“ fehlt.");
+            if (!fragen.Any(f => f.StartsWith(Core.Vertretungsplanung.Verlegungsaufhebung.RueckfrageKopf))) throw new InvalidOperationException("Rückfrage „Verlegung rückgängig?“ fehlt.");
             if (AppZustand.D.Vertretungen.Any(v => v.Datum == tag && v.UnterrichtId == r.Unterricht.Id && (v.Stunde == ziel || v.IstEntfall))) throw new InvalidOperationException("Verlegung wurde nicht aufgehoben.");
             log.Add("INFO  Z2 Rückfrage: " + fragen[0].Replace("\n", " / "));
             // Z1: wieder verlegen, Sondereinsatz eintragen, dann wird die Lehrkraft krank

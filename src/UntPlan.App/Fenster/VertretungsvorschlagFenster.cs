@@ -1174,6 +1174,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var ids = Ziele();
         var liste = D.Vertretungen.Where(x => ids.Contains(x.Id)).ToList();
         var rest = VerlegungsAbfrage.VorEntfall(liste, Aendern);
+        if (rest is null) return; // Abbrechen
         // Sondereinsatz auf Entfall: Rückfrage, ob er gelöscht werden soll
         var seLoeschen = StundenplanFenster.SondereinsatzLoeschenFragen(rest.Where(v => Vertretungen.IstSondereinsatz(v) && !v.IstEntfall)) == true;
         if (rest.Count == liste.Count && !seLoeschen) { Aktion("Entfall", (d, v) => Vertretungen.EntfallUmschalten(d, v, AppZustand.Benutzer)); return; }
