@@ -87,6 +87,31 @@ public class AufsichtZusatzTests
     }
 
     [Fact]
+    public async Task Aufsicht_liefert_Vertretungstext_fuer_die_Details()
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 292;
+        paket["pausenaufsichten"] = new JsonArray(Aufsicht(3, 2), Aufsicht(3, 5));
+        var vertretungen = paket["vertretungen"]!.AsArray();
+        foreach (var v in vertretungen.Where(v => S(v!["art"]) == "Pausenaufsicht").ToList()) vertretungen.Remove(v);
+        var mitText = Vertretung(9720, "2026-10-15", 2, "Pausenaufsicht", "KLE", "RIC", "Hof", true);
+        mitText["text"] = "  Bitte auch den Eingang im Blick behalten ";
+        vertretungen.Add(mitText);
+
+        var kle = (await PlanAsync(paket, "lehrer", "KLE", "2026-10-12"))["aufsichten"]!.AsArray().Select(x => x!).ToList();
+        var vertreten = kle.Single(x => S(x["datum"]) == "2026-10-15" && x["nachStunde"]!.GetValue<int>() == 2);
+        Assert.Equal("vertreten", S(vertreten["status"]));
+        Assert.Equal("Bitte auch den Eingang im Blick behalten", S(vertreten["text"]));
+        // reguläre Aufsicht ohne Vertretung: kein Text
+        Assert.Null(kle.Single(x => S(x["datum"]) == "2026-10-15" && x["nachStunde"]!.GetValue<int>() == 5)["text"]);
+
+        var ric = (await PlanAsync(paket, "lehrer", "RIC", "2026-10-12"))["aufsichten"]!.AsArray().Select(x => x!).ToList();
+        var vertretung = ric.Single(x => S(x["status"]) == "vertretung" && S(x["datum"]) == "2026-10-15");
+        Assert.Equal("KLE", S(vertretung["alt"]));
+        Assert.Equal("Bitte auch den Eingang im Blick behalten", S(vertretung["text"]));
+    }
+
+    [Fact]
     public async Task Zusatzstunde_zeigt_alle_Lehrkraefte_schlicht_ohne_alt_neu()
     {
         var paket = Testserver.Beispielpaket();

@@ -185,7 +185,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
   // eigener Plan ohne Elementauswahl nur unter „Mein Stundenplan“; unter „Lehrkraft“ immer mit Auswahl (auch eigene Lehrkraft)
   const istMein = mein && typ === ich.typ && !!meinElement && element.toLowerCase() === meinElement.toLowerCase();
   kontext.titel('');
-  document.title = `${istMein ? 'Mein Stundenplan' : `${TYPEN[typ]} ${element}`} | UntPlanWeb`;
+  document.title = 'UntPlanWeb';
 
   const einst = planEinstellungen();
   const aus = legendeAus();
@@ -253,7 +253,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       ${wochenGitter(plan, { gewaehlterTag: gewaehlt, kartenZeiten: einst.zeitenGewaehlt ? einst.zeiten : (plan.format?.kartenZeiten || einst.zeiten) })}
       ${legendeHtml(aus, einst, true, plan)}`;
     inhalt.querySelectorAll('[data-tagwahl]').forEach(b => b.onclick = () => { gewaehlt = Number(b.dataset.tagwahl); gemerkterTag = plan.tage[gewaehlt]?.datum ?? gemerkterTag; zeichnen(); });
-    kartenBinden(inhalt, plan.karten, kontext, typ, plan.format);
+    kartenBinden(inhalt, plan.karten, kontext, typ, plan.format, plan.aufsichten ?? []);
     legendeBinden(inhalt, aus, einst, () => zeichnen(true));
     if (menueOffen) inhalt.querySelector('[data-legende-menue]')?.classList.remove('d-none');
   };

@@ -194,6 +194,8 @@ public sealed record Aufsicht(string Datum, int NachStunde, string Beginn, strin
 {
     /// <summary>Nur bei Status „offen“ (Abwesenheit bzw. Titel der Veranstaltung) bzw. „entfall“ (Text der Vertretung): Anlass; sonst null.</summary>
     public string? Grund { get; init; }
+    /// <summary>Vertretungstext der Aufsichtsvertretung (Status „vertreten“ bzw. „vertretung“) für die Details der Aufsicht; sonst null.</summary>
+    public string? Text { get; init; }
 }
 
 public sealed record Tageskopf(string Datum, string Wochentag, string Woche, bool Frei, string? FreiGrund, bool Tagesaktuell, List<string> Hinweise, List<Ereignis> Ereignisse, string? FreiArt = null, string? FreiVon = null, string? FreiBis = null)
@@ -1884,16 +1886,18 @@ public sealed class Plandienst
                 ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "offen", "???", lehrer) { Grund = offen }
                 : v is null
                 ? new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "regulaer", lehrer, null)
-                : new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "vertreten", v.Vertreter is "" or "???" ? "???" : v.Vertreter, lehrer));
+                : new Aufsicht(Iso(d), a.NachStunde, b, e, a.Gang, GangName(a.Gang), "vertreten", v.Vertreter is "" or "???" ? "???" : v.Vertreter, lehrer) { Text = Vertretungstext(v.Text) });
         }
         foreach (var v in vertretungen.Where(x => Ci.Equals(x.Vertreter, lehrer) && !Ci.Equals(x.Lehrer, lehrer)))
         {
             var (b, e) = Pause(v.Stunde);
             var gang = v.NeuerRaum.Length > 0 ? v.NeuerRaum : v.Raum;
-            res.Add(new Aufsicht(Iso(d), v.Stunde, b, e, gang, GangName(gang), "vertretung", lehrer, v.Lehrer));
+            res.Add(new Aufsicht(Iso(d), v.Stunde, b, e, gang, GangName(gang), "vertretung", lehrer, v.Lehrer) { Text = Vertretungstext(v.Text) });
         }
         return res.OrderBy(x => x.NachStunde).ToList();
     }
+
+    private static string? Vertretungstext(string? t) => string.IsNullOrWhiteSpace(t) ? null : t.Trim();
 
     /// <summary>
     /// Gehört der Aufsichtsbereich (Gang) zum Ort <paramref name="ort"/> des Raumplans? Gleiches Kürzel, bzw. Name des Bereichs gleich dem

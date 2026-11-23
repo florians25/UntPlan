@@ -58,6 +58,10 @@ const HAKEN = '<svg class="sd-linie" viewBox="0 0 16 16" aria-hidden="true"><cir
  * Beendet die Abwesenheit jetzt – anwesend ab der aktuellen Uhrzeit, Verspätung von Stundenbeginn bis jetzt.
  */
 const BETT_AUF = '<svg class="sd-bett" viewBox="0 0 20 16" aria-hidden="true"><path class="bett" d="M2 4.5v9.5M2 11.6h16M18 8.6v5.4M2 8.6h16"/><rect class="bett" x="3.3" y="6.3" width="3.6" height="2.3" rx="1.1"/><path class="pfeil" d="M12.4 8.6V1.8M9.9 4.3l2.5-2.5 2.5 2.5"/></svg>';
+/** Feine Winkel wie im Original: „Vorherige/Nächste Stunde“ (9 × 17 px) und „Zur Ansicht zurück“ oben rechts (16 × 9 px). */
+const WINKEL_LINKS = '<svg class="sd-winkel" viewBox="0 0 9 17" width="9" height="17" aria-hidden="true"><path d="M8 1 1 8.5 8 16"/></svg>';
+const WINKEL_RECHTS = '<svg class="sd-winkel" viewBox="0 0 9 17" width="9" height="17" aria-hidden="true"><path d="M1 1l7 7.5L1 16"/></svg>';
+const WINKEL_RUNTER = '<svg class="sd-winkel" viewBox="0 0 16 9" width="16" height="9" aria-hidden="true"><path d="M1 1l7 7 7-7"/></svg>';
 /** Plus als feines Linien-Symbol (runde Enden, genau mittig im runden Knopf). */
 const PLUS_SYM = '<svg class="sd-plus-sym" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.25v9.5M3.25 8h9.5"/></svg>';
 
@@ -209,6 +213,7 @@ export function karteDialog(karte, kontext = {}) {
   }
 
   function kopf() {
+    if (k.aufsicht) return aufsichtKopf();
     // Raum ersetzen/hinzufügen wie in der Vorlage: die Raumwahl füllt das ganze Fenster – eigener Kopf „HN011 ersetzen“ mit X
     // (zurück zu den Details), ohne Stundenkopf und Reiter
     if (reiter === 'raum') return `<div class="sd-kopf rv-kopf"><h2>${e(raumModus?.art === 'ersetzen' ? `${raumModus.raum} ersetzen` : 'Räume hinzufügen')}</h2>
@@ -246,10 +251,29 @@ export function karteDialog(karte, kontext = {}) {
         <div class="sd-titel"><h2>${titel.map(t => `<span class="sd-tteil">${t}</span>`).join('<span class="trenn">|</span>')}${pille ? `<span class="sd-statuspille">${pille}</span>` : ''}${k.unbestaetigt && !istEntfall() ? '<span class="sd-statuspille">Zusätzlicher Unterricht</span>' : ''}${einzel ? `<span class="sd-statuspille sd-einzelpille">${einzel}. Stunde</span>` : ''}</h2>
           <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
         <div class="sd-knoepfe">${istBlock() && !reiter?.match(/^(pruefung|raum)$/) ? blockWahl()
-          : '<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück"><i class="bi bi-chevron-down"></i></button>'}
+          : `<button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück">${WINKEL_RUNTER}</button>`}
           <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
       </div>
       <ul class="nav sd-reiter${leiste ? ' grau' : ''}">${reiterListe.map(([id, t]) => `<li><button type="button" data-reiter="${id}" class="${reiter === id ? 'aktiv' : ''}">${t}</button></li>`).join('')}</ul>`;
+  }
+
+  /**
+   * Kopf einer Pausenaufsicht im Aufbau der Stundendetails: Titel Aufsichtsbereich (Kurzname, dazu der Langname, wenn er abweicht),
+   * dazu die graue Pille „Pausenaufsicht“; darunter „Wochentag | Datum | Pausenzeit | Lehrkraft“ (Vertretung „alt → neu“, offene bzw.
+   * entfallene Aufsicht durchgestrichen); entfallene Aufsicht mit rotem Balken „ENTFÄLLT“ und grauem Kopf wie eine entfallene Stunde.
+   */
+  function aufsichtKopf() {
+    const a = k.aufsicht;
+    const titel = [e(k.ort), k.ortName && k.ortName.toLowerCase() !== k.ort.toLowerCase() ? e(k.ortName) : ''].filter(Boolean);
+    const zeile = [wochentag(k.datum), datumDe(k.datum), a.beginn ? `${e(a.beginn)}-${e(a.ende)}` : `nach der ${a.nachStunde}. Stunde`, lehrerKopf()].filter(Boolean);
+    const leiste = istEntfall();
+    return `${leiste ? '<div class="sd-entfall-leiste" role="status">ENTFÄLLT</div>' : ''}<div class="sd-kopf ${leiste ? 'grau' : ''}">
+        <div class="sd-titel"><h2>${titel.map(t => `<span class="sd-tteil">${t}</span>`).join('<span class="trenn">|</span>')}<span class="sd-statuspille">Pausenaufsicht</span></h2>
+          <div class="sd-zeile">${zeile.join('<span class="trenn">|</span>')}</div></div>
+        <div class="sd-knoepfe"><button type="button" data-bs-dismiss="modal" title="Zur Ansicht zurück" aria-label="Zur Ansicht zurück">${WINKEL_RUNTER}</button>
+          <button type="button" data-bs-dismiss="modal" title="Schließen" aria-label="Schließen"><i class="bi bi-x-lg"></i></button></div>
+      </div>
+      <ul class="nav sd-reiter${leiste ? ' grau' : ''}"><li><button type="button" data-reiter="details" class="aktiv">Details</button></li></ul>`;
   }
 
   /** Pfeil-runter oben rechts: Umschalten zwischen ganzem Block und den Einzelstunden (Einträge gelten dann nur für die gewählte Stunde). */
@@ -257,7 +281,7 @@ export function karteDialog(karte, kontext = {}) {
     const punkt = x => x ? '<span class="sd-blockwahl-punkt" title="Eigene Einträge vorhanden" aria-label="Eigene Einträge vorhanden"></span>' : '';
     const opt = (wert, text) => `<button type="button" role="menuitemradio" aria-checked="${(einzel ?? 0) === wert}" data-einzel="${wert}" class="${(einzel ?? 0) === wert ? 'an' : ''}">
         <i class="bi bi-check2" aria-hidden="true"></i><span>${text}</span></button>`;
-    return `<div class="sd-blockwahl"><button type="button" data-blockwahl aria-haspopup="menu" aria-expanded="false" title="Ganzer Block oder Einzelstunde" aria-label="Ganzer Block oder Einzelstunde"><i class="bi bi-chevron-down"></i></button>
+    return `<div class="sd-blockwahl"><button type="button" data-blockwahl aria-haspopup="menu" aria-expanded="false" title="Ganzer Block oder Einzelstunde" aria-label="Ganzer Block oder Einzelstunde">${WINKEL_RUNTER}</button>
       <div class="sd-blockwahl-menue d-none" role="menu">${opt(0, `Ganzer Block (${k.von}.–${k.bis}. Stunde)`)}
         ${einzelstunden().map(z => opt(z.stunde, `${z.stunde}. Stunde${z.beginn ? ` ${e(z.beginn)}–${e(z.ende)}` : ''}${punkt(z.eintrag)}`)).join('')}</div></div>`;
   }
@@ -287,9 +311,12 @@ export function karteDialog(karte, kontext = {}) {
       </div>`;
     }
     const i = liste.indexOf(k);
+    if (k.aufsicht) return `<div class="sd-fuss">
+      <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}>${WINKEL_LINKS} Vorherige Aufsicht</button>
+      <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Aufsicht ${WINKEL_RECHTS}</button></div>`;
     return `<div class="sd-fuss">
-      <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}><i class="bi bi-chevron-left"></i> Vorherige Stunde</button>
-      <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Stunde <i class="bi bi-chevron-right"></i></button>
+      <button type="button" class="sd-pille gross" data-blaettern="-1" ${i <= 0 ? 'disabled' : ''}>${WINKEL_LINKS} Vorherige Stunde</button>
+      <button type="button" class="sd-pille gross" data-blaettern="1" ${i < 0 || i >= liste.length - 1 ? 'disabled' : ''}>Nächste Stunde ${WINKEL_RECHTS}</button>
       ${(k.status === 'klausur' || (k.status === 'vorgemerkt' && /^klausur/i.test(k.art || ''))) && kollegium && k.datum >= heuteIso() ? `<button type="button" class="sd-pille gross" data-pruefung-editieren>Prüfung editieren</button>
         <button type="button" class="sd-pille gross rot" data-pruefung-loeschen>Prüfung löschen</button>`
         : darfPruefung() ? '<button type="button" class="sd-pille gross" data-pruefung>Prüfung erstellen</button>' : ''}
@@ -302,7 +329,7 @@ export function karteDialog(karte, kontext = {}) {
     if (beendet || !el.isConnected) return;
     const scroll = box.querySelector('.sd-rumpf')?.scrollTop ?? 0;
     box.innerHTML = `<div class="modal-header p-0 d-block border-0">${kopf()}</div>
-      <div class="modal-body sd-rumpf">${reiter === 'klassenbuch' ? klassenbuchHtml() : reiter === 'schueler' ? schuelerlisteHtml() : reiter === 'pruefung' ? pruefungHtml() : reiter === 'raum' ? '<div data-raumwahl></div>' : detailsHtml()}</div>
+      <div class="modal-body sd-rumpf${reiter === 'details' ? ' sd-rumpf-details' : ''}">${reiter === 'klassenbuch' ? klassenbuchHtml() : reiter === 'schueler' ? schuelerlisteHtml() : reiter === 'pruefung' ? pruefungHtml() : reiter === 'raum' ? '<div data-raumwahl></div>' : detailsHtml()}</div>
       <div class="modal-footer p-0 d-block">${fuss()}</div>`;
     box.querySelector('.sd-rumpf').scrollTop = scroll;
     binden();
@@ -532,12 +559,14 @@ export function karteDialog(karte, kontext = {}) {
   // ---------------------------------------------------------------- Details (nur das Nötige wie im Original)
 
   function detailsHtml() {
+    if (k.aufsicht) return aufsichtDetailsHtml();
     const ein = daten.eintrag;
     const reihe = (ic, titel, inhalt) => `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div>${inhalt}</div></div>`;
     const datei = maskeIcon('klassenbuch/common-file-text.svg');
     const teile = [];
     const unterricht = k.unterricht && !['vorgemerkt', 'buchung', 'veranstaltung'].includes(k.status);
-    if (unterricht && !istEntfall()) teile.push(onlineHtml(ein));
+    // wie im Original (Vorlage 325) auch bei entfallenen Stunden: „Findet online statt“ ganz oben
+    if (unterricht) teile.push(onlineHtml(ein));
     // Raumbuchung (Räume mit Ersetzen/Löschen/„+“) nur in eigenen Stunden bzw. für die Administration in allen Stunden
     if (darfRaum()) {
       const raeume = kuerzel(k.raeume.filter(w => w.k));
@@ -573,6 +602,23 @@ export function karteDialog(karte, kontext = {}) {
     }
     const html = teile.filter(Boolean).join('');
     return html || '<div class="sd-leer"><b>Keine weiteren Details</b><span>Zu dieser Stunde gibt es keine zusätzlichen Informationen</span></div>';
+  }
+
+  /**
+   * Details einer Pausenaufsicht: Vertretungstext der Aufsichtsvertretung, Anlass einer offenen bzw. entfallenen Aufsicht und die
+   * Bezeichnung des Aufsichtsbereichs; ohne Angaben der Hinweis „Keine weiteren Details“.
+   */
+  function aufsichtDetailsHtml() {
+    const a = k.aufsicht;
+    const reihe = (ic, titel, text) => `<div class="sd-detail">${ic}<div class="flex-grow-1"><div class="sd-detail-titel">${titel}</div><p class="sd-text">${e(text)}</p></div></div>`;
+    const datei = maskeIcon('klassenbuch/common-file-text.svg');
+    const info = '<i class="bi bi-info-circle sd-detail-symbol" aria-hidden="true"></i>';
+    const teile = [];
+    if (a.text) teile.push(reihe(datei, 'Vertretungstext', a.text));
+    if (a.status === 'offen' || (a.status === 'vertreten' && /^[?]+$/.test(a.lehrer || '')))
+      teile.push(reihe(info, 'Vertretung offen', a.grund ? `Anlass: ${a.grund}` : 'Für diese Aufsicht ist noch keine Vertretung eingetragen.'));
+    if (a.status === 'entfall') teile.push(reihe(info, 'Aufsicht entfällt', a.grund || 'Diese Pausenaufsicht findet nicht statt.'));
+    return teile.join('') || '<div class="sd-leer"><b>Keine weiteren Details</b><span>Zu dieser Pausenaufsicht gibt es keine zusätzlichen Informationen</span></div>';
   }
 
   /**
@@ -1463,3 +1509,29 @@ export function karteDialog(karte, kontext = {}) {
   return box;
 }
 
+
+/**
+ * Pausenaufsicht als Eintrag der Detailansicht: Aufsichtsbereich als Titel, Pausenzeit, Lehrkraft (Vertretung „alt → neu“, offene bzw.
+ * entfallene Aufsicht durchgestrichen). Platzhalter wie „???“ bzw. „---“ gelten als keine Lehrkraft.
+ */
+const ohnePlatzhalter = x => (x && !/^[?+-]+$/.test(x) ? x : '');
+export function aufsichtKarte(a) {
+  const lehrer = ohnePlatzhalter(a.lehrer), alt = ohnePlatzhalter(a.alt);
+  const roh = String(a.gang || a.gangName || '').trim();
+  const ort = roh.replace(/^(früh(aufsicht)?|fa)[\s:\-–]*/i, '').trim() || roh || 'Aufsicht';
+  const liste = a.status === 'entfall' ? [{ k: '', alt: lehrer || alt }]
+    : a.status === 'regulaer' ? [{ k: lehrer }]
+    : [{ k: lehrer, alt: alt && alt !== lehrer ? alt : undefined }];
+  return {
+    aufsicht: a, datum: a.datum, von: a.nachStunde + 0.5, bis: a.nachStunde + 0.5, beginn: a.beginn, ende: a.ende,
+    status: a.status === 'entfall' ? 'entfall' : 'aufsicht', ort, ortName: String(a.gangName || '').trim(),
+    klassen: [], raeume: [], lehrer: liste.filter(w => w.k || w.alt), unterricht: null, fach: '', text: '',
+  };
+}
+
+/** Öffnet die Details einer Pausenaufsicht; „Vorherige/Nächste Aufsicht“ blättern durch die Aufsichten des Plans. */
+export function aufsichtDialog(a, kontext = {}) {
+  const karte = aufsichtKarte(a);
+  const alle = kontext.aufsichten?.includes(a) ? kontext.aufsichten : [a];
+  return karteDialog(karte, { ...kontext, liste: alle.map(x => x === a ? karte : aufsichtKarte(x)) });
+}
