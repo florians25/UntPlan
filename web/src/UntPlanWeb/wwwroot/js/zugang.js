@@ -19,7 +19,7 @@ export function zugangsLink(rahmen, weiter) {
 
 /** „Kennwort vergessen“: Benutzername (z. B. nachnamevorJJ) und E-Mail-Adresse wie in UntPlanWeb gespeichert. */
 export function kennwortVergessen(rahmen, weiter) {
-  document.title = 'Kennwort vergessen | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = rahmen('Kennwort vergessen', `<form autocomplete="on">
       <label class="lg-feld"><span>Benutzername</span><input name="login" autocomplete="username" required autofocus></label>
       <label class="lg-feld"><span>E-Mail-Adresse</span><input name="email" type="email" autocomplete="email" required></label>
@@ -43,7 +43,7 @@ export function kennwortVergessen(rahmen, weiter) {
 
 /** Selbstregistrierung: E-Mail-Adresse eingeben, die bei der Schülerin/dem Schüler hinterlegt ist. */
 export function registrieren(rahmen, weiter) {
-  document.title = 'Registrieren | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = rahmen('Registrieren', `<form autocomplete="on">
       <label class="lg-feld"><span>E-Mail-Adresse</span><input name="email" type="email" autocomplete="email" required autofocus></label>
       <div data-meldung></div>
@@ -65,7 +65,7 @@ export function registrieren(rahmen, weiter) {
 }
 
 async function kennwortLink(rahmen, token, weiter) {
-  document.title = 'Kennwort zurücksetzen | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = rahmen('Kennwort zurücksetzen', `<form>
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Kennwort zurücksetzen</button>
@@ -85,7 +85,7 @@ async function kennwortLink(rahmen, token, weiter) {
 }
 
 async function registrierungLink(rahmen, token, weiter) {
-  document.title = 'Registrieren | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   let d;
   try { d = await holen(`/api/app/registrieren/${encodeURIComponent(token)}`); }
   catch (err) {

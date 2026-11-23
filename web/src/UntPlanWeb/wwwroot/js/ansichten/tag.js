@@ -11,7 +11,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
   const datum = /^\d{4}-\d{2}-\d{2}$/.test(datumParam ?? '') ? datumParam : heuteIso();
   const ziel = (t, d) => `#/tag/${t}/${d}`;
   kontext.titel('');
-  document.title = `Tag: ${TYPEN[typ]} | UntPlanWeb`;
+  document.title = 'UntPlanWeb';
 
   // Kopfzeile wie im Stundenplan: Filter links, Tag mittig mit Blättern, „Heute“ rechts
   seite.innerHTML = `
