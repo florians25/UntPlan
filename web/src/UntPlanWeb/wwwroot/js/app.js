@@ -88,7 +88,7 @@ const kontext = {
     const r = document.getElementById('aktionen');
     if (r) r.innerHTML = rechts;
     kopf?.classList.toggle('d-none', !text && !rechts);
-    document.title = text ? `${text} | UntPlanWeb` : 'UntPlanWeb';
+    document.title = 'UntPlanWeb';
   },
   /** Weiße Werkzeugleiste über dem Inhalt (z. B. Suche und Zeitraum im Klassenbuch); leer = keine Leiste. */
   werkzeug(html = '') {
@@ -247,7 +247,7 @@ window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); wind
 const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML = alarm('danger', text); };
 
 function anmeldung() {
-  document.title = 'Anmelden | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Anmelden', `<form autocomplete="on">
       <label class="lg-feld"><span>Benutzername</span><input id="login" name="login" autocomplete="username" placeholder="z. B. mustermann" required autofocus></label>
       <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required></label>
@@ -275,7 +275,7 @@ function anmeldung() {
 }
 
 function einrichtung() {
-  document.title = 'Einrichtung | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Ersteinrichtung', `<form>
       <p class="small text-body-secondary text-center">Legen Sie die Schule und das Administrationskonto an.</p>
       <div class="mb-3"><label class="form-label">Name der Schule</label><input class="form-control" name="schulname" required autofocus></div>
@@ -298,7 +298,7 @@ function einrichtung() {
 }
 
 function passwortPflicht() {
-  document.title = 'Passwort ändern | UntPlanWeb';
+  document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Neues Passwort festlegen', `<form>
       <p class="small text-body-secondary text-center">Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.</p>
       <div class="mb-3"><label class="form-label">Bisheriges Passwort</label><input class="form-control" name="alt" type="password" required autocomplete="current-password" autofocus></div>

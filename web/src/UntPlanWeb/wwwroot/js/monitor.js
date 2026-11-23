@@ -60,7 +60,7 @@ async function laden() {
     if (r.status === 404) { wurzel.innerHTML = '<h1 class="h3">Monitor nicht gefunden</h1><p>Der Link ist ungültig oder wurde zurückgesetzt.</p>'; return; }
     const d = await r.json();
     versatz = new Date(d.jetzt).getTime() - Date.now();
-    document.title = `${d.name} | UntPlanWeb`;
+    document.title = 'UntPlanWeb';
     // Monitoransichten (Administration): Nachrichten in der Kopfzeile der Tage, Laufschrift, Aktualisierungsintervall
     const anzeige = d.anzeige ?? {};
     const ticker = anzeige.ticker && d.tage[0]?.nachrichten.length ? d.tage[0].nachrichten.join('   +++   ') : '';
