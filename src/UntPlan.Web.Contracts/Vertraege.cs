@@ -119,6 +119,10 @@ public sealed record WebRaum : WebElement
     public bool Buchbar { get; init; }
     public string Raumart { get; init; } = "";
     public int Kapazitaet { get; init; }
+    /// <summary>Raumgruppen (Kurznamen), denen der Raum in UntPlan angehört – für den Filter der Raumauswahl.</summary>
+    public List<string> Raumgruppen { get; init; } = new();
+    /// <summary>Gebäude (Abteilung des Raumes in UntPlan), leer = keine Angabe.</summary>
+    public string Gebaeude { get; init; } = "";
 }
 
 public sealed record WebSchueler(int Id, string Vorname, string Name, string Klasse);

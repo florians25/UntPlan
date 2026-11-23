@@ -3573,7 +3573,10 @@
         "id": 61,
         "kurz": "R106",
         "name": "Klassenraum 106",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "OS"
+        ]
       },
       {
         "buchbar": false,
@@ -3582,7 +3585,10 @@
         "id": 62,
         "kurz": "R107",
         "name": "Klassenraum 107",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "OS"
+        ]
       },
       {
         "buchbar": true,
@@ -3591,7 +3597,10 @@
         "id": 63,
         "kurz": "R108",
         "name": "Klassenraum 108",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "OS"
+        ]
       },
       {
         "buchbar": true,
@@ -3600,7 +3609,10 @@
         "id": 64,
         "kurz": "R109",
         "name": "Klassenraum 109",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "OS"
+        ]
       },
       {
         "buchbar": true,
@@ -3672,7 +3684,10 @@
         "id": 72,
         "kurz": "EDV1",
         "name": "Computerraum 1",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "EDV"
+        ]
       },
       {
         "buchbar": true,
@@ -3681,7 +3696,10 @@
         "id": 73,
         "kurz": "EDV2",
         "name": "Computerraum 2",
-        "farbe": ""
+        "farbe": "",
+        "raumgruppen": [
+          "EDV"
+        ]
       }
     ],
     "faecher": [

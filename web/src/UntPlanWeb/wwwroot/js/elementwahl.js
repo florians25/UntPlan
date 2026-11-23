@@ -71,14 +71,26 @@ export function elementWahl({ eintraege, wert, platzhalter = 'Auswählen …', b
  * (gewähltes Element grau hinterlegt und beim Öffnen in Sicht, schmale Bildlaufleiste über der Liste).
  * „Alle anzeigen“ wird gemerkt und zeigt alle Elemente als Pillen in `raster` (unter dem Kopf, gewähltes Element dunkel).
  * eintraege: [{ kurz, name }]; wert: aktuelles Kürzel; beiWahl(kurz); raster: Element für die Pillen (optional).
+ * filter (Raumplan, Vorlage 328): [{ schluessel, name, werte: x => [Werte] }] – unter „Alle anzeigen“ eine Zeile mit Auswahlpillen
+ * („Raumgruppen ˅“, „Gebäude ˅“); eine Pille erscheint nur, wenn es Werte gibt. Die Wahl filtert Liste und Pillenraster und bleibt
+ * in der Sitzung erhalten. Mit filter ist das Menü breiter (285 px) und die Pille mindestens 120 px breit (Inhalt mittig).
  */
-export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung = 'Element', info = x => (x?.name && x.name !== x.kurz ? x.name : '') }) {
+export function kopfWahl({ eintraege: alle, wert, beiWahl, raster = null, bezeichnung = 'Element', filter = null, info = x => (x?.name && x.name !== x.kurz ? x.name : '') }) {
   const norm = s => String(s ?? '').toLocaleLowerCase('de-DE');
-  const aktuell = eintraege.find(x => norm(x.kurz) === norm(wert));
+  const aktuell = alle.find(x => norm(x.kurz) === norm(wert));
+  // Filter mit ihren Werten (sortiert); ohne Werte keine Pille
+  const filterListe = (filter ?? []).map(f => ({ ...f, optionen: [...new Set(alle.flatMap(x => f.werte(x) ?? []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de-DE', { numeric: true })) }))
+    .filter(f => f.optionen.length);
+  const filterSpeicher = 'untplan:wahl-filter';
+  const gewaehlt = (() => { try { return JSON.parse(sessionStorage.getItem(filterSpeicher) || '{}') || {}; } catch { return {}; } })();
+  for (const f of filterListe) if (gewaehlt[f.schluessel] && !f.optionen.includes(gewaehlt[f.schluessel])) delete gewaehlt[f.schluessel];
+  let eintraege = alle;
+  const filtern = () => { eintraege = alle.filter(x => filterListe.every(f => !gewaehlt[f.schluessel] || (f.werte(x) ?? []).includes(gewaehlt[f.schluessel]))); };
+  filtern();
   const infoText = aktuell ? info(aktuell) : '';
   const id = `kw-${Math.random().toString(36).slice(2, 9)}`;
   const wurzel = document.createElement('div');
-  wurzel.className = 'elementwahl kopfwahl';
+  wurzel.className = `elementwahl kopfwahl${filter ? ' mit-filter' : ''}`;
   wurzel.innerHTML = `<div class="kw-pille">
       <span class="kw-wert"><span class="kw-kurz">${e(aktuell?.kurz ?? wert ?? '')}</span>${infoText ? `<span class="wahl-info" data-tip="${e(infoText)}"><img src="img/wu/exact/info-dropdown-dark.svg" alt=""></span>` : ''}</span>
       <input class="kw-eingabe" type="text" role="combobox" aria-expanded="false" aria-controls="${id}-liste" aria-autocomplete="list" autocomplete="off" spellcheck="false"
@@ -86,6 +98,9 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
     </div>
     <div class="kw-menue" hidden>
       <label class="kw-alle"><span>Alle anzeigen</span><input type="checkbox" role="switch" data-alle-schalter></label>
+      ${filterListe.length ? `<div class="kw-filter">${filterListe.map(f => `<div class="kw-filter-feld">
+        <button type="button" class="kw-filter-pille" data-filter="${e(f.schluessel)}" aria-haspopup="listbox" aria-expanded="false"><span class="kw-filter-text"></span><svg class="kw-filter-pfeil" width="14" height="8" viewBox="0 0 14 8" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M1 1l6 6 6-6"/></svg></button>
+        <div class="kw-filter-menue" role="listbox" aria-label="${e(f.name)}" hidden></div></div>`).join('')}</div>` : ''}
       <div class="kw-liste" id="${id}-liste" role="listbox" aria-label="${e(bezeichnung)}"></div>
       <div class="kw-balken" aria-hidden="true"><i></i></div>
     </div>`;
@@ -165,6 +180,7 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
   const schliessen = () => {
     if (!offen) return;
     offen = false;
+    filterSchliessen();
     menue.hidden = true;
     clearTimeout(balkenUhr);
     daumen.parentElement.classList.remove('zeigt');
@@ -199,12 +215,12 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
       aktivSetzen(start + (k === 'ArrowDown' ? 1 : -1));
     } else if ((k === 'PageDown' || k === 'PageUp') && offen) { ev.preventDefault(); aktivSetzen((aktiv >= 0 ? aktiv : sichtbar.indexOf(aktuell)) + (k === 'PageDown' ? 10 : -10)); }
     else if (k === 'Enter') { ev.preventDefault(); if (!offen) oeffnen(); else if (aktiv >= 0) waehlen(aktiv); else if (sichtbar.length === 1) waehlen(0); }
-    else if (k === 'Escape' && offen) { ev.preventDefault(); ev.stopPropagation(); schliessen(); }
+    else if (k === 'Escape' && offen) { ev.preventDefault(); ev.stopPropagation(); if (wurzel.querySelector('.kw-filter-menue:not([hidden])')) filterSchliessen(); else schliessen(); }
     else if (k === 'Tab') schliessen();
   });
   // Klick außerhalb: das Feld verliert den Fokus und das Menü schließt (Klicks im Menü behalten den Fokus)
   eingabe.addEventListener('blur', ev => { if (!menue.contains(ev.relatedTarget)) schliessen(); });
-  menue.addEventListener('mousedown', ev => ev.preventDefault());
+  menue.addEventListener('mousedown', ev => { ev.preventDefault(); if (!ev.target.closest('.kw-filter-feld')) filterSchliessen(); });
   liste.addEventListener('click', ev => { const o = ev.target.closest('.kw-option'); if (o) waehlen(Number(o.dataset.i)); });
   liste.addEventListener('mousemove', ev => { const o = ev.target.closest('.kw-option'); if (o && Number(o.dataset.i) !== aktiv) { aktiv = Number(o.dataset.i); liste.querySelector('.kw-option.aktiv')?.classList.remove('aktiv'); o.classList.add('aktiv'); } });
   schalter.addEventListener('change', () => {
@@ -212,5 +228,47 @@ export function kopfWahl({ eintraege, wert, beiWahl, raster = null, bezeichnung 
     rasterZeichnen();
     eingabe.focus({ preventScroll: true });
   });
+
+  // Filter (Raumgruppen, Gebäude): Pille zeigt den Namen bzw. den gewählten Wert, darunter eine kleine Liste mit „Alle …“
+  const filterFeld = schl => wurzel.querySelector(`[data-filter="${CSS.escape(schl)}"]`)?.parentElement;
+  const filterBeschriften = () => {
+    for (const f of filterListe) {
+      const feld = filterFeld(f.schluessel);
+      feld.querySelector('.kw-filter-text').textContent = gewaehlt[f.schluessel] || f.name;
+      feld.querySelector('.kw-filter-pille').classList.toggle('aktiv', !!gewaehlt[f.schluessel]);
+    }
+  };
+  const filterSchliessen = () => wurzel.querySelectorAll('.kw-filter-menue:not([hidden])').forEach(m => {
+    m.hidden = true; m.previousElementSibling.setAttribute('aria-expanded', 'false');
+  });
+  const filterSetzen = (schl, w) => {
+    if (w) gewaehlt[schl] = w; else delete gewaehlt[schl];
+    try { sessionStorage.setItem(filterSpeicher, JSON.stringify(gewaehlt)); } catch { /* privat */ }
+    filterSchliessen();
+    filterBeschriften();
+    filtern();
+    aktiv = -1;
+    liste.scrollTop = 0;
+    zeichnen();
+    sichtbarMachen(sichtbar.indexOf(aktuell));
+    balken();
+    rasterZeichnen();
+  };
+  wurzel.querySelectorAll('.kw-filter-pille').forEach(knopf => knopf.addEventListener('click', () => {
+    const m = knopf.nextElementSibling, f = filterListe.find(x => x.schluessel === knopf.dataset.filter);
+    const war = !m.hidden;
+    filterSchliessen();
+    if (war) return;
+    const w = gewaehlt[f.schluessel] || '';
+    m.innerHTML = [['', `Alle ${f.name}`], ...f.optionen.map(o => [o, o])].map(([o, t]) =>
+      `<div class="kw-option${o === w ? ' gewaehlt' : ''}" role="option" aria-selected="${o === w}" data-wert="${e(o)}">${e(t)}</div>`).join('');
+    m.hidden = false;
+    knopf.setAttribute('aria-expanded', 'true');
+  }));
+  wurzel.querySelectorAll('.kw-filter-menue').forEach(m => m.addEventListener('click', ev => {
+    const o = ev.target.closest('[data-wert]');
+    if (o) filterSetzen(m.previousElementSibling.dataset.filter, o.dataset.wert);
+  }));
+  filterBeschriften();
   return wurzel;
 }
