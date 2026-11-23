@@ -1605,12 +1605,11 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 x += w;
             }
             // Kante unter den Reitern (Seite ohne Inhalt): Weiß, Hellgrau, darunter dunkel; rechts dunkel abgeschlossen
-            g.DrawLine(weiss, 0, h - 5, Width - 2, h - 5);
-            g.DrawLine(hell, 0, h - 4, Width - 3, h - 4);
-            g.DrawLine(grau, Width - 2, h - 4, Width - 2, h - 4);
-            g.DrawLine(dunkel, Width - 1, h - 5, Width - 1, h - 3);
-            g.DrawLine(dunkel, 0, h - 3, Width - 1, h - 3);
-            using (var band = new SolidBrush(Color.FromArgb(175, 223, 204))) g.FillRectangle(band, 0, h - 2, Width, 2);
+            g.DrawLine(weiss, 0, h - 3, Width - 2, h - 3);
+            g.DrawLine(hell, 0, h - 2, Width - 3, h - 2);
+            g.DrawLine(grau, Width - 2, h - 2, Width - 2, h - 2);
+            g.DrawLine(dunkel, Width - 1, h - 3, Width - 1, h - 1);
+            g.DrawLine(dunkel, 0, h - 1, Width - 1, h - 1);
             void Reiter(Rectangle r, bool gewaehlt, string text)
             {
                 using (var b = new SolidBrush(gewaehlt ? Color.FromArgb(225, 243, 236) : Color.FromArgb(175, 223, 204)))
@@ -1639,9 +1638,9 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
                 var gr = Rectangle.FromLTRB(Math.Max(0, r.Left - 2), 0, r.Right + 2, h - 3);
                 Reiter(gr, true, _texte[_index]);
                 using var b = new SolidBrush(Color.FromArgb(225, 243, 236));
-                g.FillRectangle(b, gr.Left + 2, h - 5, gr.Width - 2, 2);
-                g.DrawLine(weiss, gr.Left, h - 5, gr.Left, h - 4);
-                g.DrawLine(hell, gr.Left + 1, h - 5, gr.Left + 1, h - 4);
+                g.FillRectangle(b, gr.Left + 2, h - 3, gr.Width - 2, 2);
+                g.DrawLine(weiss, gr.Left, h - 3, gr.Left, h - 2);
+                g.DrawLine(hell, gr.Left + 1, h - 3, gr.Left + 1, h - 2);
             }
         }
     }

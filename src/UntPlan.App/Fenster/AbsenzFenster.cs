@@ -299,7 +299,7 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
         var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
         _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);
-        void KopfHoehe() { var h = Math.Max(gruppe.Bottom - 2, kopf.Controls.Cast<Control>().Where(c => c != gruppe && c.Visible).Select(c => c.Bottom + 2).DefaultIfEmpty(0).Max()); if (kopf.Height != h) kopf.Height = h; }
+        void KopfHoehe() { var h = gruppe.Bottom - 2; if (h > 0 && kopf.Height != h) kopf.Height = h; }
         gruppe.SizeChanged += (_, _) => KopfHoehe();
         gruppe.LocationChanged += (_, _) => KopfHoehe();
         kopf.Layout += (_, _) => KopfHoehe();
