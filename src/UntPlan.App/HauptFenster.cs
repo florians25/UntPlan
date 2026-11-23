@@ -57,6 +57,12 @@ public sealed partial class HauptFenster : Form
         Updates = new Updateanzeige(this);
         _status.Items.AddRange(new ToolStripItem[] { _statusLinks, _statusMitte, _statusRechts, _statusSprache, _statusModus, Updates.Label });
         _status.Font = Ui.Schrift;
+        // Statusleiste wie im Vorbild (gemessen): 20 Pixel hoch samt 1 Pixel Linie (213,213,213) oben, ohne Größengriff
+        _status.SizingGrip = false;
+        _status.AutoSize = false;
+        _status.Height = LogicalToDeviceUnits(20);
+        _status.Padding = new Padding(1, 1, 0, 0);
+        _status.Renderer = new StatusDarstellung();
 
         _assistent = new Eingabeassistent { Dock = DockStyle.Right, Width = 230, Visible = AppZustand.Einstellungen.AssistentZeigen };
         _assistentSplitter.Visible = _assistent.Visible;
@@ -957,6 +963,22 @@ public sealed partial class HauptFenster : Form
         if (Ui.FehlerProtokoll != null) return;
         try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(pfad) { UseShellExecute = true }); }
         catch (Exception ex) { Ui.Fehler(ex); }
+    }
+
+    /// <summary>Statusleiste: Fläche in der Kopffarbe, oben eine einzelne graue Linie (statt der hellen Doppellinie).</summary>
+    private sealed class StatusDarstellung : ToolStripProfessionalRenderer
+    {
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            using var b = new SolidBrush(e.ToolStrip.BackColor);
+            e.Graphics.FillRectangle(b, e.AffectedBounds);
+        }
+
+        protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+        {
+            using var p = new Pen(Color.FromArgb(213, 213, 213));
+            e.Graphics.DrawLine(p, 0, 0, e.ToolStrip.Width, 0);
+        }
     }
 }
 

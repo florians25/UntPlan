@@ -83,7 +83,13 @@ public static class Erscheinungsbild
     {
         if (b.IsDisposed) return;
         var standard = b.FindForm() is { } f && ReferenceEquals(f.AcceptButton, b);
-        b.FlatAppearance.BorderColor = standard ? Ui.MeldungKnopfRand : KnopfRand;
+        // Standardknopf wie im Vorbild (Meldungsfenster): hell gefüllt in der Modusfarbe, 1 Pixel dunkler Rand
+        if (standard) Ui.StandardKnopf(b);
+        else
+        {
+            if (b.BackColor == Ui.StandardKnopfFlaeche) b.BackColor = Color.White;
+            b.FlatAppearance.BorderColor = KnopfRand;
+        }
         b.FlatAppearance.MouseOverBackColor = Ui.Hover;
         b.FlatAppearance.MouseDownBackColor = Ui.BlauHell;
     }

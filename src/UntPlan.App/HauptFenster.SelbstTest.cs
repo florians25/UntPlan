@@ -1229,7 +1229,7 @@ public sealed partial class HauptFenster
             Gesamtbild("V24_Einstellungen", f);
             // gemeinsames Erscheinungsbild: Dialogfläche in der Modusfarbe, flache weiße Knöpfe, Standardknopf mit Rand in der Modusfarbe
             if (f.BackColor != Ui.DialogFlaeche) throw new InvalidOperationException($"Dialogfläche {f.BackColor} statt {Ui.DialogFlaeche}");
-            if (f.Ok.FlatStyle != FlatStyle.Flat || f.Ok.BackColor != Color.White || f.Ok.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || f.Abbrechen.FlatStyle != FlatStyle.Flat)
+            if (f.Ok.FlatStyle != FlatStyle.Flat || f.Ok.BackColor != Ui.StandardKnopfFlaeche || f.Ok.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || f.Abbrechen.FlatStyle != FlatStyle.Flat)
                 throw new InvalidOperationException("Dialogknöpfe nicht im gemeinsamen Erscheinungsbild");
         }, 0);
         Schritt("V25_Optimierung", () => { ModusFuerBild(false); var f = new OptimierungDialog(); f.Show(this); Gesamtbild("V25_Optimierung", f); }, 2);
@@ -1652,6 +1652,7 @@ public sealed partial class HauptFenster
             var frage = Ui.MeldungsFenster(text, VerlegungsAbfrage.Titel, MeldungsArt.Frage, new[] { "Ja", "Nein" }, 0, true, null, antwort);
             frage.StartPosition = FormStartPosition.CenterScreen;
             frage.Show(this);
+            frage.Activate();
             Warten(700);
             Foto(Path.Combine(ordner, "V36_Verlegung_Rueckfrage_F.png"));
             var knoepfe = frage.Controls.Find("Knopfleiste", false).SelectMany(p => p.Controls.OfType<Button>()).Select(b => b.Text).ToList();
@@ -2203,9 +2204,9 @@ public sealed partial class HauptFenster
                 x += f.Width + 30;
                 // wie im Vorbild: ohne Systemrahmen, helle Titelleiste in der Modusfarbe, Fläche in der Listenfarbe, flache Knöpfe ohne Fettdruck
                 if (f.FormBorderStyle != FormBorderStyle.None || f.BackColor != Ui.MeldungFlaeche || f.Controls.Find("Knopfleiste", false) is not [Panel leiste] ||
-                    leiste.BackColor != Ui.MeldungLeiste || f.AcceptButton is not Button std || std.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || std.Font.Bold || std.BackColor != Color.White)
+                    leiste.BackColor != Ui.MeldungLeiste || f.AcceptButton is not Button std || std.FlatAppearance.BorderColor != Ui.MeldungKnopfRand || std.Font.Bold || std.BackColor != Ui.StandardKnopfFlaeche)
                     throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ nicht wie im Vorbild.");
-                if (f is not Ui.MeldungsForm { TitelFarbe: var tf } || tf != Ui.MeldungTitel) throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ ohne helle Titelleiste.");
+                if (f is not Ui.MeldungsForm { TitelFarbe: var tf } || tf != Ui.MeldungTitel && tf != Ui.MeldungTitelAktiv) throw new InvalidOperationException($"Meldungsfenster „{a.Titel}“ ohne Titelleiste in der Modusfarbe.");
                 // Titelleiste wie auf dem Bildschirm (eigene Zeichnung, kein Systemrahmen)
                 Warten(150);
                 using (var bild = new Bitmap(1, 1))
@@ -2215,8 +2216,8 @@ public sealed partial class HauptFenster
                     // ohne sichtbaren Desktop (CI-Runner) bzw. noch nicht gezeichnet: leere/schwarze Aufnahme – nicht messbar, kein Fehler
                     if (titel.A == 0 || (titel.R == 0 && titel.G == 0 && titel.B == 0))
                         log.Add($"INFO  Meldungsfenster „{a.Titel}“: Titelleiste am Bildschirm nicht messbar ({titel}) – geprüft wird die eingestellte Farbe");
-                    else if (Math.Abs(titel.R - Ui.MeldungTitel.R) + Math.Abs(titel.G - Ui.MeldungTitel.G) + Math.Abs(titel.B - Ui.MeldungTitel.B) > 12)
-                        throw new InvalidOperationException($"Titelleiste des Meldungsfensters „{a.Titel}“ hat die Farbe {titel} statt {Ui.MeldungTitel}.");
+                    else if (new[] { Ui.MeldungTitel, Ui.MeldungTitelAktiv }.All(c => Math.Abs(titel.R - c.R) + Math.Abs(titel.G - c.G) + Math.Abs(titel.B - c.B) > 12))
+                        throw new InvalidOperationException($"Titelleiste des Meldungsfensters „{a.Titel}“ hat die Farbe {titel} statt {Ui.MeldungTitel} bzw. {Ui.MeldungTitelAktiv}.");
                 }
                 if (a.Text == "Absenzgrund fehlt." && (f.Width is < 200 or > 280 || f.Height is < 150 or > 200))
                     throw new InvalidOperationException($"Kurze Meldung nicht klein wie im Vorbild: {f.Width} × {f.Height}.");

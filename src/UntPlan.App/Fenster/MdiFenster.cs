@@ -10,7 +10,10 @@ public class MdiFenster : Form
     private bool _eigeneAenderung;
     private Dokument? _doc;
     private readonly FensterTitel _titel;
-    private const int Rahmen = 3;
+    /// <summary>Vorbild: Arbeitsfenster mit 1 Pixel Rand, Inhalt (Werkzeugleiste, Fläche) unmittelbar daneben, kein farbiger Rahmen.</summary>
+    private const int Rahmen = 1;
+    /// <summary>Unsichtbarer Greifbereich zum Ändern der Größe an den Kanten.</summary>
+    private const int Greifbereich = 5;
 
     /// <summary>Hilfethema für F1.</summary>
     public string HilfeThema { get; protected set; } = "";
@@ -68,10 +71,17 @@ public class MdiFenster : Form
     {
         base.OnPaint(e);
         if (_titel is null || !_titel.Visible) return;
-        using var p = new Pen(FensterTitel.Farbe(_titel.Aktiv), Rahmen * 2);
-        e.Graphics.DrawRectangle(p, 0, 0, Width, Height);
-        using var linie = new Pen(Color.FromArgb(90, 0, 0, 0));
+        using var linie = new Pen(RandFarbe(_titel.Aktiv));
         e.Graphics.DrawRectangle(linie, 0, 0, Width - 1, Height - 1);
+    }
+
+    /// <summary>
+    /// Fensterrand wie im Vorbild (gemessen): aktiv (81,132,111) – etwas dunkler als die Titelleiste –, inaktiv neutral grau (131,131,131).
+    /// </summary>
+    internal static Color RandFarbe(bool aktiv)
+    {
+        if (!Ui.Vertretungsmodus) return aktiv ? Color.FromArgb((int)(Ui.Titel.R * .9), (int)(Ui.Titel.G * .88), (int)(Ui.Titel.B * .89)) : Color.FromArgb(131, 131, 131);
+        return aktiv ? Color.FromArgb(81, 132, 111) : Color.FromArgb(131, 131, 131);
     }
 
     protected override void OnResize(EventArgs e)
@@ -94,7 +104,7 @@ public class MdiFenster : Form
         // Größe am Rand ändern (WM_NCHITTEST)
         if (m.Msg != 0x84 || WindowState != FormWindowState.Normal || FormBorderStyle != FormBorderStyle.None) return;
         var p = PointToClient(new Point((short)((long)m.LParam & 0xFFFF), (short)(((long)m.LParam >> 16) & 0xFFFF)));
-        const int r = Rahmen + 2;
+        const int r = Greifbereich;
         var links = p.X <= r;
         var rechts = p.X >= ClientSize.Width - r;
         var oben = p.Y <= r;
@@ -413,7 +423,8 @@ public class MdiFenster : Form
         {
             if (IsDisposed) return;
             var e = Einziehen ? Einzug : 0;
-            var soll = new Padding(Grundabstand.Left + e, Grundabstand.Top, Grundabstand.Right + e, Grundabstand.Bottom);
+            // Vorbild (gemessen): erstes Element 10 Pixel innerhalb der hellen Leiste (18 Pixel vom Fensterrand)
+            var soll = new Padding(Grundabstand.Left + e + (Einziehen ? 8 : 0), Grundabstand.Top, Grundabstand.Right + e, Grundabstand.Bottom);
             if (Padding != soll) Padding = soll;
             Invalidate();
         }
@@ -441,9 +452,18 @@ public class MdiFenster : Form
                 if (e.ToolStrip is not Fensterleiste) { base.OnRenderOverflowButtonBackground(e); return; }
                 var it = e.Item;
                 using (var b = new SolidBrush(it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor)) e.Graphics.FillRectangle(b, 0, 0, it.Width, it.Height);
+                // Vorbild (gemessen): 5 × 3 Pixel in (119,119,119) mit weichen Kanten
                 var m = new Point(it.Width / 2, it.Height - 9);
-                using var p = new SolidBrush(Color.FromArgb(70, 70, 70));
-                e.Graphics.FillPolygon(p, new[] { new Point(m.X - 3, m.Y), new Point(m.X + 3, m.Y), new Point(m.X, m.Y + 3) });
+                var grund = it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor;
+                float[,] maske = { { .55f, 1, 1, 1, .55f }, { 0, .74f, 1, .74f, 0 }, { 0, .07f, .69f, .07f, 0 } };
+                for (var y = 0; y < 3; y++)
+                    for (var x = 0; x < 5; x++)
+                    {
+                        var a = maske[y, x];
+                        if (a <= 0) continue;
+                        using var p = new SolidBrush(Color.FromArgb((int)(grund.R + (119 - grund.R) * a), (int)(grund.G + (119 - grund.G) * a), (int)(grund.B + (119 - grund.B) * a)));
+                        e.Graphics.FillRectangle(p, m.X - 2 + x, m.Y + y, 1, 1);
+                    }
             }
         }
     }
