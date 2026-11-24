@@ -10,12 +10,8 @@ struct HauptView: View {
         Group {
             switch zustand.phase {
             case .startet:
-                VStack(spacing: 12) {
-                    ProgressView()
-                    Text("Verbindung wird hergestellt …")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+                // Wie der Startbildschirm (LaunchScreen.storyboard): nur die Marke auf dem Systemhintergrund
+                Startbildschirm()
             case .abgemeldet:
                 AnmeldungView()
             case .angemeldet:
@@ -103,6 +99,32 @@ struct HauptView: View {
             zustand.schnellaktion = aktion
             zustand.reiter = .stundenplan
         }
+    }
+}
+
+/// Startbildschirm, solange die App die Verbindung herstellt – deckungsgleich mit `LaunchScreen.storyboard`, damit der
+/// Übergang nahtlos ist. Nach der Vorlage a7b2b7cb (iPhone dunkel, 1206 × 2622 px, 3 px/pt = 402 × 874 pt) nachgemessen:
+/// Systemhintergrund (dunkel #000000, hell weiß), sonst nur die Marke – waagrecht mittig, ihre Mitte 682 px von 2622 px
+/// = 26 % der Bildschirmhöhe (unabhängig von den sicheren Rändern), 80 pt breit. Unsere Marke ist höher als breit:
+/// Rahmen 80 × 64 pt, die Marke wird darin seitengerecht eingepasst (derzeit 57,8 × 64 pt).
+struct Startbildschirm: View {
+    static let breite: CGFloat = 80
+    static let hoehe: CGFloat = 64
+    /// Mitte der Marke in Bruchteilen der Bildschirmhöhe (Storyboard: centerY = 0,52 × Mitte)
+    static let lage: CGFloat = 0.26
+
+    var body: some View {
+        GeometryReader { geo in
+            Image("Startlogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: Self.breite, height: Self.hoehe)
+                .position(x: geo.size.width / 2, y: geo.size.height * Self.lage)
+        }
+        .ignoresSafeArea()
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Verbindung wird hergestellt …")
     }
 }
 

@@ -990,24 +990,117 @@ extension StundenplanView {
     }
 }
 
-/// Gesperrte Woche (außerhalb des Plan-Fensters der Rolle) im Stil der Startseiten-Fläche (Vorlage „Genieße die
-/// Zeit!“): flache Fläche mit Kalender-Symbol oben mittig, Titel genau „Es werden hier keine Termine angezeigt.“ (Medium)
-/// und darunter grau, zweizeilig der Hinweis des Servers (`sperrhinweis`); fehlt er, steht dort der Standardsatz.
-struct Sperrhinweis: View {
-    let hinweis: String?
-
+/// Texte der gesperrten Woche (außerhalb des Plan-Fensters der Rolle). `titel`/`standardHinweis` nutzt die Startseite,
+/// `rasterTitel`/`rasterText` die Fläche „Anzeige gesperrt“ im Stundenplan (`AnzeigeGesperrt`).
+enum Sperrhinweis {
     static let titel = "Es werden hier keine Termine angezeigt."
+    /// Standardhinweis des Servers (`Planfenster.Sperrhinweis` in UntPlanWeb)
     static let standardHinweis = "Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt"
+    static let rasterTitel = "Anzeige gesperrt"
+    static let rasterText = "Die Stundenplananzeige wurde von Ihrer Administration eingeschränkt."
 
-    private var erklaerung: String {
+    /// Text unter „Anzeige gesperrt“: ein eigener Hinweis des Servers, sonst (leer oder Standardhinweis) der Standardsatz.
+    static func rasterErklaerung(_ hinweis: String?) -> String {
         let text = (hinweis ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return text.isEmpty ? Self.standardHinweis : text
+        return text.isEmpty || text == standardHinweis ? rasterText : text
     }
+}
+
+/// Gesperrte Woche im Raster nach den Vorlagen b481a959/01ec536e (iPhone dunkel, 1206 × 2622 px, 3 px/pt): Wochenkopf und
+/// Zeitleiste bleiben, die Fläche rechts der Zeitleiste ist einheitlich graublau (#343d44, ohne Linien und Karten). Darauf
+/// waagrecht mittig in der Rasterfläche (nicht im Bildschirm) der Block – er scrollt mit dem Raster (in beiden Vorlagen
+/// liegt er um genau die Scrollstrecke versetzt) und steht senkrecht mittig zwischen Beginn der 1. und Ende der letzten
+/// Stunde (wie die Ferienfelder). Nachgemessen: Kreis 60 pt (#1c1c1e) mit Schloss im Umriss (#c0c7ce, siehe
+/// `Schlosssymbol`), 16 pt darunter „Anzeige gesperrt“ (22 pt halbfett, #f3f4f6; Versalhöhe 15,67 pt), 15,5 pt darunter
+/// der Hinweis (16 pt, #dcdee4, mittig, zwei Zeilen im Abstand von 20 pt, höchstens 270 pt breit).
+/// Hell: Fläche #dce1e6, Kreis weiß, Schloss #5e7382, Titel #10161d, Text #3f525e.
+struct AnzeigeGesperrt: View {
+    let hinweis: String?
+    /// Breite der Rasterfläche (ohne Zeitleiste)
+    let breite: CGFloat
+    /// Höhe der Scrollfläche
+    let hoehe: CGFloat
+    /// Senkrechte Mitte des Blocks in der Scrollfläche
+    let mitte: CGFloat
+
+    static let flaeche = Color(hell: 0xDCE1E6, dunkel: 0x343D44)
+    static let kreis = Color(hell: 0xFFFFFF, dunkel: 0x1C1C1E)
+    static let schloss = Color(hell: 0x5E7382, dunkel: 0xC0C7CE)
+    static let titelFarbe = Color(hell: 0x10161D, dunkel: 0xF3F4F6)
+    static let textFarbe = Color(hell: 0x3F525E, dunkel: 0xDCDEE4)
 
     var body: some View {
-        Hinweisfeld(titel: Self.titel, text: erklaerung, flaeche: Color(hell: 0xFFFFFF, dunkel: 0x313D44))
-            .frame(maxWidth: 300)
-            .padding(.horizontal, 24)
+        ZStack {
+            Self.flaeche
+            block
+                .frame(width: breite)
+                .position(x: breite / 2, y: mitte)
+        }
+        .frame(width: breite, height: hoehe)
+    }
+
+    private var block: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Circle()
+                    .fill(Self.kreis)
+                Schlosssymbol()
+                    .stroke(Self.schloss, style: StrokeStyle(lineWidth: 7.0 / 3, lineCap: .round, lineJoin: .round))
+                    .frame(width: Schlosssymbol.breite, height: Schlosssymbol.hoehe)
+            }
+            .frame(width: 60, height: 60)
+            .accessibilityHidden(true)
+            Text(Sperrhinweis.rasterTitel)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(Self.titelFarbe)
+                .multilineTextAlignment(.center)
+                .padding(.top, 16)
+            Text(Sperrhinweis.rasterErklaerung(hinweis))
+                .font(.system(size: 16))
+                .lineSpacing(0.9)
+                .foregroundStyle(Self.textFarbe)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 270)
+                .padding(.top, 15.5)
+        }
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Schloss im Umriss (Vorlage 01ec536e, 3 px/pt nachgemessen): 22,5 × 30,33 pt, Strich 2,33 pt; Körper über die ganze
+/// Breite ab 11,33 pt (Ecken 2 pt), Bügel 15,33 pt breit (außen), Schlüsselloch als Ring (außen 8 pt) 20,83 pt unter
+/// der Oberkante. Mittellinien des Strichs, skaliert auf den Rahmen.
+struct Schlosssymbol: Shape {
+    static let breite: CGFloat = 22.5
+    static let hoehe: CGFloat = 30.33
+
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / Self.breite
+        let sy = rect.height / Self.hoehe
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * sx, y: rect.minY + y * sy) }
+        let strich: CGFloat = 7.0 / 3
+        let halb = strich / 2
+        var pfad = Path()
+        // Körper
+        pfad.addRoundedRect(in: CGRect(x: rect.minX + halb * sx, y: rect.minY + (11.33 + halb) * sy,
+                                       width: (Self.breite - strich) * sx, height: (Self.hoehe - 11.33 - strich) * sy),
+                            cornerSize: CGSize(width: 2 * sx, height: 2 * sy), style: .continuous)
+        // Bügel: zwei Schenkel und ein Halbkreis oben
+        let links: CGFloat = 4.58
+        let rechts: CGFloat = Self.breite - links
+        let radius = (rechts - links) / 2
+        pfad.move(to: p(links, 11.33 + halb))
+        pfad.addLine(to: p(links, halb + radius))
+        pfad.addArc(tangent1End: p(links, halb), tangent2End: p(Self.breite / 2, halb), radius: radius * sx)
+        pfad.addArc(tangent1End: p(rechts, halb), tangent2End: p(rechts, halb + radius), radius: radius * sx)
+        pfad.addLine(to: p(rechts, 11.33 + halb))
+        // Schlüsselloch
+        let loch: CGFloat = 4 - halb
+        pfad.addEllipse(in: CGRect(x: rect.minX + (Self.breite / 2 - loch) * sx, y: rect.minY + (20.83 - loch) * sy,
+                                   width: 2 * loch * sx, height: 2 * loch * sy))
+        return pfad
     }
 }
 
@@ -1767,7 +1860,7 @@ struct Zeitleiste: View, Equatable {
 }
 
 /// Raster einer Seite (Tagesspalten mit Kacheln, Ferien, Abwesenheiten, Jetzt-Linie) ohne Zeitleiste – gleitet beim
-/// Wischen. Kacheln, Spuren und Zählstreifen kommen aus `Kachelbau` (Logik der PWA). Gesperrte Woche: Sperrhinweis;
+/// Wischen. Kacheln, Spuren und Zählstreifen kommen aus `Kachelbau` (Logik der PWA). Gesperrte Woche: „Anzeige gesperrt“;
 /// noch nicht geladen: Ladekreis.
 struct RasterSeite: View, Equatable {
     let daten: Rasterseitendaten
@@ -1806,10 +1899,10 @@ struct RasterSeite: View, Equatable {
         ZStack(alignment: .topLeading) {
             if let plan = daten.plan {
                 if plan.gesperrt {
-                    // Woche außerhalb des Plan-Fensters: statt der Karten der Sperrhinweis (Blättern bleibt möglich)
-                    Sperrhinweis(hinweis: plan.sperrhinweis)
-                        .frame(width: breite)
-                        .offset(y: mass.y(rahmen.start) + 24)
+                    // Woche außerhalb des Plan-Fensters: graublaue Fläche mit „Anzeige gesperrt“ (Blättern bleibt möglich);
+                    // der Block scrollt mit und steht mittig zwischen Beginn der 1. und Ende der letzten Stunde
+                    AnzeigeGesperrt(hinweis: plan.sperrhinweis, breite: breite, hoehe: rahmen.hoehe,
+                                    mitte: (mass.y(rahmen.start) + mass.yEnde(rahmen.ende)) / 2)
                 } else {
                     let kacheln = daten.kacheln(typ: typ, element: element)
                     ForEach(Array(tage.enumerated()), id: \.element.id) { eintrag in
