@@ -4,13 +4,13 @@
 Bildmarke „UP“: ein U, dessen rechter Schaft nach oben in die Schüssel eines P übergeht (UntPlan). Die Punze des P ist ein
 quadratisches Zeitfenster, die aktuelle Stunde. Konstruktion im 64er-Raster mit durchgehender Strichstärke 10: linker
 Schaft endet schräg angeschnitten auf Höhe der Fensterunterkante (Bewegung nach vorn), U-Bogen als Halbkreis,
-P-Schüssel mit Eckradius 12,5 (innen 2,5, wie die Ecken des Zeitfensters). Aufrecht. Orange ist die Hauptfarbe, Petrol
-nur Akzent (Zeitfenster, Schrift). Flach, höchstens zwei Farben, funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato
+P-Schüssel mit Eckradius 12,5 (innen 2,5, wie die Ecken des Zeitfensters). Aufrecht. Orange ist die Hauptfarbe, das Zeitfenster
+bleibt offen (Grund scheint durch), Petrol nur für die Schrift. Flach, höchstens zwei Farben, funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato
 Bold (OFL), enger gesetzt mit eigenen Paarabständen.
 
 Fassungen
-  freistehend   Orange, Zeitfenster Petrol (Favicon, Programmsymbol bis 24 px, Wortmarke in Petrol)
-  Kachel        Orange, Marke Weiß, Zeitfenster Petrol (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
+  freistehend   Orange, Zeitfenster offen (Favicon, Programmsymbol bis 24 px, Wortmarke in Petrol)
+  Kachel        Orange, Marke Weiß, Zeitfenster offen (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
 
 Aufruf:  python3 build/logo.py
 
@@ -167,7 +167,7 @@ def lage(inhalt=0.86, mitte=(32, 32)):
 EINS = (1, 0, 0, 1, 0, 0)
 
 
-def formen(farbe=ORANGE, fenster=PETROL, inhalt=0.9):
+def formen(farbe=ORANGE, fenster=None, inhalt=0.9):
     """Freistehende Marke: Liste (Pfad, Farbe, Matrix); fenster=None lässt die Punze offen (einfarbig)."""
     m = lage(inhalt)
     teile = [(marke_pfad(mit_loch=True), farbe, m)]
@@ -176,7 +176,7 @@ def formen(farbe=ORANGE, fenster=PETROL, inhalt=0.9):
     return teile
 
 
-def kachel_formen(rund=True, inhalt=0.66, grund=ORANGE, farbe=WEISS, fenster=PETROL):
+def kachel_formen(rund=True, inhalt=0.66, grund=ORANGE, farbe=WEISS, fenster=None):
     """Marke mittig auf einer Fläche (Eckenradius 14 im 64er-Raster oder eckig)."""
     return [(rrect(0, 0, 64, 64, 14 if rund else 0.001), grund, EINS)] + formen(farbe, fenster, inhalt)
 
