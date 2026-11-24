@@ -139,7 +139,7 @@ public sealed class Eingabeassistent : Panel
 /// </summary>
 public static class BegruessungDialog
 {
-    private static readonly Color Dunkel = Color.FromArgb(36, 50, 61); // Anthrazit wie die Logo-Kachel
+    private static readonly Color Dunkel = Color.FromArgb(15, 59, 69); // Petrol wie die Logo-Kachel
 
     public static void Zeigen(IWin32Window owner)
     {
@@ -154,9 +154,9 @@ public static class BegruessungDialog
         var links = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Dunkel };
         links.Controls.Add(new PictureBox { Image = Symbole.Get("logo", 64), SizeMode = PictureBoxSizeMode.Zoom, Left = 28, Top = 34, Width = 56, Height = 56 });
         links.Controls.Add(new Label { Text = "UntPlan", ForeColor = Color.White, Font = new Font(Ui.Schrift.FontFamily, 20f, FontStyle.Bold), Left = 26, Top = 100, AutoSize = true });
-        links.Controls.Add(new Label { Text = "Stunden- und Vertretungsplanung", ForeColor = Color.FromArgb(206, 213, 219), Left = 28, Top = 142, Width = 210 });
+        links.Controls.Add(new Label { Text = "Stunden- und Vertretungsplanung", ForeColor = Color.FromArgb(200, 218, 221), Left = 28, Top = 142, Width = 210 });
         var version = typeof(BegruessungDialog).Assembly.GetName().Version;
-        links.Controls.Add(new Label { Text = $"Version {version?.ToString(3)}", ForeColor = Color.FromArgb(160, 172, 182), Left = 28, Top = 410, Width = 200 });
+        links.Controls.Add(new Label { Text = $"Version {version?.ToString(3)}", ForeColor = Color.FromArgb(150, 178, 184), Left = 28, Top = 410, Width = 200 });
 
         var rechts = new Panel { Dock = DockStyle.Fill, Padding = new Padding(28, 26, 28, 18) };
         f.Controls.Add(rechts);

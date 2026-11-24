@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Erzeugt alle Logodateien von UntPlan aus einer einzigen Geometrie.
 
-Bildmarke „UP“: ein U, dessen rechter Schaft nach oben in den Bogen eines P übergeht (UntPlan). Die Punze des P ist ein
-quadratisches Zeitfenster, die aktuelle Stunde. Konstruktion im 64er-Raster mit durchgehender Strichstärke 11: linker
-Schaft endet auf Höhe der Punzenunterkante, U-Bogen und P-Bogen sind Halbkreise. Flach, höchstens zwei Farben
-(Terrakotta, Anthrazit), funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato Bold (OFL), leicht enger
-gesetzt.
+Bildmarke „UP“: ein U, dessen rechter Schaft nach oben in die Schüssel eines P übergeht (UntPlan). Die Punze des P ist ein
+quadratisches Zeitfenster, die aktuelle Stunde. Konstruktion im 64er-Raster mit durchgehender Strichstärke 10: linker
+Schaft endet schräg angeschnitten auf Höhe der Fensterunterkante, U-Bogen als Halbkreis, P-Schüssel mit Eckradius 12,5
+(innen 2,5, wie die Ecken des Zeitfensters). Die ganze Marke ist um 9° nach vorn geneigt: Bewegung durch die Woche.
+Flach, höchstens zwei Farben (Terrakotta, Petrol), funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato
+Bold (OFL), enger gesetzt mit eigenen Paarabständen.
 
 Fassungen
-  freistehend   Terrakotta, Zeitfenster Anthrazit (Favicon, Programmsymbol bis 24 px, Wortmarke)
-  Kachel        Anthrazit, Marke Weiß, Zeitfenster Terrakotta (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
+  freistehend   Terrakotta, Zeitfenster Petrol (Favicon, Programmsymbol bis 24 px, Wortmarke)
+  Kachel        Petrol, Marke Weiß, Zeitfenster Terrakotta (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
 
 Aufruf:  python3 build/logo.py
 
@@ -18,6 +19,7 @@ Ausgaben
                     untplan-logo.svg (Kachel), untplan-logo-voll.svg (Marke mit Wortmarke)
   Web (wwwroot/img) logo.svg (Kachel), marke.svg (freistehend), logo-voll.svg, favicon.svg, favicon-32.png,
                     apple-touch-icon.png, icon-192.png, icon-512.png, icon-maskable-512.png
+  Web (wwwroot/js)  symbole.js: Konstante LOGO (Kachel als Inline-SVG)
   iOS               AppIcon.png, AppIcon-Dark.png, AppIcon-Tinted.png (je 1024 px)
 
 Benötigt Pillow; für die Wortmarke zusätzlich fontTools mit Brotli (Lato Bold aus wwwroot/lib/lato).
@@ -25,6 +27,7 @@ Benötigt Pillow; für die Wortmarke zusätzlich fontTools mit Brotli (Lato Bold
 import io
 import math
 import os
+import re
 import struct
 
 from PIL import Image, ImageDraw
@@ -33,12 +36,13 @@ HIER = os.path.dirname(os.path.abspath(__file__))
 WURZEL = os.path.normpath(os.path.join(HIER, ".."))
 WEB_IMG = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "img")
 LATO_FETT = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "lib", "lato", "lato-latin-700-normal.woff2")
+WEB_JS_SYMBOLE = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "js", "symbole.js")
 IOS_ICON = os.path.join(WURZEL, "ios", "UntPlanMobile", "Assets.xcassets", "AppIcon.appiconset")
 
 # ---------------------------------------------------------------- Farben
 
 TERRAKOTTA = "#B8452B"
-ANTHRAZIT = "#24323D"
+PETROL = "#0F3B45"
 WEISS = "#FFFFFF"
 
 
@@ -111,69 +115,112 @@ def punkte(teil, s, dx=0.0, dy=0.0):
 
 # ---------------------------------------------------------------- Bildmarke
 
-STRICH = 11
-FENSTER = (40, 17, 9, 9, 1.5)        # Punze des P = Zeitfenster (x, y, b, h, Radius)
-RAHMEN = (6, 6, 61, 58)             # Umriss der Marke (x0, y0, x1, y1)
+STRICH = 10            # durchgehende Strichstärke
+LINKS = 8              # linker Schaft des U (x)
+U_PUNZE = 8            # Innenweite des U
+FENSTER_B = 9          # Punze des P = quadratisches Zeitfenster (Seitenlänge)
+OBEN, UNTEN = 6, 58    # Oberkante P, Unterkante U
+P_RADIUS = 12.5        # Eckradius der P-Schüssel außen (innen P_RADIUS - STRICH)
+ANSATZ = 3.5           # schräger Anschnitt oben am linken U-Schaft (steigt nach rechts)
+NEIGUNG = 9            # Vorwärtsneigung in Grad (Scherung um die Mitte der Marke)
+
+MITTE = LINKS + STRICH + U_PUNZE                 # mittlerer Schaft (linke Kante), gemeinsam für U und P
+P_HOEHE = FENSTER_B + 2 * STRICH
+RECHTS = MITTE + 2 * STRICH + FENSTER_B
+RAHMEN = (LINKS, OBEN, RECHTS, UNTEN)            # Umriss vor der Neigung
+
+
+def fenster_pfad():
+    """Punze des P: links eckig am Schaft, rechts mit dem Innenradius der Schüssel."""
+    x, y, b = MITTE + STRICH, OBEN + STRICH, FENSTER_B
+    r = max(P_RADIUS - STRICH, 0.8)
+    return (Pfad().neu(x, y).linie(x + b - r, y).bogen(x + b - r, y + r, r, -90, 0).linie(x + b, y + b - r)
+            .bogen(x + b - r, y + b - r, r, 0, 90).linie(x, y + b))
 
 
 def marke_pfad(mit_loch=True):
-    """U (Schäfte 6–17 und 29–40, Bogen um 23/41) und P-Bogen (29–61, 6–37, Halbkreis um 45,5/21,5)."""
-    p = (Pfad().neu(6, 26).linie(6, 41).bogen(23, 41, 17, 180, 0).linie(40, 37).linie(45.5, 37)
-         .bogen(45.5, 21.5, 15.5, 90, -90).linie(29, 6).linie(29, 41).bogen(23, 41, 6, 0, 180).linie(17, 26))
+    """U (Halbkreisbogen, linker Schaft endet schräg auf Höhe der Fensterunterkante) und P-Schüssel um den gemeinsamen Schaft."""
+    w, ro = STRICH, (STRICH * 2 + U_PUNZE) / 2
+    ri, cx, cy = U_PUNZE / 2, LINKS + ro, UNTEN - ro
+    u_oben = OBEN + STRICH + FENSTER_B
+    R, yb = P_RADIUS, OBEN + P_HOEHE
+    p = (Pfad().neu(LINKS, u_oben + ANSATZ).linie(LINKS, cy).bogen(cx, cy, ro, 180, 0).linie(MITTE + w, yb)
+         .linie(RECHTS - R, yb).bogen(RECHTS - R, yb - R, R, 90, 0).linie(RECHTS, OBEN + R).bogen(RECHTS - R, OBEN + R, R, 0, -90)
+         .linie(MITTE, OBEN).linie(MITTE, cy).bogen(cx, cy, ri, 0, 180).linie(LINKS + w, u_oben))
     if mit_loch:
-        p.teile.append(rrect(*FENSTER).teile[0])
+        p.teile.append(fenster_pfad().teile[0])
     return p
 
 
-def formen(farbe=TERRAKOTTA, fenster=ANTHRAZIT):
-    """Liste (Pfad, Farbe) im 64er-Raster; fenster=None lässt die Punze offen."""
-    teile = [(marke_pfad(mit_loch=not fenster), farbe)]
+def lage(inhalt=0.86, mitte=(32, 32)):
+    """Affine Matrix (a, b, c, d, e, f): Marke geneigt, mittig um `mitte`, größte Ausdehnung = inhalt * 64."""
+    x0, y0, x1, y1 = RAHMEN
+    t = math.tan(math.radians(NEIGUNG))
+    ym = (y0 + y1) / 2
+    bx0, bx1 = x0 - t * (y1 - ym), x1 + t * (ym - y0)
+    s = inhalt * 64 / max(bx1 - bx0, y1 - y0)
+    return (s, 0, -t * s, s, s * (t * ym - (bx0 + bx1) / 2) + mitte[0], -s * ym + mitte[1])
+
+
+EINS = (1, 0, 0, 1, 0, 0)
+
+
+def formen(farbe=TERRAKOTTA, fenster=PETROL, inhalt=0.9):
+    """Freistehende Marke: Liste (Pfad, Farbe, Matrix); fenster=None lässt die Punze offen (einfarbig)."""
+    m = lage(inhalt)
+    teile = [(marke_pfad(mit_loch=True), farbe, m)]
     if fenster:
-        teile.append((rrect(*FENSTER), fenster))
+        teile.append((fenster_pfad(), fenster, m))
     return teile
 
 
-def kachel_formen(rund=True, inhalt=0.7, grund=ANTHRAZIT, farbe=WEISS, fenster=TERRAKOTTA):
-    """Marke mittig auf einer Fläche; liefert (Liste (Pfad, Farbe, Versatz, Maßstab), Eckenradius)."""
-    x0, y0, x1, y1 = RAHMEN
-    s = inhalt * 64 / max(x1 - x0, y1 - y0) * 0.92
-    dx, dy = 32 - (x0 + x1) / 2 * s, 32 - (y0 + y1) / 2 * s
-    return [(rrect(0, 0, 64, 64, 14 if rund else 0.001), grund, 0, 0, 1)] + [(p, c, dx, dy, s) for p, c in formen(farbe, fenster)]
-
-
-def _mit_lage(liste):
-    return [x if len(x) == 5 else (x[0], x[1], 0, 0, 1) for x in liste]
+def kachel_formen(rund=True, inhalt=0.66, grund=PETROL, farbe=WEISS, fenster=TERRAKOTTA):
+    """Marke mittig auf einer Fläche (Eckenradius 14 im 64er-Raster oder eckig)."""
+    return [(rrect(0, 0, 64, 64, 14 if rund else 0.001), grund, EINS)] + formen(farbe, fenster, inhalt)
 
 
 def raster(groesse, liste, k=8):
-    """Rastert (Pfad, Farbe[, dx, dy, Maßstab]) überabgetastet und verkleinert mit Kastenfilter."""
+    """Rastert (Pfad, Farbe, Matrix) überabgetastet und verkleinert mit Kastenfilter."""
     n = groesse * k
     e = n / 64
     bild = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    for p, c, dx, dy, s in _mit_lage(liste):
+    for p, c, (a, b, cc, d, tx, ty) in liste:
         maske = Image.new("L", (n, n), 0)
-        d = ImageDraw.Draw(maske)
+        zeichne = ImageDraw.Draw(maske)
         for i, teil in enumerate(p.teile):
-            pts = [((x * s + dx) * e, (y * s + dy) * e) for x, y in punkte(teil, 1)]
-            d.polygon(pts, fill=255 if i == 0 else 0)
+            pts = [((a * x + cc * y + tx) * e, (b * x + d * y + ty) * e) for x, y in punkte(teil, 1)]
+            zeichne.polygon(pts, fill=255 if i == 0 else 0)
         bild = Image.composite(Image.new("RGBA", (n, n), rgb(c)), bild, maske)
     return bild.resize((groesse, groesse), Image.BOX)
 
 
 def svg_teile(liste, einzug="  "):
     zeilen = []
-    for p, c, dx, dy, s in _mit_lage(liste):
-        t = f' transform="translate({_z(dx)} {_z(dy)}) scale({_z(s)})"' if s != 1 or dx or dy else ""
+    for p, c, m in liste:
+        t = "" if m == EINS else f' transform="matrix({" ".join(_z(round(v, 4)) for v in m)})"'
         zeilen.append(f'{einzug}<path{t} fill="{c}" fill-rule="evenodd" d="{svg_d(p)}"/>')
     return "\n".join(zeilen)
 
 
-def svg_bildmarke(liste, px=256):
+def svg_bildmarke(liste, px=256, extra=""):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 64 64">\n'
-            f'  <title>UntPlan</title>\n{svg_teile(liste)}\n</svg>\n')
+            f'  <title>UntPlan</title>\n{extra}{svg_teile(liste)}\n</svg>\n')
+
+
+def svg_favicon():
+    """Favicon: freistehend Terrakotta mit Petrol-Fenster; im dunklen Browser-Design Fenster hell (CSS im SVG)."""
+    stil = ('  <style>@media (prefers-color-scheme: dark) { .f { fill: #F2F4F6; } }</style>\n')
+    teile = svg_teile(formen()).splitlines()
+    teile[1] = teile[1].replace("<path ", '<path class="f" ', 1)
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64">\n'
+            f'  <title>UntPlan</title>\n{stil}' + "\n".join(teile) + "\n</svg>\n")
 
 
 # ---------------------------------------------------------------- Wortmarke (Lato Bold als Umriss)
+
+SPERRUNG = -24                                                       # Font-Einheiten (2000 je Geviert)
+UNTERSCHNITT = {"Un": -10, "nt": -20, "tP": 30, "Pl": -10, "la": -10, "an": -10}   # eigene Paarabstände
+
 
 def wortmarke_pfad(text="UntPlan", hoehe=36.0):
     """SVG-Pfad der Wortmarke; Grundlinie bei y = hoehe, Versalhöhe = 0,72 * hoehe. Liefert (pfad, breite)."""
@@ -183,27 +230,32 @@ def wortmarke_pfad(text="UntPlan", hoehe=36.0):
 
     font = TTFont(LATO_FETT)
     cmap, glyphen = font.getBestCmap(), font.getGlyphSet()
-    upm = font["head"].unitsPerEm
     versal = font["OS/2"].sCapHeight or 1433
     s = hoehe * 0.72 / versal
     pen = SVGPathPen(glyphen, ntos=lambda v: f"{v:.2f}".rstrip("0").rstrip("."))
     x = 0.0
-    sperrung = -0.01 * upm   # leicht enger gesetzt
-    for z in text:
+    for i, z in enumerate(text):
         name = cmap[ord(z)]
         glyphen[name].draw(TransformPen(pen, (s, 0, 0, -s, x * s, hoehe)))
-        x += glyphen[name].width + sperrung
-    return pen.getCommands(), (x - sperrung) * s
+        x += glyphen[name].width + SPERRUNG + UNTERSCHNITT.get(text[i:i + 2], 0)
+    return pen.getCommands(), (x - SPERRUNG) * s
 
 
 def svg_voll():
     """Marke im 64er-Raster, daneben die Wortmarke (Versalhöhe 26, auf die optische Mitte der Marke gesetzt)."""
     pfad, breite = wortmarke_pfad(hoehe=36.0)
-    dx, dy = 76, 45 - 36
+    dx, dy = 70, 45 - 36
     gesamt = dx + breite + 4
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{gesamt * 2:.0f}" height="128" viewBox="0 0 {gesamt:.1f} 64">\n'
-            f'  <title>UntPlan</title>\n{svg_teile(formen())}\n'
-            f'  <path transform="translate({dx} {dy})" fill="{ANTHRAZIT}" d="{pfad}"/>\n</svg>\n')
+            f'  <title>UntPlan</title>\n{svg_teile(formen(inhalt=0.92))}\n'
+            f'  <path transform="translate({dx} {dy})" fill="{PETROL}" d="{pfad}"/>\n</svg>\n')
+
+
+def js_logo():
+    """Kachel für UntPlanWeb (js/symbole.js, Konstante LOGO), gleiche Geometrie wie img/logo.svg."""
+    teile = svg_teile(kachel_formen())
+    return ('export const LOGO = `<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">\n'
+            f'{teile}\n</svg>`;')
 
 
 # ---------------------------------------------------------------- ICO-Datei
@@ -267,7 +319,7 @@ def main():
     if os.path.isdir(WEB_IMG):
         schreibe(os.path.join(WEB_IMG, "logo.svg"), svg_bildmarke(kachel))
         schreibe(os.path.join(WEB_IMG, "marke.svg"), svg_bildmarke(frei))
-        schreibe(os.path.join(WEB_IMG, "favicon.svg"), svg_bildmarke(frei, 32))
+        schreibe(os.path.join(WEB_IMG, "favicon.svg"), svg_favicon())
         schreibe(os.path.join(WEB_IMG, "logo-voll.svg"), voll)
         raster(32, frei).save(os.path.join(WEB_IMG, "favicon-32.png"), optimize=True)
         eckig = kachel_formen(rund=False)
@@ -275,7 +327,12 @@ def main():
         raster(192, kachel).save(os.path.join(WEB_IMG, "icon-192.png"), optimize=True)
         raster(512, kachel).save(os.path.join(WEB_IMG, "icon-512.png"), optimize=True)
         # maskierbar: volle Fläche, Marke in der inneren Sicherheitszone
-        raster(512, kachel_formen(rund=False, inhalt=0.5)).convert("RGB").save(os.path.join(WEB_IMG, "icon-maskable-512.png"), optimize=True)
+        raster(512, kachel_formen(rund=False, inhalt=0.48)).convert("RGB").save(os.path.join(WEB_IMG, "icon-maskable-512.png"), optimize=True)
+    if os.path.isfile(WEB_JS_SYMBOLE):
+        with open(WEB_JS_SYMBOLE, encoding="utf-8") as f:
+            js = f.read()
+        js = re.sub(r"export const LOGO = `<svg.*?</svg>`;", lambda _: js_logo(), js, count=1, flags=re.S)
+        schreibe(WEB_JS_SYMBOLE, js)
 
     # iOS (das System rundet die Ecken selbst; dunkel und getönt auf transparentem Grund)
     if os.path.isdir(IOS_ICON):

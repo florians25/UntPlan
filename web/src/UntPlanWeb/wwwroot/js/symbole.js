@@ -92,12 +92,12 @@ export const bild = (datei, klasse = '', titel = '') => `<img class="wu-bild ${k
 
 export const symbolNamen = Object.keys(S);
 
-/** Logo von UntPlan als Kachel: „UP“ (ein U, dessen rechter Schaft in den Bogen eines P übergeht) weiß auf Anthrazit, die Punze
- *  des P als Zeitfenster in Terrakotta. Gleiche Geometrie wie img/logo.svg (erzeugt von build/logo.py). */
+/** Logo von UntPlan als Kachel: „UP“ (ein U, dessen rechter Schaft in die Schüssel eines P übergeht, 9° nach vorn geneigt) weiß
+ *  auf Petrol, die Punze des P als Zeitfenster in Terrakotta. Wird von build/logo.py geschrieben (gleiche Geometrie wie img/logo.svg). */
 export const LOGO = `<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-  <path fill="#24323D" fill-rule="evenodd" d="M14 0L50 0A14 14 0 0 1 64 14L64 50A14 14 0 0 1 50 64L14 64A14 14 0 0 1 0 50L0 14A14 14 0 0 1 14 0Z"/>
-  <path transform="translate(6.896 8.02) scale(0.749)" fill="#FFFFFF" fill-rule="evenodd" d="M6 26L6 41A17 17 0 0 0 23 58A17 17 0 0 0 40 41L40 37L45.5 37A15.5 15.5 0 0 0 61 21.5A15.5 15.5 0 0 0 45.5 6L29 6L29 41A6 6 0 0 1 23 47A6 6 0 0 1 17 41L17 26Z"/>
-  <path transform="translate(6.896 8.02) scale(0.749)" fill="#B8452B" fill-rule="evenodd" d="M41.5 17L47.5 17A1.5 1.5 0 0 1 49 18.5L49 24.5A1.5 1.5 0 0 1 47.5 26L41.5 26A1.5 1.5 0 0 1 40 24.5L40 18.5A1.5 1.5 0 0 1 41.5 17Z"/>
+  <path fill="#0F3B45" fill-rule="evenodd" d="M14 0L50 0A14 14 0 0 1 64 14L64 50A14 14 0 0 1 50 64L14 64A14 14 0 0 1 0 50L0 14A14 14 0 0 1 14 0Z"/>
+  <path transform="matrix(0.765 0 -0.121 0.765 11.787 7.529)" fill="#FFFFFF" fill-rule="evenodd" d="M8 28.5L8 44A14 14 0 0 0 22 58A14 14 0 0 0 36 44L36 35L42.5 35A12.5 12.5 0 0 0 55 22.5L55 18.5A12.5 12.5 0 0 0 42.5 6L26 6L26 44A4 4 0 0 1 22 48A4 4 0 0 1 18 44L18 25ZM36 16L42.5 16A2.5 2.5 0 0 1 45 18.5L45 22.5A2.5 2.5 0 0 1 42.5 25L36 25Z"/>
+  <path transform="matrix(0.765 0 -0.121 0.765 11.787 7.529)" fill="#B8452B" fill-rule="evenodd" d="M36 16L42.5 16A2.5 2.5 0 0 1 45 18.5L45 22.5A2.5 2.5 0 0 1 42.5 25L36 25Z"/>
 </svg>`;
 
 /** RSS-Kachel für „Nachrichten“ (Bootstrap Icon in Orange). */

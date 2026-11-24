@@ -207,8 +207,8 @@ public static class Symbole
     /*
      * Programmlogo (kein Programmsymbol): build/logo.py erzeugt aus einer einzigen Geometrie build/untplan.ico
      * (16, 20, 24, 32, 40, 48, 64 und 256 px), build/untplan-logo-256.png, die SVG-Fassungen sowie die Symbole für
-     * UntPlanWeb und UntPlanMobile. Bildmarke „UP“: ein U, dessen rechter Schaft in den Bogen eines P übergeht; die
-     * Punze des P ist ein Zeitfenster. Programmsymbol ab 32 px als Kachel (Anthrazit, Marke Weiß, Zeitfenster Terrakotta).
+     * UntPlanWeb und UntPlanMobile. Bildmarke „UP“: ein U, dessen rechter Schaft in die Schüssel eines P übergeht (9° nach vorn geneigt); die
+     * Punze des P ist ein Zeitfenster. Programmsymbol ab 32 px als Kachel (Petrol, Marke Weiß, Zeitfenster Terrakotta).
      * Die Anwendung selbst zeichnet nichts,
      * sie lädt das fertige Logo (eingebettete Ressource „Logo.untplan-logo-256.png“).
      */
