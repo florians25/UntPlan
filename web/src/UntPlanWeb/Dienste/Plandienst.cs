@@ -1623,25 +1623,34 @@ public sealed class Plandienst
         // zusätzliche Unterrichtsstunde (nicht die Zielstunde einer Verlegung): alle beteiligten Lehrkräfte als „+“-Label
         // (Vertretungen bleiben vorerst als Label: erst nach dem Zusammenfassen mehrerer Zeilen steht fest, ob die Vertretung selbst teilnimmt)
         if (zusatz && karte.Verlegung is null) karte = karte with { Lehrer = ZusatzLehrer(karte.Lehrer, vertretungBehalten: true) };
-        return karte.Verlegung is null ? karte : VerlegungsRaum(s, VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten), v);
+        return karte.Verlegung is null ? karte : VerlegungsRaum(s, d, typ, kurz, VerlegungSetzen(VerlegungOhneZusatz(s, karte), d, v, zeiten), v);
     }
 
     /// <summary>
-    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als an ihrem Ursprung: der Raum als grünes Label („alt → neu“,
-    /// hinzugefügter Raum „+R“) wie bei jeder Raumänderung. Bezug ist der Raum, den die Stunde an ihrem Ursprung tatsächlich hatte – UntPlan
-    /// nennt ihn in der Vertretung als bisherigen Raum („Raum“; auch ein am Ursprung geänderter Raum). „Räume mitnehmen“ behält ihn: kein Label.
-    /// Ältere Pakete ohne diesen Raum: die Räume des Unterrichts laut Stundenplan an der ursprünglichen Stunde.
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als ihr Bezugsraum: der Raum als grünes Label („alt → neu“,
+    /// hinzugefügter Raum „+R“) wie bei jeder Raumänderung. Wie im Vorbild gilt die Stunde, die an der Zielposition laut Stundenplan
+    /// stattfände, als Ursprungsstunde: Bezug ist deren Raum (<see cref="RegelraumAmZiel"/>; z. B. WL/SP in TH3 in die Stunde verlegt, in der
+    /// die Klasse regulär GF in B043 hat: Label „TH3“, Hinweis „B043 → TH3“). Hat das Element dort keinen Unterricht, ist es der Raum, den
+    /// UntPlan in der Vertretung als bisherigen Raum nennt („Raum“, der Raum am Ursprung; „Räume mitnehmen“ = kein Label), bei älteren Paketen
+    /// ohne diesen Raum die Räume des Unterrichts laut Stundenplan an der ursprünglichen Stunde.
     /// </summary>
-    private Karte VerlegungsRaum(Stand s, Karte k, WebVertretung? v)
+    private Karte VerlegungsRaum(Stand s, DateOnly d, string typ, string kurz, Karte k, WebVertretung? v)
     {
         if (k.Verlegung != "nach" || k.Status is not ("geaendert" or "offen") || k.Unterricht is not int u || k.VerlegungVon is not { Stunde: > 0 } von
-            || !DateOnly.TryParse(von.Datum, out var vd) || k.Raeume.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt))) return k;
+            || !DateOnly.TryParse(von.Datum, out var vd)) return k;
         var jetzt = k.Raeume.Select(w => w.K).Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
         if (jetzt.Count == 0) return k;
-        var ursprung = RaumListe(v?.Raum ?? "").Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
-        List<string> regel;
-        if (ursprung.Count > 0) regel = ursprung;
-        else
+        // reguläre Stunde am Ziel: sie bestimmt den Bezug, auch wenn das Paket als bisherigen Raum den Raum am Ursprung nennt (ältere Pakete)
+        // – die Labels werden neu bestimmt (nicht bei entferntem bzw. offenem Raum)
+        var amZiel = RegelraumAmZiel(s, d, typ, kurz, k);
+        if (amZiel.Count > 0 && !k.Raeume.Any(w => w.K is "" or "???"))
+            return k with
+            {
+                Raeume = jetzt.All(x => Enthaelt(amZiel, x)) ? jetzt.Select(x => new Wert(x)).ToList() : RaeumeNachBuchung(amZiel.Select(x => new Wert(x)).ToList(), jetzt),
+            };
+        if (k.Raeume.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt))) return k;
+        var regel = RaumListe(v?.Raum ?? "").Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
+        if (regel.Count == 0)
         {
             var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == von.Stunde).ToList();
             // Kopplung: die Zeile(n) der Lehrkraft dieser Karte
@@ -1651,6 +1660,26 @@ public sealed class Plandienst
         }
         if (regel.Count == 0 || jetzt.All(x => Enthaelt(regel, x))) return k;
         return k with { Raeume = RaeumeNachBuchung(regel.Select(x => new Wert(x)).ToList(), jetzt) };
+    }
+
+    /// <summary>
+    /// Räume der Stunde, die an der Zielposition einer verlegten Stunde laut Stundenplan stattfände (die verdrängte Stunde): im Klassenplan
+    /// die reguläre Stunde der Klasse, im Lehrer- und Raumplan die der Klasse(n) der verlegten Stunde – bei mehreren Klassen bzw. Stunden die
+    /// Stunde der ersten Klasse, die dort Unterricht hat. Hat keine Klasse dort Unterricht: leer.
+    /// </summary>
+    private List<string> RegelraumAmZiel(Stand s, DateOnly d, string typ, string kurz, Karte k)
+    {
+        var klassen = typ == Elementtyp.Klasse ? new List<string> { kurz }
+            : k.Klassen.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Where(x => x.Length > 0 && !IstPlatzhalter(x)).Distinct(Ci).ToList();
+        if (klassen.Count == 0) return new List<string>();
+        var ziel = RegelStunden(s, d).Where(r => r.Stunde == k.Von && r.Unterricht.HasValue && r.Status == "regulaer" && r.Raeume.Any(x => x.Length > 0)).ToList();
+        foreach (var kl in klassen)
+        {
+            var stunden = ziel.Where(r => Enthaelt(r.Klassen, kl)).ToList();
+            if (stunden.Count == 0) continue;
+            return stunden.SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
+        }
+        return new List<string>();
     }
 
     /// <summary>

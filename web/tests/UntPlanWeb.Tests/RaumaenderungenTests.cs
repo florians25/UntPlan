@@ -336,7 +336,7 @@ public class RaumaenderungenTests
             const karte = raeume => ({ status: 'geaendert', fach: 'D', fachName: 'Deutsch', klassen: [{ k: '7a' }], lehrer: [{ k: 'LAN' }], raeume, marker: [], art: 'Raum-Vtr.' });
             const faelle = [
               [[{ k: 'R109', alt: 'R105', neu: true }], '<span class="lbl" data-hover="R105 → R109" data-hover-alt="R105">R109</span>'],
-              [[{ k: 'R105' }, { k: 'R109', neu: true, plus: true }], 'R105, <span class="lbl lbl-plus">+R109</span>'],
+              [[{ k: 'R105' }, { k: 'R109', neu: true, plus: true }], 'R105<span class="kt">,</span> <span class="lbl lbl-plus">+R109</span>'],
               [[{ k: '', alt: 'R105', neu: true }], '<span class="lbl weg">R105</span>'],
             ];
             let fehler = 0;
