@@ -205,16 +205,11 @@ public static class Symbole
     }
 
     /*
-     * Quelldaten des Programmlogos (kein Programmsymbol): build/logo.py liest diese Zeilen, um build/untplan.ico,
-     * build/untplan-logo-256.png und build/untplan-logo.svg zu erzeugen. Die Anwendung selbst zeichnet nichts,
-     * sondern lädt das fertige Logo (eingebettete Ressource „Logo.untplan-logo-256.png“).
-     *
-     * Palette:
-     *   ["w"] = 0xFFFFFF   ["hg"] = 0xD6DBE2   ["gr"] = 0x6E7787   ["b"] = 0x2F6FC0   ["hb"] = 0xC4DAF5
-     *   ["g"] = 0x2E8048   ["hgr"] = 0xBFE3C4  ["o"] = 0xE5832A    ["y"] = 0xF2BE2E   ["v"] = 0x7A57B8
-     *
-     * Zeichenanweisungen (32er-Raster):
-     *   ["logo"] = "R 2 3 29 28 3 hg!; R 3 4 27 26 2 gr!; R 1 2 28 27 2 w; R 1 2 28 7 2 b; R 2 6 26 3 b!; R 22 4 2 2 w!; R 25 4 2 2 w!; R 4 4 9 2 hb!; R 3 11 3 16 hg!; R 7 11 21 2 hg!; R 7 14 4 4 o!; R 12 14 4 4 b!; R 17 14 4 4 hg!; R 22 14 5 4 g!; R 7 19 4 4 g!; R 12 19 4 4 y!; R 17 19 4 4 v!; R 22 19 5 4 b!; R 7 24 4 3 hb!; R 12 24 4 3 o!; R 17 24 4 3 hg!; R 22 24 5 3 hgr!"
-     *   ["logo@16"] = "R 4 4 27 27 3 gr!; R 1 1 27 27 3 w; R 1 1 27 9 3 b; R 2 6 25 4 b!; R 4 13 6 6 o!; R 11 13 6 6 b!; R 18 13 7 6 g!; R 4 20 6 5 g!; R 11 20 6 5 y!; R 18 20 7 5 hb!"
+     * Programmlogo (kein Programmsymbol): build/logo.py erzeugt aus einer einzigen Geometrie build/untplan.ico
+     * (16, 20, 24, 32, 40, 48, 64 und 256 px), build/untplan-logo-256.png, die SVG-Fassungen sowie die Symbole für
+     * UntPlanWeb und UntPlanMobile. Bildmarke „UP“: ein U, dessen rechter Schaft in den Bogen eines P übergeht; die
+     * Punze des P ist ein Zeitfenster. Programmsymbol ab 32 px als Kachel (Anthrazit, Marke Weiß, Zeitfenster Terrakotta).
+     * Die Anwendung selbst zeichnet nichts,
+     * sie lädt das fertige Logo (eingebettete Ressource „Logo.untplan-logo-256.png“).
      */
 }

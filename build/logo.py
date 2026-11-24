@@ -1,285 +1,209 @@
 #!/usr/bin/env python3
-"""Erzeugt Programmlogo, Windows-Symboldatei und Symbol-Vorschaubogen für UntPlan.
+"""Erzeugt alle Logodateien von UntPlan aus einer einzigen Geometrie.
 
-Die Zeichenanweisungen und die Palette werden direkt aus src/UntPlan.App/Symbole.cs gelesen,
-damit Programmsymbole, Logo und Vorschau immer übereinstimmen. Der Interpreter bildet den
-C#-Zeichner (Symbole.Zeichner) nach: 32er-Raster, Kanten auf ganze Pixel gerundet, Umriss 1 px.
+Bildmarke „UP“: ein U, dessen rechter Schaft nach oben in den Bogen eines P übergeht (UntPlan). Die Punze des P ist ein
+quadratisches Zeitfenster, die aktuelle Stunde. Konstruktion im 64er-Raster mit durchgehender Strichstärke 11: linker
+Schaft endet auf Höhe der Punzenunterkante, U-Bogen und P-Bogen sind Halbkreise. Flach, höchstens zwei Farben
+(Terrakotta, Anthrazit), funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato Bold (OFL), leicht enger
+gesetzt.
 
-Aufruf:  python3 build/logo.py            -> build/untplan.ico, build/untplan-logo.svg,
-                                             build/untplan-logo-256.png, build/icon.png
-         python3 build/logo.py --vorschau DATEI.png  -> zusätzlich Vorschaubogen aller Symbole
+Fassungen
+  freistehend   Terrakotta, Zeitfenster Anthrazit (Favicon, Programmsymbol bis 24 px, Wortmarke)
+  Kachel        Anthrazit, Marke Weiß, Zeitfenster Terrakotta (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
 
-Benötigt Pillow (pip install pillow).
+Aufruf:  python3 build/logo.py
+
+Ausgaben
+  build/            untplan.ico (16, 20, 24, 32, 40, 48, 64, 256), untplan-logo-256.png, icon.png,
+                    untplan-logo.svg (Kachel), untplan-logo-voll.svg (Marke mit Wortmarke)
+  Web (wwwroot/img) logo.svg (Kachel), marke.svg (freistehend), logo-voll.svg, favicon.svg, favicon-32.png,
+                    apple-touch-icon.png, icon-192.png, icon-512.png, icon-maskable-512.png
+  iOS               AppIcon.png, AppIcon-Dark.png, AppIcon-Tinted.png (je 1024 px)
+
+Benötigt Pillow; für die Wortmarke zusätzlich fontTools mit Brotli (Lato Bold aus wwwroot/lib/lato).
 """
 import io
 import math
 import os
-import re
 import struct
-import sys
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 HIER = os.path.dirname(os.path.abspath(__file__))
-QUELLE = os.path.join(HIER, "..", "src", "UntPlan.App", "Symbole.cs")
+WURZEL = os.path.normpath(os.path.join(HIER, ".."))
+WEB_IMG = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "img")
+LATO_FETT = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "lib", "lato", "lato-latin-700-normal.woff2")
+IOS_ICON = os.path.join(WURZEL, "ios", "UntPlanMobile", "Assets.xcassets", "AppIcon.appiconset")
+
+# ---------------------------------------------------------------- Farben
+
+TERRAKOTTA = "#B8452B"
+ANTHRAZIT = "#24323D"
+WEISS = "#FFFFFF"
 
 
-def lade_definitionen(pfad=QUELLE):
-    text = open(pfad, encoding="utf-8").read()
-    farben = {k: (int(v, 16) >> 16 & 255, int(v, 16) >> 8 & 255, int(v, 16) & 255)
-              for k, v in re.findall(r'\["(\w+)"\]\s*=\s*0x([0-9A-Fa-f]{6})', text)}
-    defs = dict(re.findall(r'\["([\w@]+)"\]\s*=\s*"([^"]*)"', text))
-    return farben, defs
+def rgb(h, a=255):
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
 
 
-FARBEN, DEFS = lade_definitionen()
+# ---------------------------------------------------------------- Pfade (Linien und Kreisbögen)
+
+class Pfad:
+    """Teilpfade; der erste ist Fläche, weitere sind Löcher (liegen innen, SVG: evenodd)."""
+
+    def __init__(self):
+        self.teile = []
+
+    def neu(self, x, y):
+        self.teile.append([("M", x, y)])
+        return self
+
+    def linie(self, x, y):
+        self.teile[-1].append(("L", x, y))
+        return self
+
+    def bogen(self, cx, cy, r, a0, a1):
+        """Kreisbogen von a0 nach a1 in Grad (0 = rechts, 90 = unten)."""
+        self.teile[-1].append(("A", cx, cy, r, a0, a1))
+        return self
 
 
-def definition(name, groesse):
-    for _ in range(4):
-        d = DEFS.get(name)
-        if d is None or not d.startswith("="):
-            break
-        name = d[1:]
-    if groesse <= 16 and name + "@16" in DEFS:
-        return DEFS[name + "@16"]
-    d = DEFS.get(name)
-    return None if d is None or d.startswith("=") else d
+def rrect(x, y, w, h, r):
+    p = Pfad().neu(x + r, y).linie(x + w - r, y).bogen(x + w - r, y + r, r, -90, 0).linie(x + w, y + h - r)
+    p.bogen(x + w - r, y + h - r, r, 0, 90).linie(x + r, y + h).bogen(x + r, y + h - r, r, 90, 180).linie(x, y + r)
+    return p.bogen(x + r, y + r, r, 180, 270)
 
 
-def dunkel(c):
-    return (int(c[0] * 0.45 + 26 * 0.55), int(c[1] * 0.45 + 30 * 0.55), int(c[2] * 0.45 + 36 * 0.55))
+def _z(v):
+    return f"{v:.3f}".rstrip("0").rstrip(".")
 
 
-def floor(v):
-    return math.floor(v + 1e-6)
-
-
-# ---------------------------------------------------------------- Geometrie (Gerätepixel)
-
-def bogen_punkte(x, y, w, h, start, winkel, n=None):
-    """Punkte eines Ellipsenbogens (Winkel im Uhrzeigersinn ab 3 Uhr, wie GDI+)."""
-    n = n or max(8, int(abs(winkel) / 4))
-    cx, cy, rx, ry = x + w / 2, y + h / 2, w / 2, h / 2
-    return [(cx + rx * math.cos(math.radians(start + winkel * i / n)),
-             cy + ry * math.sin(math.radians(start + winkel * i / n))) for i in range(n + 1)]
-
-
-class Teil:
-    def __init__(self, punkte, farbe, flaeche, umriss, breite=0.0, geschlossen=True, loch=None):
-        self.punkte, self.farbe, self.flaeche, self.umriss = punkte, farbe, flaeche, umriss
-        self.breite, self.geschlossen, self.loch = breite, geschlossen, loch
-
-
-class Zeichner:
-    def __init__(self, groesse):
-        self.s = groesse / 32.0
-        self.rand = max(1, floor(self.s + 0.5))
-
-    def F(self, v):
-        return floor(v * self.s + 0.5)
-
-    def Lb(self, b):
-        return max(1, floor(b * self.s + 0.5))
-
-    def L(self, v, lb):
-        return floor(v * self.s) + 0.5 if int(lb) % 2 == 1 else floor(v * self.s + 0.5)
-
-    def box(self, x, y, w, h):
-        x0, y0 = self.F(x), self.F(y)
-        return x0, y0, max(1, self.F(x + w) - x0), max(1, self.F(y + h) - y0)
-
-    def ellipse(self, x, y, w, h):
-        x0, y0, b, hh = self.box(x, y, w, h)
-        return bogen_punkte(x0, y0, b, hh, 0, 360, 96)[:-1]
-
-    def rechteck(self, x, y, w, h, r):
-        x0, y0, b, hh = self.box(x, y, w, h)
-        d = min(2 * r * self.s, min(b, hh))
-        if d < 0.5:
-            return [(x0, y0), (x0 + b, y0), (x0 + b, y0 + hh), (x0, y0 + hh)]
-        return (bogen_punkte(x0, y0, d, d, 180, 90, 12) + bogen_punkte(x0 + b - d, y0, d, d, 270, 90, 12)
-                + bogen_punkte(x0 + b - d, y0 + hh - d, d, d, 0, 90, 12) + bogen_punkte(x0, y0 + hh - d, d, d, 90, 90, 12))
-
-    @staticmethod
-    def kopf(lb):
-        return max(lb * 2.2, 3.5), max(lb * 1.6, 2.5)
-
-    def spitze(self, p, d, lb, farbe, saum, an_spitze):
-        ln = math.hypot(*d)
-        u = (1.0, 0.0) if ln < 1e-4 else (d[0] / ln, d[1] / ln)
-        kl, kb = self.kopf(lb)
-        basis = (p[0] - u[0] * kl, p[1] - u[1] * kl) if an_spitze else p
-        sp = p if an_spitze else (p[0] + u[0] * kl, p[1] + u[1] * kl)
-        n = (-u[1], u[0])
-        return Teil([sp, (basis[0] + n[0] * kb, basis[1] + n[1] * kb), (basis[0] - n[0] * kb, basis[1] - n[1] * kb)],
-                    farbe, True, saum), basis
-
-    def befehl(self, befehl):
-        tok = befehl.split()
-        z, farbe, umriss, saum, breite = [], (255, 0, 255), True, False, 2.0
-        for t in tok[1:]:
-            try:
-                z.append(float(t))
-                continue
-            except ValueError:
-                pass
-            if t == "!":
-                umriss = False
-            elif t == "h":
-                saum = True
-            elif len(t) > 1 and t[0] == "w" and (t[1].isdigit() or t[1] == "."):
-                breite = float(t[1:])
+def svg_d(pfad):
+    d = []
+    for teil in pfad.teile:
+        for op in teil:
+            if op[0] in "ML":
+                d.append(f"{op[0]}{_z(op[1])} {_z(op[2])}")
             else:
-                if t.endswith("!"):   # „hb!“ = Farbe ohne Umriss
-                    umriss = False
-                farbe = FARBEN.get(t.rstrip("!"), (255, 0, 255))
-        lb = self.Lb(breite)
-        op, s = tok[0], self.s
-        if op == "R":
-            return [Teil(self.rechteck(z[0], z[1], z[2], z[3], z[4] if len(z) > 4 else 0), farbe, True, umriss)]
-        if op == "E":
-            return [Teil(self.ellipse(*z[:4]), farbe, True, umriss)]
-        if op == "C":
-            x, y, w, h = self.box(*z[:4])
-            return [Teil([(x + w / 2, y + h / 2)] + bogen_punkte(x, y, w, h, z[4], z[5]), farbe, True, umriss)]
-        if op == "H":
-            x, y, g = z[0], z[1], z[2]
-            bx, by, bw, bh = self.box(x, y + 0.48 * g, g, 1.04 * g)
-            return [Teil(self.ellipse(x + 0.29 * g, y, 0.42 * g, 0.42 * g), farbe, True, umriss),
-                    Teil([(bx + bw / 2, by + bh / 2)] + bogen_punkte(bx, by, bw, bh, 180, 180), farbe, True, umriss)]
-        if op == "P":
-            return [Teil([(self.F(z[i]), self.F(z[i + 1])) for i in range(0, len(z) - 1, 2)], farbe, True, umriss)]
-        if op == "S":
-            n = int(z[4])
-            pts = []
-            for i in range(2 * n):
-                a = -math.pi / 2 + i * math.pi / n
-                r = z[2] if i % 2 == 0 else z[3]
-                pts.append(((z[0] + r * math.cos(a)) * s, (z[1] + r * math.sin(a)) * s))
-            return [Teil(pts, farbe, True, umriss)]
-        if op == "Z":
-            cx, cy, r, n = z[0], z[1], z[2], int(z[3])
-            ri, schritt, pts = r * 0.74, 2 * math.pi / n, []
-            for i in range(n):
-                a = i * schritt - math.pi / 2
-                for rr, da in ((ri, -0.27), (r, -0.15), (r, 0.15), (ri, 0.27)):
-                    pts.append(((cx + rr * math.cos(a + da * schritt)) * s, (cy + rr * math.sin(a + da * schritt)) * s))
-            return [Teil(pts, farbe, True, umriss, loch=(cx * s, cy * s, r * 0.34 * s))]
-        if op == "L":
-            pts = [(self.L(z[i], lb), self.L(z[i + 1], lb)) for i in range(0, len(z) - 1, 2)]
-            return [Teil(pts, farbe, False, saum, lb, False)]
-        if op in ("A", "B"):
-            x, y = self.L(z[0], lb), self.L(z[1], lb)
-            w, h = self.L(z[0] + z[2], lb) - x, self.L(z[1] + z[3], lb) - y
-            teile = [Teil(bogen_punkte(x, y, w, h, z[4], z[5]), farbe, False, saum, lb, False)]
-            if op == "B":
-                e = math.radians(z[4] + z[5])
-                ende = (x + w / 2 + w / 2 * math.cos(e), y + h / 2 + h / 2 * math.sin(e))
-                d = (-w / 2 * math.sin(e), h / 2 * math.cos(e))
-                if z[5] < 0:
-                    d = (-d[0], -d[1])
-                teile.append(self.spitze(ende, d, lb, farbe, saum, False)[0])
-            return teile
-        if op == "V":
-            pts = [(self.L(z[i], lb), self.L(z[i + 1], lb)) for i in range(0, len(z) - 1, 2)]
-            sp, vor = pts[-1], pts[-2]
-            teil, basis = self.spitze(sp, (sp[0] - vor[0], sp[1] - vor[1]), lb, farbe, saum, True)
-            pts[-1] = basis
-            return [Teil(pts, farbe, False, saum, lb, False), teil]
-        return []
+                _, cx, cy, r, a0, a1 = op
+                n = max(1, math.ceil(abs(a1 - a0) / 90 - 1e-9))
+                for i in range(1, n + 1):
+                    a = math.radians(a0 + (a1 - a0) * i / n)
+                    d.append(f"A{_z(r)} {_z(r)} 0 0 {1 if a1 > a0 else 0} {_z(cx + r * math.cos(a))} {_z(cy + r * math.sin(a))}")
+        d.append("Z")
+    return "".join(d)
 
 
-# ---------------------------------------------------------------- Rasterung (Pillow, überabgetastet)
+def punkte(teil, s, dx=0.0, dy=0.0):
+    pts = []
+    for op in teil:
+        if op[0] in "ML":
+            pts.append(((op[1] + dx) * s, (op[2] + dy) * s))
+        else:
+            _, cx, cy, r, a0, a1 = op
+            n = max(8, int(abs(a1 - a0) / 2))
+            for i in range(1, n + 1):
+                a = math.radians(a0 + (a1 - a0) * i / n)
+                pts.append(((cx + dx + r * math.cos(a)) * s, (cy + dy + r * math.sin(a)) * s))
+    return pts
 
-def _strich(d, pts, breite, farbe, k, geschlossen):
-    p = [(x * k, y * k) for x, y in pts]
-    if geschlossen:
-        p = p + [p[0]]
-    w = max(1, int(round(breite * k)))
-    if len(p) > 1:
-        d.line(p, fill=farbe, width=w, joint="curve")
-    r = breite * k / 2
-    for x, y in (p if geschlossen or len(p) < 40 else [p[0], p[-1]]):
-        d.ellipse([x - r, y - r, x + r, y + r], fill=farbe)
+
+# ---------------------------------------------------------------- Bildmarke
+
+STRICH = 11
+FENSTER = (40, 17, 9, 9, 1.5)        # Punze des P = Zeitfenster (x, y, b, h, Radius)
+RAHMEN = (6, 6, 61, 58)             # Umriss der Marke (x0, y0, x1, y1)
 
 
-def render(defn, groesse, k=None):
-    k = k or (8 if groesse <= 64 else 4)
+def marke_pfad(mit_loch=True):
+    """U (Schäfte 6–17 und 29–40, Bogen um 23/41) und P-Bogen (29–61, 6–37, Halbkreis um 45,5/21,5)."""
+    p = (Pfad().neu(6, 26).linie(6, 41).bogen(23, 41, 17, 180, 0).linie(40, 37).linie(45.5, 37)
+         .bogen(45.5, 21.5, 15.5, 90, -90).linie(29, 6).linie(29, 41).bogen(23, 41, 6, 0, 180).linie(17, 26))
+    if mit_loch:
+        p.teile.append(rrect(*FENSTER).teile[0])
+    return p
+
+
+def formen(farbe=TERRAKOTTA, fenster=ANTHRAZIT):
+    """Liste (Pfad, Farbe) im 64er-Raster; fenster=None lässt die Punze offen."""
+    teile = [(marke_pfad(mit_loch=not fenster), farbe)]
+    if fenster:
+        teile.append((rrect(*FENSTER), fenster))
+    return teile
+
+
+def kachel_formen(rund=True, inhalt=0.7, grund=ANTHRAZIT, farbe=WEISS, fenster=TERRAKOTTA):
+    """Marke mittig auf einer Fläche; liefert (Liste (Pfad, Farbe, Versatz, Maßstab), Eckenradius)."""
+    x0, y0, x1, y1 = RAHMEN
+    s = inhalt * 64 / max(x1 - x0, y1 - y0) * 0.92
+    dx, dy = 32 - (x0 + x1) / 2 * s, 32 - (y0 + y1) / 2 * s
+    return [(rrect(0, 0, 64, 64, 14 if rund else 0.001), grund, 0, 0, 1)] + [(p, c, dx, dy, s) for p, c in formen(farbe, fenster)]
+
+
+def _mit_lage(liste):
+    return [x if len(x) == 5 else (x[0], x[1], 0, 0, 1) for x in liste]
+
+
+def raster(groesse, liste, k=8):
+    """Rastert (Pfad, Farbe[, dx, dy, Maßstab]) überabgetastet und verkleinert mit Kastenfilter."""
     n = groesse * k
+    e = n / 64
     bild = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    z = Zeichner(groesse)
-    for gruppe in [g.strip() for g in defn.split(";") if g.strip()]:
-        teile = []
-        for b in [b.strip() for b in gruppe.split("&") if b.strip()]:
-            teile += z.befehl(b)
-        for durchgang in ("umriss", "fuellung"):
-            for t in teile:
-                if durchgang == "umriss" and not t.umriss:
-                    continue
-                ebene = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-                d = ImageDraw.Draw(ebene)
-                if durchgang == "umriss":
-                    c = dunkel(t.farbe) + (255,)
-                    if t.flaeche:
-                        d.polygon([(x * k, y * k) for x, y in t.punkte], fill=c)
-                        _strich(d, t.punkte, 2 * z.rand, c, k, True)
-                    else:
-                        _strich(d, t.punkte, t.breite + 2 * z.rand, c, k, False)
-                    if t.loch:
-                        cx, cy, r = t.loch
-                        r = (r - z.rand) * k
-                        d.ellipse([cx * k - r, cy * k - r, cx * k + r, cy * k + r], fill=(0, 0, 0, 0))
-                else:
-                    c = tuple(t.farbe) + (255,)
-                    if t.flaeche:
-                        d.polygon([(x * k, y * k) for x, y in t.punkte], fill=c)
-                        if t.loch:
-                            cx, cy, r = t.loch
-                            d.ellipse([(cx - r) * k, (cy - r) * k, (cx + r) * k, (cy + r) * k], fill=(0, 0, 0, 0))
-                    else:
-                        _strich(d, t.punkte, t.breite, c, k, False)
-                bild = Image.alpha_composite(bild, ebene)
+    for p, c, dx, dy, s in _mit_lage(liste):
+        maske = Image.new("L", (n, n), 0)
+        d = ImageDraw.Draw(maske)
+        for i, teil in enumerate(p.teile):
+            pts = [((x * s + dx) * e, (y * s + dy) * e) for x, y in punkte(teil, 1)]
+            d.polygon(pts, fill=255 if i == 0 else 0)
+        bild = Image.composite(Image.new("RGBA", (n, n), rgb(c)), bild, maske)
     return bild.resize((groesse, groesse), Image.BOX)
 
 
-def symbol(name, groesse):
-    d = definition(name, groesse)
-    if d is None:
-        d = "R 3 3 26 26 6 hg"
-    return render(d, groesse)
+def svg_teile(liste, einzug="  "):
+    zeilen = []
+    for p, c, dx, dy, s in _mit_lage(liste):
+        t = f' transform="translate({_z(dx)} {_z(dy)}) scale({_z(s)})"' if s != 1 or dx or dy else ""
+        zeilen.append(f'{einzug}<path{t} fill="{c}" fill-rule="evenodd" d="{svg_d(p)}"/>')
+    return "\n".join(zeilen)
 
 
-# ---------------------------------------------------------------- SVG-Master
+def svg_bildmarke(liste, px=256):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 64 64">\n'
+            f'  <title>UntPlan</title>\n{svg_teile(liste)}\n</svg>\n')
 
-def svg(defn, einheit=32, groesse=256):
-    """Vektorfassung (ohne Pixelrundung) im 32er-Raster."""
-    z = Zeichner(32)   # Maßstab 1: Gerätekoordinaten = Rasterkoordinaten
-    z.F = lambda v: v
-    z.L = lambda v, lb: v
-    z.Lb = lambda b: b
-    teile_svg = []
-    for gruppe in [g.strip() for g in defn.split(";") if g.strip()]:
-        teile = []
-        for b in [b.strip() for b in gruppe.split("&") if b.strip()]:
-            teile += z.befehl(b)
-        def pfad(t):
-            pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in t.punkte)
-            return ("M" + pts + (" Z" if t.geschlossen else ""))
-        for t in teile:
-            if t.umriss:
-                c = "#%02x%02x%02x" % dunkel(t.farbe)
-                w = 2 if t.flaeche else t.breite + 2
-                fill = c if t.flaeche else "none"
-                teile_svg.append(f'<path d="{pfad(t)}" fill="{fill}" stroke="{c}" stroke-width="{w:g}" stroke-linejoin="round" stroke-linecap="round"/>')
-        for t in teile:
-            c = "#%02x%02x%02x" % tuple(t.farbe)
-            if t.flaeche:
-                teile_svg.append(f'<path d="{pfad(t)}" fill="{c}"/>')
-            else:
-                teile_svg.append(f'<path d="{pfad(t)}" fill="none" stroke="{c}" stroke-width="{t.breite:g}" stroke-linejoin="round" stroke-linecap="round"/>')
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{groesse}" height="{groesse}" viewBox="0 0 {einheit} {einheit}">\n'
-            '  <title>UntPlan</title>\n  ' + "\n  ".join(teile_svg) + "\n</svg>\n")
+
+# ---------------------------------------------------------------- Wortmarke (Lato Bold als Umriss)
+
+def wortmarke_pfad(text="UntPlan", hoehe=36.0):
+    """SVG-Pfad der Wortmarke; Grundlinie bei y = hoehe, Versalhöhe = 0,72 * hoehe. Liefert (pfad, breite)."""
+    from fontTools.pens.svgPathPen import SVGPathPen
+    from fontTools.pens.transformPen import TransformPen
+    from fontTools.ttLib import TTFont
+
+    font = TTFont(LATO_FETT)
+    cmap, glyphen = font.getBestCmap(), font.getGlyphSet()
+    upm = font["head"].unitsPerEm
+    versal = font["OS/2"].sCapHeight or 1433
+    s = hoehe * 0.72 / versal
+    pen = SVGPathPen(glyphen, ntos=lambda v: f"{v:.2f}".rstrip("0").rstrip("."))
+    x = 0.0
+    sperrung = -0.01 * upm   # leicht enger gesetzt
+    for z in text:
+        name = cmap[ord(z)]
+        glyphen[name].draw(TransformPen(pen, (s, 0, 0, -s, x * s, hoehe)))
+        x += glyphen[name].width + sperrung
+    return pen.getCommands(), (x - sperrung) * s
+
+
+def svg_voll():
+    """Marke im 64er-Raster, daneben die Wortmarke (Versalhöhe 26, auf die optische Mitte der Marke gesetzt)."""
+    pfad, breite = wortmarke_pfad(hoehe=36.0)
+    dx, dy = 76, 45 - 36
+    gesamt = dx + breite + 4
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{gesamt * 2:.0f}" height="128" viewBox="0 0 {gesamt:.1f} 64">\n'
+            f'  <title>UntPlan</title>\n{svg_teile(formen())}\n'
+            f'  <path transform="translate({dx} {dy})" fill="{ANTHRAZIT}" d="{pfad}"/>\n</svg>\n')
 
 
 # ---------------------------------------------------------------- ICO-Datei
@@ -320,53 +244,47 @@ def ico(bilder):
     return ausgabe
 
 
-# ---------------------------------------------------------------- Vorschaubogen
+# ---------------------------------------------------------------- Ausgabe
 
-def vorschau(pfad):
-    namen = sorted(k for k in DEFS if "@" not in k)
-    hintergruende = [(255, 255, 255), (243, 243, 243), (0x12, 0x5E, 0x7A), (0x2E, 0x70, 0x40)]
-    spalten = 4
-    zelle_b, zelle_h = 330, 46
-    zeilen = (len(namen) + spalten - 1) // spalten
-    bogen = Image.new("RGBA", (spalten * zelle_b + 20, zeilen * zelle_h + 60), (250, 250, 250, 255))
-    d = ImageDraw.Draw(bogen)
-    try:
-        schrift = ImageFont.truetype("DejaVuSans.ttf", 12)
-        titel = ImageFont.truetype("DejaVuSans-Bold.ttf", 16)
-    except OSError:
-        schrift = titel = ImageFont.load_default()
-    d.text((10, 10), "UntPlan – Symbole (16 px und 32 px auf Weiß, Hellgrau, Petrol, Grün)", fill=(30, 30, 30), font=titel)
-    for i, name in enumerate(namen):
-        x0 = 10 + (i % spalten) * zelle_b
-        y0 = 40 + (i // spalten) * zelle_h
-        x = x0
-        for hg in hintergruende:
-            d.rectangle([x, y0, x + 56, y0 + 40], fill=hg + (255,))
-            bogen.alpha_composite(symbol(name, 16), (x + 4, y0 + 12))
-            bogen.alpha_composite(symbol(name, 32), (x + 22, y0 + 4))
-            x += 58
-        d.text((x + 4, y0 + 14), name, fill=(30, 30, 30), font=schrift)
-    gross = bogen.convert("RGB")
-    gross.save(pfad)
-    # Vergrößerte Ansicht (Faktor 3, ohne Glättung) zur Pixelkontrolle
-    basis, ext = os.path.splitext(pfad)
-    gross.resize((gross.width * 2, gross.height * 2), Image.NEAREST).save(basis + "-2x" + ext)
+def schreibe(pfad, text):
+    with open(pfad, "w", encoding="utf-8", newline="\n") as f:
+        f.write(text)
 
 
-def main(argv):
-    logo = DEFS["logo"]
-    groessen = [16, 24, 32, 48, 64, 256]
-    bilder = [symbol("logo", g) for g in groessen]
+def main():
+    # Programm (Windows): bis 24 px die freistehende Marke, ab 32 px die Kachel
+    frei, kachel = formen(), kachel_formen()
+    bilder = [raster(g, frei) for g in (16, 20, 24)] + [raster(g, kachel) for g in (32, 40, 48, 64, 256)]
     with open(os.path.join(HIER, "untplan.ico"), "wb") as f:
         f.write(ico(bilder))
     bilder[-1].save(os.path.join(HIER, "untplan-logo-256.png"), optimize=True)
     bilder[-1].save(os.path.join(HIER, "icon.png"), optimize=True)
-    with open(os.path.join(HIER, "untplan-logo.svg"), "w", encoding="utf-8") as f:
-        f.write(svg(logo))
-    if "--vorschau" in argv:
-        vorschau(argv[argv.index("--vorschau") + 1])
-    print("Logo und Symbole erzeugt.")
+    schreibe(os.path.join(HIER, "untplan-logo.svg"), svg_bildmarke(kachel))
+    voll = svg_voll()
+    schreibe(os.path.join(HIER, "untplan-logo-voll.svg"), voll)
+
+    # Web
+    if os.path.isdir(WEB_IMG):
+        schreibe(os.path.join(WEB_IMG, "logo.svg"), svg_bildmarke(kachel))
+        schreibe(os.path.join(WEB_IMG, "marke.svg"), svg_bildmarke(frei))
+        schreibe(os.path.join(WEB_IMG, "favicon.svg"), svg_bildmarke(frei, 32))
+        schreibe(os.path.join(WEB_IMG, "logo-voll.svg"), voll)
+        raster(32, frei).save(os.path.join(WEB_IMG, "favicon-32.png"), optimize=True)
+        eckig = kachel_formen(rund=False)
+        raster(180, eckig).convert("RGB").save(os.path.join(WEB_IMG, "apple-touch-icon.png"), optimize=True)
+        raster(192, kachel).save(os.path.join(WEB_IMG, "icon-192.png"), optimize=True)
+        raster(512, kachel).save(os.path.join(WEB_IMG, "icon-512.png"), optimize=True)
+        # maskierbar: volle Fläche, Marke in der inneren Sicherheitszone
+        raster(512, kachel_formen(rund=False, inhalt=0.5)).convert("RGB").save(os.path.join(WEB_IMG, "icon-maskable-512.png"), optimize=True)
+
+    # iOS (das System rundet die Ecken selbst; dunkel und getönt auf transparentem Grund)
+    if os.path.isdir(IOS_ICON):
+        raster(1024, kachel_formen(rund=False)).convert("RGB").save(os.path.join(IOS_ICON, "AppIcon.png"), optimize=True)
+        dunkel = kachel_formen(rund=False, farbe="#F2F4F6", fenster="#E0694A")[1:]
+        raster(1024, dunkel).save(os.path.join(IOS_ICON, "AppIcon-Dark.png"), optimize=True)
+        getoent = kachel_formen(rund=False, farbe=WEISS, fenster="#9A9A9A")[1:]
+        raster(1024, getoent).convert("LA").save(os.path.join(IOS_ICON, "AppIcon-Tinted.png"), optimize=True)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()

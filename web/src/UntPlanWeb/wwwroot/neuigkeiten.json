@@ -1,5 +1,14 @@
 [
   {
+    "datum": "2026-11-24",
+    "titel": "Neues Logo und sachlichere Anmeldeseite",
+    "punkte": [
+      "Neues Logo „UP“: ein U, das in den Bogen eines P übergeht, mit einem Zeitfenster als Punze; auch als Browsersymbol, App-Symbol, in der Seitenleiste und im Desktop-Programm.",
+      "Anmeldeseite ohne Illustration und Zusatztexte: links Datum, Schule und Hinweise der Schule, rechts das Anmeldeformular; „Anmelden“ ist erst aktiv, wenn Benutzername und Passwort eingetragen sind.",
+      "Ersteinrichtung und Passwortwechsel mit denselben beschrifteten Feldern wie die Anmeldung."
+    ]
+  },
+  {
     "datum": "2026-11-18",
     "titel": "Einheitliche Filter und Karten auf allen Seiten",
     "punkte": [
