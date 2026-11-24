@@ -3,14 +3,14 @@
 
 Bildmarke „UP“: ein U, dessen rechter Schaft nach oben in die Schüssel eines P übergeht (UntPlan). Die Punze des P ist ein
 quadratisches Zeitfenster, die aktuelle Stunde. Konstruktion im 64er-Raster mit durchgehender Strichstärke 10: linker
-Schaft endet schräg angeschnitten auf Höhe der Fensterunterkante, U-Bogen als Halbkreis, P-Schüssel mit Eckradius 12,5
-(innen 2,5, wie die Ecken des Zeitfensters). Die ganze Marke ist um 9° nach vorn geneigt: Bewegung durch die Woche.
-Flach, höchstens zwei Farben (Terrakotta, Petrol), funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato
+Schaft endet schräg angeschnitten auf Höhe der Fensterunterkante (Bewegung nach vorn), U-Bogen als Halbkreis,
+P-Schüssel mit Eckradius 12,5 (innen 2,5, wie die Ecken des Zeitfensters). Aufrecht. Orange ist die Hauptfarbe, Petrol
+nur Akzent (Zeitfenster, Schrift). Flach, höchstens zwei Farben, funktioniert einfarbig und invertiert. Wortmarke „UntPlan“ in Lato
 Bold (OFL), enger gesetzt mit eigenen Paarabständen.
 
 Fassungen
-  freistehend   Terrakotta, Zeitfenster Petrol (Favicon, Programmsymbol bis 24 px, Wortmarke)
-  Kachel        Petrol, Marke Weiß, Zeitfenster Terrakotta (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
+  freistehend   Orange, Zeitfenster Petrol (Favicon, Programmsymbol bis 24 px, Wortmarke in Petrol)
+  Kachel        Orange, Marke Weiß, Zeitfenster Petrol (App-Symbole, Programmsymbol ab 32 px, Seitenleiste)
 
 Aufruf:  python3 build/logo.py
 
@@ -20,7 +20,8 @@ Ausgaben
   Web (wwwroot/img) logo.svg (Kachel), marke.svg (freistehend), logo-voll.svg, favicon.svg, favicon-32.png,
                     apple-touch-icon.png, icon-192.png, icon-512.png, icon-maskable-512.png
   Web (wwwroot/js)  symbole.js: Konstante LOGO (Kachel als Inline-SVG)
-  iOS               AppIcon.png, AppIcon-Dark.png, AppIcon-Tinted.png (je 1024 px)
+  iOS               AppIcon.png, AppIcon-Dark.png, AppIcon-Tinted.png (je 1024 px),
+                    Startlogo.imageset/Startlogo.svg (freistehend, enger viewBox)
 
 Benötigt Pillow; für die Wortmarke zusätzlich fontTools mit Brotli (Lato Bold aus wwwroot/lib/lato).
 """
@@ -38,10 +39,11 @@ WEB_IMG = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "img")
 LATO_FETT = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "lib", "lato", "lato-latin-700-normal.woff2")
 WEB_JS_SYMBOLE = os.path.join(WURZEL, "web", "src", "UntPlanWeb", "wwwroot", "js", "symbole.js")
 IOS_ICON = os.path.join(WURZEL, "ios", "UntPlanMobile", "Assets.xcassets", "AppIcon.appiconset")
+IOS_STARTLOGO = os.path.join(WURZEL, "ios", "UntPlanMobile", "Assets.xcassets", "Startlogo.imageset")
 
 # ---------------------------------------------------------------- Farben
 
-TERRAKOTTA = "#B8452B"
+ORANGE = "#E5622D"
 PETROL = "#0F3B45"
 WEISS = "#FFFFFF"
 
@@ -122,7 +124,7 @@ FENSTER_B = 9          # Punze des P = quadratisches Zeitfenster (Seitenlänge)
 OBEN, UNTEN = 6, 58    # Oberkante P, Unterkante U
 P_RADIUS = 12.5        # Eckradius der P-Schüssel außen (innen P_RADIUS - STRICH)
 ANSATZ = 3.5           # schräger Anschnitt oben am linken U-Schaft (steigt nach rechts)
-NEIGUNG = 9            # Vorwärtsneigung in Grad (Scherung um die Mitte der Marke)
+NEIGUNG = 0            # Neigung in Grad (Scherung um die Mitte der Marke); aufrecht
 
 MITTE = LINKS + STRICH + U_PUNZE                 # mittlerer Schaft (linke Kante), gemeinsam für U und P
 P_HOEHE = FENSTER_B + 2 * STRICH
@@ -165,7 +167,7 @@ def lage(inhalt=0.86, mitte=(32, 32)):
 EINS = (1, 0, 0, 1, 0, 0)
 
 
-def formen(farbe=TERRAKOTTA, fenster=PETROL, inhalt=0.9):
+def formen(farbe=ORANGE, fenster=PETROL, inhalt=0.9):
     """Freistehende Marke: Liste (Pfad, Farbe, Matrix); fenster=None lässt die Punze offen (einfarbig)."""
     m = lage(inhalt)
     teile = [(marke_pfad(mit_loch=True), farbe, m)]
@@ -174,7 +176,7 @@ def formen(farbe=TERRAKOTTA, fenster=PETROL, inhalt=0.9):
     return teile
 
 
-def kachel_formen(rund=True, inhalt=0.66, grund=PETROL, farbe=WEISS, fenster=TERRAKOTTA):
+def kachel_formen(rund=True, inhalt=0.66, grund=ORANGE, farbe=WEISS, fenster=PETROL):
     """Marke mittig auf einer Fläche (Eckenradius 14 im 64er-Raster oder eckig)."""
     return [(rrect(0, 0, 64, 64, 14 if rund else 0.001), grund, EINS)] + formen(farbe, fenster, inhalt)
 
@@ -197,7 +199,12 @@ def raster(groesse, liste, k=8):
 def svg_teile(liste, einzug="  "):
     zeilen = []
     for p, c, m in liste:
-        t = "" if m == EINS else f' transform="matrix({" ".join(_z(round(v, 4)) for v in m)})"'
+        if m == EINS:
+            t = ""
+        elif m[1] == 0 and abs(m[2]) < 1e-9 and m[0] == m[3]:
+            t = f' transform="translate({_z(m[4])} {_z(m[5])}) scale({_z(m[0])})"'
+        else:
+            t = f' transform="matrix({" ".join(_z(round(v, 4)) for v in m)})"'
         zeilen.append(f'{einzug}<path{t} fill="{c}" fill-rule="evenodd" d="{svg_d(p)}"/>')
     return "\n".join(zeilen)
 
@@ -207,13 +214,16 @@ def svg_bildmarke(liste, px=256, extra=""):
             f'  <title>UntPlan</title>\n{extra}{svg_teile(liste)}\n</svg>\n')
 
 
-def svg_favicon():
-    """Favicon: freistehend Terrakotta mit Petrol-Fenster; im dunklen Browser-Design Fenster hell (CSS im SVG)."""
-    stil = ('  <style>@media (prefers-color-scheme: dark) { .f { fill: #F2F4F6; } }</style>\n')
-    teile = svg_teile(formen()).splitlines()
-    teile[1] = teile[1].replace("<path ", '<path class="f" ', 1)
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64">\n'
-            f'  <title>UntPlan</title>\n{stil}' + "\n".join(teile) + "\n</svg>\n")
+def svg_startlogo():
+    """Freistehende Marke wie marke.svg, aber mit engem viewBox (Startbildschirm iOS, Vektor)."""
+    x0, y0, x1, y1 = RAHMEN
+    t = math.tan(math.radians(NEIGUNG))
+    ym = (y0 + y1) / 2
+    b, h = (x1 - x0) + t * (y1 - y0), y1 - y0
+    s = 64 / max(b, h)
+    vb = f"{_z(32 - b * s / 2)} {_z(32 - h * s / 2)} {_z(b * s)} {_z(h * s)}"
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{_z(b * s * 4)}" height="{_z(h * s * 4)}" viewBox="{vb}">\n'
+            f'  <title>UntPlan</title>\n{svg_teile(formen(inhalt=1.0))}\n</svg>\n')
 
 
 # ---------------------------------------------------------------- Wortmarke (Lato Bold als Umriss)
@@ -319,7 +329,7 @@ def main():
     if os.path.isdir(WEB_IMG):
         schreibe(os.path.join(WEB_IMG, "logo.svg"), svg_bildmarke(kachel))
         schreibe(os.path.join(WEB_IMG, "marke.svg"), svg_bildmarke(frei))
-        schreibe(os.path.join(WEB_IMG, "favicon.svg"), svg_favicon())
+        schreibe(os.path.join(WEB_IMG, "favicon.svg"), svg_bildmarke(frei, 32))
         schreibe(os.path.join(WEB_IMG, "logo-voll.svg"), voll)
         raster(32, frei).save(os.path.join(WEB_IMG, "favicon-32.png"), optimize=True)
         eckig = kachel_formen(rund=False)
@@ -334,13 +344,17 @@ def main():
         js = re.sub(r"export const LOGO = `<svg.*?</svg>`;", lambda _: js_logo(), js, count=1, flags=re.S)
         schreibe(WEB_JS_SYMBOLE, js)
 
-    # iOS (das System rundet die Ecken selbst; dunkel und getönt auf transparentem Grund)
+    # iOS (das System rundet die Ecken selbst; dunkel: Marke Orange, getönt: Marke Weiß, jeweils mit offenem Fenster auf transparentem Grund)
     if os.path.isdir(IOS_ICON):
         raster(1024, kachel_formen(rund=False)).convert("RGB").save(os.path.join(IOS_ICON, "AppIcon.png"), optimize=True)
-        dunkel = kachel_formen(rund=False, farbe="#F2F4F6", fenster="#E0694A")[1:]
+        dunkel = kachel_formen(rund=False, farbe=ORANGE, fenster=None)[1:]
         raster(1024, dunkel).save(os.path.join(IOS_ICON, "AppIcon-Dark.png"), optimize=True)
-        getoent = kachel_formen(rund=False, farbe=WEISS, fenster="#9A9A9A")[1:]
+        getoent = kachel_formen(rund=False, farbe=WEISS, fenster=None)[1:]
         raster(1024, getoent).convert("LA").save(os.path.join(IOS_ICON, "AppIcon-Tinted.png"), optimize=True)
+    # iOS Startbildschirm: freistehende Marke als Vektor (Contents.json pflegt das Xcode-Projekt)
+    if os.path.isdir(os.path.dirname(IOS_STARTLOGO)):
+        os.makedirs(IOS_STARTLOGO, exist_ok=True)
+        schreibe(os.path.join(IOS_STARTLOGO, "Startlogo.svg"), svg_startlogo())
 
 
 if __name__ == "__main__":
