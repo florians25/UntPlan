@@ -247,7 +247,7 @@ function zeileHtml(klasse, x, kompakt = false, voll = '') {
 }
 /** Kopfzeile mit Label und weiterem Text (Kopplung „SN, CS, SZ“): Label auf der Grundlinie des übrigen Textes statt oben ausgerichtet. */
 function mitText(klasse, html) {
-  if (klasse !== 'z1' || typeof html !== 'string' || !html.includes('lbl')) return '';
+  if ((klasse !== 'z1' && klasse !== 'z2') || typeof html !== 'string' || !html.includes('lbl')) return '';
   const rest = html.replace(/<span[^>]*class="[^"]*\blbl\b[^"]*"[^>]*>.*?<\/span>/g, '').replace(/<[^>]+>/g, '').replace(/&[a-z]+;/g, ' ');
   return /[A-Za-z0-9ÄÖÜäöüß?+]/.test(rest) ? ' mit-text' : '';
 }
