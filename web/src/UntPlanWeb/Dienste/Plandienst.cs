@@ -1205,7 +1205,8 @@ public sealed class Plandienst
         foreach (var x in neu.Where(x => x.Length > 0).Distinct(Ci))
             res.Add(bisher.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, j < entfernt.Count ? entfernt[j++] : null, true));
         for (; j < entfernt.Count; j++) res.Add(new Wert("", entfernt[j], true));
-        return res;
+        // wie im Original („C007, +C101“): reguläre und geänderte Räume zuerst, rein hinzugefügte Räume („+“) dahinter
+        return res.Where(w => !(w.Neu && w.K.Length > 0 && string.IsNullOrEmpty(w.Alt))).Concat(res.Where(w => w.Neu && w.K.Length > 0 && string.IsNullOrEmpty(w.Alt))).ToList();
     }
 
     /// <summary>

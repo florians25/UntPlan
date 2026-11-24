@@ -33,6 +33,10 @@ html:root.is-gecko .std .z1:has(.lbl) { padding-bottom: 1px; margin-bottom: -3px
    Browsern gleich */
 .std .z1.mit-text .lbl, html:root.is-gecko .std .z1.mit-text .lbl { vertical-align: baseline; height: auto; padding-top: 0; line-height: 16px; top: 0; }
 html:root.is-gecko .std .z1.mit-text { padding-bottom: 0; margin-bottom: -2px; }
+/* Label neben Text in einer weiteren Zeile („C007, +C101“, Vorlage 329): Kasten oben an der Zeile 2px tiefer, 16px hoch (2px über den
+   Versalien, 5px unter der Grundlinie), Text im Kasten auf derselben Höhe wie der Nachbartext; unabhängig von der Schriftdarstellung */
+.std .z2.mit-text .lbl { vertical-align: top; position: relative; top: 2px; height: 16px; box-sizing: border-box; line-height: 12px; padding-top: 0; padding-bottom: 0; }
+.std .z2.mit-text { padding-bottom: 3px; margin-bottom: -3px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
@@ -515,6 +519,7 @@ input.sd-eingabe { min-height: 56px; }
 html:root.is-mac .std .lbl, html:root.is-mac .aufsicht .lbl, html:root.is-mac .std .abw-label, html:root.is-mac .sd-lbl-weg, html:root.is-mac .std-lbl { --lbl-h: 15px; }
 html:root.is-mac .std .z1 .lbl { --lbl-h: 16px; }
 html:root.is-mac .std .z1 .lbl { vertical-align: baseline; height: auto; }
+html:root.is-mac .std .z2.mit-text .lbl { vertical-align: baseline; height: auto; top: 2px; }
 html:root.is-mac .aufsicht .lbl, html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
 html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
   padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em);
