@@ -84,6 +84,10 @@ html:root.is-gecko .std .z1.mit-text { padding-bottom: 0; margin-bottom: -2px; }
 .std .z-liste > .z-namen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .std .z-liste > .mehr { flex: none; margin-left: 4px; font-weight: 500; }
 .std .z-liste > .mehr[hidden] { display: none; }
+/* Komma zwischen Werten („C007, +C101“, „SN, CS, SZ“, „5b, EF“) – nachgemessen an Vorlage 329: das Komma steht direkt am vorigen
+   Zeichen (keine Lücke), dahinter 3px frei bis zum Label-Kasten (Ziffer → Kasten 7px wie im Original). Abstand über das Layout statt
+   über die Zeichenbreite: Komma 0,7px nach links, Gesamtbreite bleibt bis auf 0,4px gleich */
+.std .kt, .aufsicht .kt { margin-left: -.7px; margin-right: .3px; }
 
 /* ------------------------------------------------------------------ Hover (Sprint 27)
 

@@ -1474,8 +1474,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
             // „Fach“ bleibt wie im Vorbild leer, solange kein Vertretungsfach eingetragen ist (der Druck setzt dann das ursprüngliche Fach ein)
             Anzeige(ElementTyp.Fach, (weg ?? v).FachId, "Fach"), neuesFach,
             lehrer, vertreter, Klassen(weg is null && kopplung != null ? kopplung.SelectMany(x => x.KlassenIds).Distinct().ToList() : (weg ?? v).KlassenIds, "AKlassen"), neueKlassen,
-            // Zielstunde einer Verlegung: der Raum am Ursprung – anderer Raum am Ziel = Raumänderung
-            v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, weg?.RaumId ?? Vertretungsplan.SollRaum(v), "Raum"), raumNeu,
+            // Zielstunde einer Verlegung: der Raum der verdrängten (regulären) Stunde am Ziel, ohne solche der Raum am Ursprung – anderer Raum = Raumänderung
+            v.Art == VertretungsArt.Pausenaufsicht ? Ix.K(ElementTyp.Gang, v.GangId) : Anzeige(ElementTyp.Raum, weg?.RaumId ?? Vertretungsplan.SollRaum(D, v), "Raum"), raumNeu,
             // „(Le.) nach“ wie im Vorbild: Ziel der wegverlegten Stunde, bei einem reinen Entfall „Entfall“
             Vertretungsanzeige.Von(v), weg != null ? Pos(weg.NachDatum, weg.NachStunde) : ohneStriche ? "" : Vertretungsanzeige.Nach(v), v.Text is Vertretungen.OhneLehrerText or "Vertr. o. Lehrkraft" ? "" : v.Text, v.Statistik,
             // Schülergruppe: eingetragene der Vertretung, sonst die des ursprünglichen Unterrichts (dann kursiv grau, siehe Formatieren)

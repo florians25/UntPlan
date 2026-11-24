@@ -76,7 +76,7 @@ public class KartenVerlegungFachTests
     }
 
     /// <summary>
-    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als am Ursprung: Der Vertretungsplan nennt am Ziel als bisherigen
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als am Ursprung (die Klasse hat am Ziel keinen Unterricht): Der Vertretungsplan nennt am Ziel als bisherigen
     /// Raum den Raum, den die Stunde an ihrem Ursprung hatte – die Karte zeigt den neuen Raum als grünes Label („alt → neu“). Bleibt der Raum
     /// gleich („Räume mitnehmen“), gibt es kein Label – auch wenn der Raum am Ursprung schon geändert war (Bezug ist dieser geänderte Raum).
     /// Ältere Pakete ohne Raum in der Vertretung: Vergleich mit dem Raum laut Stundenplan am Ursprung.
@@ -121,6 +121,60 @@ public class KartenVerlegungFachTests
                 Assert.Equal(erwartetAlt, r["alt"]?.GetValue<string>());
                 Assert.True(Wahr(r, "neu"));
                 Assert.Contains("aenderung", karte["marker"]!.AsArray().Select(x => x!.GetValue<string>()));
+            }
+            else
+            {
+                Assert.Null(r["alt"]?.GetValue<string>());
+                Assert.False(Wahr(r, "neu"));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Wie im Vorbild (Klassenplan, Stunde in TH3 in die Stunde verlegt, in der die Klasse regulär GF/FPHT in B043 hat): die Stunde, die an
+    /// der Zielposition laut Stundenplan stattfände, gilt als Ursprungsstunde – deren Raum ist der Bezug, nicht der Raum am Ursprung. Hier:
+    /// 7a SP/SNE in TH2 von Mo 4. nach Mi 4. Stunde, wo 7a regulär E/FIS in R105 hat: Label „TH2“ (R105 → TH2) im Klassen-, Lehrer- und
+    /// Raumplan – gleich, ob das Paket als bisherigen Raum den Raum am Ursprung (ältere Pakete) oder den der Zielstunde nennt. Wird die Stunde
+    /// in R105 gelegt, ist das keine Raumänderung.
+    /// </summary>
+    [Theory]
+    [InlineData("TH2", "TH2", true)]
+    [InlineData("TH2", "R105", true)]
+    [InlineData("R105", "TH2", false)]
+    [InlineData("R105", "R105", false)]
+    public async Task Verlegung_vergleicht_mit_dem_Raum_der_regulaeren_Stunde_am_Ziel(string zielraum, string bisherigerRaum, bool geaendert)
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 85;
+        var s = Stunde(paket, "2026-10-12", "7a", 4);
+        var lehrer = s["lehrer"]![0]!.GetValue<string>();
+        var fach = s["fach"]!.GetValue<string>();
+        Assert.Equal("TH2", s["raeume"]![0]!.GetValue<string>());
+        var e = Stunde(paket, "2026-10-14", "7a", 4);
+        Assert.Equal("R105", e["raeume"]![0]!.GetValue<string>());
+        s["status"] = "entfall"; s["vertretung"] = 9321;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9321, "2026-10-12", 4, "Entfall", lehrer, "---", fach, fach, "TH2", "", "", "Mi-14.10. / 4", "", null, "7a"));
+        // die reguläre Stunde am Ziel entfällt (verdrängt)
+        e["status"] = "entfall"; e["vertretung"] = 9323;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9323, "2026-10-14", 4, "Entfall", e["lehrer"]![0]!.GetValue<string>(), "---", e["fach"]!.GetValue<string>(),
+            e["fach"]!.GetValue<string>(), "R105", "", "", "", "", null, "7a"));
+        Tag(paket, "2026-10-14")["stunden"]!.AsArray().Add(new JsonObject
+        {
+            ["stunde"] = 4, ["unterricht"] = s["unterricht"]!.GetValue<int>(), ["fach"] = fach, ["klassen"] = new JsonArray("7a"), ["lehrer"] = new JsonArray(lehrer),
+            ["raeume"] = new JsonArray(zielraum), ["status"] = "zusaetzlich", ["vertretung"] = 9322, ["text"] = "",
+        });
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9322, "2026-10-14", 4, "Verlegung", lehrer, lehrer, fach, fach, bisherigerRaum, zielraum, "Mo-12.10. / 4", "", "", null, "7a"));
+
+        foreach (var (typ, element) in new[] { ("klasse", "7a"), ("lehrer", lehrer), ("raum", zielraum) })
+        {
+            var plan = await PlanAsync(paket, typ, element, "2026-10-12");
+            var karte = Karten(plan, "2026-10-14", 4).Single(k => k["verlegung"]?.GetValue<string>() == "nach");
+            var r = karte["raeume"]!.AsArray().Single()!;
+            Assert.Equal(zielraum, r["k"]!.GetValue<string>());
+            if (geaendert)
+            {
+                Assert.Equal("R105", r["alt"]?.GetValue<string>());
+                Assert.True(Wahr(r, "neu"));
             }
             else
             {

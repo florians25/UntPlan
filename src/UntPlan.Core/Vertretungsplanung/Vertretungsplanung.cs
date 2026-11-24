@@ -2305,22 +2305,37 @@ public sealed record PlanZeile(DateOnly Datum, int Stunde, string Klassen, strin
 public static class Vertretungsplan
 {
     /// <summary>
-    /// Bisheriger (Soll-)Raum einer Zeile: bei der Zielstunde einer Verlegung der Raum, den die Stunde an ihrem Ursprung hatte (findet sie am
-    /// Ziel woanders statt, ist das eine Raumänderung; „Räume mitnehmen“ = keine); ältere Verlegungen ohne gemerkten Raum: der aktuelle Raum.
-    /// Sonst der Raum des Unterrichts.
+    /// Bisheriger (Soll-)Raum einer Zeile. Bei der Zielstunde einer Verlegung bzw. eines Tauschs gilt wie im Vorbild die Stunde, die an der
+    /// Zielposition regulär stattfände, als Ursprungsstunde: Bezug ist der Raum, den die Klasse(n) der verlegten Stunde dort laut Stundenplan
+    /// hätten (z. B. Klasse hat Di 3. Std. regulär GF in B043, dorthin wird WL/SP in TH3 verlegt: (Raum) B043, Raum TH3 = Raumänderung).
+    /// Hat die Klasse an der Zielposition keinen Unterricht, ist es der Raum, den die Stunde an ihrem Ursprung hatte (<see cref="Vertretung.ZielraumId"/>;
+    /// „Räume mitnehmen“ = keine Raumänderung); ältere Verlegungen ohne gemerkten Raum: der aktuelle Raum. Sonst der Raum des Unterrichts.
     /// </summary>
-    public static int? SollRaum(Vertretung v) =>
-        v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch
-            ? v.ZielraumId ?? v.VertretungsraumId ?? v.RaumId
-            : v.RaumId;
+    public static int? SollRaum(Schuldatei d, Vertretung v) =>
+        IstZielstunde(v) ? RegelraumAmZiel(d, v) ?? v.ZielraumId ?? v.VertretungsraumId ?? v.RaumId : v.RaumId;
+
+    private static bool IstZielstunde(Vertretung v) =>
+        v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch;
 
     /// <summary>
-    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als an ihrem Ursprung (z. B. „Belassen“ bzw. Raum am Ziel belegt):
-    /// eine Raumänderung – „(Raum)“ und „Raum“ unterscheiden sich, Kalender zählt sie bei „Raum-V.“.
+    /// Raum des Unterrichts, den die Klassen einer verlegten Stunde an der Zielposition laut Stundenplan hätten (die verdrängte Stunde; bei
+    /// mehreren Klassen die der ersten Klasse mit einer regulären Stunde dort), sonst null.
     /// </summary>
-    public static bool VerlegungMitRaumaenderung(Vertretung v) =>
-        v.VonDatum.HasValue && !v.IstEntfall && v.Art is VertretungsArt.Verlegung or VertretungsArt.Verlegt or VertretungsArt.Tausch
-        && SollRaum(v) is int soll && (v.VertretungsraumId ?? v.RaumId) is int ist && soll != ist;
+    public static int? RegelraumAmZiel(Schuldatei d, Vertretung v)
+    {
+        if (v.KlassenIds.Count == 0) return null;
+        var regel = Tagesplan.Regulaer(d, v.Datum).Where(r => r.Stunde == v.Stunde && r.RaumId.HasValue).ToList();
+        foreach (var k in v.KlassenIds)
+            if (regel.FirstOrDefault(r => r.KlassenIds.Contains(k)) is { } r) return r.RaumId;
+        return null;
+    }
+
+    /// <summary>
+    /// Zielstunde einer Verlegung bzw. eines Tauschs in einem anderen Raum als ihr Bezugsraum (<see cref="SollRaum"/>): eine Raumänderung –
+    /// „(Raum)“ und „Raum“ unterscheiden sich, Kalender zählt sie bei „Raum-V.“.
+    /// </summary>
+    public static bool VerlegungMitRaumaenderung(Schuldatei d, Vertretung v) =>
+        IstZielstunde(v) && SollRaum(d, v) is int soll && (v.VertretungsraumId ?? v.RaumId) is int ist && soll != ist;
 
     public static string ArtText(VertretungsArt a) => a switch
     {
@@ -2439,7 +2454,7 @@ public static class Vertretungsplan
                 v.IstEntfall || v.Art == VertretungsArt.Vormerkung ? "---" : v.Art is VertretungsArt.VertretungOhneLehrer or VertretungsArt.EigenverantwortlichesArbeiten ? "+++" :
                 v.VertreterId.HasValue ? ix.KLehrer(v.VertreterId) : v.Art == VertretungsArt.Veranstaltung ? "" : "???",
                 ix.KFach(v.FachId), ix.KFach(v.VertretungsfachId ?? v.FachId),
-                v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(SollRaum(v)),
+                v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) : ix.KRaum(SollRaum(d, v)),
                 v.IstEntfall ? "" : v.Art == VertretungsArt.Pausenaufsicht ? ix.K(ElementTyp.Gang, v.GangId) :
                 string.Join(",", new[] { v.VertretungsraumId ?? v.RaumId }.Concat(v.ZusatzraumIds.Cast<int?>()).Where(x => x.HasValue).Select(x => ix.KRaum(x))),
                 ArtText(d, v.Art), v.Text, v.NeueKlassenIds, v.LehrerId, v.VertreterId,

@@ -51,17 +51,23 @@ const wechselHover = (alt, neu, lehrkraft = false) => `data-hover="${e(wechsel(a
  * bisherige Wert durchgestrichen in der grünen Box. Der ersetzte alte Wert steht im Detaildialog; bei Entfall erscheinen die ursprünglichen Werte durchgestrichen.
  */
 /** Lange Listen kürzen: „BEC, BRA, FIS, …“ – ohne Anzahl „+N“ (vollständig in den Stundendetails). */
+/**
+ * Trennzeichen in Kartenzeilen mit mehreren Werten („C007, +C101“, „SN, CS, SZ“): Komma als eigenes Element, damit es wie im Original
+ * (Vorlage 329) direkt am vorigen Zeichen steht und der Abstand zum nächsten Wert bzw. Label über das Layout (karten.css .kt) festliegt.
+ */
+export const KOMMA = '<span class="kt">,</span> ';
+
 export function gekuerzt(liste, max = 3, entfall = false, lehrkraft = false) {
   const l = liste || [];
   // gekürzt: „…“ zeigt beim Überfahren die vollständige Liste (grauer Hover)
   return l.length <= max + 1 ? werte(l, entfall, lehrkraft)
-    : `${werte(l.slice(0, max), entfall, lehrkraft)}, <span class="mehr" data-hover="${e(kuerzelListe(l).join(', '))}" data-hover-art="grau">…</span>`;
+    : `${werte(l.slice(0, max), entfall, lehrkraft)}${KOMMA}<span class="mehr" data-hover="${e(kuerzelListe(l).join(', '))}" data-hover-art="grau">…</span>`;
 }
 
 const kuerzelListe = l => (l || []).map(w => w.k || w.alt).filter(Boolean);
 
 export function werte(liste, entfall = false, lehrkraft = false) {
-  return (liste || []).map(w => wertHtml(w, entfall, lehrkraft)).join(', ');
+  return (liste || []).map(w => wertHtml(w, entfall, lehrkraft)).join(KOMMA);
 }
 
 /** Ein Wert: grünes Label bei Änderung („alt → neu“ im Hover), „+B070“ bei hinzugefügtem Wert, entfernter Wert durchgestrichen. */
@@ -92,8 +98,8 @@ function wertPille(w, entfall = false) {
  */
 function liste(html, pillen) {
   if (html.length < 2) return html.join('');
-  return { liste: true, html: `<span class="z-namen">${html.map((h, i) => `<span class="z-w">${h}${i < html.length - 1 ? ', ' : ''}</span>`).join('')}</span>`,
-    inline: html.join(', '), pillen };
+  return { liste: true, html: `<span class="z-namen">${html.map((h, i) => `<span class="z-w">${h}${i < html.length - 1 ? KOMMA : ''}</span>`).join('')}</span>`,
+    inline: html.join(KOMMA), pillen };
 }
 const werteListe = (l, entfall = false, lehrkraft = false) => liste((l || []).map(w => wertHtml(w, entfall, lehrkraft)), (l || []).map(w => wertPille(w, entfall)));
 
@@ -282,7 +288,7 @@ function formatInhalt(k, typ, kompakt, format, namen) {
   const zeilen = format.elemente.map(zeile);
   const oben = zeilen[0] || zeilen.find(z => z) || e(k.fach || k.text || '—');
   const rest = zeilen.slice(1).filter(x => x && x !== oben);
-  const rumpf = kompakt ? (rest.length ? `<div class="z2">${rest.map(zeilenText).join(', ')}</div>` : '') : rest.map(x => zeileHtml('z2', x)).join('');
+  const rumpf = kompakt ? (rest.length ? `<div class="z2">${rest.map(zeilenText).join(KOMMA)}</div>` : '') : rest.map(x => zeileHtml('z2', x)).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben)}${rumpf}${eckSymbole(k, typ)}`;
 }
 
@@ -359,7 +365,7 @@ export function karteInhalt(k, typ, kompakt = false, format = null, namen = null
   const zeilen = rest.filter(x => x);
   // Hover einer gekürzten Zeile: jede Zeile für sich (Werteliste als Pillen, Fach mit vollem Namen, sonst der vollständige Text)
   const voll = x => x === fach && fachVoll ? fachVoll : titel && x === titel ? (k.text || k.art || '') : '';
-  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(', ')}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
+  const rumpf = kompakt ? (zeilen.length ? `<div class="z2">${zeilen.map(zeilenText).join(KOMMA)}</div>` : '') : zeilen.map(x => zeileHtml('z2', x, false, voll(x))).join('');
   return `${marker(k, typ)}${zeileHtml('z1', oben, false, voll(oben))}${rumpf}${eckSymbole(k, typ)}`;
 }
 
