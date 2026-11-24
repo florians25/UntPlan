@@ -164,40 +164,50 @@ async function start() {
 // ------------------------------------------------------------------ Anmeldung und Einrichtung
 
 /**
- * Anmeldeseite: zweigeteilt. Links eine ruhige, warme Verlaufsfläche mit Bildmarke, Schulname, heutigem Datum und einer
- * zurückhaltenden Illustration (stilisierte Stundenplanwoche); rechts auf hellem Grund eine Formularkarte mit Pill-Knopf.
- * Auf dem Telefon steht ein schmaler Kopf mit Bildmarke und Schulname über der Karte.
+ * Anmeldeseite: zweigeteilt und sachlich. Links auf ruhigem Grau Bildmarke, heutiges Datum, Schulname und die öffentlichen
+ * Hinweise der Schule; rechts eine weiße Fläche mit Überschrift, Feldern, Pill-Knopf und Verweisen. Keine Werbe- oder
+ * Erklärtexte. Auf dem Telefon steht ein schmaler Kopf mit Bildmarke und Schulname über dem Formular.
  */
 function anmeldeRahmen(titel, inhalt, untertitel = '') {
   const heute = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const schule = sitzung?.schule?.name || 'UntPlanWeb';
+  const schule = sitzung?.schule?.name || '';
   app.innerHTML = `<main class="anmeldung an-seite">
-    <section class="an-buehne" aria-label="${e(schule)}">
+    <section class="an-buehne" aria-label="${e(schule || 'UntPlanWeb')}">
       <div class="an-marke">${LOGO}<span>UntPlanWeb</span></div>
       <div class="an-text">
-        <p class="an-datum">${e(heute)}</p>
-        <h2 class="an-schule">${e(schule)}</h2>
-        <p class="an-zeile">Stundenplan, Vertretungsplan und Klassenbuch</p>
+        <p class="an-datum">Heute, ${e(heute)}</p>
+        ${schule ? `<h2 class="an-schule">${e(schule)}</h2>` : ''}
       </div>
       <div class="an-hinweise" data-hinweise hidden></div>
-      ${anmeldeBild()}
     </section>
     <section class="an-bereich">
       <div class="an-karte">
-        <div class="an-kopf">${LOGO}<div><h1 class="an-titel">${e(titel)}</h1>${untertitel ? `<p class="an-unter">${e(untertitel)}</p>` : ''}</div></div>
+        <div class="an-kopf"><h1 class="an-titel">${e(titel)}</h1>${untertitel ? `<p class="an-unter">${e(untertitel)}</p>` : ''}</div>
         <div class="lg-form">${inhalt}</div>
       </div>
-      <footer class="an-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button>
-        <span class="lg-app-text" data-pwa-text>Auf Smartphones lässt sich UntPlanWeb über „Zum Startbildschirm hinzufügen“ als App einrichten.</span>
-        <span class="lg-impressum">UntPlanWeb, Webanwendung zu UntPlan</span></footer>
+      <footer class="an-fuss"><button type="button" class="lg-app d-none" data-pwa>${icon('herunterladen')}Als App installieren</button></footer>
     </section></main>`;
   // App installieren (PWA), sobald der Browser es anbietet
   const pwa = app.querySelector('[data-pwa]');
-  const anbieten = () => { if (!window.__pwaAngebot) return; pwa.classList.remove('d-none'); app.querySelector('[data-pwa-text]')?.classList.add('d-none'); };
+  const anbieten = () => { if (!window.__pwaAngebot) return; pwa.classList.remove('d-none'); };
   pwa.onclick = async () => { const p = window.__pwaAngebot; if (!p) return; window.__pwaAngebot = null; p.prompt(); try { await p.userChoice; } catch { /* egal */ } pwa.classList.add('d-none'); };
   anbieten();
   window.addEventListener('untplan:pwa', anbieten, { once: true });
   oeffentlicheHinweise(app.querySelector('[data-hinweise]'));
+  // Absenden erst, wenn alle Pflichtfelder ausgefüllt sind (auch bei Vorbelegung durch den Passwortspeicher des Browsers)
+  const formular = app.querySelector('form');
+  const absenden = formular?.querySelector('button[type=submit]');
+  const pflicht = formular ? [...formular.querySelectorAll('input[required]')] : [];
+  if (absenden && pflicht.length) {
+    const vorbelegt = i => { try { return i.matches(':autofill'); } catch { try { return i.matches(':-webkit-autofill'); } catch { return false; } } };
+    const pruefen = () => { if (absenden.dataset.sendet) return; absenden.disabled = pflicht.some(i => !i.disabled && !i.value.trim() && !vorbelegt(i)); };
+    formular.addEventListener('input', pruefen);
+    formular.addEventListener('change', pruefen);
+    formular.addEventListener('submit', () => { absenden.dataset.sendet = '1'; setTimeout(() => { delete absenden.dataset.sendet; }, 0); }, true);
+    pruefen();
+    let n = 0;
+    const takt = setInterval(() => { pruefen(); if (++n >= 10 || !formular.isConnected) clearInterval(takt); }, 300);
+  }
   // Passwortfelder: Auge zum Anzeigen
   app.querySelectorAll('.lg-feld input[type=password]').forEach(i => {
     const b = document.createElement('button');
@@ -223,25 +233,6 @@ async function oeffentlicheHinweise(box) {
       <i class="bi bi-megaphone" aria-hidden="true"></i><div><h3>${e(h.titel)}</h3>${h.text ? `<p>${e(h.text).replace(/\n/g, '<br>')}</p>` : ''}</div></article>`).join('')}`;
   box.hidden = false;
 }
-/** Ruhige Illustration der Anmeldeseite: stilisierte Stundenplanwoche mit runden Karten (rein dekorativ). */
-function anmeldeBild() {
-  const farben = ['#f56b2a', '#7fb2d6', '#8ccfa8', '#f3c95c', '#c5b3e6'];
-  const spalten = [[0, 1, 3], [0, 2, 3, 4], [1, 2, 4], [0, 1, 2, 4], [0, 3]];
-  let karten = '';
-  spalten.forEach((reihen, t) => reihen.forEach(r => {
-    const f = farben[(t * 2 + r) % farben.length];
-    karten += `<rect x="${34 + t * 74}" y="${58 + r * 54}" width="62" height="44" rx="10" fill="#fff" opacity=".92"/>`
-      + `<rect x="${40 + t * 74}" y="${64 + r * 54}" width="4" height="32" rx="2" fill="${f}"/>`
-      + `<rect x="${50 + t * 74}" y="${68 + r * 54}" width="30" height="5" rx="2.5" fill="#c9d0d6"/><rect x="${50 + t * 74}" y="${79 + r * 54}" width="20" height="4" rx="2" fill="#e1e5e9"/>`;
-  }));
-  return `<svg class="an-bild" viewBox="0 0 420 340" aria-hidden="true" focusable="false">
-      <rect x="14" y="14" width="392" height="312" rx="26" fill="#fff" opacity=".45"/>
-      ${[0, 1, 2, 3, 4].map(t => `<rect x="${44 + t * 74}" y="32" width="42" height="8" rx="4" fill="#fff" opacity=".9"/>`).join('')}
-      ${[0, 1, 2, 3, 4, 5].map(r => `<line x1="30" x2="390" y1="${54 + r * 54}" y2="${54 + r * 54}" stroke="#fff" stroke-opacity=".7"/>`).join('')}
-      ${karten}
-      <circle cx="356" cy="290" r="34" fill="#f56b2a" opacity=".12"/><circle cx="356" cy="290" r="12" fill="#f56b2a" opacity=".5"/>
-    </svg>`;
-}
 window.addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); window.__pwaAngebot = ev; window.dispatchEvent(new Event('untplan:pwa')); });
 
 const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML = alarm('danger', text); };
@@ -249,19 +240,20 @@ const meldung = (form, text) => { form.querySelector('[data-meldung]').innerHTML
 function anmeldung() {
   document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Anmelden', `<form autocomplete="on">
-      <label class="lg-feld"><span>Benutzername</span><input id="login" name="login" autocomplete="username" placeholder="z. B. mustermann" required autofocus></label>
-      <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required></label>
+      <label class="lg-feld"><span>Benutzername</span><input id="login" name="login" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+      <label class="lg-feld"><span>Passwort</span><input id="passwort" name="passwort" type="password" autocomplete="current-password" required></label>
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Anmelden</button>
       <button type="button" class="lg-vergessen" data-vergessen>Passwort vergessen?</button>
       <button type="button" class="lg-vergessen" data-registrieren>Registrieren (Eltern und Betriebe)</button>
-    </form>`, 'Mit Ihrem Schulkonto weiter zu Stundenplan und Klassenbuch.');
+    </form>`);
   // Zugriff gesperrt (Wartungsmodus): Hinweis der Administration über dem Formular
   holen('/api/app/zugriff').then(z => {
     if (z.gesperrt) form.querySelector('[data-meldung]').insertAdjacentHTML('beforebegin', `<div class="lg-wartung" role="status"><i class="bi bi-lock" aria-hidden="true"></i><span>${e(z.hinweis)}</span></div>`);
   }).catch(() => { /* ohne Hinweis */ });
   form.querySelector('[data-vergessen]').onclick = () => kennwortVergessen(anmeldeRahmen, anmeldung);
   form.querySelector('[data-registrieren]').onclick = () => registrieren(anmeldeRahmen, anmeldung);
+  form.addEventListener('input', ev => ev.target.removeAttribute?.('aria-invalid'));
   form.onsubmit = async ev => {
     ev.preventDefault();
     const btn = form.querySelector('button[type=submit]');
@@ -269,7 +261,11 @@ function anmeldung() {
     try {
       await senden('/api/app/anmelden', { login: form.login.value.trim(), passwort: form.passwort.value });
       await start();
-    } catch (err) { meldung(form, err.message); form.passwort.select(); }
+    } catch (err) {
+      meldung(form, err.message);
+      [form.login, form.passwort].forEach(i => i.setAttribute('aria-invalid', 'true'));
+      form.passwort.select();
+    }
     finally { btn.disabled = false; }
   };
 }
@@ -277,14 +273,14 @@ function anmeldung() {
 function einrichtung() {
   document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Ersteinrichtung', `<form>
-      <p class="small text-body-secondary text-center">Legen Sie die Schule und das Administrationskonto an.</p>
-      <div class="mb-3"><label class="form-label">Name der Schule</label><input class="form-control" name="schulname" required autofocus></div>
-      <div class="mb-3"><label class="form-label">Benutzername</label><input class="form-control" name="login" value="admin" required autocomplete="username"></div>
-      <div class="mb-3"><label class="form-label">Passwort</label><input class="form-control" name="passwort" type="password" minlength="8" required autocomplete="new-password"><div class="form-text">Mindestens 8 Zeichen.</div></div>
-      <div class="mb-3"><label class="form-label">Passwort wiederholen</label><input class="form-control" name="passwort2" type="password" minlength="8" required autocomplete="new-password"></div>
+      <label class="lg-feld"><span>Name der Schule</span><input name="schulname" required autofocus></label>
+      <label class="lg-feld"><span>Benutzername</span><input name="login" value="admin" required autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+      <label class="lg-feld mit-hilfe"><span>Passwort</span><input name="passwort" type="password" minlength="8" required autocomplete="new-password" aria-describedby="lg-hilfe-pw"></label>
+      <p class="lg-hilfe" id="lg-hilfe-pw">Mindestens 8 Zeichen.</p>
+      <label class="lg-feld"><span>Passwort wiederholen</span><input name="passwort2" type="password" minlength="8" required autocomplete="new-password"></label>
       <div data-meldung></div>
-      <button class="btn btn-primary w-100" type="submit">Einrichten</button>
-    </form>`);
+      <button class="btn btn-primary lg-login" type="submit">Einrichten</button>
+    </form>`, 'Legen Sie die Schule und das Administrationskonto an.');
   form.onsubmit = async ev => {
     ev.preventDefault();
     if (form.passwort.value !== form.passwort2.value) return meldung(form, 'Die Passwörter stimmen nicht überein.');
@@ -300,14 +296,14 @@ function einrichtung() {
 function passwortPflicht() {
   document.title = 'UntPlanWeb';
   const form = anmeldeRahmen('Neues Passwort festlegen', `<form>
-      <p class="small text-body-secondary text-center">Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.</p>
-      <div class="mb-3"><label class="form-label">Bisheriges Passwort</label><input class="form-control" name="alt" type="password" required autocomplete="current-password" autofocus></div>
-      <div class="mb-3"><label class="form-label">Neues Passwort</label><input class="form-control" name="neu" type="password" minlength="8" required autocomplete="new-password"><div class="form-text">Mindestens 8 Zeichen.</div></div>
-      <div class="mb-3"><label class="form-label">Neues Passwort wiederholen</label><input class="form-control" name="neu2" type="password" minlength="8" required autocomplete="new-password"></div>
+      <label class="lg-feld"><span>Bisheriges Passwort</span><input name="alt" type="password" required autocomplete="current-password" autofocus></label>
+      <label class="lg-feld mit-hilfe"><span>Neues Passwort</span><input name="neu" type="password" minlength="8" required autocomplete="new-password" aria-describedby="lg-hilfe-pw"></label>
+      <p class="lg-hilfe" id="lg-hilfe-pw">Mindestens 8 Zeichen.</p>
+      <label class="lg-feld"><span>Neues Passwort wiederholen</span><input name="neu2" type="password" minlength="8" required autocomplete="new-password"></label>
       <div data-meldung></div>
-      <button class="btn btn-primary w-100 mb-2" type="submit">Speichern</button>
-      <button class="btn btn-link w-100 btn-sm" type="button" data-abmelden>Abmelden</button>
-    </form>`);
+      <button class="btn btn-primary lg-login" type="submit">Speichern</button>
+      <button class="lg-vergessen" type="button" data-abmelden>Abmelden</button>
+    </form>`, 'Bitte vergeben Sie vor der ersten Nutzung ein eigenes Passwort.');
   form.querySelector('[data-abmelden]').onclick = abmelden;
   form.onsubmit = async ev => {
     ev.preventDefault();
@@ -571,7 +567,7 @@ function leisteZeichnen() {
   // gleicher Inhalt wie zuletzt: nicht neu aufbauen (eine laufende Wechselanimation bleibt erhalten)
   const kopfHtml = gruppe
     ? `<div class="u-unterkopf"><button type="button" class="u-zurueck" data-zurueck title="Zurück" aria-label="Zurück">${icon('zurueck')}</button><b title="${e(gruppe.text)}">${e(gruppe.text)}</b></div>`
-    : `<a class="u-marke" href="#/heute" title="UntPlanWeb">${LOGO}<span><b>UntPlanWeb</b><small>${e(sitzung.schule.name || '')}</small></span></a>`;
+    : `<a class="u-marke u-marke-schule" href="#/heute" title="${e(sitzung.schule.name || 'UntPlanWeb')}">${LOGO}<span><b>${e(sitzung.schule.name || 'UntPlanWeb')}</b></span></a>`;
   const kopfEl = leiste.querySelector('[data-leistenkopf]');
   if (kopfEl.dataset.html !== kopfHtml) { kopfEl.innerHTML = kopfHtml; kopfEl.dataset.html = kopfHtml; }
   const gw = gewaehltesSchuljahr();

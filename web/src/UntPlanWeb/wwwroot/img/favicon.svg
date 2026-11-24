@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 64 64">
+  <title>UntPlan</title>
+  <path fill="#B8452B" fill-rule="evenodd" d="M6 26L6 41A17 17 0 0 0 23 58A17 17 0 0 0 40 41L40 37L45.5 37A15.5 15.5 0 0 0 61 21.5A15.5 15.5 0 0 0 45.5 6L29 6L29 41A6 6 0 0 1 23 47A6 6 0 0 1 17 41L17 26Z"/>
+  <path fill="#24323D" fill-rule="evenodd" d="M41.5 17L47.5 17A1.5 1.5 0 0 1 49 18.5L49 24.5A1.5 1.5 0 0 1 47.5 26L41.5 26A1.5 1.5 0 0 1 40 24.5L40 18.5A1.5 1.5 0 0 1 41.5 17Z"/>
+</svg>

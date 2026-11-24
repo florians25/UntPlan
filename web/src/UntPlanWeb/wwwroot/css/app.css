@@ -2131,3 +2131,17 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .mu-fuss { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .nl-tabelle .mu-tabelle th, .nl-tabelle .mu-tabelle td { padding: 8px 7px; white-space: nowrap; font-size: .84rem; }
 .nl-tabelle .mu-tabelle .nl-icon { width: 26px; height: 26px; }
+
+/* Kopf der Seitenleiste wie in der Vorlage: Logo-Kachel 48 px, daneben der Schulname fett in Versalien (bis zwei Zeilen),
+   darunter die Schuljahr-Pille (grau, Rand #dcdfe5) bündig mit dem Namen; die Pille bleibt die Schuljahrwahl. */
+.u-leiste .u-marke.u-marke-schule { padding: 14px 14px 0 14px; gap: 14px; align-items: center; }
+.u-leiste .u-marke.u-marke-schule .logo { width: 48px; height: 48px; border-radius: 11px; }
+.u-leiste .u-marke.u-marke-schule span { margin-top: 0; padding-top: 0; }
+.u-leiste .u-marke.u-marke-schule b { font-size: 16px; font-weight: 600; line-height: 1.3; color: #3f525f; text-transform: uppercase; letter-spacing: .01em;
+  white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.u-leiste:not(.mit-unter) .u-jahrzeile { padding: 16px 0 18px 76px; }
+.u-leiste:not(.mit-unter) .u-jahr.mit-pfeil { background: #f3f5f7; border: 1px solid #dcdfe5; color: #5b6770; font-size: 13.5px; font-weight: 600; padding: 5px 15px; }
+.u-leiste:not(.mit-unter) .u-jahr.mit-pfeil:hover { border-color: #c3cad1; }
+.u-leiste:not(.mit-unter) .u-jahr.mit-pfeil .bi { display: none; }
+.u-leiste:not(.mit-unter) .u-jahr.mit-pfeil.anders { border-color: var(--u-akzent); color: var(--u-akzent-dunkel); }
+.u-app.zu .u-marke-schule .logo { visibility: visible; }

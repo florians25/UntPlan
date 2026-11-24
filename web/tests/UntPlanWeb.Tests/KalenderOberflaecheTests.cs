@@ -142,7 +142,11 @@ public class KalenderOberflaecheTests
         Assert.Contains("<main class=\"anmeldung an-seite\">", app);
         Assert.Contains("<section class=\"an-buehne\"", app);
         Assert.Contains("<div class=\"an-karte\">", app);
-        Assert.Contains("function anmeldeBild()", app);
+        // sachlich: keine Illustration, kein Werbe- oder Erklärtext, Formular rechts
+        Assert.DoesNotContain("function anmeldeBild()", app);
+        Assert.DoesNotContain("Stundenplan, Vertretungsplan und Klassenbuch</p>", app);
+        Assert.True(app.IndexOf("<section class=\"an-buehne\"", StringComparison.Ordinal) < app.IndexOf("<section class=\"an-bereich\">", StringComparison.Ordinal));
+        Assert.DoesNotContain("radial-gradient", css);
         Assert.DoesNotContain("lg-leiste", app);
         Assert.DoesNotContain(".lg-leiste", Datei("css", "seiten.css"));
         Assert.Contains("<link rel=\"stylesheet\" href=\"css/anmeldung.css\">", Datei("index.html"));

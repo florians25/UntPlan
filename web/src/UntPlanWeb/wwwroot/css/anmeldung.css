@@ -1,50 +1,41 @@
-/* UntPlanWeb – Anmeldung, Ersteinrichtung und Pflicht-Passwortwechsel (app.js: anmeldeRahmen).
-   Zweigeteilt: links eine ruhige, warme Verlaufsfläche mit Bildmarke, Schulname, Datum und dezenter Wochen-Illustration,
-   rechts auf hellem Grund eine weiße Formularkarte (Radius 20px) mit beschrifteten Feldern und orangem Pill-Knopf.
-   Nur Regular und Medium. */
+/* UntPlanWeb – Anmeldung, Kennwort vergessen, Registrieren, Ersteinrichtung und Pflicht-Passwortwechsel (app.js: anmeldeRahmen).
+   Zweigeteilt und sachlich: links ein warmes, helles Feld mit feinen Zeilenlinien (Stundenplanzeilen), oben die Bildmarke, unten
+   links die öffentlichen Hinweise sowie Datum und Schulname an einer Terrakotta-Linie; rechts eine weiße Fläche mit linksbündiger
+   Überschrift, beschrifteten Feldern, orangem Knopf (Pill-Form, grau und gesperrt, bis die Pflichtfelder ausgefüllt sind) und Verweisen.
+   Keine Illustration, kein Verlauf, keine Werbe- oder Erklärtexte. Nur Regular und Medium. */
 
 .anmeldung.an-seite {
   display: grid; grid-template-columns: minmax(0, 46fr) minmax(420px, 54fr); align-items: stretch; justify-content: stretch;
-  min-height: 100vh; min-height: 100dvh; padding: 0; background: #f6f7f9;
+  min-height: 100vh; min-height: 100dvh; padding: 0; background: #fff;
 }
 
-/* ------------------------------------------------------------------ links: Bühne */
+/* ------------------------------------------------------------------ links: Datum, Schule und Hinweise */
 .an-buehne {
-  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 28px; padding: 40px clamp(32px, 5vw, 72px) 40px;
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 60%),
-    radial-gradient(90% 70% at 100% 100%, rgba(245, 107, 42, .22) 0%, rgba(245, 107, 42, 0) 70%),
-    linear-gradient(155deg, #fff8f3 0%, #fdeee4 48%, #f9dccb 100%);
-  color: #24323d;
+  display: flex; flex-direction: column; gap: 24px; min-width: 0; padding: 32px clamp(32px, 5vw, 80px) 48px; color: #24323d;
+  background-color: #f8f5f2; background-image: repeating-linear-gradient(180deg, transparent 0 55px, rgba(184, 69, 43, .05) 55px 56px);
 }
-.an-buehne::after { content: ""; position: absolute; right: -120px; top: -120px; width: 360px; height: 360px; border-radius: 50%;
-  border: 1px solid rgba(245, 107, 42, .18); pointer-events: none; }
 .an-marke { display: flex; align-items: center; gap: 12px; font-size: 1.15rem; font-weight: 500; letter-spacing: .01em; color: #24323d; }
-.an-marke .logo { width: 40px; height: 40px; color: var(--u-akzent, #f56b2a); }
-.an-text { margin-top: clamp(24px, 8vh, 96px); max-width: 520px; }
-.an-datum { display: inline-flex; align-items: center; height: 28px; padding: 0 12px; margin: 0 0 18px; border-radius: 999px;
-  background: rgba(255, 255, 255, .7); color: #8a4a26; font-size: .82rem; font-weight: 500; letter-spacing: .01em; }
-.an-schule { margin: 0 0 12px; font-size: clamp(1.6rem, 2.4vw, 2.2rem); line-height: 1.18; font-weight: 500; color: #24323d; letter-spacing: -.01em; }
-.an-zeile { margin: 0; font-size: 1rem; line-height: 1.5; color: #5b6770; max-width: 440px; }
-/* öffentliche Hinweise der Schule (z. B. Sprechtag) – dezent, reiner Text */
-.an-hinweise { position: relative; z-index: 1; display: grid; gap: 10px; max-width: 520px; }
-.an-hinweis { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 14px; background: rgba(255, 255, 255, .72);
-  border: 1px solid rgba(245, 107, 42, .16); color: #24323d; }
+.an-marke .logo { width: 36px; height: 36px; }
+.an-text { order: 3; max-width: 560px; padding-left: 20px; border-left: 3px solid #b8452b; }
+.an-datum { margin: 0 0 6px; font-size: .9rem; font-weight: 500; color: #67747e; }
+.an-schule { margin: 0; font-size: clamp(1.5rem, 2.2vw, 2rem); line-height: 1.25; font-weight: 500; color: #24323d; letter-spacing: -.005em; }
+/* öffentliche Hinweise der Schule (z. B. Sprechtag) – schlicht, reiner Text */
+.an-hinweise { order: 2; display: grid; gap: 10px; max-width: 560px; margin-top: auto; }
+.an-buehne:has(> .an-hinweise[hidden]) .an-text { margin-top: auto; }
+.an-hinweis { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 12px; background: #fff; border: 1px solid #e1e5e9; color: #24323d; }
 .an-hinweis > i { flex: none; margin-top: 2px; color: var(--u-akzent, #f56b2a); font-size: 1rem; }
 .an-hinweis h3 { margin: 0; font-size: .92rem; font-weight: 500; line-height: 1.35; }
 .an-hinweis p { margin: 3px 0 0; font-size: .85rem; line-height: 1.45; color: #5b6770; overflow-wrap: anywhere; }
-.an-bild { width: min(100%, 460px); height: auto; margin-top: auto; align-self: flex-start; filter: drop-shadow(0 18px 30px rgba(140, 70, 30, .10)); }
 
-/* ------------------------------------------------------------------ rechts: Formularkarte */
-.an-bereich { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px 24px; }
-.an-karte { width: 100%; max-width: 420px; padding: 36px 36px 30px; background: #fff; border-radius: 20px;
-  box-shadow: 0 1px 2px rgba(0, 5, 10, .04), 0 20px 50px rgba(0, 5, 10, .08); border: 1px solid #eceff2; }
-.an-kopf { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-.an-kopf .logo { width: 44px; height: 44px; flex: none; color: var(--u-akzent, #f56b2a); }
-.an-seite .an-titel { margin: 0; text-align: left; font-size: 1.45rem; font-weight: 500; color: #24323d; letter-spacing: -.005em; }
-.an-unter { margin: 4px 0 0; font-size: .88rem; color: #67747e; line-height: 1.4; }
+/* ------------------------------------------------------------------ rechts: Formular */
+.an-bereich { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 32px 24px; background: #fff; }
+.an-karte { width: 100%; max-width: 380px; margin: auto 0; }
+.an-kopf { margin-bottom: 28px; }
+.an-seite .an-titel { margin: 0; text-align: left; font-size: 1.6rem; font-weight: 500; color: #24323d; letter-spacing: -.005em; }
+.an-unter { margin: 8px 0 0; font-size: .9rem; color: #67747e; line-height: 1.45; text-align: left; }
 .an-seite .lg-form { width: 100%; max-width: none; }
 .an-seite .lg-form form { display: flex; flex-direction: column; }
+.an-seite .lg-text { margin: 0 0 16px; color: #57626b; font-size: .9rem; }
 
 /* Felder: Beschriftung über einem umrandeten, runden Feld */
 .an-seite .lg-feld { position: relative; display: grid; gap: 6px; margin: 0 0 18px; }
@@ -55,40 +46,44 @@
 .an-seite .lg-feld input:hover { border-color: #b4bdc5; background: #fff; }
 .an-seite .lg-feld input:focus { outline: 0; border-color: var(--u-akzent, #f56b2a); background: #fff; box-shadow: 0 0 0 4px rgba(245, 107, 42, .14); }
 .an-seite .lg-feld input:focus + span, .an-seite .lg-feld input:not(:placeholder-shown) + span { top: auto; font-size: .85rem; color: #414d55; }
+.an-seite .lg-feld input[aria-invalid="true"] { border-color: #e03131; }
+.an-seite .lg-feld input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px rgba(224, 49, 49, .14); }
+.an-seite .lg-feld input:disabled { background: #f3f5f7; color: #67747e; }
 .an-seite .lg-feld:has(.lg-auge) input { padding-right: 52px; }
 .an-seite .lg-auge { top: auto; bottom: 6px; transform: none; right: 6px; }
+.an-seite .lg-feld.mit-hilfe { margin-bottom: 6px; }
+.an-seite .lg-hilfe { margin: 0 0 18px; font-size: .8rem; color: #67747e; }
 .an-seite .lg-login { height: 48px; margin-top: 8px; border-radius: 999px; font-size: 1rem; font-weight: 500; letter-spacing: .01em; }
-.an-seite .lg-vergessen { margin-top: 18px; font-weight: 500; color: #57626b; }
-.an-seite .lg-vergessen:hover { color: var(--u-akzent, #f56b2a); }
+.an-seite .lg-login:disabled { opacity: 1; background: #eef0f3; border-color: #eef0f3; color: #a3adb6; }
+.an-seite .lg-login:focus-visible { outline: 2px solid var(--u-akzent, #f56b2a); outline-offset: 2px; box-shadow: none; }
+.an-seite .lg-vergessen { align-self: flex-start; margin-top: 18px; padding: 0; font-weight: 500; color: #9c3a24; border-radius: 4px; }
+.an-seite .lg-vergessen:hover { color: #9c3a24; text-decoration: underline; text-underline-offset: 3px; }
+.an-seite .lg-vergessen:focus-visible { outline: 2px solid var(--u-akzent, #f56b2a); outline-offset: 3px; }
+.an-seite .lg-vergessen + .lg-vergessen { margin-top: 8px; }
 .an-seite .form-label { font-size: .85rem; font-weight: 500; color: #414d55; }
 .an-seite .form-control { min-height: 46px; border-radius: 12px; border-width: 1.5px; }
 .an-seite .btn-primary { border-radius: 999px; min-height: 46px; font-weight: 500; }
+.an-seite .lg-form .alert { margin: 0 0 14px; border-radius: 10px; }
 
-.an-fuss { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 420px; margin-top: 28px; text-align: center; }
+.an-fuss { display: flex; justify-content: flex-start; width: 100%; max-width: 380px; }
 .an-fuss .lg-app { border-radius: 999px; font-weight: 500; }
 
 /* ------------------------------------------------------------------ schmalere Fenster und Telefon */
 @media (max-width: 1100px) {
   .anmeldung.an-seite { grid-template-columns: minmax(0, 1fr) minmax(400px, 1fr); }
-  .an-bild { width: min(100%, 380px); }
 }
 @media (max-width: 860px) {
-  .anmeldung.an-seite { grid-template-columns: 1fr; grid-template-rows: auto 1fr; background: #f6f7f9; }
-  .an-buehne { gap: 14px; padding: 20px 20px 22px; }
-  .an-buehne::after { display: none; }
-  .an-text { margin-top: 0; }
-  .an-datum { height: 24px; margin-bottom: 10px; font-size: .75rem; }
-  .an-schule { font-size: 1.3rem; margin-bottom: 4px; }
-  .an-zeile { font-size: .88rem; }
-  .an-bild { display: none; }
+  .anmeldung.an-seite { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .an-buehne { gap: 12px; padding: 16px 16px 20px; background-image: none; border-bottom: 1px solid #ece6e1; }
+  .an-hinweise { order: 3; margin-top: 0; }
+  .an-text, .an-buehne:has(> .an-hinweise[hidden]) .an-text { order: 2; margin-top: 4px; padding-left: 12px; }
+  .an-marke .logo { width: 30px; height: 30px; }
+  .an-datum { margin-bottom: 2px; font-size: .8rem; }
+  .an-schule { font-size: 1.25rem; }
   .an-hinweise { gap: 8px; }
   .an-hinweis { padding: 10px 12px; }
-  .an-bereich { justify-content: flex-start; padding: 0 16px 20px; }
-  .an-karte { margin-top: -6px; padding: 26px 20px 22px; border-radius: 18px; }
-  .an-kopf { margin-bottom: 20px; }
-  .an-kopf .logo { display: none; }
-}
-@media (max-height: 760px) and (min-width: 861px) {
-  .an-text { margin-top: 12px; }
-  .an-bild { width: min(100%, 340px); }
+  .an-bereich { justify-content: flex-start; padding: 28px 16px 20px; }
+  .an-karte { margin: 0; }
+  .an-kopf { margin-bottom: 22px; }
+  .an-seite .an-titel { font-size: 1.4rem; }
 }

@@ -26,7 +26,7 @@ export function kennwortVergessen(rahmen, weiter) {
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Senden</button>
       ${zurAnmeldung}
-    </form>`, 'Neues Kennwort per E-Mail anfordern.');
+    </form>`);
   zurueckBinden(form, weiter);
   form.onsubmit = async ev => {
     ev.preventDefault();
@@ -49,7 +49,7 @@ export function registrieren(rahmen, weiter) {
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Senden</button>
       ${zurAnmeldung}
-    </form>`, 'Selbstregistrierung für Eltern und Betriebe.');
+    </form>`);
   zurueckBinden(form, weiter);
   form.onsubmit = async ev => {
     ev.preventDefault();
@@ -101,7 +101,7 @@ async function registrierungLink(rahmen, token, weiter) {
       <div data-meldung></div>
       <button class="btn btn-primary lg-login" type="submit">Registrieren</button>
       ${zurAnmeldung}
-    </form>`, 'Benutzername und Kennwort festlegen.');
+    </form>`);
   zurueckBinden(form, weiter);
   form.onsubmit = async ev => {
     ev.preventDefault();

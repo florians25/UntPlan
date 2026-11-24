@@ -92,15 +92,12 @@ export const bild = (datei, klasse = '', titel = '') => `<img class="wu-bild ${k
 
 export const symbolNamen = Object.keys(S);
 
-/** Bildmarke von UntPlanWeb: Stundenplan-Raster als reine Linienzeichnung (Strich 1,5 im 28er-Raster, runde Enden) wie die übrigen
- *  Linien-Icons, grau über currentColor (Farbe in app.css: .logo). Gleiches Motiv wie img/logo.svg (Favicon). */
-export const LOGO = `<svg class="logo" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-  <rect x="3.25" y="5.25" width="21.5" height="19.5" rx="3"/>
-  <path d="M9 3v4.5M19 3v4.5M3.25 10.5h21.5"/>
-  <rect x="6.75" y="13.5" width="3.5" height="3" rx=".75"/>
-  <rect x="6.75" y="18.5" width="3.5" height="2.75" rx=".75"/>
-  <rect x="12.25" y="13.5" width="3.5" height="7.75" rx=".75"/>
-  <rect x="17.75" y="13.5" width="3.5" height="4.5" rx=".75"/>
+/** Logo von UntPlan als Kachel: „UP“ (ein U, dessen rechter Schaft in den Bogen eines P übergeht) weiß auf Anthrazit, die Punze
+ *  des P als Zeitfenster in Terrakotta. Gleiche Geometrie wie img/logo.svg (erzeugt von build/logo.py). */
+export const LOGO = `<svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+  <path fill="#24323D" fill-rule="evenodd" d="M14 0L50 0A14 14 0 0 1 64 14L64 50A14 14 0 0 1 50 64L14 64A14 14 0 0 1 0 50L0 14A14 14 0 0 1 14 0Z"/>
+  <path transform="translate(6.896 8.02) scale(0.749)" fill="#FFFFFF" fill-rule="evenodd" d="M6 26L6 41A17 17 0 0 0 23 58A17 17 0 0 0 40 41L40 37L45.5 37A15.5 15.5 0 0 0 61 21.5A15.5 15.5 0 0 0 45.5 6L29 6L29 41A6 6 0 0 1 23 47A6 6 0 0 1 17 41L17 26Z"/>
+  <path transform="translate(6.896 8.02) scale(0.749)" fill="#B8452B" fill-rule="evenodd" d="M41.5 17L47.5 17A1.5 1.5 0 0 1 49 18.5L49 24.5A1.5 1.5 0 0 1 47.5 26L41.5 26A1.5 1.5 0 0 1 40 24.5L40 18.5A1.5 1.5 0 0 1 41.5 17Z"/>
 </svg>`;
 
 /** RSS-Kachel für „Nachrichten“ (Bootstrap Icon in Orange). */
