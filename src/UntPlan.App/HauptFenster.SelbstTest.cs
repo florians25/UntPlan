@@ -2025,8 +2025,9 @@ public sealed partial class HauptFenster
                 if (!cb.DroppedDown) throw new InvalidOperationException("Tippen öffnet die Liste nicht.");
                 if (geaendert != 0 || sp.ElementId != start.Id) throw new InvalidOperationException($"Tippen ändert die Auswahl schon vor Enter ({geaendert} Änderung(en), Element {sp.ElementId}).");
                 log.Add($"INFO  V17 nach dem Tippen: Text „{cb.Text}“, Suchtext {Steuerelemente.ListenSuche.HatSuchtext(cb)}, Treffer {Steuerelemente.ListenSuche.Treffer(cb, suche)}");
+                // Bild mit offener Vorschlagsliste; danach muss die Liste noch offen und der Suchtext unverändert sein
                 Vergleich("V17_Kombisuche", sp, new Size(640, 520));
-                Foto(Path.Combine(ordner, "V17_Kombisuche_Bildschirm.png"));
+                log.Add($"INFO  V17 vor Enter: Liste offen {cb.DroppedDown}, Fokus {cb.Focused}, Text „{cb.Text}“, Suchtext {Steuerelemente.ListenSuche.HatSuchtext(cb)}, aktiv {Form.ActiveForm?.Name}/{AppZustand.Haupt.ActiveMdiChild?.Text}");
                 KombiTaste(edit, Keys.Enter);
                 Warten(400);
                 if (sp.ElementId != erwartet.Id) throw new InvalidOperationException($"Enter wählt „{AppZustand.D.Klassen.FirstOrDefault(k => k.Id == sp.ElementId)?.Kurzname}“ statt „{erwartet.Kurzname}“.");

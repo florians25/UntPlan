@@ -390,12 +390,7 @@ public sealed class Vertretungsdruck
     public bool KombinierteKlassen { get; set; }
     public bool Stundenbezeichnung { get; set; }
     public bool StammdatenEinzeln { get; set; } = true;
-    /// <summary>
-    /// „Blockvertretungen zusammenfassen“ (Stunde „1-2“ im Druck). Vertretungs- und Änderungsstunden sind Einzelstunden, daher aus;
-    /// eigener Speichername, damit früher gespeicherte Einstellungen (an) nicht wieder zusammenfassen.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonPropertyName("BlockvertretungenZusammenfassenEinzeln")]
-    public bool BlockvertretungenZusammenfassen { get; set; }
+    public bool BlockvertretungenZusammenfassen { get; set; } = true;
     public bool KeinEntfallBeiErsatz { get; set; }
     // Abwesend
     public bool LehrerMitAbsenzgrund { get; set; }
