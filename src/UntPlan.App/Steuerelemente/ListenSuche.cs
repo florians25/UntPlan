@@ -29,6 +29,9 @@ public static class ListenSuche
         public bool Getippt;
         /// <summary>Freies Eingabefeld: beliebiger Text erlaubt, die Liste bietet nur Vorschläge an.</summary>
         public bool Frei;
+        /// <summary>Anzahl der Meldungen „Auswahl geändert“ insgesamt bzw. beim Merken des Ausgangswerts (stille Änderungen erkennen).</summary>
+        public int Meldungen;
+        public int MeldungenBeiVorher;
     }
 
     /// <summary>Zahl der Einträge, die eine geöffnete Liste höchstens zeigt (überall gleich, danach Rollbalken).</summary>
@@ -61,6 +64,34 @@ public static class ListenSuche
         z.VorherIndex = cb.SelectedIndex;
         z.VorherText = cb.SelectedIndex >= 0 ? cb.GetItemText(cb.SelectedItem) ?? "" : cb.Text;
         z.Getippt = false;
+        z.MeldungenBeiVorher = z.Meldungen;
+    }
+
+    private static readonly System.Reflection.MethodInfo? AuswahlGeaendert =
+        typeof(ComboBox).GetMethod("OnSelectedIndexChanged", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+    /// <summary>
+    /// Auswahl ohne Meldung setzen (Windows hat sie beim Tippen in die offene Liste schon still verändert): Wert wiederherstellen,
+    /// ohne dass das Fenster eine Änderung sieht.
+    /// </summary>
+    private static void StillSetzen(ComboBox cb, int index)
+    {
+        if (cb.IsHandleCreated) SendMessage(cb.Handle, 0x014E /* CB_SETCURSEL */, index, IntPtr.Zero);
+        else cb.SelectedIndex = index;
+    }
+
+    /// <summary>
+    /// Ausgewählten Eintrag melden, als hätte der Benutzer ihn angeklickt: genau eine Meldung „Auswahl geändert“ (auch wenn Windows
+    /// den Eintrag beim Tippen schon still gewählt hat) und danach „Auswahl bestätigt“.
+    /// </summary>
+    private static void Melden(ComboBox cb, int index, int vorherIndex, bool stillGeaendert)
+    {
+        if (cb.SelectedIndex != index) cb.SelectedIndex = index;
+        else if (index != vorherIndex && stillGeaendert)
+        {
+            try { AuswahlGeaendert?.Invoke(cb, new object[] { EventArgs.Empty }); }
+            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
+        }
     }
 
     /// <summary>Vorherigen Wert wiederherstellen (Escape, Klick neben die Liste, ungültige Eingabe).</summary>
@@ -70,7 +101,12 @@ public static class ListenSuche
         z.Markiert = -1;
         if (z.VorherIndex >= 0 && z.VorherIndex < cb.Items.Count)
         {
-            if (cb.SelectedIndex != z.VorherIndex) cb.SelectedIndex = z.VorherIndex;
+            // beim Tippen still verändert (keine Meldung seit dem Ausgangswert): ebenso still zurück, sonst mit Meldung
+            if (cb.SelectedIndex != z.VorherIndex)
+            {
+                if (z.Meldungen == z.MeldungenBeiVorher) StillSetzen(cb, z.VorherIndex);
+                else cb.SelectedIndex = z.VorherIndex;
+            }
             var t = cb.GetItemText(cb.Items[z.VorherIndex]) ?? "";
             if (cb.Text != t) cb.Text = t;
         }
@@ -117,7 +153,7 @@ public static class ListenSuche
         z.Markiert = -1;
         Schliessen(cb);
         var neu = cb.SelectedIndex != i || i != z.VorherIndex;
-        if (cb.SelectedIndex != i) cb.SelectedIndex = i;
+        Melden(cb, i, z.VorherIndex, z.Meldungen == z.MeldungenBeiVorher);
         var t = cb.GetItemText(cb.Items[i]) ?? "";
         if (cb.Text != t) cb.Text = t;
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList) cb.SelectAll();
@@ -194,6 +230,8 @@ public static class ListenSuche
     {
         public string Puffer = "";
         public int Markiert = -1;
+        /// <summary>Gewählter Eintrag vor dem Tippen.</summary>
+        public int Vorher = -1;
         public ToolTip? Hinweis;
     }
 
@@ -234,7 +272,7 @@ public static class ListenSuche
             if (t.Puffer.Length == 0) { Beenden(false); return; }
             if (!cb.DroppedDown) { cb.DroppedDown = true; Cursor.Current = Cursors.Default; }
             t.Markiert = Treffer(cb, t.Puffer);
-            ListeMarkieren(cb, t.Markiert >= 0 ? t.Markiert : cb.SelectedIndex);
+            ListeMarkieren(cb, t.Markiert >= 0 ? t.Markiert : t.Vorher);
             HinweisZeigen();
         }
         // übernehmen (Enter/Tab) bzw. verwerfen (Esc, Klick daneben): die Liste wird vorher auf den bisherigen Wert zurückgestellt, damit
@@ -248,13 +286,19 @@ public static class ListenSuche
             HinweisWeg();
             if (cb.DroppedDown)
             {
-                ListeMarkieren(cb, cb.SelectedIndex);
+                ListeMarkieren(cb, t.Vorher >= 0 ? t.Vorher : cb.SelectedIndex);
                 cb.DroppedDown = false;
             }
-            if (!uebernehmen) return;
-            if (i < 0 || i >= cb.Items.Count) { UngueltigMelden(cb, puffer); return; }
-            if (cb.SelectedIndex == i) return;
-            cb.SelectedIndex = i;
+            var vorher = t.Vorher;
+            if (!uebernehmen || i < 0 || i >= cb.Items.Count)
+            {
+                // die offene Liste hat den Vorschlag womöglich still gewählt: ebenso still zurück
+                if (vorher >= 0 && vorher < cb.Items.Count && cb.SelectedIndex != vorher) StillSetzen(cb, vorher);
+                if (uebernehmen) UngueltigMelden(cb, puffer);
+                return;
+            }
+            if (i == vorher) { if (cb.SelectedIndex != i) StillSetzen(cb, i); return; }
+            Melden(cb, i, vorher, true);
             try { AuswahlBestaetigt?.Invoke(cb, new object[] { EventArgs.Empty }); }
             catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
         }
@@ -277,6 +321,7 @@ public static class ListenSuche
             // keine eingebaute Schnellsuche von Windows (die wählt bei jedem Buchstaben sofort aus und meldet jedes Mal eine Änderung)
             e.Handled = true;
             if (char.IsWhiteSpace(e.KeyChar) && t.Puffer.Length == 0) return;
+            if (t.Puffer.Length == 0) t.Vorher = cb.SelectedIndex;
             t.Puffer += e.KeyChar;
             Suchen();
         };
@@ -340,7 +385,7 @@ public static class ListenSuche
         VorherMerken(cb, z);
         cb.Enter += (_, _) => VorherMerken(cb, z);
         // Wert ohne Tippen geändert (Programm, Durchschalter, Klick in die Liste): neuer Ausgangswert
-        cb.SelectedIndexChanged += (_, _) => { if (!z.Getippt && !cb.DroppedDown) VorherMerken(cb, z); };
+        cb.SelectedIndexChanged += (_, _) => { z.Meldungen++; if (!z.Getippt && !cb.DroppedDown) VorherMerken(cb, z); };
         cb.SelectionChangeCommitted += (_, _) => { if (cb.SelectedIndex >= 0) { z.Getippt = false; z.Markiert = -1; } };
         cb.DropDown += (_, _) =>
         {
@@ -366,6 +411,8 @@ public static class ListenSuche
                 if (!Bedienbar(cb)) { z.Getippt = false; return; }
                 if (cb.DroppedDown) return;
                 if (z.Getippt && !IstEintrag(cb, cb.Text.Trim())) { Ablehnen(cb, z); return; }
+                // genau einen Eintrag getippt und daneben geklickt: übernehmen wie mit Enter (mit Meldung, nie still)
+                if (z.Getippt && !z.Frei) { if (!Uebernehmen(cb, z)) Ablehnen(cb, z); return; }
                 // ohne Tippen bzw. mit gültigem Eintrag geschlossen: das ist der neue Ausgangswert
                 if (cb.SelectedIndex >= 0 || !z.Getippt) VorherMerken(cb, z);
             });
