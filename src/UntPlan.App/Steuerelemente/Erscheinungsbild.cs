@@ -45,11 +45,44 @@ public static class Erscheinungsbild
         try
         {
             if (!ReferenceEquals(f.Icon, Symbole.Logo)) f.Icon = Symbole.Logo;
-            if (!f.ShowIcon && f.FormBorderStyle is not (FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow))
-                f.ShowIcon = true;
+            if (f.FormBorderStyle is FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow) return;
+            if (!f.ShowIcon) f.ShowIcon = true;
+            if (!OperatingSystem.IsWindows() || SymbolAngemeldet.TryGetValue(f, out _)) return;
+            SymbolAngemeldet.Add(f, new object());
+            if (f.IsHandleCreated) SymbolErzwingen(f);
+            f.HandleCreated += (_, _) => SymbolErzwingen(f);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
     }
+
+    private static readonly ConditionalWeakTable<Form, object> SymbolAngemeldet = new();
+
+    /// <summary>
+    /// Dialoge mit festem Rahmen (und Fenster ohne Symbol) erhalten von Windows Forms den Stil WS_EX_DLGMODALFRAME, mit dem Windows
+    /// kein Symbol in der Titelleiste zeigt: Stil entfernen, Rahmen neu berechnen und das Logo ausdrücklich setzen.
+    /// </summary>
+    private static void SymbolErzwingen(Form f)
+    {
+        if (f.IsDisposed || !f.IsHandleCreated || f.FormBorderStyle is FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow) return;
+        try
+        {
+            const int GWL_EXSTYLE = -20, WS_EX_DLGMODALFRAME = 0x1, WM_SETICON = 0x80;
+            var ex = GetWindowLong(f.Handle, GWL_EXSTYLE);
+            if ((ex & WS_EX_DLGMODALFRAME) != 0)
+            {
+                SetWindowLong(f.Handle, GWL_EXSTYLE, ex & ~WS_EX_DLGMODALFRAME);
+                SetWindowPos(f.Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020); // NOSIZE|NOMOVE|NOZORDER|NOACTIVATE|FRAMECHANGED
+            }
+            SendMessage(f.Handle, WM_SETICON, (IntPtr)0, Symbole.LogoKlein.Handle);
+            SendMessage(f.Handle, WM_SETICON, (IntPtr)1, Symbole.Logo.Handle);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int index);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int index, int wert);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr nach, int x, int y, int cx, int cy, uint flags);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     /// <summary>Voreingestelltes Symbol aller Fenster (statt des Windows-Forms-Symbols) auf das UntPlan-Logo setzen.</summary>
     public static void StandardSymbolSetzen()

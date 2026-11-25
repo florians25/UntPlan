@@ -1034,6 +1034,13 @@ public sealed partial class HauptFenster
                 f.WindowState = FormWindowState.Normal;
                 f.Bounds = new Rectangle(100, 0, 272, 567);
                 Warten(400);
+                // offene Vertretung gewählt (rot-gelb), übrige Stunden desselben Unterrichts blau-gelb wie im Vorbild
+                if (AppZustand.D.Vertretungen.FirstOrDefault(v => v.Id == offen.Id) is { } ov)
+                {
+                    f.Plan.MarkierterUnterricht = ov.UnterrichtId;
+                    f.Plan.TagesAuswaehlen(ov.Datum, ov.Stunde, ov.UnterrichtId ?? 0, ov.Id);
+                }
+                Warten(300);
                 Vergleich("V14_Plan_Vertretungsstaende", f, new Size(272, 567));
                 log.Add($"INFO  V14 {dd.Klassen.First(k => k.Id == klasse).Kurzname}: offen {stunden[0].Stunde}., vertreten {stunden[1].Stunde}., Entfall {stunden[2].Stunde}., verlegt {stunden[3].Stunde}. → {frei}.");
                 // Kopf ungescrollt (Bildschirm), dann mehrfach scrollen und wieder vergleichen
