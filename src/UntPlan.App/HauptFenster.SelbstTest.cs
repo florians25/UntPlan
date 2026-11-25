@@ -2082,8 +2082,36 @@ public sealed partial class HauptFenster
             Steuerelemente.Auswahlbreite.Vereinheitlichen(fm);
             if (!Steuerelemente.ListenSuche.HatTippsuche(fm)) throw new InvalidOperationException("Formatauswahl ohne Tippsuche.");
             var texte = fm.Items.Cast<object>().Select(o => fm.GetItemText(o) ?? "").ToList();
-            var ziel = texte.Select((t, i) => (t, i)).FirstOrDefault(x => x.i != fm.SelectedIndex && x.t.Length > 1 && Steuerelemente.ListenSuche.Treffer(fm, x.t[..2]) == x.i);
-            if (ziel.t is null) { log.Add("INFO  V17: keine zweite Formatauswahl"); return; }
+            var ziel = texte.Select((t, i) => (t, i)).FirstOrDefault(x => x.i != fm.SelectedIndex && fm.Items[x.i] is string && x.t.Length > 1 && Steuerelemente.ListenSuche.Treffer(fm, x.t[..2]) == x.i);
+            if (ziel.t is null)
+            {
+                // nur ein Format: Tippsuche mit Esc prüfen (Suchtext sichtbar, Wert bleibt, keine Meldung)
+                var aktuell = fm.SelectedIndex;
+                var text = texte[Math.Max(0, aktuell)];
+                var meldungen = 0;
+                void Gemeldet(object? s, EventArgs e) => meldungen++;
+                fm.SelectedIndexChanged += Gemeldet;
+                try
+                {
+                    fm.Focus();
+                    Warten(100);
+                    foreach (var ch in text[..Math.Min(2, text.Length)]) KombiTippen(fm.Handle, ch);
+                    var such = Steuerelemente.ListenSuche.Tippsuchtext(fm);
+                    var offen = fm.DroppedDown;
+                    Foto(Path.Combine(ordner, "V17c_Formatsuche_Bildschirm.png"));
+                    KombiTaste(fm.Handle, Keys.Escape);
+                    Warten(200);
+                    if (such != text[..Math.Min(2, text.Length)] || !offen) throw new InvalidOperationException($"Formatauswahl: Suchtext „{such}“, Liste offen {offen}.");
+                    if (fm.SelectedIndex != aktuell || meldungen != 0) throw new InvalidOperationException($"Formatauswahl: Esc ändert die Auswahl ({meldungen} Meldung(en)).");
+                    log.Add($"INFO  V17 Formatauswahl (ein Format): Suchtext „{such}“ mit offener Liste, Esc behält „{text}“");
+                }
+                finally
+                {
+                    fm.SelectedIndexChanged -= Gemeldet;
+                    if (fm.DroppedDown) fm.DroppedDown = false;
+                }
+                return;
+            }
             var vorher = fm.SelectedIndex;
             var fGeaendert = 0;
             var fLetzter = fm.SelectedIndex;

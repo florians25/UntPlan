@@ -688,7 +688,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         public override string ToString() => Text;
     }
 
-    private static readonly object FormatTrenner = new();
+    /// <summary>Trennlinie der Formatauswahl (leerer Text: wird von der Tippsuche nie vorgeschlagen).</summary>
+    private sealed class Trennlinie { public override string ToString() => ""; }
+    private static readonly object FormatTrenner = new Trennlinie();
 
     private void FormatAuswahlGeaendert()
     {

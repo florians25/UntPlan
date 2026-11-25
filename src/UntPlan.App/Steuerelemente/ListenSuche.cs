@@ -233,6 +233,8 @@ public static class ListenSuche
         /// <summary>Gewählter Eintrag vor dem Tippen.</summary>
         public int Vorher = -1;
         public ToolTip? Hinweis;
+        /// <summary>Die Liste wird gerade durch das Tippen geöffnet (ein Schließen dabei beendet die Suche nicht).</summary>
+        public bool Oeffnet;
     }
 
     private static readonly ConditionalWeakTable<ComboBox, Tippzustand> Tippsuchen = new();
@@ -270,7 +272,18 @@ public static class ListenSuche
         void Suchen()
         {
             if (t.Puffer.Length == 0) { Beenden(false); return; }
-            if (!cb.DroppedDown) { cb.DroppedDown = true; Cursor.Current = Cursors.Default; }
+            if (!cb.DroppedDown)
+            {
+                // beim ersten Öffnen passen Fenster und Baustein Breite und Höhe der Liste an – schließt Windows sie dabei, erneut öffnen
+                t.Oeffnet = true;
+                try
+                {
+                    cb.DroppedDown = true;
+                    if (!cb.DroppedDown) cb.DroppedDown = true;
+                }
+                finally { t.Oeffnet = false; }
+                Cursor.Current = Cursors.Default;
+            }
             t.Markiert = Treffer(cb, t.Puffer);
             ListeMarkieren(cb, t.Markiert >= 0 ? t.Markiert : t.Vorher);
             HinweisZeigen();
@@ -347,7 +360,7 @@ public static class ListenSuche
             }
         };
         cb.PreviewKeyDown += (_, e) => { if (e.KeyCode == Keys.Tab && t.Puffer.Length > 0) Beenden(true); };
-        cb.DropDownClosed += (_, _) => { if (t.Puffer.Length > 0) { t.Puffer = ""; t.Markiert = -1; HinweisWeg(); } };
+        cb.DropDownClosed += (_, _) => { if (t.Puffer.Length > 0 && !t.Oeffnet) { t.Puffer = ""; t.Markiert = -1; HinweisWeg(); } };
         cb.Leave += (_, _) => { if (t.Puffer.Length > 0) Beenden(false); };
         cb.Disposed += (_, _) => t.Hinweis?.Dispose();
     }
