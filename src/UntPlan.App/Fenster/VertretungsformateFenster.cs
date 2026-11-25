@@ -20,7 +20,6 @@ public sealed class VertretungsformateFenster : MdiFenster
     {
         Text = "Formate / Vertretung";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("uebersicht");
         Size = new Size(483, 330);
         Positionieren();
         var ts = Werkzeugleiste();

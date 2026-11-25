@@ -64,9 +64,10 @@ public sealed class FensterTitel : Control
         using (var b = new SolidBrush(farbe)) g.FillRectangle(b, ClientRectangle);
         var text = Ui.Textfarbe(farbe);
         var x = 9;
-        if (_form.Icon != null)
+        if (_form.ShowIcon)
         {
-            try { g.DrawIcon(_form.Icon, new Rectangle(x, (Height - 16) / 2 + 2, 16, 16)); } catch { /* Symbol nicht darstellbar */ }
+            // jedes Arbeitsfenster trägt oben links das UntPlan-Logo (16er-Fassung der Symboldatei, unskaliert)
+            try { g.DrawIconUnstretched(Symbole.LogoKlein, new Rectangle(x, (Height - 16) / 2 + 2, 16, 16)); } catch (Exception ex) when (ex is ArgumentException or ObjectDisposedException) { }
             x += 22;
         }
         var rechts = Knopf(0).X - 4;

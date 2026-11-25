@@ -37,7 +37,8 @@ public class MdiFenster : Form
         KeyPreview = true;
         StartPosition = FormStartPosition.Manual;
         ShowIcon = true;
-        Icon = SymbolIcon("stundenplan");
+        // wie alle Fenster: das UntPlan-Logo (die eigene Titelleiste zeichnet es oben links)
+        Icon = Symbole.Logo;
         if (AppZustand.Haupt != null) MdiParent = AppZustand.Haupt;
         // eigene, farbige Titelleiste im Stil des aktuellen Modus statt der grauen Systemleiste
         FormBorderStyle = FormBorderStyle.None;
@@ -163,12 +164,6 @@ public class MdiFenster : Form
         if (!Fensterlage.BereichGueltig(new Rectangle(Point.Empty, bereich))) return;
         var r = Fensterlage.MdiFenster(Bounds, bereich, true);
         if (r != Bounds) Bounds = r;
-    }
-
-    protected static Icon SymbolIcon(string name)
-    {
-        using var bmp = Symbole.Get(name, 16).Clone() as Bitmap;
-        return Icon.FromHandle(bmp!.GetHicon());
     }
 
     private void Anmelden()

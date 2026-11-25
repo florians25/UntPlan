@@ -97,7 +97,6 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     {
         Text = "Vertretungen / Klasse - Standard";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("vertretung");
         Size = new Size(1180, 520);
         Positionieren();
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);

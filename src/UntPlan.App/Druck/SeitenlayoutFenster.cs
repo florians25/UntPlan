@@ -59,7 +59,7 @@ public sealed class SeitenlayoutFenster : Form
         _lehrer = lehrer;
         Text = "Seitenlayout";
         Font = Ui.Schrift;
-        Icon = Icon.FromHandle(Symbole.Get("drucken", 16).GetHicon());
+        Icon = Symbole.Logo;
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1157, 814); // wie die Abbildung im Handbuch (96 dpi)
         MinimumSize = new Size(900, 560);

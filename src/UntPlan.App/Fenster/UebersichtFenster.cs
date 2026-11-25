@@ -18,7 +18,6 @@ public sealed partial class UebersichtFenster : MdiFenster, IDruckbar
         _typ = typ;
         Text = $"{Ui.TypName(typ, true)} Übersicht quer";
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("uebersicht");
         Size = new Size(1100, 520);
         Positionieren();
         var ts = Werkzeugleiste();

@@ -55,7 +55,6 @@ public sealed class StammdatenFenster : MdiFenster, IDruckbar
         // Titel wie in der Vorlage („Klassen / Klasse“, „Absenzgründe / Absenzgründe“)
         Text = typ == ElementTyp.Abwesenheitsgrund ? "Absenzgründe / Absenzgründe" : $"{Ui.TypName(typ, true)} / {Ui.TypName(typ)}";
         HilfeThema = "Stammdaten";
-        Icon = SymbolIcon(typ switch { ElementTyp.Klasse => "klassen", ElementTyp.Lehrer => "lehrer", ElementTyp.Raum => "raeume", ElementTyp.Fach => "faecher", ElementTyp.Schueler => "schueler", _ => "rollup" });
         Size = new Size(760, 420);
         Positionieren();
 

@@ -121,7 +121,6 @@ public sealed class PlanungsdialogFenster : MdiFenster
     {
         _stundenplan = stundenplan;
         HilfeThema = "Planungsdialog";
-        Icon = SymbolIcon("planen");
         Size = stundenplan ? new Size(560, 600) : new Size(900, 520);
         Positionieren();
         _aktiv = unterricht ?? AnfangsUnterricht();

@@ -25,7 +25,6 @@ public sealed class FixierterUnterrichtFenster : MdiFenster
     {
         Text = "Fixierter/Ignorierter Unterricht";
         HilfeThema = "Unterricht";
-        Icon = SymbolIcon("fixieren");
         Size = new Size(760, 420);
         Positionieren();
         var ts = Werkzeugleiste();

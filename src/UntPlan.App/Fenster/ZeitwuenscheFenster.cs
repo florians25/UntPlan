@@ -39,7 +39,6 @@ public sealed class ZeitwuenscheFenster : MdiFenster
     public ZeitwuenscheFenster()
     {
         HilfeThema = "Zeitwünsche";
-        Icon = SymbolIcon("zeitwunsch");
         Size = new Size(620, 400);
         Positionieren();
         var ts = Werkzeugleiste();

@@ -20,7 +20,6 @@ public sealed class StundenplanformateFenster : MdiFenster
     {
         Text = "Formate / Stundenpläne";
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("stundenplan");
         Size = new Size(420, 360);
         Positionieren();
         var ts = Werkzeugleiste();

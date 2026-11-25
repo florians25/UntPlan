@@ -53,7 +53,6 @@ public sealed class ListenauswahlFenster : MdiFenster
     {
         Text = "Listenauswahl";
         HilfeThema = "Berichte";
-        Icon = SymbolIcon("drucken");
         Size = new Size(380, 460);
         Positionieren();
         var ts = Werkzeugleiste();

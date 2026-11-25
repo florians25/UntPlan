@@ -48,7 +48,6 @@ public sealed class VertretungsPlanungsdialogFenster : MdiFenster
     {
         Text = "Planungsdialog";
         HilfeThema = "Planungsdialog";
-        Icon = SymbolIcon("planen");
         Size = new Size(560, 600);
         Positionieren();
 

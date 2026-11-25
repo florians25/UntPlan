@@ -23,16 +23,49 @@ public static class Erscheinungsbild
     private static readonly ConditionalWeakTable<Control, object> Gestaltet = new();
 
     /// <summary>Menüs und Aufklapplisten aller Werkzeugleisten ohne eigene Darstellung.</summary>
-    public static void Einschalten() => ToolStripManager.Renderer = new MenueDarstellung();
+    public static void Einschalten()
+    {
+        ToolStripManager.Renderer = new MenueDarstellung();
+        StandardSymbolSetzen();
+    }
 
     /// <summary>Hat das Fenster eine eigene, vollständige Gestaltung (dann keine Dialogfarben)?</summary>
     private static bool EigeneGestaltung(Form f) =>
         f.IsMdiContainer || f.IsMdiChild || f is Fenster.MdiFenster || f.FormBorderStyle == FormBorderStyle.None ||
         f.GetType().Name is "HauptFenster" or "MeldungsForm" or "ElementRollup" or "SymbolForm" or "MonitorFenster" or "HilfeFenster" or "EingabeHinweisFenster";
 
+    /// <summary>
+    /// Fenstersymbol: jedes Fenster und jeder Dialog zeigt oben links das UntPlan-Logo (auch Dialoge mit festem Rahmen, die Windows
+    /// sonst ohne Symbol zeigt). Werkzeugfenster haben unter Windows keinen Platz für ein Symbol; Fenster mit eigener Titelleiste
+    /// zeichnen das Logo selbst.
+    /// </summary>
+    public static void Fenstersymbol(Form f)
+    {
+        if (f.IsDisposed) return;
+        try
+        {
+            if (!ReferenceEquals(f.Icon, Symbole.Logo)) f.Icon = Symbole.Logo;
+            if (!f.ShowIcon && f.FormBorderStyle is not (FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow))
+                f.ShowIcon = true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+    }
+
+    /// <summary>Voreingestelltes Symbol aller Fenster (statt des Windows-Forms-Symbols) auf das UntPlan-Logo setzen.</summary>
+    public static void StandardSymbolSetzen()
+    {
+        foreach (var name in new[] { "s_defaultIcon", "defaultIcon" })
+            if (typeof(Form).GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static) is { } feld && feld.FieldType == typeof(Icon))
+            {
+                try { feld.SetValue(null, Symbole.Logo); } catch (Exception ex) when (ex is FieldAccessException or ArgumentException) { }
+                return;
+            }
+    }
+
     /// <summary>Dialogfläche und Titelleiste eines frei schwebenden Fensters (Dialog, Werkzeugfenster) setzen.</summary>
     public static void Dialog(Form f)
     {
+        Fenstersymbol(f);
         if (f.IsDisposed || EigeneGestaltung(f)) return;
         if (Gestaltet.TryGetValue(f, out _)) return;
         Gestaltet.Add(f, new object());
@@ -112,7 +145,7 @@ public static class Erscheinungsbild
         {
             switch (c)
             {
-                case Form f: Dialog(f); break;
+                case Form f: Fenstersymbol(f); Dialog(f); break;
                 case Button b: Knopf(b); break;
                 case TabPage p: Karte(p); break;
                 case DataGridView g when g.BorderStyle == BorderStyle.Fixed3D: KlassischVertieft.Anmelden(g); break;

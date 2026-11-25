@@ -18,7 +18,6 @@ public sealed class UGruppenFenster : MdiFenster
     {
         Text = "Unterrichtsgruppen";
         HilfeThema = "Unterricht";
-        Icon = SymbolIcon("perioden");
         Size = new Size(860, 320);
         Positionieren();
         var ts = Werkzeugleiste();

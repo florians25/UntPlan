@@ -183,6 +183,24 @@ public static class Symbole
         return Skaliert(Ressource($"FatCow.{basis}.{datei}.png"), groesse, basis);
     }
 
+    private static Icon? _logo, _logoKlein;
+
+    /// <summary>
+    /// Fenstersymbol aller Fenster und Dialoge: das UntPlan-Logo (build/untplan.ico mit allen Größen, wie das Programmsymbol).
+    /// Windows wählt für Titelleiste und Taskleiste jeweils die passende Größe.
+    /// </summary>
+    public static Icon Logo => _logo ??= LogoLaden(0);
+
+    /// <summary>Das Logo in 16 × 16 Pixeln für selbst gezeichnete Titelleisten (pixelgenau aus der 16er-Fassung der Symboldatei).</summary>
+    public static Icon LogoKlein => _logoKlein ??= LogoLaden(16);
+
+    private static Icon LogoLaden(int groesse)
+    {
+        using var strom = typeof(Symbole).Assembly.GetManifestResourceStream("Logo.untplan.ico");
+        if (strom is null) return SystemIcons.Application;
+        return groesse > 0 ? new Icon(strom, groesse, groesse) : new Icon(strom);
+    }
+
     private static Bitmap? Ressource(string name)
     {
         using var strom = typeof(Symbole).Assembly.GetManifestResourceStream(name);

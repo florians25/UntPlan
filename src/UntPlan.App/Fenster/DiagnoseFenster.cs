@@ -39,7 +39,6 @@ public sealed class DiagnoseFenster : MdiFenster
     {
         Text = "Stundenplan-Diagnose";
         HilfeThema = "Diagnose";
-        Icon = SymbolIcon("diagnose");
         Size = new Size(940, 480);
         Positionieren();
         var ts = Werkzeugleiste();

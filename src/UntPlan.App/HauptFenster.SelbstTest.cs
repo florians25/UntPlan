@@ -995,6 +995,117 @@ public sealed partial class HauptFenster
                 AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
             }
         }, -1);
+        Schritt("V14_Plan_Vertretungsstaende", () =>
+        {
+            // kleiner Klassenplan wie in den Vorbild-Bildern 340/341: offene Vertretung „?Fach?“ (gewählt, rot-gelb umrandet), vertretene
+            // Stunde rot, Entfall rot durchgestrichen, verlegte Stunde rot am Ziel – jeweils weißes Feld im mintgrünen Rahmen.
+            // Danach niedriger und gescrollt: Der stehende Tageskopf muss nach mehrfachem Scrollen pixelgleich zum ungescrollten sein.
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var dd = Dokument.Klonen(AppZustand.D);
+            var datum = AppZustand.Datum;
+            bool Geeignet(Core.Vertretungsplanung.RegelStunde r) => r.Stunde is >= 1 and <= 6 && r.Unterricht.Zeilen.Count == 1 && r.LehrerId.HasValue && r.KlassenIds.Count == 1
+                && !Core.Vertretungsplanung.Absenzen.KlasseAbwesend(dd, r.KlassenIds[0], datum, r.Stunde)
+                && !Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, r.LehrerId.Value, datum, r.Stunde)
+                && !dd.Vertretungen.Any(v => v.Datum == datum && v.Stunde == r.Stunde && (v.UnterrichtId == r.Unterricht.Id || v.KlassenIds.Contains(r.KlassenIds[0])));
+            var alle = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, datum).ToList();
+            var gruppe = alle.Where(Geeignet).GroupBy(r => r.KlassenIds[0]).Where(g => g.Select(r => r.Stunde).Distinct().Count() >= 4).OrderByDescending(g => g.Count()).FirstOrDefault();
+            if (gruppe is null) { log.Add("INFO  V14: keine Klasse mit vier geeigneten Stunden"); return; }
+            var klasse = gruppe.Key;
+            var stunden = gruppe.GroupBy(r => r.Stunde).Select(g => g.First()).OrderBy(r => r.Stunde).ToList();
+            var andere = dd.Lehrer.Where(l => !l.Ignorieren && !stunden.Any(r => r.LehrerId == l.Id)).Select(l => l.Id).First();
+            Vertretung V(Core.Vertretungsplanung.RegelStunde r, VertretungsArt art, int? vertreter) => new()
+            {
+                Id = dd.NeueId(), Datum = datum, Stunde = r.Stunde, Art = art, Quelle = VertretungsQuelle.Manuell, UnterrichtId = r.Unterricht.Id, ZeilenIndex = 0,
+                LehrerId = r.LehrerId, VertreterId = vertreter, FachId = r.Unterricht.Zeilen[0].FachId, KlassenIds = new() { klasse },
+            };
+            var offen = V(stunden[0], VertretungsArt.Vertretung, null);
+            dd.Vertretungen.Add(offen);
+            dd.Vertretungen.Add(V(stunden[1], VertretungsArt.Vertretung, andere));
+            dd.Vertretungen.Add(V(stunden[2], VertretungsArt.Entfall, null));
+            // Verlegung in eine freie Stunde der Klasse (Ursprung entfällt)
+            var belegt = alle.Where(r => r.KlassenIds.Contains(klasse)).Select(r => r.Stunde).ToHashSet();
+            var frei = Enumerable.Range(1, Math.Min(8, dd.Zeitraster.StundenProTag)).Where(s => !belegt.Contains(s) && s > stunden[3].Stunde).DefaultIfEmpty(-1).First();
+            if (frei > 0) Core.Vertretungsplanung.Vertretungen.Verlegen(dd, stunden[3].Unterricht.Id, null, datum, stunden[3].Stunde, datum, frei, ursprungEntfall: true);
+            AppZustand.Setzen(new Dokument(dd), false);
+            try
+            {
+                AppZustand.VertretungWaehlen(AppZustand.D.Vertretungen.FirstOrDefault(v => v.Id == offen.Id));
+                var f = StundenplanFenster.Neu(ElementTyp.Klasse, klasse, false, true);
+                f.WindowState = FormWindowState.Normal;
+                f.Bounds = new Rectangle(100, 0, 272, 567);
+                Warten(400);
+                Vergleich("V14_Plan_Vertretungsstaende", f, new Size(272, 567));
+                log.Add($"INFO  V14 {dd.Klassen.First(k => k.Id == klasse).Kurzname}: offen {stunden[0].Stunde}., vertreten {stunden[1].Stunde}., Entfall {stunden[2].Stunde}., verlegt {stunden[3].Stunde}. → {frei}.");
+                // Kopf ungescrollt (Bildschirm), dann mehrfach scrollen und wieder vergleichen
+                Bitmap Kopf()
+                {
+                    f.Refresh();
+                    var (bereich, kopf) = f.SelbsttestPlanBereich;
+                    var b = new Bitmap(bereich.Width, kopf);
+                    using var g = Graphics.FromImage(b);
+                    g.CopyFromScreen(bereich.Location, Point.Empty, b.Size);
+                    return b;
+                }
+                f.Bounds = new Rectangle(100, 0, 272, 330);
+                Warten(300);
+                using var vorher = Kopf();
+                foreach (var y in new[] { 30, 60, 90, 25, 120, 60, 200, 90 }) { f.SelbsttestScrollen(0, y); Warten(60); }
+                f.SelbsttestScrollen(0, 60);
+                Warten(300);
+                using var nachher = Kopf();
+                var anders = 0;
+                for (var x = 0; x < Math.Min(vorher.Width, nachher.Width); x++)
+                    for (var y = 0; y < Math.Min(vorher.Height, nachher.Height); y++)
+                        if (vorher.GetPixel(x, y) != nachher.GetPixel(x, y)) anders++;
+                var (pos, _) = f.SelbsttestScrollStand;
+                log.Add($"INFO  V14 Kopf nach dem Scrollen (Position {pos.Y}): {anders} von {vorher.Width * vorher.Height} Bildpunkten anders");
+                if (pos.Y > 0 && anders > vorher.Width * vorher.Height / 200) log.Add($"FEHLER V14: stehender Tageskopf nach dem Scrollen verändert ({anders} Bildpunkte)");
+                Vergleich("V14b_Plan_Vertretung_gescrollt", f, new Size(272, 330));
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.VertretungWaehlen(null);
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
+        Schritt("V15_Fenstersymbole", () =>
+        {
+            // jedes Fenster zeigt oben links das UntPlan-Logo: Arbeitsfenster (eigene Titelleiste), Dialog mit festem Rahmen, Meldungsfenster
+            var plan = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            plan.WindowState = FormWindowState.Normal;
+            plan.Bounds = new Rectangle(0, 0, 272, 200);
+            var d = Dialoge.KurznameDialog.Erzeugen("Kla1", "Klasse 1", out _, out _);
+            d.StartPosition = FormStartPosition.Manual;
+            d.Location = new Point(420, 260);
+            d.Show(this);
+            var m = Ui.MeldungsFenster("Verlegung rückgängig?", "UntPlan - Frage", MeldungsArt.Frage, new[] { "Ja", "Nein", "Abbrechen" }, 0, true, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            m.StartPosition = FormStartPosition.Manual;
+            m.Location = new Point(720, 260);
+            m.Show(this);
+            Warten(600);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            Warten(200);
+            foreach (Form f in Application.OpenForms)
+            {
+                var werkzeug = f.FormBorderStyle is FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow;
+                if (!ReferenceEquals(f.Icon, Symbole.Logo) || (!f.ShowIcon && !werkzeug && f.FormBorderStyle != FormBorderStyle.None))
+                    log.Add($"FEHLER V15: Fenster „{f.Text}“ ({f.GetType().Name}) ohne UntPlan-Logo");
+            }
+            void Ausschnitt(string name, Rectangle r)
+            {
+                using var bmp = new Bitmap(r.Width, r.Height);
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, name + "_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            plan.Refresh(); d.Refresh(); m.Refresh();
+            Ausschnitt("V15a_Symbol_Arbeitsfenster", plan.Parent!.RectangleToScreen(new Rectangle(plan.Left, plan.Top, 272, 40)));
+            Ausschnitt("V15b_Symbol_Dialog", new Rectangle(d.Left, d.Top, Math.Min(d.Width, 300), 50));
+            Ausschnitt("V15c_Symbol_Meldung", new Rectangle(m.Left, m.Top, Math.Min(m.Width, 400), 50));
+            Ausschnitt("V15d_Symbol_Hauptfenster", RectangleToScreen(new Rectangle(0, 0, 360, 40)));
+            m.Close();
+            d.Close();
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts

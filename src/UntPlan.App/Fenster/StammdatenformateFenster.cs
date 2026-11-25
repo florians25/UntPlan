@@ -23,7 +23,6 @@ public sealed class StammdatenformateFenster : MdiFenster
     {
         Text = "Formate / Stammdaten";
         HilfeThema = "Stammdaten";
-        Icon = SymbolIcon("rollup");
         Size = new Size(520, 340);
         Positionieren();
         var ts = Werkzeugleiste();

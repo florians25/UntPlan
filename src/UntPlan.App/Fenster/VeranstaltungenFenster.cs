@@ -50,7 +50,6 @@ public sealed class VeranstaltungenFenster : MdiFenster
     {
         Text = "Veranst. / Lehrer";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("veranstaltung");
         Size = new Size(980, 330);
         Positionieren();
         // Symbolleiste wie im Vorbild (Handbuch Kap. 6): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht, Element-Rollup …

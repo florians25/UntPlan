@@ -78,6 +78,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
     internal void SelbsttestScrollen(int y) { _planRahmen.AutoScrollPosition = new Point(0, y); _planRahmen.Einrasten(); }
     internal void SelbsttestScrollen(int x, int y) { _planRahmen.AutoScrollPosition = new Point(x, y); _planRahmen.Einrasten(); _planRahmen.Update(); }
+    /// <summary>Selbsttest: sichtbarer Planbereich auf dem Bildschirm und Höhe des stehenden Tageskopfs.</summary>
+    internal (Rectangle Bereich, int KopfHoehe) SelbsttestPlanBereich => (_planRahmen.RectangleToScreen(_planRahmen.ClientRectangle), _plan.FixHoehe);
     /// <summary>Selbsttest: Scrollposition des Plans und ob sie auf einer Zeilen- bzw. Tagesgrenze liegt.</summary>
     internal (Point Position, bool Eingerastet) SelbsttestScrollStand => (new Point(-_planRahmen.AutoScrollPosition.X, -_planRahmen.AutoScrollPosition.Y), _planRahmen.Eingerastet);
 
@@ -97,7 +99,6 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _gross = gross;
         _klein = klein;
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("stundenplan");
         Size = klein ? new Size(196, 330) : gross ? new Size(820, 640) : new Size(560, 520);
         Positionieren();
 

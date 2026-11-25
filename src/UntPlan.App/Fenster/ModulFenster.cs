@@ -23,7 +23,6 @@ public sealed class WertrechnungFenster : MdiFenster, IDruckbar
     {
         Text = "Unterrichtsplanung / Wertrechnung";
         HilfeThema = "Unterrichtsplanung";
-        Icon = SymbolIcon("wertrechnung");
         Size = new Size(1060, 560);
         Positionieren();
 
@@ -275,7 +274,6 @@ public sealed class KursplanungFenster : MdiFenster
     {
         Text = "Kursplanung";
         HilfeThema = "Kursplanung";
-        Icon = SymbolIcon("kurs");
         Size = new Size(1080, 580);
         Positionieren();
         var ts = Werkzeugleiste();

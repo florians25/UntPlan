@@ -23,7 +23,6 @@ public sealed class WochenwerteFenster : MdiFenster, IDruckbar
     {
         Text = "Wochenwerte";
         HilfeThema = "Unterrichtsplanung";
-        Icon = SymbolIcon("wertrechnung");
         Size = new Size(568, 370);
         Font = Schrift;
         Positionieren();
