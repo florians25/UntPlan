@@ -42,6 +42,14 @@ public sealed class TagesEintrag
     public List<Kopplungsteil>? Kopplungsteile { get; init; }
     /// <summary>Findet tatsächlich statt (bindet Lehrer, Klassen und Räume).</summary>
     public bool Findetstatt => Status is TagesStatus.Regulaer or TagesStatus.Vertreten or TagesStatus.Offen or TagesStatus.Zusaetzlich;
+
+    /// <summary>
+    /// Vertretungs- bzw. Änderungsstunde (Vertretung, offene Stunde, Entfall, Raumänderung, Verlegung, Tausch …): wird im Stundenplan je Stunde
+    /// als eigenes Feld gezeigt, nie mit den Nachbarstunden des Blocks zu einem Feld zusammengefasst. Regulärer Unterricht und Veranstaltungen
+    /// (eine Veranstaltung ist keine Änderung einer einzelnen Unterrichtsstunde) bleiben zusammengefasst.
+    /// </summary>
+    public bool AlsEinzelstunde => Vertretung?.Art is not (VertretungsArt.Veranstaltung or VertretungsArt.Unterricht)
+                                   && (Status != TagesStatus.Regulaer || Vertretung != null);
 }
 
 /// <summary>Tagesaktueller Stundenplan: regulärer Unterricht der an diesem Tag gültigen Periode plus Vertretungen.</summary>

@@ -136,14 +136,21 @@ public static class Auswahlbreite
     /// </summary>
     public static void Vereinheitlichen(ComboBox cb)
     {
-        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) || cb.DrawMode != DrawMode.Normal || cb.Parent is DataGridView) return;
+        if (cb.IsDisposed || ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) || cb.Parent is DataGridView) return;
+        // selbst gezeichnete Listen (Symbol, Farbe) behalten ihre Darstellung und bekommen die Tippsuche: tippen, Vorschlag, Enter
+        if (cb.DrawMode != DrawMode.Normal)
+        {
+            if (cb.DropDownStyle == ComboBoxStyle.DropDownList) ListenSuche.TippsucheEinrichten(cb);
+            return;
+        }
         if (cb.DropDownStyle == ComboBoxStyle.DropDownList) Ui.Suchliste(cb);
         else if (cb.DropDownStyle == ComboBoxStyle.DropDown) ListenSuche.Einrichten(cb, frei: !MitLangnamen(cb));
     }
 
     /// <summary>Nutzt die Auswahlliste den gemeinsamen Baustein (bzw. ist sie bewusst ein eigenes, selbst gezeichnetes Feld)?</summary>
     public static bool Einheitlich(ComboBox cb) =>
-        ListenSuche.HatMausradSchutz(cb) && !cb.Font.Bold && (ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) || cb.DrawMode != DrawMode.Normal);
+        ListenSuche.HatMausradSchutz(cb) && !cb.Font.Bold && (ListenSuche.IstEingerichtet(cb) || ListenSuche.IstAusgenommen(cb) ||
+                                                              (cb.DrawMode != DrawMode.Normal && (cb.DropDownStyle != ComboBoxStyle.DropDownList || ListenSuche.HatTippsuche(cb))));
 
     private static void Erfassen(Control c)
     {

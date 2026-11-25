@@ -67,6 +67,10 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     public static StundenplanFenster? AktivesOderNeu() =>
         AppZustand.Haupt.ActiveMdiChild as StundenplanFenster ?? AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().FirstOrDefault() ?? Neu(ElementTyp.Klasse, null, false);
 
+    /// <summary>Selbsttest: Elementauswahl (Werkzeugleiste) und Formatauswahl (Fußzeile).</summary>
+    internal ComboBox SelbsttestAuswahl => _auswahl.ComboBox;
+    internal ComboBox SelbsttestFormat => _format;
+
     /// <summary>Kleiner Stundenplan (schmale Zellen nur mit Fachkürzel, Pausenzeilen), z. B. mehrere nebeneinander in der Vertretungsplanung.</summary>
     public bool Klein => _klein;
     public ElementTyp Typ => _typ;
@@ -684,7 +688,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         public override string ToString() => Text;
     }
 
-    private static readonly object FormatTrenner = new();
+    /// <summary>Trennlinie der Formatauswahl (leerer Text: wird von der Tippsuche nie vorgeschlagen).</summary>
+    private sealed class Trennlinie { public override string ToString() => ""; }
+    private static readonly object FormatTrenner = new Trennlinie();
 
     private void FormatAuswahlGeaendert()
     {
@@ -2120,7 +2126,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
 
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
-        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && !char.IsControl(e.KeyChar))
+        // Auswahllisten mit Fokus (Element-, Formatauswahl) haben ihre eigene Tippsuche – auch wenn ActiveControl noch nicht nachgezogen ist
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && !_format.Focused && !_auswahl.ComboBox.Focused && !char.IsControl(e.KeyChar))
         {
             // „F“ allein fixiert weiterhin; ein Name beginnt erst, wenn schon getippt wird oder das Zeichen kein „f“ ist
             if ((DateTime.Now - _letzteTaste).TotalSeconds > 3) _eingetippt.Clear();
