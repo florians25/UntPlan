@@ -67,6 +67,10 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     public static StundenplanFenster? AktivesOderNeu() =>
         AppZustand.Haupt.ActiveMdiChild as StundenplanFenster ?? AppZustand.Haupt.MdiChildren.OfType<StundenplanFenster>().FirstOrDefault() ?? Neu(ElementTyp.Klasse, null, false);
 
+    /// <summary>Selbsttest: Elementauswahl (Werkzeugleiste) und Formatauswahl (Fußzeile).</summary>
+    internal ComboBox SelbsttestAuswahl => _auswahl.ComboBox;
+    internal ComboBox SelbsttestFormat => _format;
+
     /// <summary>Kleiner Stundenplan (schmale Zellen nur mit Fachkürzel, Pausenzeilen), z. B. mehrere nebeneinander in der Vertretungsplanung.</summary>
     public bool Klein => _klein;
     public ElementTyp Typ => _typ;

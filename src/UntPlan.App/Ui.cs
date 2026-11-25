@@ -533,6 +533,12 @@ public static partial class Ui
 
     public static void Suchliste(ComboBox cb)
     {
+        // selbst gezeichnete Auswahllisten behalten ihre Darstellung und bekommen die Tippsuche (tippen, Vorschlag, Enter übernimmt)
+        if (cb.DrawMode != DrawMode.Normal && cb.DropDownStyle == ComboBoxStyle.DropDownList && !Steuerelemente.ListenSuche.IstEingerichtet(cb))
+        {
+            Steuerelemente.ListenSuche.TippsucheEinrichten(cb);
+            return;
+        }
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList || cb.Tag as string == "suche" || cb.DrawMode != DrawMode.Normal || Steuerelemente.ListenSuche.IstAusgenommen(cb)) return;
         cb.Tag ??= "suche";
         var letzter = cb.SelectedIndex;

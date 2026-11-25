@@ -546,8 +546,18 @@ public sealed partial class PlanAnsicht : Control
 
     private static string RaumKennung(Planstunde p) => p.RaumKennung(D.Unterrichte.FirstOrDefault(u => u.Id == p.UnterrichtId)?.Zeilen.Count ?? 1);
 
-    /// <summary>Felder des tagesaktuellen Plans; Entfälle werden in der Vorbild-Darstellung je Stunde einzeln gezeigt.</summary>
+    /// <summary>
+    /// Felder des tagesaktuellen Plans: Vertretungs- und Änderungsstunden (Vertretung, offen, Entfall, Raumänderung, Verlegung …) stehen
+    /// je Stunde in einem eigenen Feld (siehe <see cref="TagesEintrag.AlsEinzelstunde"/>), nur regulärer Unterricht bleibt als Block zusammengefasst.
+    /// </summary>
     private List<PlanBlock<TagesEintrag>> TagesFelder(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s),
+        e => Format.Einzelstunden || e.AlsEinzelstunde ? null : TagesSchluessel(e));
+
+    /// <summary>
+    /// Blöcke zum Ziehen: zusammenhängende Stunden desselben Unterrichts mit derselben Änderung (wie früher die Felder). Eine vertretene
+    /// Doppelstunde wird so weiterhin als Ganzes verlegt, auch wenn jede Stunde ein eigenes Feld hat.
+    /// </summary>
+    private List<PlanBlock<TagesEintrag>> TagesZiehbloecke(int tag) => Anordnen<TagesEintrag>(Stunden, s => EintraegeAm(tag, s),
         e => Format.Einzelstunden || (KlassikStil && e.Status == TagesStatus.Entfall) ? null : TagesSchluessel(e));
 
     /// <summary>Rechtecke eines Feldes: ein Teil je Abschnitt zwischen Pausenzeilen (eine Pause wird nie überdeckt).</summary>
@@ -598,8 +608,8 @@ public sealed partial class PlanAnsicht : Control
             : null;
 
     private PlanBlock<TagesEintrag>? TagesFeld(int tag, int stunde, TagesEintrag e) =>
-        TagesFelder(tag).FirstOrDefault(f => f.Alle.Contains(e)) ??
-        TagesFelder(tag).FirstOrDefault(f => f.Start <= stunde && f.Start + f.Laenge > stunde && TagesSchluessel(f.Erster) == TagesSchluessel(e));
+        TagesZiehbloecke(tag).FirstOrDefault(f => f.Alle.Contains(e)) ??
+        TagesZiehbloecke(tag).FirstOrDefault(f => f.Start <= stunde && f.Start + f.Laenge > stunde && TagesSchluessel(f.Erster) == TagesSchluessel(e));
 
     /// <summary>Anzahl zusammenhängender Stunden ab (tag, stunde) mit gleichem Schlüssel.</summary>
     private int TagesBlockLaenge(int tag, int stunde, TagesEintrag e) =>
@@ -928,6 +938,17 @@ public sealed partial class PlanAnsicht : Control
     /// Selbsttest (UP-01): Felder dürfen keine Pausenzeile überdecken, müssen im Plan liegen und nicht über den Rand hinausragen;
     /// Stundenzeilen haben mindestens die Mindesthöhe. Liefert die gefundenen Fehler.
     /// </summary>
+    /// <summary>Selbsttest: Felder des tagesaktuellen Plans je Tag (erste Stunde, Länge, Unterricht, Status, Ziehblock-Länge).</summary>
+    internal List<(int Tag, int Start, int Laenge, int? UnterrichtId, TagesStatus Status, int Ziehlaenge)> SelbsttestTagesfelder()
+    {
+        var res = new List<(int, int, int, int?, TagesStatus, int)>();
+        if (!Tagesmodus) return res;
+        for (var t = 0; t < Tage; t++)
+            foreach (var f in TagesFelder(t))
+                res.Add((t, f.Start, f.Laenge, f.Erster.Unterricht?.Id ?? f.Erster.Vertretung?.UnterrichtId, f.Erster.Status, TagesFeld(t, f.Start, f.Erster)?.Laenge ?? 1));
+        return res;
+    }
+
     internal List<string> SelbsttestBlockPruefung()
     {
         var fehler = new List<string>();

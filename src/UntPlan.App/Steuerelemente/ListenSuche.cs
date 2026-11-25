@@ -177,6 +177,124 @@ public static class ListenSuche
     /// <summary>Ist die Liste ein freies Eingabefeld (beliebiger Text, Liste nur als Vorschlag)?</summary>
     public static bool IstFrei(ComboBox cb) => Zustaende.TryGetValue(cb, out var z) && z.Frei;
 
+    /// <summary>Laufende Tippsuche einer selbst gezeichneten Auswahlliste (siehe <see cref="TippsucheEinrichten"/>).</summary>
+    private sealed class Tippzustand
+    {
+        public string Puffer = "";
+        public int Markiert = -1;
+        public ToolTip? Hinweis;
+    }
+
+    private static readonly ConditionalWeakTable<ComboBox, Tippzustand> Tippsuchen = new();
+
+    /// <summary>Hat die (selbst gezeichnete) Auswahlliste die Tippsuche?</summary>
+    public static bool HatTippsuche(ComboBox cb) => Tippsuchen.TryGetValue(cb, out _);
+
+    /// <summary>Getippter, noch nicht übernommener Suchtext der Tippsuche (leer ohne laufende Suche).</summary>
+    public static string Tippsuchtext(ComboBox cb) => Tippsuchen.TryGetValue(cb, out var t) ? t.Puffer : "";
+
+    /// <summary>
+    /// Direktsuche für selbst gezeichnete Auswahllisten (z. B. Formatauswahl mit Symbol, Ansichten, Kategorien mit Farbe), die ihre eigene
+    /// Darstellung behalten und deshalb kein Eingabefeld bekommen: Tippen öffnet die Liste und markiert den besten Treffer (Kurzname bzw.
+    /// Text beginnt, dann Langname, dann enthält), der Suchtext steht in einem kleinen Hinweis über dem Feld; Enter bzw. Tab übernimmt
+    /// (wie ein Mausklick, genau einmal), Esc stellt den alten Wert her. Während des Tippens ändert sich der Wert nicht – das Fenster lädt
+    /// also nicht bei jedem Tastendruck neu.
+    /// </summary>
+    public static void TippsucheEinrichten(ComboBox cb)
+    {
+        if (cb.IsDisposed || IstEingerichtet(cb) || IstAusgenommen(cb) || Tippsuchen.TryGetValue(cb, out _)) return;
+        var t = new Tippzustand();
+        Tippsuchen.Add(cb, t);
+        MausradSchuetzen(cb);
+        void HinweisZeigen()
+        {
+            if (!cb.IsHandleCreated) return;
+            t.Hinweis ??= new ToolTip { UseAnimation = false, UseFading = false };
+            var text = t.Markiert >= 0 ? $"Suche: {t.Puffer}" : $"Suche: {t.Puffer} (kein Eintrag)";
+            try { t.Hinweis.Show(text, cb, 0, -24, 5000); } catch (InvalidOperationException) { }
+        }
+        void HinweisWeg()
+        {
+            try { if (t.Hinweis != null && cb.IsHandleCreated) t.Hinweis.Hide(cb); } catch (InvalidOperationException) { }
+        }
+        void Suchen()
+        {
+            if (t.Puffer.Length == 0) { Beenden(false); return; }
+            if (!cb.DroppedDown) { cb.DroppedDown = true; Cursor.Current = Cursors.Default; }
+            t.Markiert = Treffer(cb, t.Puffer);
+            ListeMarkieren(cb, t.Markiert >= 0 ? t.Markiert : cb.SelectedIndex);
+            HinweisZeigen();
+        }
+        // übernehmen (Enter/Tab) bzw. verwerfen (Esc, Klick daneben): die Liste wird vorher auf den bisherigen Wert zurückgestellt, damit
+        // das Schließen selbst nichts auswählt – die Auswahl und ihre Meldung kommen danach genau einmal
+        void Beenden(bool uebernehmen)
+        {
+            var puffer = t.Puffer;
+            var i = t.Markiert;
+            t.Puffer = "";
+            t.Markiert = -1;
+            HinweisWeg();
+            if (cb.DroppedDown)
+            {
+                ListeMarkieren(cb, cb.SelectedIndex);
+                cb.DroppedDown = false;
+            }
+            if (!uebernehmen) return;
+            if (i < 0 || i >= cb.Items.Count) { UngueltigMelden(cb, puffer); return; }
+            if (cb.SelectedIndex == i) return;
+            cb.SelectedIndex = i;
+            try { AuswahlBestaetigt?.Invoke(cb, new object[] { EventArgs.Empty }); }
+            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
+        }
+        cb.KeyPress += (_, e) =>
+        {
+            if (e.KeyChar == '\b')
+            {
+                if (t.Puffer.Length == 0) return;
+                t.Puffer = t.Puffer[..^1];
+                e.Handled = true;
+                Suchen();
+                return;
+            }
+            if (char.IsControl(e.KeyChar))
+            {
+                // Enter/Esc der laufenden Suche: schon in KeyDown erledigt, kein Piepton und keine Standardtaste des Dialogs
+                if (t.Puffer.Length > 0 || e.KeyChar is '\r' or (char)27 && cb.DroppedDown) e.Handled = true;
+                return;
+            }
+            // keine eingebaute Schnellsuche von Windows (die wählt bei jedem Buchstaben sofort aus und meldet jedes Mal eine Änderung)
+            e.Handled = true;
+            if (char.IsWhiteSpace(e.KeyChar) && t.Puffer.Length == 0) return;
+            t.Puffer += e.KeyChar;
+            Suchen();
+        };
+        cb.KeyDown += (_, e) =>
+        {
+            if (t.Puffer.Length == 0) return;
+            switch (e.KeyCode)
+            {
+                case Keys.Enter:
+                    Beenden(true);
+                    e.Handled = e.SuppressKeyPress = true;
+                    break;
+                case Keys.Escape:
+                    Beenden(false);
+                    e.Handled = e.SuppressKeyPress = true;
+                    break;
+                case Keys.Up or Keys.Down or Keys.PageUp or Keys.PageDown or Keys.Home or Keys.End:
+                    // mit den Pfeiltasten in der geöffneten Liste weiter: ab hier wie gewohnt (Enter übernimmt den markierten Eintrag)
+                    t.Puffer = "";
+                    t.Markiert = -1;
+                    HinweisWeg();
+                    break;
+            }
+        };
+        cb.PreviewKeyDown += (_, e) => { if (e.KeyCode == Keys.Tab && t.Puffer.Length > 0) Beenden(true); };
+        cb.DropDownClosed += (_, _) => { if (t.Puffer.Length > 0) { t.Puffer = ""; t.Markiert = -1; HinweisWeg(); } };
+        cb.Leave += (_, _) => { if (t.Puffer.Length > 0) Beenden(false); };
+        cb.Disposed += (_, _) => t.Hinweis?.Dispose();
+    }
+
     public static void Einrichten(ComboBox cb, Func<string, ListenStil?>? stil = null, Func<string, string?>? langname = null, bool frei = false)
     {
         langname ??= Langname;

@@ -1911,6 +1911,176 @@ public sealed partial class HauptFenster
             });
             sp.Focus();
         }, -1);
+        Schritt("V16_Einzelstunden", () =>
+        {
+            // Vertretungs- und Änderungsstunden sind Einzelstunden: Lehrkraft einer Doppelstunde abwesend → zwei Zeilen mit eigener Stunde,
+            // jede einzeln (auch mit verschiedenen Lehrkräften) zu besetzen; im Klassenplan je Stunde ein eigenes Feld, gezogen wird der Block
+            AppZustand.DatumSetzen(tag);
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var dd = AppZustand.D;
+            var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, tag);
+            var n = dd.Zeitraster.StundenProTag;
+            bool LehrerFrei(int l, int st) => dd.Zeitraster.Verfuegbar(tp.Tag, st) && !tp.Stunde(st).Any(e => e.LehrerIds.Contains(l)) && !Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, l, tag, st);
+            bool KlasseFrei(int k, int st) => !tp.Stunde(st).Any(e => e.KlassenIds.Contains(k)) && !Core.Vertretungsplanung.Absenzen.KlasseAbwesend(dd, k, tag, st);
+            var ohneAbsenz = dd.Lehrer.Where(l => l.Id != krank.Id && !l.Ignorieren && !dd.Abwesenheiten.Any(a => a.Art == AbwesenheitsArt.Lehrer && a.ElementId == l.Id && a.Von <= tag && a.Bis >= tag)).ToList();
+            var wahl = ohneAbsenz.SelectMany(l => Enumerable.Range(1, Math.Max(0, n - 1)).Where(st => LehrerFrei(l.Id, st) && LehrerFrei(l.Id, st + 1))
+                    .SelectMany(st => dd.Klassen.Where(k => KlasseFrei(k.Id, st) && KlasseFrei(k.Id, st + 1)).Take(1).Select(k => (L: l.Id, K: k.Id, S: st))))
+                .FirstOrDefault();
+            if (wahl.L == 0) { log.Add("INFO  V16: keine Lehrkraft und Klasse mit zwei freien Stunden in Folge"); return; }
+            var (lehrer, klasse, s0) = wahl;
+            try
+            {
+                var uid = 0;
+                AppZustand.Doc.Aendern("Doppelstunde (Selbsttest)", AenderungsArt.Stundenplan, x =>
+                {
+                    var periode = x.PeriodeAm(tag);
+                    var u = new Unterricht { Id = x.NeueId(), Wochenstunden = 2 };
+                    u.Zeilen.Add(new Kopplungszeile { LehrerId = lehrer, FachId = x.Faecher.First().Id, KlassenIds = { klasse } });
+                    (periode.Unterrichte ?? x.Unterrichte).Add(u);
+                    for (var i = 0; i < 2; i++) periode.Plan.Add(new Planstunde { UnterrichtId = u.Id, Tag = tp.Tag, Stunde = s0 + i, Raeume = new List<int?> { null } });
+                    uid = u.Id;
+                });
+                var abs = new Abwesenheit { Art = AbwesenheitsArt.Lehrer, ElementId = lehrer, Von = tag, Bis = tag, StundeVon = s0, StundeBis = s0 + 1 };
+                AppZustand.Doc.Aendern("Absenz (Selbsttest)", AenderungsArt.Vertretung, x => Core.Vertretungsplanung.AbsenzVerwaltung.Speichern(x, new[] { abs }, Array.Empty<Abwesenheit>()));
+                var zeilen = AppZustand.D.Vertretungen.Where(v => v.Datum == tag && v.UnterrichtId == uid).OrderBy(v => v.Stunde).ToList();
+                if (zeilen.Count != 2 || zeilen[0].Stunde != s0 || zeilen[1].Stunde != s0 + 1 || !zeilen.All(v => v.Offen))
+                    throw new InvalidOperationException($"Absenz über die Doppelstunde: {zeilen.Count} Zeile(n) ({string.Join(",", zeilen.Select(v => $"{v.Stunde}:{v.Art}"))}) statt zwei offener.");
+                var vf = Max(FensterOeffnen("vertr")!) as VertretungenFenster ?? throw new InvalidOperationException("Vertretungsfenster fehlt");
+                Warten(300);
+                List<VertretungenFenster.SelbsttestZeile> Liste() => vf.SelbsttestZeilen(tag).Where(z => z.V.UnterrichtId == uid).ToList();
+                var offen = Liste();
+                if (offen.Count != 2) throw new InvalidOperationException($"Liste: {offen.Count} Zeile(n) für die Doppelstunde statt zwei.");
+                if (offen[0].Werte["Std"] == offen[1].Werte["Std"] || offen.Any(z => z.Werte["Std"].Contains('-')))
+                    throw new InvalidOperationException($"Liste: Stunden „{offen[0].Werte["Std"]}“ und „{offen[1].Werte["Std"]}“ statt je einer Stunde.");
+                // jede Stunde mit einer anderen Lehrkraft besetzen
+                var vertreter = ohneAbsenz.Where(l => l.Id != lehrer).Where(l => LehrerFrei(l.Id, s0) && LehrerFrei(l.Id, s0 + 1)).Select(l => l.Id).Take(2).ToList();
+                if (vertreter.Count < 2) throw new InvalidOperationException("Keine zwei freien Lehrkräfte für die Vertretung.");
+                AppZustand.Doc.Aendern("Vertretung (Selbsttest)", AenderungsArt.Vertretung, x =>
+                {
+                    var z = x.Vertretungen.Where(v => v.Datum == tag && v.UnterrichtId == uid).OrderBy(v => v.Stunde).ToList();
+                    Core.Vertretungsplanung.Vertretungen.VertreterSetzen(x, z[0], vertreter[0]);
+                    Core.Vertretungsplanung.Vertretungen.VertreterSetzen(x, z[1], vertreter[1]);
+                });
+                Warten(300);
+                var besetzt = Liste();
+                var namen = besetzt.Select(z => z.Werte["Vertreter"]).ToList();
+                if (besetzt.Count != 2 || namen.Distinct().Count() != 2 || namen.Any(t => t is "" or "???"))
+                    throw new InvalidOperationException($"Liste nach dem Besetzen: {besetzt.Count} Zeile(n), Vertreter {string.Join(",", namen)}.");
+                Vergleich("V16_Einzelstunden_Liste", vf, new Size(1100, 420));
+                // Klassenplan (tagesaktuell): je Stunde ein eigenes Feld, der Block bleibt zum Ziehen zusammen
+                AlleSchliessen();
+                var sp = StundenplanFenster.Neu(ElementTyp.Klasse, klasse, false);
+                sp.WindowState = FormWindowState.Normal;
+                sp.Bounds = new Rectangle(0, 0, 640, 560);
+                Warten(500);
+                var felder = sp.Plan.SelbsttestTagesfelder().Where(f => f.Tag == Kalender.TagIndex(AppZustand.D, tag) && f.UnterrichtId == uid).ToList();
+                if (felder.Count != 2 || felder.Any(f => f.Laenge != 1))
+                    throw new InvalidOperationException($"Plan: Felder der Doppelstunde {string.Join(", ", felder.Select(f => $"{f.Start}+{f.Laenge}"))} statt zweier Einzelfelder.");
+                if (felder.Any(f => f.Ziehlaenge != 2)) log.Add($"INFO  V16 Ziehblock: {string.Join(",", felder.Select(f => f.Ziehlaenge))}");
+                Vergleich("V16_Einzelstunden_Plan", sp, new Size(640, 560));
+                log.Add($"INFO  V16 U{uid} Stunden {s0}-{s0 + 1}: Liste Std {string.Join(" / ", besetzt.Select(z => z.Werte["Std"]))}, Vertreter {string.Join(" / ", namen)}; Plan {felder.Count} Einzelfelder, Ziehblock {felder[0].Ziehlaenge}");
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
+        Schritt("V17_Kombisuche", () =>
+        {
+            // Auswahllisten: tippen zeigt den besten Vorschlag (beginnt mit, dann enthält; Kurz- und Langname), Enter übernimmt genau einmal
+            // (Plan lädt erst dann), Esc stellt her – Elementauswahl (Eingabefeld) und selbst gezeichnete Formatauswahl (Tippsuche)
+            var klassen = Stammdaten.Sortiert(AppZustand.D, ElementTyp.Klasse).ToList();
+            if (klassen.Count < 3) { log.Add("INFO  V17: zu wenige Klassen"); return; }
+            var start = klassen[^1];
+            var sp = StundenplanFenster.Neu(ElementTyp.Klasse, start.Id, false);
+            sp.WindowState = FormWindowState.Normal;
+            sp.Bounds = new Rectangle(0, 0, 640, 520);
+            Warten(500);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var cb = sp.SelbsttestAuswahl;
+            cb.Focus();
+            Warten(60);
+            Steuerelemente.Auswahlbreite.Vereinheitlichen(cb);
+            Warten(60);
+            if (cb.DropDownStyle != ComboBoxStyle.DropDown) throw new InvalidOperationException($"Elementauswahl ohne Eingabefeld ({cb.DropDownStyle}).");
+            // Suchtext: „6“, sonst die Ziffer bzw. der Anfang einer anderen Klasse
+            var suche = klassen.Any(k => k.Kurzname.Contains('6')) ? "6" : klassen[1].Kurzname[..1];
+            const StringComparison ci = StringComparison.CurrentCultureIgnoreCase;
+            var erwartet = klassen.FirstOrDefault(k => k.Kurzname.StartsWith(suche, ci)) ?? klassen.First(k => k.Kurzname.Contains(suche, ci));
+            var geaendert = 0;
+            var bestaetigt = 0;
+            void Geaendert(object? s, EventArgs e) => geaendert++;
+            void Bestaetigt(object? s, EventArgs e) => bestaetigt++;
+            cb.SelectedIndexChanged += Geaendert;
+            cb.SelectionChangeCommitted += Bestaetigt;
+            try
+            {
+                var info = new KombiInfo { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<KombiInfo>() };
+                var edit = KombiInfoHolen(cb.Handle, ref info) ? info.hwndItem : IntPtr.Zero;
+                if (edit == IntPtr.Zero) throw new InvalidOperationException("Elementauswahl: kein Eingabefeld gefunden.");
+                // echtes Tippen (Zeichen an das Eingabefeld), Taste für Taste
+                foreach (var ch in suche) { KombiSenden(edit, 0x0102, ch, IntPtr.Zero); Warten(60); }
+                Warten(200);
+                if (!cb.DroppedDown) throw new InvalidOperationException("Tippen öffnet die Liste nicht.");
+                if (geaendert != 0 || sp.ElementId != start.Id) throw new InvalidOperationException($"Tippen ändert die Auswahl schon vor Enter ({geaendert} Änderung(en), Element {sp.ElementId}).");
+                if (!string.Equals(cb.Text, suche, ci)) log.Add($"INFO  V17 Text nach dem Tippen: „{cb.Text}“");
+                Vergleich("V17_Kombisuche", sp, new Size(640, 520));
+                Foto(Path.Combine(ordner, "V17_Kombisuche_Bildschirm.png"));
+                KombiSenden(edit, 0x0100, 0x0D, IntPtr.Zero);
+                Warten(400);
+                if (sp.ElementId != erwartet.Id) throw new InvalidOperationException($"Enter wählt „{AppZustand.D.Klassen.FirstOrDefault(k => k.Id == sp.ElementId)?.Kurzname}“ statt „{erwartet.Kurzname}“.");
+                if (cb.DroppedDown) throw new InvalidOperationException("Liste bleibt nach Enter offen.");
+                if (geaendert != 1 || bestaetigt != 1) log.Add($"FEHLER V17: Enter meldet {geaendert} Änderung(en) und {bestaetigt} Bestätigung(en) statt je einer.");
+                Vergleich("V17b_Kombisuche_geladen", sp, new Size(640, 520));
+                // Esc stellt den Wert her
+                geaendert = bestaetigt = 0;
+                var andere = klassen.First(k => k.Id != erwartet.Id).Kurzname;
+                KombiSenden(edit, 0x0102, andere[0], IntPtr.Zero);
+                Warten(150);
+                KombiSenden(edit, 0x0100, 0x1B, IntPtr.Zero);
+                Warten(300);
+                if (sp.ElementId != erwartet.Id || cb.Text != erwartet.Kurzname || geaendert != 0) throw new InvalidOperationException($"Esc stellt „{erwartet.Kurzname}“ nicht her („{cb.Text}“, {geaendert} Änderung(en)).");
+                log.Add($"INFO  V17 Elementauswahl: „{suche}“ + Enter → {erwartet.Kurzname} (je eine Änderung und Bestätigung), Esc stellt her");
+            }
+            finally
+            {
+                cb.SelectedIndexChanged -= Geaendert;
+                cb.SelectionChangeCommitted -= Bestaetigt;
+                if (cb.DroppedDown) cb.DroppedDown = false;
+            }
+            // selbst gezeichnete Formatauswahl: Tippsuche ohne Eingabefeld
+            var fm = sp.SelbsttestFormat;
+            Steuerelemente.Auswahlbreite.Vereinheitlichen(fm);
+            if (!Steuerelemente.ListenSuche.HatTippsuche(fm)) throw new InvalidOperationException("Formatauswahl ohne Tippsuche.");
+            var texte = fm.Items.Cast<object>().Select(o => fm.GetItemText(o) ?? "").ToList();
+            var ziel = texte.Select((t, i) => (t, i)).FirstOrDefault(x => x.i != fm.SelectedIndex && x.t.Length > 1 && Steuerelemente.ListenSuche.Treffer(fm, x.t[..2]) == x.i);
+            if (ziel.t is null) { log.Add("INFO  V17: keine zweite Formatauswahl"); return; }
+            var vorher = fm.SelectedIndex;
+            var fGeaendert = 0;
+            void FormatGeaendert(object? s, EventArgs e) => fGeaendert++;
+            fm.SelectedIndexChanged += FormatGeaendert;
+            try
+            {
+                fm.Focus();
+                Warten(60);
+                foreach (var ch in ziel.t[..2]) { KombiSenden(fm.Handle, 0x0102, ch, IntPtr.Zero); Warten(60); }
+                Warten(200);
+                if (fGeaendert != 0 || fm.SelectedIndex != vorher) throw new InvalidOperationException($"Formatauswahl: Tippen ändert die Auswahl schon vor Enter ({fGeaendert}).");
+                if (Steuerelemente.ListenSuche.Tippsuchtext(fm) != ziel.t[..2]) throw new InvalidOperationException($"Formatauswahl: Suchtext „{Steuerelemente.ListenSuche.Tippsuchtext(fm)}“.");
+                Foto(Path.Combine(ordner, "V17c_Formatsuche_Bildschirm.png"));
+                KombiSenden(fm.Handle, 0x0100, 0x0D, IntPtr.Zero);
+                Warten(400);
+                if (fm.SelectedIndex != ziel.i) throw new InvalidOperationException($"Formatauswahl: Enter wählt „{fm.Text}“ statt „{ziel.t}“.");
+                if (fGeaendert != 1) log.Add($"FEHLER V17: Formatauswahl meldet {fGeaendert} Änderung(en) statt einer.");
+                log.Add($"INFO  V17 Formatauswahl: „{ziel.t[..2]}“ + Enter → {ziel.t}");
+            }
+            finally
+            {
+                fm.SelectedIndexChanged -= FormatGeaendert;
+                if (fm.DroppedDown) fm.DroppedDown = false;
+            }
+        }, -1);
         Schritt("19d9_Verlegung_Absenz_Abfragen", () =>
         {
             // Z1/Z2: Verlegung bei „Entfall“ rückgängig machen; neue Lehrer-Absenz fragt nach Verlegungen und Sondereinsätzen
@@ -3769,6 +3939,23 @@ public sealed partial class HauptFenster
     private static int FensterExStil(IntPtr hWnd) => FensterExStilRoh(hWnd, -20);
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
     private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct KombiInfo
+    {
+        public int cbSize;
+        public Rectangle rcItem, rcButton;
+        public int stateButton;
+        public IntPtr hwndCombo, hwndItem, hwndList;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetComboBoxInfo")]
+    private static extern bool KombiInfoHolen(IntPtr hwnd, ref KombiInfo info);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static extern IntPtr KombiSenden(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+
+    private static IntPtr KombiSenden(IntPtr hwnd, int msg, int w, IntPtr l) => KombiSenden(hwnd, msg, (IntPtr)w, l);
 
     private static void Warten(int ms)
     {
