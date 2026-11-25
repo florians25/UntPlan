@@ -19,7 +19,8 @@ import SwiftUI
 /// 12 pt bei 14,33 pt Zeilenabstand (iPad 12,4/14,3). Nachgemessen (Vorlagen dunkel 567a139b/6d696e75, 1206 px = 402 pt,
 /// 3 px/pt, Farben aus Display P3 nach sRGB): Ecken 4 pt kontinuierlich, Rahmen 2 pt, Kartenabstand waagrecht 2,33 pt. Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
 /// innerhalb grüner Plaketten; Zeilen auf Höhe der Zeichen unten rechts (Info, Hausaufgabe) lassen dafür Platz.
-/// Mehrere Räume: nur der erste Raum, direkt dahinter ein Komma und das Feld „…“ (alle Räume in den Details).
+/// Mehrere Räume: passen alle in die Zeile (breite Karte, Tagesansicht, Querformat), stehen alle mit Komma getrennt da; sonst nur der
+/// erste Raum, direkt dahinter ein Komma und das Feld „…“ (alle Räume in den Details und im Text für die Sprachausgabe).
 /// In der Tagesansicht (gross) dieselbe Karte ohne zusätzliche Angaben, nur breiter.
 struct KachelView: View {
     let kachel: Kachel
@@ -423,7 +424,12 @@ struct KachelzeileView: View {
     var body: some View {
         Group {
             if let erster = ersterVonMehrerenRaeumen {
-                raumMitWeiteren(erster)
+                // Breite reicht: alle Räume in einer Zeile; sonst der erste Raum mit Komma und dem Feld „…“
+                ViewThatFits(in: .horizontal) {
+                    teileReihe(kuerzbar: false)
+                    raumMitWeiteren(erster)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else if zeile.abschneiden {
                 // Liste mehrerer Lehrkräfte (Kopplung, Konferenz): eine Zeile, kein Umbruch, gleiche Schriftgröße. Passt sie nicht,
                 // stehen so viele ganze Kürzel wie möglich und dahinter „…“ (nie ein halb abgeschnittenes Kürzel oder Label)
@@ -462,13 +468,13 @@ struct KachelzeileView: View {
     /// Mehrere Räume wie im Original (Vorlage dunkel 28af4b02, 3 px/pt): „C009,“ und direkt dahinter das Feld „…“ – Abstand
     /// vom Komma bis zur Fläche wie vor einem Label in einer Kommaliste (Tinte 8–9 px), Fläche zeilenhoch (43 px = 14,33 pt) und
     /// 41 px = 13,67 pt breit (Innenabstand je 2 pt wie die Plaketten), Ecken 2 pt, „…“ in Zeilenschrift auf derselben
-    /// Grundlinie; Farbe der Fläche = Akzentfarbe der Karte (dort Rahmengrün #1fc0a0 mit „…“ #10161d). Der Raum kürzt mit
-    /// „…“, Komma und Feld bleiben immer stehen.
+    /// Grundlinie; Farbe der Fläche = Akzentfarbe der Karte (grüne Karten: das Grün der Raum-Labels #1fc0a0 mit „…“ #10161d,
+    /// auch vergangen). Das Komma folgt dem Raum bzw. seinem Label unmittelbar (kein Abstand davor, wie „C009,“). Der Raum
+    /// kürzt mit „…“, Komma und Feld bleiben immer stehen.
     private func raumMitWeiteren(_ erster: Kachelteil) -> some View {
         HStack(spacing: 0) {
             teil(erster, kuerzbar: true)
                 .padding(.leading, istLabel(erster) ? -Plakettenwert.vorsprung : 0)
-            if istLabel(erster) { Color.clear.frame(width: Self.nachLabel, height: 1) }
             Text(",")
                 .strikethrough(aussehen.durchgestrichen)
                 .fixedSize()
@@ -522,7 +528,8 @@ struct KachelzeileView: View {
                         Color.clear
                             .frame(width: Self.labelAbstand, height: 1)
                     } else if !eintrag.element.trenner.isEmpty {
-                        if istLabel(eintrag.element) && eintrag.element.trenner.hasPrefix(",") {
+                        // Räume: Komma direkt hinter dem Label („[B043],“ wie „C009,“); Kommalisten der Lehrkräfte mit Abstand
+                        if istLabel(eintrag.element) && eintrag.element.trenner.hasPrefix(",") && zeile.schluessel != "raum" {
                             Color.clear.frame(width: Self.nachLabel, height: 1)
                         }
                         Text(eintrag.element.trenner)
@@ -594,9 +601,10 @@ struct Kachelaussehen {
     var durchgestrichen = false
     var balken: Color? = Farben.karteBalken
     var balkenDeckkraft: Double = 1
-    /// Feld „…“ hinter dem ersten von mehreren Räumen: farbige Karten in ihrer Rahmenfarbe (auch vergangen, wo der Rahmen
-    /// hell entfällt; dunkel die Vergangen-Farbe des Rahmens) mit der Schrift der Plaketten (hell weiß, dunkel #10161d);
-    /// Karten ohne farbigen Rahmen im Balkengrau #bec8cf mit dunkler Schrift.
+    /// Feld „…“ hinter dem ersten von mehreren Räumen: grüne Karten im Grün der Raum-Labels (Farben.gruen), andere farbige
+    /// Karten in ihrer kräftigen Rahmenfarbe – in jedem Zustand gleich, auch vergangen (nie die dunklere Vergangen-Farbe des
+    /// Rahmens, so wie die Labels selbst hell bleiben) –, mit der Schrift der Plaketten (hell weiß, dunkel #10161d); Karten
+    /// ohne farbigen Rahmen im Balkengrau #bec8cf mit dunkler Schrift.
     var akzent: Color = Farben.karteBalken
     var akzentSchrift: Color = Color(hexWert: 0x10161D)
 
@@ -614,7 +622,7 @@ struct Kachelaussehen {
             hintergrund = v ? Farben.karteVergangen : Farben.karte
             schatten = v ? .flach : .voll
         case .aenderung:
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, akzent: Farben.gruen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .entfall:
             // Wie in der Vorlage 3af53475 mit Kartenschatten (hell), Fläche #fff3f3, Rand 2 pt #df0046
@@ -659,7 +667,7 @@ struct Kachelaussehen {
         case .veranstaltung:
             // Wie die grüne Vertretungskarte: hell #e3fff2 mit 2-pt-Rahmen #019169, dunkel dunkelgrün mit türkisem Rahmen;
             // vergangen fällt nur der Rahmen weg
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, akzent: Farben.gruen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         case .ganztagTermin:
             hintergrund = Farben.veranstaltungHintergrund
@@ -681,7 +689,7 @@ struct Kachelaussehen {
             case .vertretung:
                 // Eingesprungen: grüne Änderungskarte, abwesende Lehrkraft durchgestrichen, Vertretung als grüne Plakette
                 farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen,
-                             rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: false)
+                             rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, akzent: Farben.gruen, vergangen: v, dunkel: dunkel, schatten: false)
                 randBreite = 1.5
                 text = Farben.aenderungText
             case .abgegeben:
@@ -706,7 +714,7 @@ struct Kachelaussehen {
         // Reine Raumänderung: wie eine Änderung/Vertretung (grüne Fläche mit grünem Rahmen), der neue Raum als grüne
         // Plakette – nie gelb/braun (das ist ausschließlich Prüfungen bzw. Klausuren vorbehalten)
         if k.raumAenderung && (k.art == .aenderung || k.art == .normal) {
-            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, vergangen: v, dunkel: dunkel, schatten: true)
+            farbigeKarte(flaeche: Farben.aenderungHintergrund, vergangeneFlaeche: Farben.aenderungVergangen, rand: Farben.aenderungRand, vergangenerRand: Farben.aenderungRandVergangen, akzent: Farben.gruen, vergangen: v, dunkel: dunkel, schatten: true)
             text = v ? Farben.karteTextVergangen : Farben.aenderungText
         }
     }
@@ -715,9 +723,10 @@ struct Kachelaussehen {
     /// mit Rahmen. Vergangen hell: farbige Fläche ohne Rahmen; vergangen dunkel: neutrale Schieferfläche, der farbige
     /// Rahmen bleibt. Plaketten bleiben grün.
     private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color,
-                                       vergangenerRand: Color? = nil, vergangen: Bool, dunkel: Bool,
+                                       vergangenerRand: Color? = nil, akzent akzentFarbe: Color? = nil, vergangen: Bool, dunkel: Bool,
                                        schatten mitSchatten: Bool) {
-        akzent = vergangen && dunkel ? (vergangenerRand ?? farbe) : farbe
+        // Feld „…“: immer die kräftige Farbe (wie die Labels), auch auf vergangenen Karten mit dunklerem Rahmen
+        akzent = akzentFarbe ?? farbe
         akzentSchrift = Farben.gruenSchrift
         if vergangen && dunkel {
             // Dunkel vergangen: Schieferfläche, Rahmen in der dunkleren Vergangen-Farbe (grün #007d64, gelb #c57d00, rot #df0046)

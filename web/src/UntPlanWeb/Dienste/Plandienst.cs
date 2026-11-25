@@ -1534,8 +1534,10 @@ public sealed class Plandienst
             {
                 if (neueR.Count == 1 && alteR.Count == 1)
                 {
-                    raeume = raeume.Select(x => Ci.Equals(x.K, neueR[0]) ? new Wert(x.K, alteR[0], true) : x).ToList();
-                    if (!raeume.Any(x => x.Neu)) raeume.Insert(0, new Wert(neueR[0], alteR[0], true));
+                    // hat die Stunde den bisherigen Raum weiterhin (beide Räume), ist der neue Raum hinzugekommen („+C101“), kein Ersatz
+                    var ersetzt = raeume.Any(x => Ci.Equals(x.K, alteR[0])) ? null : alteR[0];
+                    raeume = raeume.Select(x => Ci.Equals(x.K, neueR[0]) ? new Wert(x.K, ersetzt, true) : x).ToList();
+                    if (!raeume.Any(x => x.Neu)) raeume.Insert(0, new Wert(neueR[0], ersetzt, true));
                 }
                 else raeume = RaeumeNachBuchung(alteR.Select(x => new Wert(x)).ToList(), neueR);
             }
@@ -1644,22 +1646,33 @@ public sealed class Plandienst
         // – die Labels werden neu bestimmt (nicht bei entferntem bzw. offenem Raum)
         var amZiel = RegelraumAmZiel(s, d, typ, kurz, k);
         if (amZiel.Count > 0 && !k.Raeume.Any(w => w.K is "" or "???"))
+        {
+            // Mehrere Räume: kein Raum ersetzt einen einzelnen Raum der Zielstunde – Räume, die die Stunde laut Stundenplan selbst hat
+            // (am Ursprung), sind keine Raumänderung und stehen ohne Label da; nur andere Räume bekommen eines (z. B. B043 und C101
+            // mitgenommen in die Stunde, in der die Klasse regulär in B118 ist: beide ohne Label). Ein einzelner Raum bleibt beim Vergleich
+            // mit der Zielstunde (wie im Vorbild: TH3 statt B043 = Raumänderung).
+            var bezug = jetzt.Count > 1
+                ? amZiel.Concat(jetzt.Where(x => Enthaelt(RaeumeAmUrsprung(s, vd, von.Stunde, u, k, v), x))).Distinct(Ci).ToList()
+                : amZiel;
             return k with
             {
-                Raeume = jetzt.All(x => Enthaelt(amZiel, x)) ? jetzt.Select(x => new Wert(x)).ToList() : RaeumeNachBuchung(amZiel.Select(x => new Wert(x)).ToList(), jetzt),
+                Raeume = jetzt.All(x => Enthaelt(bezug, x)) ? jetzt.Select(x => new Wert(x)).ToList() : RaeumeNachBuchung(bezug.Select(x => new Wert(x)).ToList(), jetzt),
             };
+        }
         if (k.Raeume.Any(w => w.Neu || !string.IsNullOrEmpty(w.Alt))) return k;
         var regel = RaumListe(v?.Raum ?? "").Where(x => x.Length > 0 && x != "???").Distinct(Ci).ToList();
-        if (regel.Count == 0)
-        {
-            var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == von.Stunde).ToList();
-            // Kopplung: die Zeile(n) der Lehrkraft dieser Karte
-            var lehrer = k.Lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Append(v?.Lehrer ?? "").Where(x => x.Length > 0).ToList();
-            var eigene = zeilen.Where(r => r.Lehrer.Any(l => Enthaelt(lehrer, l))).ToList();
-            regel = (eigene.Count > 0 ? eigene : zeilen).SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
-        }
+        if (regel.Count == 0) regel = RaeumeAmUrsprung(s, vd, von.Stunde, u, k, v);
         if (regel.Count == 0 || jetzt.All(x => Enthaelt(regel, x))) return k;
         return k with { Raeume = RaeumeNachBuchung(regel.Select(x => new Wert(x)).ToList(), jetzt) };
+    }
+
+    /// <summary>Räume des Unterrichts laut Stundenplan an der ursprünglichen Stunde einer verlegten Stunde (Kopplung: die Zeile(n) der Lehrkraft dieser Karte).</summary>
+    private List<string> RaeumeAmUrsprung(Stand s, DateOnly vd, int stunde, int u, Karte k, WebVertretung? v)
+    {
+        var zeilen = RegelStunden(s, vd).Where(r => r.Unterricht == u && r.Stunde == stunde).ToList();
+        var lehrer = k.Lehrer.SelectMany(w => new[] { w.K, w.Alt ?? "" }).Append(v?.Lehrer ?? "").Where(x => x.Length > 0).ToList();
+        var eigene = zeilen.Where(r => r.Lehrer.Any(l => Enthaelt(lehrer, l))).ToList();
+        return (eigene.Count > 0 ? eigene : zeilen).SelectMany(r => r.Raeume.SelectMany(RaumListe)).Where(x => x.Length > 0).Distinct(Ci).ToList();
     }
 
     /// <summary>
