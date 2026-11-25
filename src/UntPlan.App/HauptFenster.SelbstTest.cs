@@ -2079,6 +2079,8 @@ public sealed partial class HauptFenster
             }
             // selbst gezeichnete Formatauswahl: Tippsuche ohne Eingabefeld
             var fm = sp.SelbsttestFormat;
+            sp.Activate();
+            Warten(100);
             Steuerelemente.Auswahlbreite.Vereinheitlichen(fm);
             if (!Steuerelemente.ListenSuche.HatTippsuche(fm)) throw new InvalidOperationException("Formatauswahl ohne Tippsuche.");
             var texte = fm.Items.Cast<object>().Select(o => fm.GetItemText(o) ?? "").ToList();

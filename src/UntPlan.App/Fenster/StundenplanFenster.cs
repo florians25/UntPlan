@@ -2126,7 +2126,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
 
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
-        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && !char.IsControl(e.KeyChar))
+        // Auswahllisten mit Fokus (Element-, Formatauswahl) haben ihre eigene Tippsuche – auch wenn ActiveControl noch nicht nachgezogen ist
+        if (ActiveControl is not (TextBoxBase or ComboBox or ToolStrip or DataGridView) && !_format.Focused && !_auswahl.ComboBox.Focused && !char.IsControl(e.KeyChar))
         {
             // „F“ allein fixiert weiterhin; ein Name beginnt erst, wenn schon getippt wird oder das Zeichen kein „f“ ist
             if ((DateTime.Now - _letzteTaste).TotalSeconds > 3) _eingetippt.Clear();
