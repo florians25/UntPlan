@@ -78,6 +78,18 @@ public static class ListenSuche
         if (cb.DropDownStyle != ComboBoxStyle.DropDownList && cb.Focused) cb.SelectAll();
     }
 
+    /// <summary>
+    /// Offene Liste schließen, ohne dass Windows dabei selbst auswählt: Beim Schließen übernimmt die Liste sonst still den markierten
+    /// Vorschlag (ohne Meldung „Auswahl geändert“ – das Fenster würde dann z. B. den Plan nicht laden). Die Markierung wird vorher auf
+    /// den aktuellen Wert zurückgestellt; die eigentliche Auswahl setzt danach der Aufrufer, mit genau einer Meldung.
+    /// </summary>
+    private static void Schliessen(ComboBox cb)
+    {
+        if (!cb.DroppedDown) return;
+        ListeMarkieren(cb, cb.SelectedIndex);
+        cb.DroppedDown = false;
+    }
+
     /// <summary>Ungültige Eingabe verwerfen: alten Wert herstellen und kurz darauf hinweisen.</summary>
     private static void Ablehnen(ComboBox cb, Zustand z)
     {
@@ -85,7 +97,7 @@ public static class ListenSuche
         var geaendert = z.Getippt && !string.Equals(eingabe.Trim(), z.VorherText.Trim(), StringComparison.CurrentCultureIgnoreCase);
         // wie Esc: Liste schließen, alter Wert steht wieder im Feld
         z.Getippt = false;
-        if (cb.DroppedDown) cb.DroppedDown = false;
+        Schliessen(cb);
         Zuruecksetzen(cb, z);
         if (geaendert) UngueltigMelden(cb, eingabe);
     }
@@ -103,7 +115,7 @@ public static class ListenSuche
         if (i < 0 || i >= cb.Items.Count) return false;
         z.Getippt = false;
         z.Markiert = -1;
-        if (cb.DroppedDown) cb.DroppedDown = false;
+        Schliessen(cb);
         var neu = cb.SelectedIndex != i || i != z.VorherIndex;
         if (cb.SelectedIndex != i) cb.SelectedIndex = i;
         var t = cb.GetItemText(cb.Items[i]) ?? "";
@@ -382,7 +394,7 @@ public static class ListenSuche
             }
             else if (e.KeyCode == Keys.Escape && (cb.DroppedDown || z.Getippt || cb.SelectedIndex != z.VorherIndex))
             {
-                if (cb.DroppedDown) cb.DroppedDown = false;
+                Schliessen(cb);
                 Zuruecksetzen(cb, z);
                 e.Handled = e.SuppressKeyPress = true;
             }
