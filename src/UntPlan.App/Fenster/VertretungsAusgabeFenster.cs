@@ -44,7 +44,6 @@ public sealed class PausenaufsichtFenster : MdiFenster, IDruckbar
     {
         Text = "Pausenaufsichten";
         HilfeThema = "Pausenaufsichten";
-        Icon = SymbolIcon("pausenaufsicht");
         Size = new Size(570, 330);
         Positionieren();
         _tabs.TabPages.Add("Gang");
@@ -626,7 +625,6 @@ public sealed class PausenVorschlagFenster : MdiFenster
         _quelle = quelle;
         Text = "Lehrer-Vorschlag";
         HilfeThema = "Pausenaufsichten";
-        Icon = SymbolIcon("lehrer");
         Size = new Size(430, 300);
         var kopf = new Panel { Dock = DockStyle.Top, Height = 40, BackColor = Ui.Kopf };
         kopf.Controls.Add(_uebernahme);
@@ -729,7 +727,7 @@ public sealed class MonitorFenster : Form
         BackColor = Color.FromArgb(11, 26, 51);
         KeyPreview = true;
         DoubleBuffered = true;
-        Icon = Icon.FromHandle(Symbole.Get("monitor", 16).GetHicon());
+        Icon = Symbole.Logo;
         KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Escape) Close();

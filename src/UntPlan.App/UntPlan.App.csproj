@@ -24,6 +24,8 @@
     <EmbeddedResource Include="Bilder\FatCow\32\*.png" LogicalName="FatCow.32.%(Filename)%(Extension)" />
     <!-- Programmlogo (kein Programmsymbol; erzeugt von build/logo.py) -->
     <EmbeddedResource Include="..\..\build\untplan-logo-256.png" LogicalName="Logo.untplan-logo-256.png" />
+    <!-- Fenstersymbol aller Fenster und Dialoge: dasselbe Logo wie das Programmsymbol (16 bis 256 px) -->
+    <EmbeddedResource Include="..\..\build\untplan.ico" LogicalName="Logo.untplan.ico" />
     <None Include="Bilder\FatCow\LIZENZ.txt" CopyToOutputDirectory="PreserveNewest" Link="Lizenzen\FatCow-Symbole.txt" />
   </ItemGroup>
 </Project>

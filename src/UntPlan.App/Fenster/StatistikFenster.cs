@@ -59,7 +59,6 @@ public sealed class StatistikFenster : MdiFenster, IDruckbar, IExcelExport
     {
         Text = "Vertretungsstatistik";
         HilfeThema = "Statistik";
-        Icon = SymbolIcon("statistik");
         Size = new Size(1180, 640);
         Positionieren();
         var heute = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);

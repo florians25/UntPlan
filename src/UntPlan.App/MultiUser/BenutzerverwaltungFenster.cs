@@ -22,7 +22,6 @@ public sealed class BenutzerverwaltungFenster : MdiFenster
         _db = db;
         Text = "Benutzerverwaltung";
         HilfeThema = "MultiUser";
-        Icon = SymbolIcon("lehrer");
         Size = new Size(900, 480);
         Positionieren();
 

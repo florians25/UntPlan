@@ -43,7 +43,6 @@ public sealed class KalenderFenster : MdiFenster
     {
         Text = "Kalender";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("kalender");
         // Fenstergröße wie im Handbuch-Bild (Kap. 4.4.2, Detailbereich ausgeklappt)
         Size = new Size(682, 487);
         Positionieren();
@@ -442,7 +441,6 @@ public sealed class KlausurenFenster : MdiFenster
     {
         Text = "Klausuren";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("kommentar");
         Size = new Size(860, 320);
         Positionieren();
         var ts = Werkzeugleiste();
@@ -680,7 +678,6 @@ public sealed class VormerkungenFenster : MdiFenster
         // Titel wie im Handbuch: Fenster / Ansicht
         Text = "Vormerkungen / Vormerkungen";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("vormerkung");
         Size = new Size(900, 300);
         Positionieren();
         var ts = Werkzeugleiste();
@@ -1021,7 +1018,6 @@ public sealed class BereitschaftenFenster : MdiFenster
     {
         Text = "Bereitschaften";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("lehrer");
         Size = new Size(520, 300);
         Positionieren();
         Ui.RasterGestalten(_g, false);

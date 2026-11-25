@@ -36,7 +36,6 @@ public sealed class FerienFenster : MdiFenster
     {
         Text = "Ferien";
         HilfeThema = "Ferien";
-        Icon = SymbolIcon("ferien");
         Size = new Size(1050, 640);
         Positionieren();
         var ts = Werkzeugleiste();

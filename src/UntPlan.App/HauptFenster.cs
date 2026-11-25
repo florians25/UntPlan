@@ -13,6 +13,7 @@ public sealed partial class HauptFenster : Form
 {
     private readonly Ribbon _ribbon = new();
     private readonly ToolStrip _schnell = new();
+    private readonly ToolStripLabel _logoKnopf = new() { DisplayStyle = ToolStripItemDisplayStyle.Image, Image = Symbole.LogoKlein.ToBitmap(), ImageScaling = ToolStripItemImageScaling.None, AutoToolTip = false, ToolTipText = "UntPlan" };
     private readonly ToolStripLabel _titelLabel = new() { Alignment = ToolStripItemAlignment.Right, ForeColor = Color.White, Font = Ui.SchriftFett, Margin = new Padding(0, 1, 12, 2) };
     private readonly StatusStrip _status = new();
     private readonly ToolStripStatusLabel _statusLinks = new("Mit F1 erhalten Sie Hilfe.");
@@ -36,7 +37,7 @@ public sealed partial class HauptFenster : Form
         MinimumSize = new Size(1000, 640);
         FensterlageWiederherstellen();
         KeyPreview = true;
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+        Icon = Symbole.Logo;
 
         _schnell.GripStyle = ToolStripGripStyle.Hidden;
         _schnell.Renderer = new LeistenRenderer { Band = () => _ribbon.KontextBand is { Width: > 0 } b ? new Rectangle(_ribbon.Left + b.X - _schnell.Left, 0, b.Width, _schnell.Height) : Rectangle.Empty };
@@ -45,6 +46,8 @@ public sealed partial class HauptFenster : Form
         _schnell.ImageScalingSize = new Size(16, 16);
         _schnell.Items.AddRange(new ToolStripItem[]
         {
+            // UntPlan-Logo oben links wie in allen Fenstern
+            _logoKnopf,
             SKnopf("Neu", "neu", Neu), SKnopf("Öffnen", "oeffnen", Oeffnen), SKnopf("Speichern (Strg+S)", "speichern", () => Speichern()),
             new ToolStripSeparator(), SKnopf("Rückgängig (Strg+Z)", "rueckgaengig", () => Ui.Rueckgaengig()),
             SKnopf("Wiederholen (Strg+Y)", "wiederholen", () => Ui.Rueckgaengig(wiederherstellen: true)), new ToolStripSeparator(),

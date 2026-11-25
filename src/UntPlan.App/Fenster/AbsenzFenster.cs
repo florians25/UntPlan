@@ -59,7 +59,6 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
         // Titel wie in der Vorlage: „Absenzen / Lehrer“ (bzw. Klasse, Raum je nach Reiter)
         Text = "Absenzen / Lehrer";
         HilfeThema = "Abwesenheiten";
-        Icon = SymbolIcon("abwesenheit");
         // Fenstergröße wie im Handbuch-Bild (Kap. 3.2, 96 dpi)
         Size = new Size(612, 277);
         Positionieren();

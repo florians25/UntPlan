@@ -78,6 +78,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Selbsttest: Plan mit dem Mausrad nach unten scrollen.</summary>
     internal void SelbsttestScrollen(int y) { _planRahmen.AutoScrollPosition = new Point(0, y); _planRahmen.Einrasten(); }
     internal void SelbsttestScrollen(int x, int y) { _planRahmen.AutoScrollPosition = new Point(x, y); _planRahmen.Einrasten(); _planRahmen.Update(); }
+    /// <summary>Selbsttest: sichtbarer Planbereich auf dem Bildschirm und Höhe des stehenden Tageskopfs.</summary>
+    internal (Rectangle Bereich, int KopfHoehe) SelbsttestPlanBereich => (_planRahmen.RectangleToScreen(_planRahmen.ClientRectangle), _plan.FixHoehe);
     /// <summary>Selbsttest: Scrollposition des Plans und ob sie auf einer Zeilen- bzw. Tagesgrenze liegt.</summary>
     internal (Point Position, bool Eingerastet) SelbsttestScrollStand => (new Point(-_planRahmen.AutoScrollPosition.X, -_planRahmen.AutoScrollPosition.Y), _planRahmen.Eingerastet);
 
@@ -97,7 +99,6 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _gross = gross;
         _klein = klein;
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("stundenplan");
         Size = klein ? new Size(196, 330) : gross ? new Size(820, 640) : new Size(560, 520);
         Positionieren();
 
@@ -1146,7 +1147,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _laden = false;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
-        Text = el is null ? $"Stundenplan ({fmtName})" : _klein ? $"{el.Kurzname}: {(el is Lehrer lk ? lk.VollerName : el.Langname)}" : $"{el.Kurzname}: {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
+        // Vorbild: „05A - Class_05A Stundenplan (Kla1)“, ohne Langnamen „A206 - Stundenplan (Rau1)“
+        var lang = el is Lehrer l ? l.VollerName : el?.Langname ?? "";
+        Text = el is null ? $"Stundenplan ({fmtName})" : $"{el.Kurzname} - {(string.IsNullOrWhiteSpace(lang) ? "" : lang + " ")}Stundenplan ({fmtName})";
         Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}" + (_klein ? ":k" : "");
         _plan.Typ = _typ;
         _plan.ElementId = _id;

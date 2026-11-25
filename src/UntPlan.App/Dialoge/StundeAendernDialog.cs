@@ -272,7 +272,7 @@ public static class KlassenAuswahlDialog
         f.Font = VorbildMasse.Schrift;
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.ShowIcon = true;
-        f.Icon = Application.OpenForms.Count > 0 ? Application.OpenForms[0]!.Icon : f.Icon;
+        f.Icon = Symbole.Logo;
         f.MinimumSize = new Size(246, 260);
         f.Ok.Text = "Ok";
         f.Ok.Size = f.Abbrechen.Size = VorbildMasse.Knopf;

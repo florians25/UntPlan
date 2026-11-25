@@ -86,7 +86,6 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         Text = "Vertretungsvorschlag";
         HilfeThema = "Vertretungsvorschlag";
         foreach (var cb in new[] { _block, _disloz, _dauer, _nahe, _besetzt, _zusatzRaum, _vorzSpaeter }) Ui.FlachesHaekchen(cb);
-        Icon = SymbolIcon("vertretung");
         Size = new Size(720, 640);
         Positionieren();
         var ts = Werkzeugleiste();

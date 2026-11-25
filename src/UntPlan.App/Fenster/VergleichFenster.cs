@@ -82,7 +82,6 @@ public sealed class VergleichFenster : MdiFenster
         _nameB = nameB;
         Text = $"Vergleichsmodus: {nameB}";
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("suchen");
         Size = new Size(900, 520);
         Positionieren();
         var ts = Werkzeugleiste();

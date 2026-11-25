@@ -28,7 +28,6 @@ public sealed class BereitschaftsplanungFenster : MdiFenster, IDruckbar
     {
         Text = "Bereitschaften";
         HilfeThema = "Vertretungsplanung";
-        Icon = SymbolIcon("bereitschaft");
         Size = new Size(461, 305);
         Positionieren();
         var ts = Werkzeugleiste();

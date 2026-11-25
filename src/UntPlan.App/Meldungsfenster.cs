@@ -284,7 +284,9 @@ public static partial class Ui
             using (var b = new SolidBrush(TitelFarbe)) g.FillRectangle(b, titel);
             if (_schliessenHover)
                 using (var rot = new SolidBrush(Color.FromArgb(232, 17, 35))) g.FillRectangle(rot, SchliessenBereich);
-            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(12, 5, w - 12 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
+            // UntPlan-Logo oben links wie in allen Fenstern
+            g.DrawIconUnstretched(Symbole.LogoKlein, new Rectangle(9, 1 + (TitelHoehe - 16) / 2, 16, 16));
+            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(31, 5, w - 31 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             // × wie bei den Arbeitsfenstern (9 × 9 mit weichen Kanten), Mitte 24 Pixel vor dem rechten Rand und 11 unter dem oberen
             var grund = _schliessenHover ? Color.FromArgb(232, 17, 35) : TitelFarbe;

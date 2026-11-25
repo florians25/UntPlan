@@ -23,7 +23,6 @@ public sealed class TotaldiagnoseFenster : MdiFenster
     {
         Text = "Totaldiagnose";
         HilfeThema = "Diagnose";
-        Icon = SymbolIcon("diagnose");
         Size = new Size(640, 360);
         Positionieren();
         var kopf = new Panel { Dock = DockStyle.Top, Height = 72 };
@@ -124,7 +123,6 @@ public sealed class CccFenster : MdiFenster
     {
         Text = "CCC (Critical-Conflict-Chain) Analyse von Kopplungen";
         HilfeThema = "Diagnose";
-        Icon = SymbolIcon("diagnose");
         Size = new Size(860, 520);
         Positionieren();
         var ts = Werkzeugleiste();

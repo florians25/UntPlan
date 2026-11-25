@@ -17,7 +17,6 @@ public sealed class StundenlisteFenster : MdiFenster, IDruckbar, IExcelExport
     {
         _nachLehrern = nachLehrern;
         HilfeThema = "Stundenpläne";
-        Icon = SymbolIcon("klausur");
         Size = new Size(820, 480);
         Positionieren();
         var ts = Werkzeugleiste();

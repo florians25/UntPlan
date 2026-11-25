@@ -315,7 +315,6 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
     {
         _sicht = sicht;
         HilfeThema = "Unterricht";
-        Icon = SymbolIcon("unterricht");
         Size = new Size(900, 380);
         Positionieren();
         SpaltenDefinieren();

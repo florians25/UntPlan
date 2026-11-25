@@ -23,16 +23,124 @@ public static class Erscheinungsbild
     private static readonly ConditionalWeakTable<Control, object> Gestaltet = new();
 
     /// <summary>Menüs und Aufklapplisten aller Werkzeugleisten ohne eigene Darstellung.</summary>
-    public static void Einschalten() => ToolStripManager.Renderer = new MenueDarstellung();
+    public static void Einschalten()
+    {
+        ToolStripManager.Renderer = new MenueDarstellung();
+        StandardSymbolSetzen();
+    }
 
     /// <summary>Hat das Fenster eine eigene, vollständige Gestaltung (dann keine Dialogfarben)?</summary>
     private static bool EigeneGestaltung(Form f) =>
         f.IsMdiContainer || f.IsMdiChild || f is Fenster.MdiFenster || f.FormBorderStyle == FormBorderStyle.None ||
         f.GetType().Name is "HauptFenster" or "MeldungsForm" or "ElementRollup" or "SymbolForm" or "MonitorFenster" or "HilfeFenster" or "EingabeHinweisFenster";
 
+    /// <summary>
+    /// Fenstersymbol: jedes Fenster und jeder Dialog zeigt oben links das UntPlan-Logo (auch Dialoge mit festem Rahmen, die Windows
+    /// sonst ohne Symbol zeigt). Werkzeugfenster haben unter Windows keinen Platz für ein Symbol; Fenster mit eigener Titelleiste
+    /// zeichnen das Logo selbst.
+    /// </summary>
+    public static void Fenstersymbol(Form f)
+    {
+        if (f.IsDisposed) return;
+        try
+        {
+            if (!ReferenceEquals(f.Icon, Symbole.Logo)) f.Icon = Symbole.Logo;
+            if (f.FormBorderStyle is FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow) return;
+            if (!f.ShowIcon) f.ShowIcon = true;
+            if (!OperatingSystem.IsWindows() || SymbolAngemeldet.TryGetValue(f, out _)) return;
+            SymbolAngemeldet.Add(f, new object());
+            if (f.IsHandleCreated) { SymbolWaechter.Anhaengen(f); SymbolErzwingen(f); }
+            f.HandleCreated += (_, _) => { SymbolWaechter.Anhaengen(f); SymbolErzwingen(f); };
+            f.Shown += (_, _) => SymbolErzwingen(f);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+    }
+
+    private static readonly ConditionalWeakTable<Form, object> SymbolAngemeldet = new();
+
+    /// <summary>
+    /// Dialoge mit festem Rahmen (und Fenster ohne Symbol) erhalten von Windows Forms den Stil WS_EX_DLGMODALFRAME, mit dem Windows
+    /// kein Symbol in der Titelleiste zeigt: Stil entfernen, Rahmen neu berechnen und das Logo ausdrücklich setzen.
+    /// </summary>
+    private static void SymbolErzwingen(Form f)
+    {
+        if (f.IsDisposed || !f.IsHandleCreated || f.FormBorderStyle is FormBorderStyle.None or FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow) return;
+        try
+        {
+            const int GWL_EXSTYLE = -20, WS_EX_DLGMODALFRAME = 0x1, WM_SETICON = 0x80;
+            var ex = GetWindowLong(f.Handle, GWL_EXSTYLE);
+            if ((ex & WS_EX_DLGMODALFRAME) != 0)
+            {
+                SetWindowLong(f.Handle, GWL_EXSTYLE, ex & ~WS_EX_DLGMODALFRAME);
+                SetWindowPos(f.Handle, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020); // NOSIZE|NOMOVE|NOZORDER|NOACTIVATE|FRAMECHANGED
+            }
+            SendMessage(f.Handle, WM_SETICON, (IntPtr)0, Symbole.LogoKlein.Handle);
+            SendMessage(f.Handle, WM_SETICON, (IntPtr)1, Symbole.Logo.Handle);
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
+
+    /// <summary>
+    /// Windows Forms setzt den Dialograhmenstil bei jeder Stilaktualisierung (Anzeigen, Text, Knöpfe) neu: die Änderung abfangen
+    /// (WM_STYLECHANGING) und WS_EX_DLGMODALFRAME herausnehmen, damit das Logo in der Titelleiste bleibt.
+    /// </summary>
+    private sealed class SymbolWaechter : NativeWindow
+    {
+        private static readonly ConditionalWeakTable<Form, SymbolWaechter> Aktiv = new();
+
+        public static void Anhaengen(Form f)
+        {
+            if (!f.IsHandleCreated) return;
+            if (Aktiv.TryGetValue(f, out var alt))
+            {
+                if (alt.Handle == f.Handle) return;
+                Aktiv.Remove(f);
+            }
+            var w = new SymbolWaechter();
+            w.AssignHandle(f.Handle);
+            f.HandleDestroyed += (_, _) => w.ReleaseHandle();
+            Aktiv.Add(f, w);
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct StilWechsel { public int Alt, Neu; }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_STYLECHANGING = 0x7C, GWL_EXSTYLE = -20;
+            if (m.Msg == WM_STYLECHANGING && (int)(long)m.WParam == GWL_EXSTYLE && m.LParam != IntPtr.Zero)
+            {
+                var s = System.Runtime.InteropServices.Marshal.PtrToStructure<StilWechsel>(m.LParam);
+                if ((s.Neu & 0x1) != 0)
+                {
+                    s.Neu &= ~0x1;
+                    System.Runtime.InteropServices.Marshal.StructureToPtr(s, m.LParam, false);
+                }
+            }
+            base.WndProc(ref m);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int index);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int index, int wert);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr nach, int x, int y, int cx, int cy, uint flags);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Voreingestelltes Symbol aller Fenster (statt des Windows-Forms-Symbols) auf das UntPlan-Logo setzen.</summary>
+    public static void StandardSymbolSetzen()
+    {
+        foreach (var name in new[] { "s_defaultIcon", "defaultIcon" })
+            if (typeof(Form).GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static) is { } feld && feld.FieldType == typeof(Icon))
+            {
+                try { feld.SetValue(null, Symbole.Logo); } catch (Exception ex) when (ex is FieldAccessException or ArgumentException) { }
+                return;
+            }
+    }
+
     /// <summary>Dialogfläche und Titelleiste eines frei schwebenden Fensters (Dialog, Werkzeugfenster) setzen.</summary>
     public static void Dialog(Form f)
     {
+        Fenstersymbol(f);
         if (f.IsDisposed || EigeneGestaltung(f)) return;
         if (Gestaltet.TryGetValue(f, out _)) return;
         Gestaltet.Add(f, new object());
@@ -112,7 +220,7 @@ public static class Erscheinungsbild
         {
             switch (c)
             {
-                case Form f: Dialog(f); break;
+                case Form f: Fenstersymbol(f); Dialog(f); break;
                 case Button b: Knopf(b); break;
                 case TabPage p: Karte(p); break;
                 case DataGridView g when g.BorderStyle == BorderStyle.Fixed3D: KlassischVertieft.Anmelden(g); break;

@@ -26,7 +26,6 @@ public sealed class BerichtsansichtFenster : MdiFenster, IDruckbar, IExcelExport
         Titel = titel;
         Text = titel;
         HilfeThema = "Berichte";
-        Icon = SymbolIcon("drucken");
         Size = new Size(900, 680);
         Positionieren();
         var ts = Werkzeugleiste();

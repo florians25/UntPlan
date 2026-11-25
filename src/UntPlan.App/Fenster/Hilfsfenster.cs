@@ -148,7 +148,7 @@ public static class BegruessungDialog
             Text = "UntPlan", Font = Ui.Schrift, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
             StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(780, 450), ShowInTaskbar = false, BackColor = Color.White,
         };
-        f.Icon = Icon.FromHandle(Symbole.Get("logo", 32).GetHicon());
+        f.Icon = Symbole.Logo;
 
         // linke Spalte: Logo, Name, Version
         var links = new Panel { Dock = DockStyle.Left, Width = 250, BackColor = Dunkel };
@@ -246,7 +246,7 @@ public sealed class HilfeFenster : Form
         Font = Ui.Schrift;
         Size = new Size(900, 620);
         StartPosition = FormStartPosition.CenterParent;
-        Icon = Icon.FromHandle(Symbole.Get("hilfe", 16).GetHicon());
+        Icon = Symbole.Logo;
         foreach (var (kapitel, themen) in Handbuch.Kapitel)
         {
             var k = _baum.Nodes.Add(kapitel);
@@ -303,7 +303,6 @@ public sealed class KommentarUebersicht : MdiFenster
     public KommentarUebersicht()
     {
         Text = "Kommentar-Übersicht";
-        Icon = SymbolIcon("kommentar");
         HilfeThema = "Kommentare";
         Size = new Size(720, 320);
         Positionieren();

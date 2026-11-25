@@ -28,7 +28,6 @@ public sealed class UnterrichtsfolgenFenster : MdiFenster
     {
         Text = "Unterrichtsfolge";
         HilfeThema = "Unterricht";
-        Icon = SymbolIcon("unterricht");
         Size = new Size(560, 460);
         Positionieren();
         var ts = Werkzeugleiste();
