@@ -184,6 +184,91 @@ public class KartenVerlegungFachTests
         }
     }
 
+    private static void RaumPruefen(JsonNode r, bool label)
+    {
+        Assert.Equal(label, Wahr(r, "neu"));
+        if (!label) Assert.Null(r["alt"]?.GetValue<string>());
+    }
+
+    /// <summary>
+    /// Verlegte Stunde mit mehreren Räumen (7a SP/SNE regulär in TH2 und TH3, verlegt in die Stunde, in der 7a regulär in R105 ist): die
+    /// eigenen Räume der Stunde sind keine Raumänderung und stehen ohne Label da (nicht „R105 → TH2“ für den ersten Raum) – nur ein Raum,
+    /// den die Stunde sonst nicht hat, bekommt eines. Ein einzelner Raum wird weiter mit dem Raum der Zielstunde verglichen (siehe oben).
+    /// </summary>
+    [Theory]
+    [InlineData("TH2,TH3", "")]
+    [InlineData("TH2,C101", "C101")]
+    [InlineData("R105,TH3", "")]
+    public async Task Verlegung_mit_mehreren_Raeumen_zeigt_nur_fremde_Raeume_als_Label(string zielraeume, string label)
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 86;
+        var s = Stunde(paket, "2026-10-12", "7a", 4);
+        var lehrer = s["lehrer"]![0]!.GetValue<string>();
+        var fach = s["fach"]!.GetValue<string>();
+        var u = s["unterricht"]!.GetValue<int>();
+        // Stundenplan: Mo 4. Stunde in TH2 und TH3
+        var eintrag = paket["perioden"]![0]!["stundenplan"]!.AsArray()
+            .First(x => x!["unterricht"]!.GetValue<int>() == u && x["tag"]!.GetValue<int>() == 0 && x["stunde"]!.GetValue<int>() == 4)!;
+        eintrag["raeume"] = new JsonArray("TH2", "TH3");
+        s["raeume"] = new JsonArray("TH2", "TH3");
+        var e = Stunde(paket, "2026-10-14", "7a", 4);
+        Assert.Equal("R105", e["raeume"]![0]!.GetValue<string>());
+        s["status"] = "entfall"; s["vertretung"] = 9331;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9331, "2026-10-12", 4, "Entfall", lehrer, "---", fach, fach, "TH2,TH3", "", "", "Mi-14.10. / 4", "", null, "7a"));
+        e["status"] = "entfall"; e["vertretung"] = 9333;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9333, "2026-10-14", 4, "Entfall", e["lehrer"]![0]!.GetValue<string>(), "---", e["fach"]!.GetValue<string>(),
+            e["fach"]!.GetValue<string>(), "R105", "", "", "", "", null, "7a"));
+        var ziel = zielraeume.Split(',');
+        Tag(paket, "2026-10-14")["stunden"]!.AsArray().Add(new JsonObject
+        {
+            ["stunde"] = 4, ["unterricht"] = u, ["fach"] = fach, ["klassen"] = new JsonArray("7a"), ["lehrer"] = new JsonArray(lehrer),
+            ["raeume"] = new JsonArray(ziel.Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()), ["status"] = "zusaetzlich", ["vertretung"] = 9332, ["text"] = "",
+        });
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9332, "2026-10-14", 4, "Verlegung", lehrer, lehrer, fach, fach, "R105", zielraeume, "Mo-12.10. / 4", "", "", null, "7a"));
+
+        foreach (var (typ, element) in new[] { ("klasse", "7a"), ("lehrer", lehrer) })
+        {
+            var plan = await PlanAsync(paket, typ, element, "2026-10-12");
+            var karte = Karten(plan, "2026-10-14", 4).Single(k => k["verlegung"]?.GetValue<string>() == "nach");
+            var raeume = karte["raeume"]!.AsArray().Select(r => r!).ToList();
+            Assert.Equal(ziel.Order(), raeume.Select(r => r["k"]!.GetValue<string>()).Order());
+            foreach (var r in raeume) RaumPruefen(r, r["k"]!.GetValue<string>() == label);
+        }
+    }
+
+    /// <summary>
+    /// Raumvertretung, die einen Raum hinzufügt (Stunde jetzt in TH2 und C101): TH2 bleibt ohne Label, nur C101 ist hinzugekommen („+C101“) –
+    /// auch wenn die Vertretung als neuen Raum nur C101 nennt (kein „TH2 → C101“, TH2 ist ja weiter dabei).
+    /// </summary>
+    [Theory]
+    [InlineData("TH2,C101")]
+    [InlineData("C101")]
+    public async Task Hinzugefuegter_Raum_hat_als_einziger_ein_Label(string neuerRaum)
+    {
+        var paket = Testserver.Beispielpaket();
+        paket["revision"] = 87;
+        var s = Stunde(paket, "2026-10-12", "7a", 4);
+        var lehrer = s["lehrer"]![0]!.GetValue<string>();
+        var fach = s["fach"]!.GetValue<string>();
+        s["raeume"] = new JsonArray("TH2", "C101");
+        s["status"] = "vertreten"; s["vertretung"] = 9341;
+        paket["vertretungen"]!.AsArray().Add(Vertretung(9341, "2026-10-12", 4, "Raum-Vtr.", lehrer, lehrer, fach, fach, "TH2", neuerRaum, "", "", "", null, "7a"));
+
+        foreach (var (typ, element) in new[] { ("klasse", "7a"), ("lehrer", lehrer) })
+        {
+            var plan = await PlanAsync(paket, typ, element, "2026-10-12");
+            var karte = Karten(plan, "2026-10-12", 4).Single();
+            var raeume = karte["raeume"]!.AsArray().Select(r => r!).ToList();
+            Assert.Equal(new[] { "C101", "TH2" }, raeume.Select(r => r["k"]!.GetValue<string>()).Order());
+            var plus = raeume.Single(r => r["k"]!.GetValue<string>() == "C101");
+            Assert.True(Wahr(plus, "neu"));
+            Assert.True(Wahr(plus, "plus"));
+            Assert.Null(plus["alt"]?.GetValue<string>());
+            RaumPruefen(raeume.Single(r => r["k"]!.GetValue<string>() == "TH2"), false);
+        }
+    }
+
     [Fact]
     public async Task Entfall_wegen_Veranstaltung_ohne_Vertretungstext()
     {
