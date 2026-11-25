@@ -1792,8 +1792,24 @@ public sealed class Plandienst
             .Select(u => (int?)u.Id).FirstOrDefault();
     }
 
+    /// <summary>
+    /// Vertretungsarten, die nur sagen, wie die Vertretungslehrkraft eingesetzt ist (Vertretung, Lehrertausch, Betreuung, Statt-Vertretung,
+    /// Bereitschaftsvertretung, Teilvertretung, trotz Absenz): Sie trennen keinen Block. UntPlan vergibt die Art je Stunde – vertritt eine
+    /// Lehrkraft eine Doppelstunde und in deren erster Stunde zusätzlich eine weitere Klasse, ist die erste Stunde ein Lehrertausch und die
+    /// zweite eine Vertretung. Die Karte bleibt trotzdem EIN Block über beide Stunden (die Arten stehen zusammen in <see cref="Karte.Art"/>).
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex EinsatzArt = new(
+        @"^(vertretung|lehrertausch|betreuung|mitbetreuung|statt-vertretung|bereitschaftsvertretung|teil-?vtr\.?|teilvertretung|trotz absenz)$",
+        System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static string BlockArt(Karte k) => EinsatzArt.IsMatch(k.Art.Trim()) ? "\u0001einsatz" : k.Art;
+
+    /// <summary>Arten eines Blocks: jede verschiedene Art einmal in der Reihenfolge der Stunden („Lehrertausch, Vertretung“).</summary>
+    private static string ArtenVerbinden(string a, string b) =>
+        string.Join(", ", a.Split(", ").Concat(b.Split(", ")).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
+
     private static string Schluessel(Karte k) =>
-        $"{k.Unterricht}|{k.Status}|{k.Fach}|{k.FachAlt}|{k.Art}|{k.Text}|{string.Join(",", k.Klassen.Select(x => x.K))}|" +
+        $"{k.Unterricht}|{k.Status}|{k.Fach}|{k.FachAlt}|{BlockArt(k)}|{k.Text}|{string.Join(",", k.Klassen.Select(x => x.K))}|" +
         $"{string.Join(",", k.Lehrer.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Raeume.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.Mitklassen.Select(x => x.K + "/" + x.Alt))}|{string.Join(",", k.AbwesendeKlassen)}|{k.KlasseAbwesend}";
 
     private static List<Karte> Zusammenfassen(List<Karte> einzel, Dictionary<int, WebStundenzeit> zeiten)
@@ -1808,7 +1824,7 @@ public sealed class Plandienst
                 {
                     offen = offen with
                     {
-                        Bis = k.Bis, Ende = k.Ende,
+                        Bis = k.Bis, Ende = k.Ende, Art = ArtenVerbinden(offen.Art, k.Art),
                         VerlegungVon = offen.Verlegung == "von" && offen.VerlegungVon is { } ev ? ev with { BisStunde = k.Bis, Ende = k.Ende } : VerlegungVerbinden(offen.VerlegungVon, k.VerlegungVon),
                         VerlegungNach = offen.Verlegung == "nach" && offen.VerlegungNach is { } en ? en with { BisStunde = k.Bis, Ende = k.Ende } : VerlegungVerbinden(offen.VerlegungNach, k.VerlegungNach),
                     };
