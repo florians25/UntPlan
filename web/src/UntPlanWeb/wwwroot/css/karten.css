@@ -538,6 +538,26 @@ input.sd-eingabe { min-height: 56px; }
 .aufsicht[data-aufsicht]:focus-visible { z-index: 5; outline: 2px solid rgba(245, 107, 42, .55); outline-offset: 1px; }
 .aufsicht.ohne-details { cursor: default; }
 
+/* ------------------------------------------------------------------ Firefox unter Windows: Strichstärke wie die Vorlage
+
+   Nachgemessen an Bild 337 (eigene Darstellung) gegen Bild 289 (Vorlage), beide Firefox unter Windows, 100 %, gleiche Glyphen
+   (Tinte je Glyphe, senkrechte und waagerechte Striche): senkrechte Striche sind bereits gleich (Kopf 1,74 px wie Vorlage 1,75 px,
+   Zeilen 12px 1,29 wie 1,27, Ziffer „0“ gleiche Tinte), aber Firefox zeichnet unsere Schriftdateien senkrecht ohne Kantenglättung:
+   waagerechte Striche (Querbalken von E, F, P, Z, T, 7) nur 1,12 px statt 1,69 px (14px). Kopf je Glyphe dadurch 7–18 % zu hell
+   (P −7 %, Z −16 %, E −18 %), Kopf-Label senkrecht 1,81 statt 2,05 px, Zeitraum „23. 11. - 29. 11. 2026“ −11 % Tinte (Strich
+   „1“ 1,7 statt 1,89 px). Ausgleich mit feiner Kontur in Schriftfarbe (+0,15 px ≈ +10 % Tinte, Label +0,2 px ≈ +13 %).
+   Elementauswahl („ING13“): Demi ist hier zu kräftig (senkrecht 2,17 statt 1,72 px, Tinte je Fläche +14 %) – Medium mit Kontur
+   0,1 px (Tinte wie Vorlage).
+   Uhrzeiten (10px Regular, dünnster Schnitt): 47 % mehr Tinte als die Vorlage (sechs Uhrzeiten, Verhältnis 0,68 ± 0,015) – Farbe
+   so weit aufgehellt, dass die Tinte mal Kontrast gleich ist (#8a96a1 auf 68 % Kontrast zu Weiß).
+   Unverändert, weil schon gleich (±3 %): Zeilen 2/3 (12px), Labels in den Zeilen, Tageszeile. Chrome/Edge unter Windows bleiben
+   bei der Korrektur oben (Kopf Medium). */
+html:root.is-win.is-gecko .std .z1 { -webkit-text-stroke: .15px currentColor; }
+html:root.is-win.is-gecko .std .z1 .lbl { -webkit-text-stroke: .2px currentColor; }
+html:root.is-win.is-gecko .planleiste .zeitraum.kal-pille { -webkit-text-stroke: .15px currentColor; }
+html:root.is-win.is-gecko .kw-pille { font-weight: 500; -webkit-text-stroke: .1px currentColor; }
+html:root.is-win.is-gecko .std .zt { color: #afb8bf; }
+
 /* ------------------------------------------------------------------ macOS (Avenir Next): Durchstreichungen
 
    Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): die Durchstreichung der Schrift liegt nicht in der

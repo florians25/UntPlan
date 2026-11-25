@@ -9,7 +9,7 @@
     if (mac) document.documentElement.classList.add('is-mac');
     // Windows: eigene Korrekturen der Strichstärke in css/karten.css (nachgemessen am Windows-Rendering gegen die Vorlage)
     if (/^win/i.test(plattform)) document.documentElement.classList.add('is-win');
-    // Firefox (nicht macOS): Label im Kartenkopf sitzt dort 1px höher, siehe css/karten.css
+    // Firefox (nicht macOS): mit is-win eigene Strichstärke für Kartenkopf, Kopfleiste und Uhrzeiten, siehe css/karten.css
     if (!mac && /Firefox\//.test(navigator.userAgent || '')) document.documentElement.classList.add('is-gecko');
     // Browser-Zoom bzw. Skalierung zwischen 100 % und 200 % (nicht macOS): --dpr = Pixelverhältnis. Damit bleibt der Farbbalken der
     // Stundenkarten wie in der Vorlage 4 Bildschirmpixel breit (Bild 279 bei 100 %, Bild 284 bei 125 %: je 4 px).
