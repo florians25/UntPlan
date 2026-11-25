@@ -2096,8 +2096,11 @@ public sealed partial class HauptFenster
             try
             {
                 fm.Focus();
-                Warten(60);
-                foreach (var ch in ziel.t[..2]) KombiTippen(fm.Handle, ch);
+                Warten(100);
+                var fokus = fm.Focused;
+                var spur = new List<string>();
+                foreach (var ch in ziel.t[..2]) { KombiTippen(fm.Handle, ch); spur.Add($"{ch}:{Steuerelemente.ListenSuche.Tippsuchtext(fm)}/{fm.DroppedDown}/{fm.Focused}"); }
+                log.Add($"INFO  V17 Formatauswahl tippen „{ziel.t[..2]}“ (Ziel „{ziel.t}“, Fokus vorher {fokus}): {string.Join(" ", spur)}");
                 Warten(200);
                 if (fGeaendert != 0) throw new InvalidOperationException($"Formatauswahl: Tippen meldet schon vor Enter eine Änderung ({fGeaendert}).");
                 if (Steuerelemente.ListenSuche.Tippsuchtext(fm) != ziel.t[..2]) throw new InvalidOperationException($"Formatauswahl: Suchtext „{Steuerelemente.ListenSuche.Tippsuchtext(fm)}“.");
