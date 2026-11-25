@@ -1147,7 +1147,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _laden = false;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
-        Text = el is null ? $"Stundenplan ({fmtName})" : _klein ? $"{el.Kurzname}: {(el is Lehrer lk ? lk.VollerName : el.Langname)}" : $"{el.Kurzname}: {(el is Lehrer l ? l.VollerName : el.Langname)} ({fmtName})";
+        // Vorbild: „05A - Class_05A Stundenplan (Kla1)“, ohne Langnamen „A206 - Stundenplan (Rau1)“
+        var lang = el is Lehrer l ? l.VollerName : el?.Langname ?? "";
+        Text = el is null ? $"Stundenplan ({fmtName})" : $"{el.Kurzname} - {(string.IsNullOrWhiteSpace(lang) ? "" : lang + " ")}Stundenplan ({fmtName})";
         Tag = $"sp:{_typ}:{_id}:{(_gross ? 1 : 0)}" + (_klein ? ":k" : "");
         _plan.Typ = _typ;
         _plan.ElementId = _id;
