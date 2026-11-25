@@ -997,7 +997,7 @@ enum Sperrhinweis {
     /// Standardhinweis des Servers (`Planfenster.Sperrhinweis` in UntPlanWeb)
     static let standardHinweis = "Die Anzeige des Stundenplans ist durch Ihren Administrator beschränkt"
     static let rasterTitel = "Anzeige gesperrt"
-    static let rasterText = "Die Stundenplananzeige wurde von Ihrer Administration eingeschränkt."
+    static let rasterText = "Die Stundenplananzeige wurde von deiner Administration eingeschränkt."
 
     /// Text unter „Anzeige gesperrt“: ein eigener Hinweis des Servers, sonst (leer oder Standardhinweis) der Standardsatz.
     static func rasterErklaerung(_ hinweis: String?) -> String {
