@@ -49,8 +49,9 @@ public static class Erscheinungsbild
             if (!f.ShowIcon) f.ShowIcon = true;
             if (!OperatingSystem.IsWindows() || SymbolAngemeldet.TryGetValue(f, out _)) return;
             SymbolAngemeldet.Add(f, new object());
-            if (f.IsHandleCreated) SymbolErzwingen(f);
-            f.HandleCreated += (_, _) => SymbolErzwingen(f);
+            if (f.IsHandleCreated) { SymbolWaechter.Anhaengen(f); SymbolErzwingen(f); }
+            f.HandleCreated += (_, _) => { SymbolWaechter.Anhaengen(f); SymbolErzwingen(f); };
+            f.Shown += (_, _) => SymbolErzwingen(f);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
     }
@@ -77,6 +78,47 @@ public static class Erscheinungsbild
             SendMessage(f.Handle, WM_SETICON, (IntPtr)1, Symbole.Logo.Handle);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+    }
+
+    /// <summary>
+    /// Windows Forms setzt den Dialograhmenstil bei jeder Stilaktualisierung (Anzeigen, Text, Knöpfe) neu: die Änderung abfangen
+    /// (WM_STYLECHANGING) und WS_EX_DLGMODALFRAME herausnehmen, damit das Logo in der Titelleiste bleibt.
+    /// </summary>
+    private sealed class SymbolWaechter : NativeWindow
+    {
+        private static readonly ConditionalWeakTable<Form, SymbolWaechter> Aktiv = new();
+
+        public static void Anhaengen(Form f)
+        {
+            if (!f.IsHandleCreated) return;
+            if (Aktiv.TryGetValue(f, out var alt))
+            {
+                if (alt.Handle == f.Handle) return;
+                Aktiv.Remove(f);
+            }
+            var w = new SymbolWaechter();
+            w.AssignHandle(f.Handle);
+            f.HandleDestroyed += (_, _) => w.ReleaseHandle();
+            Aktiv.Add(f, w);
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct StilWechsel { public int Alt, Neu; }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_STYLECHANGING = 0x7C, GWL_EXSTYLE = -20;
+            if (m.Msg == WM_STYLECHANGING && (int)(long)m.WParam == GWL_EXSTYLE && m.LParam != IntPtr.Zero)
+            {
+                var s = System.Runtime.InteropServices.Marshal.PtrToStructure<StilWechsel>(m.LParam);
+                if ((s.Neu & 0x1) != 0)
+                {
+                    s.Neu &= ~0x1;
+                    System.Runtime.InteropServices.Marshal.StructureToPtr(s, m.LParam, false);
+                }
+            }
+            base.WndProc(ref m);
+        }
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int index);

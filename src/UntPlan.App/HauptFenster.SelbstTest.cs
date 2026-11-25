@@ -1098,7 +1098,11 @@ public sealed partial class HauptFenster
                 var werkzeug = f.FormBorderStyle is FormBorderStyle.FixedToolWindow or FormBorderStyle.SizableToolWindow;
                 if (!ReferenceEquals(f.Icon, Symbole.Logo) || (!f.ShowIcon && !werkzeug && f.FormBorderStyle != FormBorderStyle.None))
                     log.Add($"FEHLER V15: Fenster „{f.Text}“ ({f.GetType().Name}) ohne UntPlan-Logo");
+                // Dialograhmenstil (WS_EX_DLGMODALFRAME) unterdrückt das Symbol in der Titelleiste
+                else if (!werkzeug && f.FormBorderStyle != FormBorderStyle.None && OperatingSystem.IsWindows() && (FensterExStil(f.Handle) & 0x1) != 0)
+                    log.Add($"FEHLER V15: Fenster „{f.Text}“ ({f.GetType().Name}) mit Dialograhmen ohne Symbol");
             }
+            if (OperatingSystem.IsWindows()) log.Add($"INFO  V15 Dialog: Stil {FensterExStilRoh(d.Handle, -16):X8}, erweitert {FensterExStil(d.Handle):X8}, ShowIcon {d.ShowIcon}, Rahmen {d.FormBorderStyle}");
             void Ausschnitt(string name, Rectangle r)
             {
                 using var bmp = new Bitmap(r.Width, r.Height);
@@ -3761,6 +3765,8 @@ public sealed partial class HauptFenster
         return erg;
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLongW")] private static extern int FensterExStilRoh(IntPtr hWnd, int index);
+    private static int FensterExStil(IntPtr hWnd) => FensterExStilRoh(hWnd, -20);
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
     private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
 
