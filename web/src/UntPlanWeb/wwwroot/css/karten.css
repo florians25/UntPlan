@@ -21,37 +21,62 @@
 /* Windows (eigenes Rendering 293/294 gegen Vorlage 295, beide 100 %, senkrechte Striche gemessen): mit den hochgeladenen
    Avenir-Next-Dateien zeichnet Windows ~30 % fetter als die Vorlage (Kopf 2,27 statt 1,75 px), Kopf dort Medium statt Demi (~1,8 px) */
 html:root.is-win .std .z1 { font-weight: 500; }
-/* Label im Kopf wie Vorlage 305: Kasten oben an der Zeile ausgerichtet (unabhängig von der Grundlinie der Schrift), 16px hoch ab +7
-   unter der Kartenkante, Versalien 4px unter der Oberkante und 2px über der Unterkante */
-.std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
+/* Kopfzeile im Wochenplan 17px hoch (1px Rand oben, 3px unten: Abstände zu den Zeilen wie bisher): Avenir Next hat bei 14px
+   Ober-/Unterlänge 16 + 5px. Mit 16px Zeilenhöhe bleibt ein halber Pixel Durchschuss übrig, den Chrome unter Linux abrundet
+   (Grundlinie 13px), Chrome unter Windows und Firefox aber aufrunden (14px) – Versalien je nach Browser 1px verschieden. Bei 17px
+   ist der Durchschuss ganzzahlig: Grundlinie überall 14px unter der Zeilenoberkante, Versalien +10 unter der Kartenkante wie in der
+   Vorlage (Bild 289/295). Schmale Spalten (kompakt.css: 13px/15px, 12,5px/14px) sind bereits ganzzahlig und bleiben. */
+@container plan-raster (min-width: 1000.5px) { .std .z1 { line-height: 17px; margin-bottom: -3px; } }
 /* Wunsch (Bild 320): unter einem Label im Kopf 1px mehr Luft bis zur zweiten Zeile */
 .std .z1:has(.lbl) + .z2 { margin-top: 1px; }
-/* Firefox (Bild 319): der oben ausgerichtete Kasten steht 1px zu hoch, der Text richtig; Kasten 1px tiefer, Text bleibt */
-html:root.is-gecko .std .z1 .lbl { position: relative; top: 1px; padding-top: 1px; }
-html:root.is-gecko .std .z1:has(.lbl) { padding-bottom: 1px; margin-bottom: -3px; }
-/* Kopplung mit Label und weiterem Text im Kopf (Bild „SN, CS, SZ“): Label auf derselben Grundlinie wie der übrige Text, in allen
-   Browsern gleich */
-.std .z1.mit-text .lbl, html:root.is-gecko .std .z1.mit-text .lbl { vertical-align: baseline; height: auto; padding-top: 0; line-height: 16px; top: 0; }
-html:root.is-gecko .std .z1.mit-text { padding-bottom: 0; margin-bottom: -2px; }
-/* Label neben Text in einer weiteren Zeile („C007, +C101“, Vorlage 329): Kasten oben an der Zeile 2px tiefer, 16px hoch (2px über den
-   Versalien, 5px unter der Grundlinie), Text im Kasten auf derselben Höhe wie der Nachbartext; unabhängig von der Schriftdarstellung */
-.std .z2.mit-text .lbl { vertical-align: top; position: relative; top: 2px; height: 16px; box-sizing: border-box; line-height: 12px; padding-top: 0; padding-bottom: 0; }
-.std .z2.mit-text { padding-bottom: 3px; margin-bottom: -3px; }
 /* Kopf mit Label (farbiger Kasten): die folgenden Zeilen bleiben, wo sie ohne Label stehen (Vorlage 279: „WE“ im Label, „DEU“
    darunter auf derselben Höhe wie „FU0“ unter „KM“) – kein eigener Abstand für den Kasten */
 .std .z2 + .z2 { margin-top: 0; }
-/* Label im Kopf genauso kräftig wie der Kopf ohne Label (übernimmt dessen Schnitt, auch die Windows-Korrektur) */
+/* Labels in derselben Schriftgröße wie der Text ihrer Zeile; im Kopf genauso kräftig wie der Kopf ohne Label (übernimmt dessen
+   Schnitt, auch die Windows-Korrektur), in den weiteren Zeilen Medium */
 .std .z1 .lbl { font-size: 14px; -webkit-text-stroke: 0; font-weight: inherit; }
 .std .z2 .lbl, .std .z2 .kl-weg { font-size: 12px; }
-/* Label in einer weiteren Zeile (z. B. Raum „C103“): Kasten 16px, 2px unter der Oberkante der Zeile (Kasten +38 bis +53 unter der
-   Kartenkante, Versalien der Zeile ohne Label +40 bis +48), Schrift im Kasten mittig (3px Luft oben und unten) */
+
+/* ------------------------------------------------------------------ Text in Labels genau mittig (alle Browser)
+
+   Versalien stehen im Kasten genau in der Mitte: gleich viel Luft über den Versalien wie unter der Grundlinie. Kasten mit fester
+   Höhe (--lbl-h); die Lage der Schrift im Kasten hängt nicht von der Rundung des Browsers ab:
+   - Browser mit text-box (Chrome/Edge ab 133, Safari ab 18.2): Textkasten auf Versalhöhe und Grundlinie beschnitten, oben und
+     unten derselbe Innenabstand (Höhe − 1cap) / 2 – unabhängig von der Schrift.
+   - sonst (Firefox): Zeilenhöhe so, dass der Durchschuss ganzzahlig ist (Avenir Next: 14px → Ober-/Unterlänge 16 + 5, 12px → 14 + 4;
+     Versalhöhe 0,708em), Rest als Innenabstand unten. Grundlinie im Kasten: 14px-Label (16 hoch) 13px, 12px-Label (16 hoch) 12px,
+     Aufsicht (14px, 18 hoch) 14px – genau wie mit text-box.
+   Lage des Kastens: allein in der Zeile oben an der Zeile (Kopf) bzw. 2px darunter (weitere Zeilen, wie Vorlage 279/289); neben
+   anderem Text („C007, +C101“, „SN, CS, SZ“, Aufsicht „E GOS“) auf der Grundlinie des Nachbartextes – die Schrift im Kasten steht
+   in allen Browsern auf derselben Höhe wie der Text daneben, der Kasten mittig darum. */
+.std :is(.z1, .z2) .lbl, .std .abw-label, .aufsicht .lbl { --lbl-h: 16px; --lbl-lh: 14px; }
+.std .z1 .lbl { --lbl-lh: 15px; }
+.std .abw-label { --lbl-h: 15px; --lbl-lh: 14px; }
+.aufsicht .lbl { --lbl-h: 18px; --lbl-lh: 17px; }
+/* in :is() zusammengefasst: gilt mit der Spezifität des stärksten Selektors, also auch gegen app.css (abwesende Lehrkraft) */
+:is(.std :is(.z1, .z2) .lbl, .std .abw-label, .aufsicht .lbl, .std.lehrer-abwesend :is(.z1, .z2) .lbl.weg) {
+  box-sizing: border-box; height: var(--lbl-h); line-height: var(--lbl-lh); padding-top: 0; padding-bottom: calc(var(--lbl-h) - var(--lbl-lh));
+}
+@supports (text-box: trim-both cap alphabetic) {
+  :is(.std :is(.z1, .z2) .lbl, .std .abw-label, .aufsicht .lbl, .std.lehrer-abwesend :is(.z1, .z2) .lbl.weg) {
+    text-box: trim-both cap alphabetic; padding-top: calc((var(--lbl-h) - 1cap) / 2); padding-bottom: calc((var(--lbl-h) - 1cap) / 2);
+  }
+}
+/* allein in der Zeile: Kasten oben an der Zeile (Kopf, Vorlage 305) bzw. 2px darunter (weitere Zeilen: Kasten +38 bis +53 unter der
+   Kartenkante); 1px Rand unten, damit der Kasten die 17px hohe Kopfzeile nicht verlängert. Zeilenhöhe und Innenabstand oben/unten
+   kommen aus dem Block davor (stärkerer Selektor), hier nur die Lage des Kastens */
+.std .z1 .lbl { vertical-align: top; height: 16px; box-sizing: border-box; padding-top: 2px; line-height: 14px; }
+.std .z1 .lbl { position: relative; top: 0; margin-bottom: -1px; }
 .std .z2 .lbl { position: relative; top: 2px; line-height: 15px; padding-bottom: 1px; }
-/* die Zeile schneidet ihren Inhalt ab (Kürzen mit „…“): Schnittkante 2px tiefer, damit der Kasten ganz sichtbar bleibt (ohne die
+.std .z2 .lbl { vertical-align: top; }
+/* neben anderem Text: auf der Grundlinie (ohne overflow, sonst gilt die Unterkante des Kastens als Grundlinie); der negative Rand
+   hält die Zeilenhöhe unverändert */
+.std :is(.z1, .z2).mit-text .lbl { vertical-align: baseline; top: 0; overflow: visible; margin-top: -3px; margin-bottom: -3px; }
+/* die Zeile schneidet ihren Inhalt ab (Kürzen mit „…“): Schnittkante tiefer, damit der Kasten ganz sichtbar bleibt (ohne die
    folgenden Zeilen zu verschieben) */
 .std .z2:has(.lbl) { padding-bottom: 2px; margin-bottom: -2px; }
-/* auch das durchgestrichene Label der abwesenden Lehrkraft (app.css setzt dort den Innenabstand neu) */
-.std.lehrer-abwesend .z2 .lbl.weg { padding-bottom: 1px; }
-.std .abw-label { font-size: 12px; line-height: 15px; padding: 0 3px; margin-top: 1px; border-radius: 1.5px; }
+.std .z2.mit-text { padding-bottom: 3px; margin-bottom: -3px; }
+.std .abw-label { font-size: 12px; padding-left: 3px; padding-right: 3px; margin-top: 1px; border-radius: 1.5px; }
 
 /* Farbbalken links: 4 Bildschirmpixel breit, auch bei 125 % Zoom (Vorlage 279 und 284; --dpr aus js/plattform.js, sonst 4px) */
 .tt .std::before { width: calc(4px / var(--dpr, 1)); }
@@ -116,7 +141,7 @@ html:root.is-gecko .std .z1.mit-text { padding-bottom: 0; margin-bottom: -2px; }
    wie der Kartenkopf), auch halbiert neben einem Block */
 .aufsicht .auf-text { font-size: 14px; font-weight: 600; line-height: 16px; color: #414d55; }
 html:root.is-win .aufsicht .auf-text { font-weight: 500; }
-.aufsicht .lbl, .aufsicht .lbl-auf { display: inline-block; overflow: visible; margin: 0; padding: 0 3px; font-size: inherit; line-height: 18px; font-weight: 600; color: #fff;
+.aufsicht .lbl, .aufsicht .lbl-auf { display: inline-block; overflow: visible; margin: 0; padding-left: 3px; padding-right: 3px; font-size: inherit; font-weight: 600; color: #fff;
   background: var(--u-gruen-label); border-radius: 1.5px; vertical-align: baseline; text-decoration: none; }
 .aufsicht .lbl[data-hover] { cursor: inherit; }
 .aufsicht.vergangen, .aufsicht.vergangen.vertretung, .aufsicht.vergangen.vertreten { opacity: 1; filter: none; }
@@ -513,23 +538,18 @@ input.sd-eingabe { min-height: 56px; }
 .aufsicht[data-aufsicht]:focus-visible { z-index: 5; outline: 2px solid rgba(245, 107, 42, .55); outline-offset: 1px; }
 .aufsicht.ohne-details { cursor: default; }
 
-/* ------------------------------------------------------------------ macOS (Avenir Next): Labels und Durchstreichungen
+/* ------------------------------------------------------------------ macOS (Avenir Next): Durchstreichungen
 
-   Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): Versalien sitzen in Labels zu hoch, und die
-   Durchstreichung der Schrift liegt nicht in der Mitte der Kürzel. Korrekturen nur mit html.is-mac:
-   - Labels: Textkasten auf Versalhöhe und Grundlinie beschneiden (text-box), Innenabstand oben/unten gleich – Text genau mittig.
-     Ältere Browser ohne text-box: Text um ~0,04em nach unten.
-   - Durchstreichung als Linie auf halber Versalhöhe (Unterstreichung mit negativem Abstand zur Grundlinie, ohne Aussparungen). */
-html:root.is-mac .std .lbl, html:root.is-mac .aufsicht .lbl, html:root.is-mac .std .abw-label, html:root.is-mac .sd-lbl-weg, html:root.is-mac .std-lbl { --lbl-h: 15px; }
-html:root.is-mac .std .z1 .lbl { --lbl-h: 16px; }
-html:root.is-mac .std .z1 .lbl { vertical-align: baseline; height: auto; }
-html:root.is-mac .std .z2.mit-text .lbl { vertical-align: baseline; height: auto; top: 2px; }
-html:root.is-mac .aufsicht .lbl, html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
-html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
-  padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em);
-}
+   Avenir Next hat unter macOS eine große Unterlänge (Ober-/Unterlänge 1000/366): die Durchstreichung der Schrift liegt nicht in der
+   Mitte der Kürzel. Korrektur nur mit html.is-mac: Durchstreichung als Linie auf halber Versalhöhe (Unterstreichung mit negativem
+   Abstand zur Grundlinie, ohne Aussparungen). Text in den Labels der Stundenkarten und Aufsichten: für alle Browser oben („Text in
+   Labels genau mittig“); hier nur noch Legende und Stundendetails-Kopf (wie bisher): Textkasten auf Versalhöhe und Grundlinie
+   beschnitten, Innenabstand oben/unten gleich; ältere Browser ohne text-box: Text um ~0,04em nach unten. */
+html:root.is-mac :is(.sd-lbl-weg, .std-lbl) { --lbl-h: 15px; }
+html:root.is-mac .sd-lbl-weg { --lbl-h: 18px; }
+html:root.is-mac :is(.sd-lbl-weg, .std-lbl) { padding-top: .04em; padding-bottom: 0; line-height: calc(var(--lbl-h) - .04em); }
 @supports (text-box: trim-both cap alphabetic) {
-  html:root.is-mac :is(.std .lbl, .aufsicht .lbl, .std .abw-label, .sd-lbl-weg, .std-lbl) {
+  html:root.is-mac :is(.sd-lbl-weg, .std-lbl) {
     text-box: trim-both cap alphabetic; line-height: var(--lbl-h);
     padding-top: calc((var(--lbl-h) - 1cap) / 2); padding-bottom: calc((var(--lbl-h) - 1cap) / 2);
   }
