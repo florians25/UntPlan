@@ -2097,7 +2097,14 @@ public sealed partial class HauptFenster
                 {
                     fm.Focus();
                     Warten(100);
-                    foreach (var ch in text[..Math.Min(2, text.Length)]) KombiTippen(fm.Handle, ch);
+                    var spur = new List<string>();
+                    void Zeichen(object? s, KeyPressEventArgs e) => spur.Add($"{(s == sp ? "F" : "K")}:{e.KeyChar}{(e.Handled ? "!" : "")}");
+                    void Auf(object? s, EventArgs e) => spur.Add("auf");
+                    void Zu(object? s, EventArgs e) => spur.Add($"zu({Steuerelemente.ListenSuche.Tippsuchtext(fm)})");
+                    fm.KeyPress += Zeichen; sp.KeyPress += Zeichen; fm.DropDown += Auf; fm.DropDownClosed += Zu;
+                    foreach (var ch in text[..Math.Min(2, text.Length)]) { KombiTippen(fm.Handle, ch); spur.Add($"[{Steuerelemente.ListenSuche.Tippsuchtext(fm)}/{fm.DroppedDown}]"); }
+                    fm.KeyPress -= Zeichen; sp.KeyPress -= Zeichen; fm.DropDown -= Auf; fm.DropDownClosed -= Zu;
+                    log.Add($"INFO  V17 Formatauswahl Spur: {string.Join(" ", spur)}");
                     var such = Steuerelemente.ListenSuche.Tippsuchtext(fm);
                     var offen = fm.DroppedDown;
                     Foto(Path.Combine(ordner, "V17c_Formatsuche_Bildschirm.png"));
