@@ -2028,8 +2028,27 @@ public sealed partial class HauptFenster
                 // Bild mit offener Vorschlagsliste; danach muss die Liste noch offen und der Suchtext unverändert sein
                 Vergleich("V17_Kombisuche", sp, new Size(640, 520));
                 log.Add($"INFO  V17 vor Enter: Liste offen {cb.DroppedDown}, Fokus {cb.Focused}, Text „{cb.Text}“, Suchtext {Steuerelemente.ListenSuche.HatSuchtext(cb)}, aktiv {Form.ActiveForm?.Name}/{AppZustand.Haupt.ActiveMdiChild?.Text}");
-                KombiTaste(edit, Keys.Enter);
-                Warten(400);
+                var tasten = new List<string>();
+                void TasteNieder(object? s, KeyEventArgs e) => tasten.Add($"{(s == sp ? "F" : "K")}:{e.KeyCode}");
+                void Vorschau(object? s, PreviewKeyDownEventArgs e) => tasten.Add($"P:{e.KeyCode}");
+                void Geschlossen(object? s, EventArgs e) => tasten.Add($"zu:{cb.SelectedIndex}/{cb.Text}");
+                cb.KeyDown += TasteNieder;
+                cb.PreviewKeyDown += Vorschau;
+                cb.DropDownClosed += Geschlossen;
+                sp.KeyDown += TasteNieder;
+                try
+                {
+                    KombiTaste(edit, Keys.Enter);
+                    Warten(400);
+                }
+                finally
+                {
+                    cb.KeyDown -= TasteNieder;
+                    cb.PreviewKeyDown -= Vorschau;
+                    cb.DropDownClosed -= Geschlossen;
+                    sp.KeyDown -= TasteNieder;
+                }
+                log.Add($"INFO  V17 Enter: Ereignisse {string.Join(" ", tasten)}, {geaendert} Änderung(en), {bestaetigt} Bestätigung(en), Text „{cb.Text}“, Index {cb.SelectedIndex}");
                 if (sp.ElementId != erwartet.Id) throw new InvalidOperationException($"Enter wählt „{AppZustand.D.Klassen.FirstOrDefault(k => k.Id == sp.ElementId)?.Kurzname}“ statt „{erwartet.Kurzname}“.");
                 if (cb.DroppedDown) throw new InvalidOperationException("Liste bleibt nach Enter offen.");
                 if (geaendert != 1 || bestaetigt != 1) log.Add($"FEHLER V17: Enter meldet {geaendert} Änderung(en) und {bestaetigt} Bestätigung(en) statt je einer.");
