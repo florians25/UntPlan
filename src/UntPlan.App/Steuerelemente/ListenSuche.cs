@@ -361,7 +361,12 @@ public static class ListenSuche
         };
         cb.PreviewKeyDown += (_, e) => { if (e.KeyCode == Keys.Tab && t.Puffer.Length > 0) Beenden(true); };
         cb.DropDownClosed += (_, _) => { if (t.Puffer.Length > 0 && !t.Oeffnet) { t.Puffer = ""; t.Markiert = -1; HinweisWeg(); } };
-        cb.Leave += (_, _) => { if (t.Puffer.Length > 0) Beenden(false); };
+        // Fokus wirklich verlassen (nicht nur kurz beim Öffnen der Liste bzw. beim Aktivieren des Fensters): Suche verwerfen
+        cb.Leave += (_, _) =>
+        {
+            if (t.Puffer.Length == 0 || t.Oeffnet || !cb.IsHandleCreated) return;
+            cb.BeginInvoke(() => { if (t.Puffer.Length > 0 && !cb.IsDisposed && !cb.Focused && !cb.DroppedDown) Beenden(false); });
+        };
         cb.Disposed += (_, _) => t.Hinweis?.Dispose();
     }
 
