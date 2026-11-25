@@ -502,6 +502,10 @@ public static class ListenSuche
         }
         z.Markiert = Treffer(cb, text, z);
         ListeMarkieren(cb, z.Markiert);
+        // Windows gleicht die offene Liste nach dem Tastendruck selbst mit dem Text ab (bei selbst gezeichneten Einträgen ohne Treffer):
+        // den Vorschlag danach noch einmal markieren, damit er sichtbar bleibt
+        if (cb.IsHandleCreated)
+            cb.BeginInvoke(() => { if (Bedienbar(cb) && cb.DroppedDown && z.Getippt && z.Markiert >= 0) ListeMarkieren(cb, z.Markiert); });
     }
 
     private static void Breite(ComboBox cb, Zustand z) => BreiteSetzen(cb, z.Stil, z.Langname);

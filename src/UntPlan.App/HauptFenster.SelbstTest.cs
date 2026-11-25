@@ -2020,14 +2020,14 @@ public sealed partial class HauptFenster
                 var edit = KombiInfoHolen(cb.Handle, ref info) ? info.hwndItem : IntPtr.Zero;
                 if (edit == IntPtr.Zero) throw new InvalidOperationException("Elementauswahl: kein Eingabefeld gefunden.");
                 // echtes Tippen (Zeichen an das Eingabefeld), Taste für Taste
-                foreach (var ch in suche) { KombiSenden(edit, 0x0102, ch, IntPtr.Zero); Warten(60); }
+                foreach (var ch in suche) KombiTippen(edit, ch);
                 Warten(200);
                 if (!cb.DroppedDown) throw new InvalidOperationException("Tippen öffnet die Liste nicht.");
                 if (geaendert != 0 || sp.ElementId != start.Id) throw new InvalidOperationException($"Tippen ändert die Auswahl schon vor Enter ({geaendert} Änderung(en), Element {sp.ElementId}).");
-                if (!string.Equals(cb.Text, suche, ci)) log.Add($"INFO  V17 Text nach dem Tippen: „{cb.Text}“");
+                log.Add($"INFO  V17 nach dem Tippen: Text „{cb.Text}“, Suchtext {Steuerelemente.ListenSuche.HatSuchtext(cb)}, Treffer {Steuerelemente.ListenSuche.Treffer(cb, suche)}");
                 Vergleich("V17_Kombisuche", sp, new Size(640, 520));
                 Foto(Path.Combine(ordner, "V17_Kombisuche_Bildschirm.png"));
-                KombiSenden(edit, 0x0100, 0x0D, IntPtr.Zero);
+                KombiTaste(edit, Keys.Enter);
                 Warten(400);
                 if (sp.ElementId != erwartet.Id) throw new InvalidOperationException($"Enter wählt „{AppZustand.D.Klassen.FirstOrDefault(k => k.Id == sp.ElementId)?.Kurzname}“ statt „{erwartet.Kurzname}“.");
                 if (cb.DroppedDown) throw new InvalidOperationException("Liste bleibt nach Enter offen.");
@@ -2036,9 +2036,9 @@ public sealed partial class HauptFenster
                 // Esc stellt den Wert her
                 geaendert = bestaetigt = 0;
                 var andere = klassen.First(k => k.Id != erwartet.Id).Kurzname;
-                KombiSenden(edit, 0x0102, andere[0], IntPtr.Zero);
+                KombiTippen(edit, andere[0]);
                 Warten(150);
-                KombiSenden(edit, 0x0100, 0x1B, IntPtr.Zero);
+                KombiTaste(edit, Keys.Escape);
                 Warten(300);
                 if (sp.ElementId != erwartet.Id || cb.Text != erwartet.Kurzname || geaendert != 0) throw new InvalidOperationException($"Esc stellt „{erwartet.Kurzname}“ nicht her („{cb.Text}“, {geaendert} Änderung(en)).");
                 log.Add($"INFO  V17 Elementauswahl: „{suche}“ + Enter → {erwartet.Kurzname} (je eine Änderung und Bestätigung), Esc stellt her");
@@ -2064,12 +2064,12 @@ public sealed partial class HauptFenster
             {
                 fm.Focus();
                 Warten(60);
-                foreach (var ch in ziel.t[..2]) { KombiSenden(fm.Handle, 0x0102, ch, IntPtr.Zero); Warten(60); }
+                foreach (var ch in ziel.t[..2]) KombiTippen(fm.Handle, ch);
                 Warten(200);
                 if (fGeaendert != 0 || fm.SelectedIndex != vorher) throw new InvalidOperationException($"Formatauswahl: Tippen ändert die Auswahl schon vor Enter ({fGeaendert}).");
                 if (Steuerelemente.ListenSuche.Tippsuchtext(fm) != ziel.t[..2]) throw new InvalidOperationException($"Formatauswahl: Suchtext „{Steuerelemente.ListenSuche.Tippsuchtext(fm)}“.");
                 Foto(Path.Combine(ordner, "V17c_Formatsuche_Bildschirm.png"));
-                KombiSenden(fm.Handle, 0x0100, 0x0D, IntPtr.Zero);
+                KombiTaste(fm.Handle, Keys.Enter);
                 Warten(400);
                 if (fm.SelectedIndex != ziel.i) throw new InvalidOperationException($"Formatauswahl: Enter wählt „{fm.Text}“ statt „{ziel.t}“.");
                 if (fGeaendert != 1) log.Add($"FEHLER V17: Formatauswahl meldet {fGeaendert} Änderung(en) statt einer.");
@@ -3952,10 +3952,20 @@ public sealed partial class HauptFenster
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetComboBoxInfo")]
     private static extern bool KombiInfoHolen(IntPtr hwnd, ref KombiInfo info);
 
-    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SendMessageW")]
-    private static extern IntPtr KombiSenden(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+    /// <summary>Zeichen wie getippt: über die Nachrichtenschleife (mit Vorverarbeitung) an das Eingabefeld bzw. die Liste.</summary>
+    private static void KombiTippen(IntPtr hwnd, char zeichen)
+    {
+        R3BPostMessage(hwnd, 0x0102, (IntPtr)zeichen, (IntPtr)1);
+        Warten(80);
+    }
 
-    private static IntPtr KombiSenden(IntPtr hwnd, int msg, int w, IntPtr l) => KombiSenden(hwnd, msg, (IntPtr)w, l);
+    /// <summary>Taste (Enter, Esc) wie gedrückt: Taste nieder und los über die Nachrichtenschleife.</summary>
+    private static void KombiTaste(IntPtr hwnd, Keys taste)
+    {
+        R3BPostMessage(hwnd, 0x0100, (IntPtr)(int)taste, (IntPtr)1);
+        R3BPostMessage(hwnd, 0x0101, (IntPtr)(int)taste, (IntPtr)unchecked((int)0xC0000001));
+        Warten(150);
+    }
 
     private static void Warten(int ms)
     {
