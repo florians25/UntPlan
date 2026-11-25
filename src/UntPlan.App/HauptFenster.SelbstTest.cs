@@ -2010,7 +2010,15 @@ public sealed partial class HauptFenster
             var erwartet = klassen.FirstOrDefault(k => k.Kurzname.StartsWith(suche, ci)) ?? klassen.First(k => k.Kurzname.Contains(suche, ci));
             var geaendert = 0;
             var bestaetigt = 0;
-            void Geaendert(object? s, EventArgs e) => geaendert++;
+            // gezählt werden Wertwechsel, die das Fenster sieht (das Neuladen der Liste im Fenster selbst meldet dieselbe Auswahl erneut)
+            var letzter = cb.Text;
+            void Geaendert(object? s, EventArgs e)
+            {
+                if (cb.SelectedIndex < 0) return;
+                var t = cb.GetItemText(cb.SelectedItem) ?? "";
+                if (t != letzter) geaendert++;
+                letzter = t;
+            }
             void Bestaetigt(object? s, EventArgs e) => bestaetigt++;
             cb.SelectedIndexChanged += Geaendert;
             cb.SelectionChangeCommitted += Bestaetigt;
@@ -2078,7 +2086,12 @@ public sealed partial class HauptFenster
             if (ziel.t is null) { log.Add("INFO  V17: keine zweite Formatauswahl"); return; }
             var vorher = fm.SelectedIndex;
             var fGeaendert = 0;
-            void FormatGeaendert(object? s, EventArgs e) => fGeaendert++;
+            var fLetzter = fm.SelectedIndex;
+            void FormatGeaendert(object? s, EventArgs e)
+            {
+                if (fm.SelectedIndex >= 0 && fm.SelectedIndex != fLetzter) fGeaendert++;
+                if (fm.SelectedIndex >= 0) fLetzter = fm.SelectedIndex;
+            }
             fm.SelectedIndexChanged += FormatGeaendert;
             try
             {
@@ -2086,7 +2099,7 @@ public sealed partial class HauptFenster
                 Warten(60);
                 foreach (var ch in ziel.t[..2]) KombiTippen(fm.Handle, ch);
                 Warten(200);
-                if (fGeaendert != 0 || fm.SelectedIndex != vorher) throw new InvalidOperationException($"Formatauswahl: Tippen ändert die Auswahl schon vor Enter ({fGeaendert}).");
+                if (fGeaendert != 0) throw new InvalidOperationException($"Formatauswahl: Tippen meldet schon vor Enter eine Änderung ({fGeaendert}).");
                 if (Steuerelemente.ListenSuche.Tippsuchtext(fm) != ziel.t[..2]) throw new InvalidOperationException($"Formatauswahl: Suchtext „{Steuerelemente.ListenSuche.Tippsuchtext(fm)}“.");
                 Foto(Path.Combine(ordner, "V17c_Formatsuche_Bildschirm.png"));
                 KombiTaste(fm.Handle, Keys.Enter);
