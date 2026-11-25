@@ -19,6 +19,7 @@ import SwiftUI
 /// 12 pt bei 14,33 pt Zeilenabstand (iPad 12,4/14,3). Nachgemessen (Vorlagen dunkel 567a139b/6d696e75, 1206 px = 402 pt,
 /// 3 px/pt, Farben aus Display P3 nach sRGB): Ecken 4 pt kontinuierlich, Rahmen 2 pt, Kartenabstand waagrecht 2,33 pt. Jede Zeile ist einzeilig – was nicht passt, endet mit „…“, auch
 /// innerhalb grüner Plaketten; Zeilen auf Höhe der Zeichen unten rechts (Info, Hausaufgabe) lassen dafür Platz.
+/// Mehrere Räume: nur der erste Raum, direkt dahinter ein Komma und das Feld „…“ (alle Räume in den Details).
 /// In der Tagesansicht (gross) dieselbe Karte ohne zusätzliche Angaben, nur breiter.
 struct KachelView: View {
     let kachel: Kachel
@@ -421,7 +422,9 @@ struct KachelzeileView: View {
 
     var body: some View {
         Group {
-            if zeile.abschneiden {
+            if let erster = ersterVonMehrerenRaeumen {
+                raumMitWeiteren(erster)
+            } else if zeile.abschneiden {
                 // Liste mehrerer Lehrkräfte (Kopplung, Konferenz): eine Zeile, kein Umbruch, gleiche Schriftgröße. Passt sie nicht,
                 // stehen so viele ganze Kürzel wie möglich und dahinter „…“ (nie ein halb abgeschnittenes Kürzel oder Label)
                 ViewThatFits(in: .horizontal) {
@@ -446,6 +449,35 @@ struct KachelzeileView: View {
         // Obere Zeile (auch die grüne Plakette darin) Semibold (ausdrücklicher Wunsch), weitere Zeilen Regular
         .font(.system(size: schrift, weight: oben ? .semibold : .regular))
         .foregroundStyle(titelFarbe ?? aussehen.text)
+    }
+
+    /// Mehrere (aktuelle) Räume: der erste Raum – mit seinem Label, falls er geändert ist; weggefallene Räume (durchgestrichen
+    /// im Label) zählen nicht mit und stehen wie bisher nur neben einem einzelnen Raum.
+    private var ersterVonMehrerenRaeumen: Kachelteil? {
+        guard zeile.schluessel == "raum" else { return nil }
+        let aktuell = zeile.teile.filter { $0.stil == .text || $0.stil == .plakette }
+        return aktuell.count > 1 ? aktuell[0] : nil
+    }
+
+    /// Mehrere Räume wie im Original (Vorlage dunkel 28af4b02, 3 px/pt): „C009,“ und direkt dahinter das Feld „…“ – Abstand
+    /// vom Komma bis zur Fläche wie vor einem Label in einer Kommaliste (Tinte 8–9 px), Fläche zeilenhoch (43 px = 14,33 pt) und
+    /// 41 px = 13,67 pt breit (Innenabstand je 2 pt wie die Plaketten), Ecken 2 pt, „…“ in Zeilenschrift auf derselben
+    /// Grundlinie; Farbe der Fläche = Akzentfarbe der Karte (dort Rahmengrün #1fc0a0 mit „…“ #10161d). Der Raum kürzt mit
+    /// „…“, Komma und Feld bleiben immer stehen.
+    private func raumMitWeiteren(_ erster: Kachelteil) -> some View {
+        HStack(spacing: 0) {
+            teil(erster, kuerzbar: true)
+                .padding(.leading, istLabel(erster) ? -Plakettenwert.vorsprung : 0)
+            if istLabel(erster) { Color.clear.frame(width: Self.nachLabel, height: 1) }
+            Text(",")
+                .strikethrough(aussehen.durchgestrichen)
+                .fixedSize()
+            Color.clear.frame(width: Self.vorLabel, height: 1)
+            Plakettenwert(text: "…", farbe: aussehen.akzent, schriftFarbe: aussehen.akzentSchrift, zeilenHoehe: zeilenHoehe)
+                .layoutPriority(1)
+        }
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Abstand zwischen einem Label und dem nächsten Wert (statt Komma bzw. Leerzeichen).
@@ -562,6 +594,11 @@ struct Kachelaussehen {
     var durchgestrichen = false
     var balken: Color? = Farben.karteBalken
     var balkenDeckkraft: Double = 1
+    /// Feld „…“ hinter dem ersten von mehreren Räumen: farbige Karten in ihrer Rahmenfarbe (auch vergangen, wo der Rahmen
+    /// hell entfällt; dunkel die Vergangen-Farbe des Rahmens) mit der Schrift der Plaketten (hell weiß, dunkel #10161d);
+    /// Karten ohne farbigen Rahmen im Balkengrau #bec8cf mit dunkler Schrift.
+    var akzent: Color = Farben.karteBalken
+    var akzentSchrift: Color = Color(hexWert: 0x10161D)
 
     init(_ k: Kachel, dunkel: Bool) {
         let v = k.vergangen
@@ -594,6 +631,9 @@ struct Kachelaussehen {
             rand = Farben.terminRand
             randBreite = 1.5
             schatten = .keiner
+            // Räume stehen hier als grüne Plaketten – das Feld „…“ in derselben Farbe
+            akzent = Farben.gruen
+            akzentSchrift = Farben.gruenSchrift
         case .abgegeben:
             // Vorlagen 178/180: keine Fläche, kein Rahmen, nur die feinen Eckklammern; Balken und Schrift wie bei anderen
             // (vergangenen) Stunden
@@ -677,6 +717,8 @@ struct Kachelaussehen {
     private mutating func farbigeKarte(flaeche: Color, vergangeneFlaeche: Color? = nil, rand farbe: Color,
                                        vergangenerRand: Color? = nil, vergangen: Bool, dunkel: Bool,
                                        schatten mitSchatten: Bool) {
+        akzent = vergangen && dunkel ? (vergangenerRand ?? farbe) : farbe
+        akzentSchrift = Farben.gruenSchrift
         if vergangen && dunkel {
             // Dunkel vergangen: Schieferfläche, Rahmen in der dunkleren Vergangen-Farbe (grün #007d64, gelb #c57d00, rot #df0046)
             hintergrund = Farben.karteVergangen
@@ -886,6 +928,8 @@ struct Plakettenwert: View {
     static let radius: CGFloat = 2
     let text: String
     var farbe: Color = Farben.gruen
+    /// Schrift in der Fläche (Plaketten: hell weiß, dunkel #10161d)
+    var schriftFarbe: Color = Farben.gruenSchrift
     var durchgestrichen: Bool = false
     /// Darf der Text innerhalb der Plakette mit „…“ gekürzt werden (sonst volle Breite)?
     var kuerzbar: Bool = false
@@ -897,8 +941,8 @@ struct Plakettenwert: View {
         // (ohne Label, gleiche Zeile) liegen auf den Bildpunkt gleich hoch – daher kein senkrechter Versatz mehr (vorher
         // −0,15 pt); Fläche zeilenhoch (vorher 14 pt).
         Text(text)
-            .strikethrough(durchgestrichen, color: Farben.gruenSchrift)
-            .foregroundStyle(Farben.gruenSchrift)
+            .strikethrough(durchgestrichen, color: schriftFarbe)
+            .foregroundStyle(schriftFarbe)
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.leading, Self.innen)
