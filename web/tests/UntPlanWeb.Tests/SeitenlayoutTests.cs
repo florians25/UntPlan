@@ -29,7 +29,8 @@ public class SeitenlayoutTests
         var stand = s.Dienst<Paketdienst>().Aktuell!;
         var sid = stand.Paket.Elemente.Schueler.First(x => x.Klasse == "7a").Id;
         var erste = stand.Paket.Zeitraster.Stunden.OrderBy(z => z.Nr).First();
-        var autor = await s.AlsAsync("autor", "lehrer", "AUT");
+        // Verfasser: Klassenleitung der 7a
+        var autor = await s.AlsAsync("autor", "lehrer", "LAN");
         var v = await Testserver.JsonAsync(await autor.PostAsJsonAsync("/api/app/klassenbuch/vermerke",
             new { datum = "2026-10-14", klasse = "7a", schuelerId = sid, art = "Lob", text = "Sehr gutes Referat", zeit = erste.Beginn }));
         var id = v["id"]!.GetValue<int>();
@@ -42,8 +43,11 @@ public class SeitenlayoutTests
         Assert.True(x["bearbeiten"]!.GetValue<bool>());
         Assert.True(x["loeschen"]!.GetValue<bool>());
 
-        // andere Lehrkraft ohne Klassenleitung: nur lesen
-        var fremd = await s.AlsAsync("fremd", "lehrer", "XYZ");
+        // Lehrkraft der Klasse ohne Klassenleitung (FIS unterrichtet die 7a): nur lesen
+        var fremd = await s.AlsAsync("fis", "lehrer", "FIS");
+        // Lehrkraft ohne Unterricht in der Klasse: kein Zugriff auf die Einträge der Klasse
+        var ohne = await s.AlsAsync("fremd", "lehrer", "XYZ");
+        Assert.Equal(HttpStatusCode.Forbidden, (await ohne.GetAsync("/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-20&klasse=7a")).StatusCode);
         var y = (await Testserver.HolenAsync(fremd, "/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-20&klasse=7a"))["eintraege"]!.AsArray()
             .First(e => e!["id"]!.GetValue<int>() == id)!;
         Assert.False(y["bearbeiten"]!.GetValue<bool>());

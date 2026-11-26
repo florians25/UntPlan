@@ -1,6 +1,6 @@
 // Klassenbuch → Abwesenheiten wie im Original: Liste der Schülerabwesenheiten mit Filter (Klasse, Schüler*in, Zeitraum, Grund, Status),
 // Neu/Bearbeiten/Löschen, Zusammenfassen und Entschuldigen durch die Klassenleitung, CSV; Reiter „Meine Abwesenheiten“ (eigene Meldungen).
-import { e, icon, holen, senden, api, toast, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
+import { e, icon, holen, senden, api, toast, leer, filterFeld, datumKachel, stundenText, heuteIso, plusTage, meldungText, statusMarker, herunterladen, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
@@ -69,7 +69,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   // (Familien-URL: #/abwesenheiten/<reiter>/<von>/<status>/<bis>)
   if (kontext.familie) return (await import('./familie.js')).abwesenheiten(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam]);
   const ich = kontext.ich;
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'verwalten');
   const reiter = reiterParam === 'meine' && ich.element ? 'meine' : 'schueler';
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   // Zeitraum und Klasse gemeinsam mit den Fehlzeiten (dieselben Daten in beiden Bereichen)

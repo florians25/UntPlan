@@ -1,5 +1,5 @@
 // Klassenbuch: Übersicht (Liste aller Unterrichte des Schuljahres), Fehlzeitenverwaltung, Vermerke, Inhalte/Hausaufgaben; Hausaufgaben für Klassenkonten.
-import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
+import { e, icon, api, holen, senden, toast, alarm, datumKurz, datumLang, heuteIso, plusTage, leer, lade, infoHinweis, suchfeldMitFilter, suchfeldMitFilterBinden, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { karteDialog } from '../plangitter.js';
 import { elementWahl } from '../elementwahl.js';
@@ -18,7 +18,7 @@ function verlaufTabelle(liste, kollegium) {
 export async function zeigen(seite, kontext, [klasseParam, reiterParam, datumParam, vonParam]) {
   const ich = kontext.ich;
   kontext.titel(!ich.kollegium ? 'Hausaufgaben' : reiterParam === 'fehlzeiten' ? 'Fehlzeiten' : klasseParam && reiterParam !== 'uebersicht' ? 'Klassenbuch' : '');
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   // ohne Angabe: eigene Klasse (Klassenleitung), sonst die erste
   const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
   const klasse = ich.kollegium ? (klasseParam && klasseParam !== '-' ? klasseParam : (reiterParam === 'fehlzeiten' && el.klassen.some(k => k.kurz === abwZeitraum()?.klasse && (ich.admin || ich.rolle === 'leitung' || (k.leitung ?? []).some(l => l.toLowerCase() === (ich.element ?? '').toLowerCase()))) ? abwZeitraum().klasse : null) ?? eigene ?? el.klassen[0]?.kurz) : ich.element;
@@ -333,7 +333,7 @@ export function abwesenheitTags(s, kommend) {
  */
 async function uebersicht(seite, kontext, kritParam, datumParam, unterrichtParam) {
   const ich = kontext.ich;
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const heute = heuteIso();
   const sj = kontext.sitzung.schuljahr ?? {};
   const sjVonRoh = sj.von || plusTage(heute, -300), sjBisRoh = sj.bis || plusTage(heute, 300);

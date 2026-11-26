@@ -542,6 +542,14 @@ public sealed partial class Klassenbuchverwaltung
     {
         var info = Berichtsarten.FirstOrDefault(x => x.Id == art) ?? throw new ArgumentException("Unbekannter Bericht.");
         if (info.KlasseNoetig && string.IsNullOrEmpty(klasse)) throw new ArgumentException("Bitte eine Klasse wählen.");
+        // Klassenberichte: Klassenlehrkräfte nur für die eigenen Klassen (Arbeitsberichte und Klassenbuch auch die Lehrkräfte der Klasse);
+        // Berichte zum eigenen Unterricht und Prüfungen bleiben unberührt
+        if (!info.Unterricht && info.Id != "pruefungen" && !Klassenbuchdienst.AlleKlassen(b))
+        {
+            if (string.IsNullOrEmpty(klasse)) throw new ArgumentException("Bitte eine Ihrer Klassen wählen.");
+            if (info.Gruppe is "Arbeitsbericht" or "Klassenbuch") Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
+            else Klassenbuchdienst.KlasseVerwaltenVerlangen(b, s, klasse);
+        }
         if (bis < von) (von, bis) = (bis, von);
         if (bis.DayNumber - von.DayNumber > 400) throw new ArgumentException("Bitte einen Zeitraum von höchstens einem Schuljahr wählen.");
         if (Zusatzbericht(s, b, info, von, bis, klasse, schueler, optionen ?? new Dictionary<string, string>()) is Bericht zusatz) return zusatz;

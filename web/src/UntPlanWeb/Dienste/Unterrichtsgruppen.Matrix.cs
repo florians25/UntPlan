@@ -45,6 +45,7 @@ public sealed partial class Unterrichtsgruppen
     {
         Kollegium(b);
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
+        if (!Rechtedienst.Darf(b, Recht.UnterrichtKlassen)) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
         var stichtag = StichtagSchuljahr(s);
         var periode = Listendienst.Periode(s, stichtag);
         var zeilen = _listen.Unterrichte(s, stichtag, null, klasse);
@@ -96,6 +97,16 @@ public sealed partial class Unterrichtsgruppen
         }
         void Schueler(IEnumerable<WebSchueler> liste) { foreach (var x in liste) if (!zeilenIds.Contains(x.Id)) zeilenIds.Add(x.Id); }
         var kWahl = klassen.Where(k => s.Klassen.ContainsKey(k)).Distinct(Ci).ToList();
+        // ohne Recht „Unterricht Klassen“ (Schreiben): nur Klassen, in denen das Konto Klassenleitung ist oder unterrichtet
+        var eingeschraenkt = !Rechtedienst.Darf(b, Recht.UnterrichtKlassen);
+        if (eingeschraenkt)
+        {
+            foreach (var k in kWahl) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, k);
+            foreach (var id in schuelerIds.Where(alle.ContainsKey))
+                Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, Klassenzugehoerigkeit.KlasseAm(s, alle[id], stichtag));
+            if (faecher.Any(f => f.Length > 0) && kWahl.Count == 0 && !schuelerIds.Any())
+                throw new ArgumentException("Bitte zusätzlich eine Ihrer Klassen wählen.");
+        }
         foreach (var k in kWahl)
         {
             foreach (var z in _listen.Unterrichte(s, stichtag, null, k)) Unterricht(z);
@@ -110,7 +121,8 @@ public sealed partial class Unterrichtsgruppen
         }
         var fWahl = faecher.Where(f => f.Length > 0).Distinct(Ci).ToList();
         foreach (var f in fWahl)
-            foreach (var z in _listen.Unterrichte(s, stichtag, null, null).Where(z => z.Fach.Split(", ").Contains(f, Ci)))
+            foreach (var z in _listen.Unterrichte(s, stichtag, null, null).Where(z => z.Fach.Split(", ").Contains(f, Ci))
+                         .Where(z => !eingeschraenkt || z.Klassen.Any(k => Klassenbuchdienst.DarfKlasseEinsehen(b, s, k))))
             {
                 Unterricht(z);
                 Schueler(Klassenzugehoerigkeit.Am(s, z.Klassen, stichtag));

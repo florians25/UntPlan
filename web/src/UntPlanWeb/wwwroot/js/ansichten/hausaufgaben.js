@@ -1,5 +1,5 @@
 // Hausaufgaben: nach Fälligkeit geordnet, Filter nach Zeitraum, Klasse und Lehrkraft; Klassenkonten zusätzlich mit Reiter „Lehrstoff“.
-import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
+import { e, icon, holen, leer, filterFeld, datumKachel, datumKurz, heuteIso, plusTage, montag, suchfeldMitFilter, suchfeldMitFilterBinden, klassenFuer } from '../ui.js';
 import { hausaufgabeDetails, hausaufgabeFormular } from '../hausaufgabe.js';
 
 export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, klasseParam, lehrerParam]) {
@@ -7,7 +7,7 @@ export async function zeigen(seite, kontext, [reiterParam, vonParam, bisParam, k
   if (kontext.familie) return (await import('./familie.js')).hausaufgaben(seite, kontext, [reiterParam, vonParam]);
   const ich = kontext.ich;
   if (ich.kollegium && !/^\d{4}-/.test(vonParam ?? '')) return hausaufgabenListe(seite, kontext, reiterParam);
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const reiter = reiterParam === 'lehrstoff' ? 'lehrstoff' : 'offen';
   const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -7);

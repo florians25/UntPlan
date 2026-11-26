@@ -633,7 +633,8 @@ public class BuchbarUndFehlzeitenTests
         var sid = stand.Paket.Elemente.Schueler.First(x => x.Klasse == "7a").Id;
         var r = await Testserver.JsonAsync(await leitung.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/tage", new { schuelerId = sid, von = "2026-10-12", bis = "2026-10-13", status = "entschuldigt", bemerkung = "krank" }));
         Assert.True(r["stunden"]!.GetValue<int>() > 0);
-        var lehrer = await s.AlsAsync("fremd", "lehrer", "XYZ");
+        // Lehrkraft der Klasse ohne Klassenleitung (FIS unterrichtet die 7a)
+        var lehrer = await s.AlsAsync("fremd", "lehrer", "FIS");
         Assert.False((await lehrer.PostAsJsonAsync("/api/app/klassenbuch/fehlzeiten/tage", new { schuelerId = sid, von = "2026-10-12", bis = "2026-10-12" })).IsSuccessStatusCode);
 
         await Testserver.JsonAsync(await lehrer.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "7a", schuelerId = sid, art = "Lob", text = "Sehr gutes Referat" }));

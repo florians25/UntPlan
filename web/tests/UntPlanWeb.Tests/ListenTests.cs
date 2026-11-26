@@ -334,8 +334,11 @@ public class ListenTests
         // Klassenbucheinträge über alle Klassen, Filter nach Art
         await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "7a", schuelerId = sid, art = "Lob", text = "Hilft anderen" }));
         await Testserver.JsonAsync(await c.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-13", klasse = "6a", art = "Vermerk", text = "Ausflug besprochen" }));
-        var ein = await Testserver.HolenAsync(c, "/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-14");
+        // Schulleitung sieht alle Klassen, die Lehrkraft nur Klassen mit eigenem Unterricht bzw. Klassenleitung
+        var ein = await Testserver.HolenAsync(kl, "/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-14");
         Assert.Equal(2, ein["eintraege"]!.AsArray().Count);
+        Assert.All((await Testserver.HolenAsync(c, "/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-14"))["eintraege"]!.AsArray(),
+            x => Assert.True(Klassenbuchdienst.DarfKlasseEinsehen(s.Dienst<Benutzerdienst>().NachLogin(lehrer.ToLowerInvariant())!, stand, x!["klasse"]!.GetValue<string>())));
         var lob = (await Testserver.HolenAsync(c, "/api/app/klassenbucheintraege?von=2026-10-01&bis=2026-10-14&art=Lob"))["eintraege"]!.AsArray();
         Assert.False(string.IsNullOrEmpty(Assert.Single(lob)!["schueler"]!.GetValue<string>()));
     }

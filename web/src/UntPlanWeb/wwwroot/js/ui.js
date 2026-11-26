@@ -493,3 +493,14 @@ export async function druckenMitAusrichtung(vorgabe = 'quer', schluessel = 'druc
   setTimeout(weg, 1500);
   return true;
 }
+
+/**
+ * Klassen für klassenbezogene Seiten: Schulleitung und Administration sehen alle Klassen, Klassenlehrkräfte nur ihre eigenen
+ * ('verwalten': Klassenleitung) bzw. zusätzlich die Klassen ihres Unterrichts ('einsehen': Klassenbuch, Einträge, Gruppen, Sitzplan).
+ * Gibt eine Kopie der Elemente mit gefilterter Klassenliste zurück; der Server prüft dieselbe Regel.
+ */
+export const klassenFuer = (el, ich, art = 'verwalten') => {
+  if (!ich?.kollegium || ich.alleKlassen !== false) return el;
+  const erlaubt = new Set([...(ich.klassenleitung ?? []), ...(art === 'einsehen' ? ich.unterrichtsklassen ?? [] : [])].map(k => k.toLowerCase()));
+  return { ...el, klassen: el.klassen.filter(k => erlaubt.has(String(k.kurz).toLowerCase())) };
+};

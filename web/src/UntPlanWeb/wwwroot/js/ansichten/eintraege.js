@@ -1,6 +1,6 @@
 // Klassenbucheinträge: Vermerke (Lob, Ordnungsmaßnahme, Elterngespräch …) über alle oder eine Klasse, mit Filter und neuem Eintrag.
 // Klick auf einen Eintrag öffnet den Detaildialog (gemeinsame kbDialog-Komponente) mit allen Angaben und – je nach Recht – Bearbeiten/Löschen.
-import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, herunterladen } from '../ui.js';
+import { e, icon, api, holen, senden, toast, leer, datumKurz, datumLang, heuteIso, plusTage, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, herunterladen, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
@@ -13,7 +13,7 @@ const zeitstempel = s => { const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/
 const KATEGORIEGRUPPEN = { 'Maßnahme': ['Erzieherische Maßnahme', 'Ordnungsmaßnahme', 'Trainingsraum', 'Konsequenzmodell'] };
 
 export async function zeigen(seite, kontext, [vonParam, bisParam, klasseParam, artParam, schuelerParam, gruppeParam]) {
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const von = iso.test(vonParam ?? '') ? vonParam : plusTage(heuteIso(), -30);
   const bis = iso.test(bisParam ?? '') ? bisParam : heuteIso();

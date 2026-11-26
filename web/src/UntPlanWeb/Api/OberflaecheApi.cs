@@ -78,10 +78,14 @@ public static partial class OberflaecheApi
             var s = Paket(p);
             var k = string.IsNullOrWhiteSpace(klasse) ? null : klasse.Trim();
             var de = StringComparer.Create(new System.Globalization.CultureInfo("de-DE"), true);
+            // Klassenlehrkräfte: nur die eigenen Klassen (Schülerverwaltung, Schulleitung und Administration: alle)
+            var alle = Schuelerverwaltung.Verwalten(b) || Klassenbuchdienst.AlleKlassen(b);
+            if (!alle) Klassenbuchdienst.KlasseVerwaltenVerlangen(b, s, k);
+            bool Sichtbar(string kl) => alle || Klassenbuchdienst.DarfKlasseVerwalten(b, s, kl);
             return Results.Json(new
             {
-                schueler = sv.Liste(b, s, k),
-                klassen = s.Paket.Elemente.Klassen.OrderBy(x => x.Kurz, de).Select(x => new { kurz = x.Kurz, bearbeiten = Schuelerverwaltung.DarfBearbeiten(b, s, x.Kurz) }),
+                schueler = sv.Liste(b, s, k).Where(x => Sichtbar(x.Klasse)).ToList(),
+                klassen = s.Paket.Elemente.Klassen.Where(x => Sichtbar(x.Kurz)).OrderBy(x => x.Kurz, de).Select(x => new { kurz = x.Kurz, bearbeiten = Schuelerverwaltung.DarfBearbeiten(b, s, x.Kurz) }),
                 anlegen = k is null ? s.Paket.Elemente.Klassen.Any(x => Schuelerverwaltung.DarfBearbeiten(b, s, x.Kurz)) : Schuelerverwaltung.DarfBearbeiten(b, s, k),
                 loeschen = Schuelerverwaltung.Verwalten(b),
                 klassenwechsel = Schuelerverwaltung.Verwalten(b),
@@ -136,6 +140,7 @@ public static partial class OberflaecheApi
             if (ende.DayNumber - start.DayNumber > 30) ende = start.AddDays(30);
             var klassen = Liste(klasse);
             var lehrerListe = Liste(lehrer);
+            foreach (var kl in klassen) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, kl);
             var faecher = Liste(fach);
             if (klassen.Count == 0 && lehrerListe.Count == 0 && b.LehrerKuerzel is { Length: > 0 } ich) lehrerListe.Add(ich);
             var eintraege = kb.Zeitraum(start, ende);

@@ -301,6 +301,8 @@ public sealed partial class Unterrichtsgruppen
     {
         Lesen(b);
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
+        // nur lesend freigegeben (Lehrkräfte): die eigenen Klassen bzw. Klassen des eigenen Unterrichts
+        if (!Rechtedienst.Darf(b, Recht.UnterrichtKlassen)) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
         if (bis < von) (von, bis) = (bis, von);
         var stichtag = Stichtag(_uhr.Heute, von, bis);
         var zeilen = _listen.Unterrichte(s, von, null, klasse).Concat(_listen.Unterrichte(s, bis, null, klasse)).GroupBy(z => z.Id).Select(g => g.Last()).ToList();
@@ -578,6 +580,8 @@ public sealed partial class Unterrichtsgruppen
     {
         Lesen(b);
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
+        // nur lesend freigegeben (Lehrkräfte): die eigenen Klassen bzw. Klassen des eigenen Unterrichts
+        if (!Rechtedienst.Darf(b, Recht.UnterrichtKlassen)) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
         return _listen.Unterrichte(s, von, null, klasse).Concat(_listen.Unterrichte(s, bis, null, klasse)).GroupBy(z => z.Id).Select(g => g.Last())
             .OrderBy(z => z.Fach, De).ThenBy(z => z.Id)
             .Select(z => new { z.Id, z.Klassen, z.Fach, z.Lehrer, z.Wochenstunden, gruppen = s.Zuordnungen.Gruppen.GetValueOrDefault(z.Id)?.Count ?? 0 }).ToList();
