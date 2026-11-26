@@ -76,12 +76,13 @@ public sealed class Reiterleiste : Control
     private List<Rectangle> Rechtecke()
     {
         var res = new List<Rectangle>();
-        var x = 2;
+        // Vorbild (Bild 308, Absenzen): Reiter 10 Pixel breiter als ihr Text, der erste beginnt 4 Pixel nach dem Rand
+        var x = 4;
         var oben = 4;
         var unten = Height - 5;
         foreach (var t in _texte)
         {
-            var w = TextRenderer.MeasureText(t, Font).Width + 12;
+            var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 10;
             res.Add(new Rectangle(x, oben, w, unten - oben));
             x += w + 1;
         }

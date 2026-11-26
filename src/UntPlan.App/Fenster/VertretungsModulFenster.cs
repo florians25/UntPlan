@@ -84,6 +84,8 @@ public sealed class KalenderFenster : MdiFenster
         _woche.RowTemplate.Height = Ui.ZeilenHoehe();
         _woche.ColumnHeadersHeight = Ui.ZeilenHoehe();
         _woche.RowHeadersVisible = false;
+        // Vorbild (Bild 308): aktuelle Zelle dunkler beige, die erste Zelle der Zeile hell orange
+        Ui.ZeilenmarkeErsteSpalte(_woche);
         // Spalten wie im Vorbild (Kalender der Vertretungsplanung): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (PA) | Abw.Kl. |
         // Freis. | Bl.Räume | Raum-V. | Offen (R) | Tagestexte | Koll. Le. | Koll. Rä. – die Zahlen zählen dieselben Zeilen wie die
         // Vertretungsliste (Kalenderkennzahlen), der Tooltip der Überschrift nennt die Bedeutung
