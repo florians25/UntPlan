@@ -60,7 +60,8 @@ public class SeitenlayoutTests
     public async Task Eintrag_bearbeiten_durch_Verfasser_und_Administration()
     {
         await using var s = await Testserver.StartenAsync();
-        var autor = await s.AlsAsync("autor", "lehrer", "AUT");
+        // Verfasser: Lehrkraft der Klasse 7a (nur sie darf dort Klassenbucheinträge anlegen)
+        var autor = await s.AlsAsync("autor", "lehrer", "BRA");
         var id = (await Testserver.JsonAsync(await autor.PostAsJsonAsync("/api/app/klassenbuch/vermerke",
             new { datum = "2026-10-14", klasse = "7a", art = "Vermerk", text = "Erst", zeit = "08:00" })))["id"]!.GetValue<int>();
         var neu = await Testserver.JsonAsync(await autor.PutAsJsonAsync($"/api/app/klassenbuch/vermerke/{id}",

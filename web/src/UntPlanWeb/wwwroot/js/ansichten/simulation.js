@@ -57,10 +57,10 @@ export async function zeigen(ziel, kontext, neu) {
       <div class="wt-karte">
         <h4>Prüfungsfächer</h4>
         <p class="ug-hinweis mt-0">Nur in den gewählten Fächern trägt die Simulation Prüfungen ein, je Klasse und Fach eine im Halbjahr.
-          In der Sekundarstufe I sind es Klassenarbeiten, in der Oberstufe (EF, Q1, Q2) Klausuren.</p>
-        <h5 class="sim-unter">Sekundarstufe I: Klassenarbeiten</h5>
+          In der Sekundarstufe I (Klassen 5 bis 10) gilt die erste Liste, in der Oberstufe (EF, Q1, Q2) und in den Bildungsgängen des Berufskollegs die zweite.</p>
+        <h5 class="sim-unter">Sekundarstufe I</h5>
         ${faecherwahl(d.faecher, sekI, 'sek1')}
-        <h5 class="sim-unter">Oberstufe: Klausuren</h5>
+        <h5 class="sim-unter">Sek II und Berufskolleg</h5>
         ${faecherwahl(d.faecher, sekII, 'sek2')}
         <h5 class="sim-unter">Eigener Prüfungsraum</h5>
         <label class="sim-anteil"><input type="range" name="klausurraumanteil" min="0" max="100" step="5" value="${Number(w.klausurraumanteil ?? 30)}">
