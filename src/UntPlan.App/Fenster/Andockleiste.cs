@@ -32,6 +32,11 @@ public static class Andockleiste
         // die Andockränder liegen innerhalb von Kopf, Menüband und Statuszeile: direkt um den MDI-Arbeitsbereich
         _manager.ManageControl(Pfad, haupt);
         _manager.ManageFloating(PfadSchwebend, haupt);
+        // Krypton reiht seine Randleisten außen ein (neben Kopf, Menüband und Statuszeile); wie beim eigenen Andocken gehören sie
+        // direkt um den Arbeitsbereich: nach jeder Änderung innen einordnen
+        haupt.ControlAdded += (_, e) => { if (IstKrypton(e.Control)) Einordnen(haupt); };
+        haupt.Layout += (_, _) => Einordnen(haupt);
+        Einordnen(haupt);
         _manager.PageCloseRequest += (_, e) =>
         {
             // Schließen der Seite: Werkzeugfenster wieder als klassisches, frei schwebendes Fenster (wie ohne Andockleiste)
@@ -40,6 +45,36 @@ public static class Andockleiste
         };
         haupt.FormClosed += (_, _) => { _manager?.Dispose(); _manager = null; _haupt = null; Seiten.Clear(); };
         return _manager;
+    }
+
+    private static bool _ordnet;
+
+    private static bool IstKrypton(Control? c) => c?.GetType().Namespace?.StartsWith("Krypton", StringComparison.Ordinal) == true;
+
+    /// <summary>
+    /// Krypton-Randleisten direkt vor den MDI-Arbeitsbereich einreihen (angedockt wird in umgekehrter Reihenfolge der Steuerelemente:
+    /// so bleiben Kopf, Menüband und Statuszeile außen und behalten ihren Platz). Die Reihenfolge der Krypton-Leisten untereinander bleibt.
+    /// </summary>
+    private static void Einordnen(Form haupt)
+    {
+        if (_ordnet || haupt.IsDisposed || haupt.Controls.OfType<MdiClient>().FirstOrDefault() is not { } mdi) return;
+        var kr = haupt.Controls.Cast<Control>().Where(IstKrypton).OrderByDescending(c => haupt.Controls.GetChildIndex(c)).ToList();
+        if (kr.Count == 0) return;
+        // schon richtig: alle Krypton-Leisten unmittelbar über dem Arbeitsbereich
+        var mi = haupt.Controls.GetChildIndex(mdi);
+        var soll = Enumerable.Range(mi + 1, kr.Count).ToHashSet();
+        if (kr.All(c => soll.Contains(haupt.Controls.GetChildIndex(c)))) return;
+        _ordnet = true;
+        haupt.SuspendLayout();
+        try
+        {
+            foreach (var c in kr) haupt.Controls.SetChildIndex(c, haupt.Controls.GetChildIndex(mdi) + 1);
+        }
+        finally
+        {
+            haupt.ResumeLayout(true);
+            _ordnet = false;
+        }
     }
 
     /// <summary>Werkzeugfenster ist über Krypton angedockt?</summary>
@@ -65,6 +100,7 @@ public static class Andockleiste
         seite.Controls.Add(inhalt);
         Seiten[name] = (seite, zurueck);
         m.AddDockspace(Pfad, rand, new[] { seite });
+        Einordnen(haupt);
         // Breite bzw. Höhe der Leiste wie das schwebende Werkzeugfenster
         if (m.FindDockingEdgeDocked(Pfad + "|" + rand) is { } kante)
             foreach (var ds in kante.OfType<KryptonDockingDockspace>())

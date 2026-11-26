@@ -1399,36 +1399,45 @@ public sealed partial class HauptFenster
             var zeichner = ToolStripManager.Renderer;
             var vertr = FensterOeffnen("vertr")!;
             ElementRollup.AndockleisteKante(DockStyle.Right);
-            Warten(700);
-            Pruefen(ElementRollup.InAndockleiste, "Rollup nicht in der Andockleiste.");
-            var lage = Andockleiste.Lage("ElementRollup");
-            Pruefen(lage.Contains("Docked"), "Rollup nicht angedockt: " + lage);
-            Pruefen(mdi.Width < mdiVorher.Width && mdi.Left == mdiVorher.Left && mdi.Top == mdiVorher.Top, $"Arbeitsbereich nicht neben der Andockleiste: {mdi.Bounds} (vorher {mdiVorher}).");
-            Pruefen(_ribbon.Bounds == ribbonVorher && _status.Bounds == statusVorher, "Menüband oder Statuszeile durch die Andockleiste verschoben.");
-            Pruefen(vertr.IsMdiChild && vertr.MdiParent == this, "Arbeitsfenster ist kein MDI-Fenster mehr.");
-            Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
-            var seite = Andockleiste.Seite("ElementRollup")!;
-            log.Add($"MASS  V50: angedockt {seite.RectangleToScreen(seite.ClientRectangle)}, Arbeitsbereich {mdi.Bounds} (vorher {mdiVorher})");
-            Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
-            Andockleiste.Schweben("ElementRollup");
-            Warten(700);
-            lage = Andockleiste.Lage("ElementRollup");
-            Pruefen(lage.Contains("Floating"), "Rollup schwebt nicht: " + lage);
-            Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Schweben nicht wieder voll: {mdi.Bounds}.");
-            Foto(Path.Combine(ordner, "V50b_Andockleiste_schwebend_F.png"));
-            ElementRollup.AndockleisteKante(DockStyle.None);
-            Warten(500);
-            Pruefen(!ElementRollup.InAndockleiste && Application.OpenForms.OfType<ElementRollup>().Any(f => f.TopLevel && f.Visible), "Rollup nach dem Lösen nicht wieder als Fenster sichtbar.");
-            Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Lösen verändert: {mdi.Bounds}.");
-            // das eigene Andocken bleibt daneben unverändert nutzbar
-            ElementRollup.KanteSetzen(DockStyle.Left);
-            Warten(300);
-            Pruefen(ElementRollup.Kante == DockStyle.Left, "Eigenes Andocken des Rollups funktioniert nicht mehr.");
-            ElementRollup.KanteSetzen(DockStyle.None);
-            Warten(300);
-            foreach (var r in Application.OpenForms.OfType<ElementRollup>().ToList()) r.Close();
-            AppZustand.Einstellungen.RollupAngedockt = "";
-            WindowState = vorher;
+            try
+            {
+                Warten(700);
+                Pruefen(ElementRollup.InAndockleiste, "Rollup nicht in der Andockleiste.");
+                var lage = Andockleiste.Lage("ElementRollup");
+                Pruefen(lage.Contains("Docked"), "Rollup nicht angedockt: " + lage);
+                Pruefen(mdi.Width < mdiVorher.Width && mdi.Left == mdiVorher.Left && mdi.Top == mdiVorher.Top, $"Arbeitsbereich nicht neben der Andockleiste: {mdi.Bounds} (vorher {mdiVorher}).");
+                Pruefen(_ribbon.Bounds == ribbonVorher && _status.Bounds == statusVorher, "Menüband oder Statuszeile durch die Andockleiste verschoben.");
+                Pruefen(vertr.IsMdiChild && vertr.MdiParent == this, "Arbeitsfenster ist kein MDI-Fenster mehr.");
+                Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
+                var seite = Andockleiste.Seite("ElementRollup")!;
+                log.Add($"MASS  V50: angedockt {seite.RectangleToScreen(seite.ClientRectangle)}, Arbeitsbereich {mdi.Bounds} (vorher {mdiVorher})");
+                Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
+                Andockleiste.Schweben("ElementRollup");
+                Warten(700);
+                lage = Andockleiste.Lage("ElementRollup");
+                Pruefen(lage.Contains("Floating"), "Rollup schwebt nicht: " + lage);
+                Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Schweben nicht wieder voll: {mdi.Bounds}.");
+                Foto(Path.Combine(ordner, "V50b_Andockleiste_schwebend_F.png"));
+                ElementRollup.AndockleisteKante(DockStyle.None);
+                Warten(500);
+                Pruefen(!ElementRollup.InAndockleiste && Application.OpenForms.OfType<ElementRollup>().Any(f => f.TopLevel && f.Visible), "Rollup nach dem Lösen nicht wieder als Fenster sichtbar.");
+                Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Lösen verändert: {mdi.Bounds}.");
+                // das eigene Andocken bleibt daneben unverändert nutzbar
+                ElementRollup.KanteSetzen(DockStyle.Left);
+                Warten(300);
+                Pruefen(ElementRollup.Kante == DockStyle.Left, "Eigenes Andocken des Rollups funktioniert nicht mehr.");
+                ElementRollup.KanteSetzen(DockStyle.None);
+                Warten(300);
+            }
+            finally
+            {
+                // auch nach einem Fehler nichts angedockt lassen (die folgenden Bildschirmfotos brauchen den vollen Arbeitsbereich)
+                if (ElementRollup.InAndockleiste) ElementRollup.AndockleisteKante(DockStyle.None);
+                if (ElementRollup.Kante != DockStyle.None) ElementRollup.KanteSetzen(DockStyle.None);
+                foreach (var r in Application.OpenForms.OfType<ElementRollup>().ToList()) r.Close();
+                AppZustand.Einstellungen.RollupAngedockt = "";
+                WindowState = vorher;
+            }
         }, -1);
         Schritt("V45_Krypton_Muster", () =>
         {
