@@ -112,6 +112,21 @@ public class FensterlageTests
     }
 
     [Fact]
+    public void MdiFensterDarfWieImVorbildHinausragenTitelBleibtErreichbar()
+    {
+        var mdi = new Size(1200, 700);
+        // unten/rechts teilweise hinaus: bleibt so (Rollbalken im Arbeitsbereich wie im Vorbild)
+        Assert.Equal(new Rectangle(900, 450, 500, 400), Fensterlage.MdiFensterErreichbar(new Rectangle(900, 450, 500, 400), mdi));
+        // größer als der Bereich: Größe bleibt
+        Assert.Equal(new Rectangle(0, 0, 1600, 900), Fensterlage.MdiFensterErreichbar(new Rectangle(0, 0, 1600, 900), mdi));
+        // oben nie über den Bereich (Titelleiste unter dem Menüband unerreichbar)
+        Assert.Equal(new Rectangle(30, 0, 500, 400), Fensterlage.MdiFensterErreichbar(new Rectangle(30, -80, 500, 400), mdi));
+        // fast ganz hinaus: Titelleiste bleibt 80 Pixel breit bzw. 30 Pixel hoch sichtbar
+        Assert.Equal(new Rectangle(1120, 670, 500, 400), Fensterlage.MdiFensterErreichbar(new Rectangle(2000, 1500, 500, 400), mdi));
+        Assert.Equal(new Rectangle(-420, 10, 500, 400), Fensterlage.MdiFensterErreichbar(new Rectangle(-700, 10, 500, 400), mdi));
+    }
+
+    [Fact]
     public void MdiFensterBeimVerschiebenBehaeltGroesseBeimAnordnenPasstEs()
     {
         var mdi = new Size(800, 500);

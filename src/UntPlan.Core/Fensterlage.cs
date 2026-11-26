@@ -132,6 +132,21 @@ public static class Fensterlage
     public static Rectangle MdiFenster(Rectangle fenster, Size mdiBereich, bool groesseAnpassen) =>
         ImBereich(fenster, new Rectangle(Point.Empty, mdiBereich), groesseAnpassen);
 
+    /// <summary>
+    /// Arbeitsfenster im MDI-Bereich wie im Vorbild (MDI): Das Fenster darf rechts, links und unten über den Bereich hinausragen
+    /// (der Bereich zeigt dann Rollbalken), seine Größe bleibt. Damit es nicht verloren geht, bleibt die Titelleiste erreichbar:
+    /// oben nie über dem Bereich, unten mindestens <paramref name="titelHoehe"/> Pixel sichtbar, seitlich mindestens
+    /// <paramref name="mindestSichtbar"/> Pixel der Titelleiste im Bereich.
+    /// </summary>
+    public static Rectangle MdiFensterErreichbar(Rectangle fenster, Size mdiBereich, int titelHoehe = 30, int mindestSichtbar = 80)
+    {
+        if (mdiBereich.Width <= 0 || mdiBereich.Height <= 0) return fenster;
+        var sichtbar = Math.Min(mindestSichtbar, Math.Max(1, fenster.Width));
+        var x = Math.Clamp(fenster.X, Math.Min(0, sichtbar - fenster.Width), Math.Max(0, mdiBereich.Width - sichtbar));
+        var y = Math.Clamp(fenster.Y, 0, Math.Max(0, mdiBereich.Height - Math.Min(titelHoehe, fenster.Height)));
+        return new Rectangle(x, y, fenster.Width, fenster.Height);
+    }
+
     /// <summary>Gespeicherte Fensteranordnung (Positionen im MDI-Bereich) in den aktuellen Bereich holen.</summary>
     public static List<Rectangle> Anordnung(IEnumerable<Rectangle> fenster, Size mdiBereich) =>
         fenster.Select(f => MdiFenster(f, mdiBereich, true)).ToList();

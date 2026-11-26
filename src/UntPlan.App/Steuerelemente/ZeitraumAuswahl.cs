@@ -226,6 +226,20 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         Groesse();
     }
 
+    /// <summary>Schloss „Tages-Abstand einfrieren“ (Selbsttest), null ohne Schloss.</summary>
+    internal CheckBox? Schloss => _schloss;
+
+    /// <summary>Selbsttest: Zeitraumart und Zeitraum setzen, ohne die Einstellung zu speichern.</summary>
+    internal void SelbsttestSetzen(Zeitraumart art, DateTime von, DateTime bis)
+    {
+        ArtSetzen(art, false);
+        _setzen = true;
+        _von.Value = von.Date;
+        _bis.Value = bis.Date;
+        _setzen = false;
+        Abgleichen(false);
+    }
+
     public void ArtSetzen(Zeitraumart art, bool merken = true)
     {
         Art = art;

@@ -16,7 +16,8 @@ public sealed class KalenderFenster : MdiFenster
     // Kopf wie im Handbuch-Bild (Kap. 4.4, 96 dpi): „Kalenderwoche“, Wochennummer ohne Rahmen mit Auf-/Ab-Pfeilen, Datumsfeld 90 breit
     // nachgemessen auf den Vorbild-Bildschirmfotos (100 %, Fensterrahmen 1 px, hier 3 px): „Kalenderwoche“ ab x 19, Wochennummer ab x 123,
     // Auf-/Ab-Pfeile ab x 148, Datumsfeld 89 × 24 ab x 169 / y 9 (jeweils ab Fensteraußenkante bzw. Oberkante des Inhalts)
-    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(119, 12, 43, 20) };
+    // Vorbild (Bild 308): Zahl ohne Rand auf dem Fensterhintergrund, weißer Hoch/Runter-Knopf 17 × 23 ab x 147 / y 9
+    private readonly Steuerelemente.Drehfeld _kw = new(Steuerelemente.DrehfeldStil.Frei) { Minimum = 1, Maximum = 53, Bounds = new Rectangle(119, 9, 45, 23) };
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Bounds = new Rectangle(166, 9, 89, 24) };
     // Vorlage (Bild 308): Kopf und Tabelle in Microsoft Sans Serif 8,25 („Kalenderwoche“ 72 Pixel, „Datum“ 30 Pixel breit)
     private static Font TabellenSchrift => Ui.DialogSchrift;
@@ -49,7 +50,6 @@ public sealed class KalenderFenster : MdiFenster
         // Vorbild: Tabelle beginnt 52 px unter der Titelleiste, links und rechts 9 px vom Fensterrand
         var kopf = new Panel { Dock = DockStyle.Top, Height = 52, Font = Ui.DialogSchrift, BackColor = Ui.Kopf };
         kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(14, 13) });
-        _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
         kopf.Controls.Add(_datum);
         Ui.DatumsfeldHoehe(_datum);

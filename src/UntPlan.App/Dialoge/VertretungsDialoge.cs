@@ -122,10 +122,11 @@ public static class ElementListe
 
     public static int? Id(ComboBox c) => (c.SelectedItem as Element)?.Id;
 
-    public static NumericUpDown Stunde(int wert)
+    /// <summary>Stundenfeld wie im Vorbild (Bild 348, „Stunde von/bis“): 20 Pixel hoch, Hoch/Runter-Knopf im hellen Rand.</summary>
+    public static Steuerelemente.Drehfeld Stunde(int wert)
     {
         var max = AppZustand.D.Zeitraster.StundenProTag;
-        return new NumericUpDown { Minimum = 1, Maximum = Math.Max(1, max), Value = Math.Clamp(wert, 1, Math.Max(1, max)), Width = 56 };
+        return new Steuerelemente.Drehfeld(Steuerelemente.DrehfeldStil.Eingebettet) { Minimum = 1, Maximum = Math.Max(1, max), Value = Math.Clamp(wert, 1, Math.Max(1, max)), Width = 56 };
     }
 }
 
@@ -151,10 +152,10 @@ public static class SondereinsatzDialog
         var dat = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 11, Top = 38, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
         f.Controls.Add(new Label { Text = "Stunde von", Left = 142, Top = 12, AutoSize = true });
         var von = ElementListe.Stunde(stunde);
-        von.SetBounds(144, 38, 64, 23);
+        von.SetBounds(144, 38, 64, 20);
         f.Controls.Add(new Label { Text = "Stunde bis", Left = 213, Top = 12, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
-        bis.SetBounds(214, 38, 64, 23);
+        bis.SetBounds(214, 38, 64, 20);
         var bKl = new Button { Text = "Klassen", Left = 297, Top = 37, Width = 118, Height = 23 };
         var bLe = new Button { Text = "Lehrer", Left = 422, Top = 37, Width = 126, Height = 23 };
         var bKk = new Button { Text = "Klassenkonferenz", Left = 555, Top = 37, Width = 118, Height = 23 };

@@ -37,7 +37,7 @@ public sealed partial class HauptFenster
             if (f is MdiFenster m) m.InArbeitsbereichKlemmen();
             else if (f.WindowState == FormWindowState.Normal && MdiArbeitsbereich is { } mdi && Fensterlage.BereichGueltig(new Rectangle(Point.Empty, mdi.ClientSize)))
             {
-                var r = Fensterlage.MdiFenster(f.Bounds, mdi.ClientSize, true);
+                var r = Fensterlage.MdiFensterErreichbar(f.Bounds, mdi.ClientSize, Steuerelemente.FensterTitel.Hoehe);
                 if (r != f.Bounds) f.Bounds = r;
             }
         }

@@ -130,7 +130,8 @@ public class MdiFenster : Form
 
     /// <summary>
     /// Jede Lageänderung (Ziehen an der Titelleiste, Größenänderung, Anordnen, gespeicherte Fensteranordnung, Bounds aus dem
-    /// Programm): Das Fenster bleibt vollständig im MDI-Arbeitsbereich – die Titelleiste rutscht nie unter das Menüband.
+    /// Programm): Das Fenster darf wie im Vorbild über den MDI-Arbeitsbereich hinausragen, die Titelleiste bleibt aber erreichbar
+    /// (nie unter dem Menüband, immer ein Stück im Bereich).
     /// </summary>
     /// <summary>Selbsttest (Nachbau eines Vorbild-Bildschirmfotos): Fenster dürfen wie dort über den Arbeitsbereich hinausragen.</summary>
     internal static bool SelbsttestOhneKlemmen { get; set; }
@@ -148,7 +149,7 @@ public class MdiFenster : Form
             if ((wp.Flags & (SWP_NOSIZE | SWP_NOMOVE)) == (SWP_NOSIZE | SWP_NOMOVE)) return;
             var pos = (wp.Flags & SWP_NOMOVE) != 0 ? Location : new Point(wp.X, wp.Y);
             var groesse = (wp.Flags & SWP_NOSIZE) != 0 ? Size : new Size(wp.Cx, wp.Cy);
-            var r = Fensterlage.MdiFenster(new Rectangle(pos, groesse), bereich, (wp.Flags & SWP_NOSIZE) == 0);
+            var r = Fensterlage.MdiFensterErreichbar(new Rectangle(pos, groesse), bereich, FensterTitel.Hoehe);
             if (r.Location == pos && r.Size == groesse) return;
             if (r.Location != pos) { wp.X = r.X; wp.Y = r.Y; wp.Flags &= ~SWP_NOMOVE; }
             if (r.Size != groesse) { wp.Cx = r.Width; wp.Cy = r.Height; wp.Flags &= ~SWP_NOSIZE; }
@@ -159,13 +160,13 @@ public class MdiFenster : Form
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
     }
 
-    /// <summary>Fenster (z. B. nach Verkleinern des Hauptfensters) wieder vollständig in den MDI-Arbeitsbereich holen.</summary>
+    /// <summary>Fenster (z. B. nach Verkleinern des Hauptfensters) so verschieben, dass seine Titelleiste erreichbar bleibt.</summary>
     internal void InArbeitsbereichKlemmen()
     {
         if (!IsMdiChild || WindowState != FormWindowState.Normal || IsDisposed || SelbsttestOhneKlemmen) return;
         var bereich = MdiBereich;
         if (!Fensterlage.BereichGueltig(new Rectangle(Point.Empty, bereich))) return;
-        var r = Fensterlage.MdiFenster(Bounds, bereich, true);
+        var r = Fensterlage.MdiFensterErreichbar(Bounds, bereich, FensterTitel.Hoehe);
         if (r != Bounds) Bounds = r;
     }
 
@@ -289,16 +290,20 @@ public class MdiFenster : Form
         if (tabellen.Count > 0 && Controls.OfType<ToolStrip>().FirstOrDefault(t => t is not MenuStrip && t.Dock == DockStyle.Top) is { } leiste)
         {
             var haupt = tabellen.OrderByDescending(t => t.Width * t.Height).First();
+            // eigener Befehl ohne Gegenstück im Vorbild: nur im Überlauf » der Leiste (die sichtbare Leiste bleibt wie im Vorbild)
             var knopf = new ToolStripButton("Spalten", Symbole.Get("rollup"))
             {
-                Alignment = ToolStripItemAlignment.Right, ToolTipText = "Spalten ein- und ausblenden, Reihenfolge und Tabellenformate (auch per Rechtsklick auf die Spaltenköpfe)",
-                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                Name = SpaltenKnopfName, ToolTipText = "Spalten ein- und ausblenden, Reihenfolge und Tabellenformate (auch per Rechtsklick auf die Spaltenköpfe)",
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText, Overflow = ToolStripItemOverflow.Always,
             };
             knopf.Click += (_, _) => Steuerelemente.TabellenFormate.MenueZeigen(haupt, leiste.PointToScreen(new Point(knopf.Bounds.Left, knopf.Bounds.Bottom)));
             leiste.Items.Add(knopf);
         }
         LeisteWieOriginal();
     }
+
+    /// <summary>Name des Knopfs „Spalten“ (liegt immer im Überlauf der Werkzeugleiste).</summary>
+    public const string SpaltenKnopfName = "SpaltenKnopf";
 
     /// <summary>
     /// Sichtbare Symbole der Werkzeugleiste in der Reihenfolge der Original-Symbolübersicht (null = Leiste unverändert). Alle übrigen

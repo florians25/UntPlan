@@ -21,7 +21,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
     private readonly DataGridView _g = new() { Dock = DockStyle.Fill };
     private readonly DateTimePicker _von = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
     private readonly DateTimePicker _bis = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Width = 100 };
-    private readonly NumericUpDown _nr = new() { Width = 72, Maximum = int.MaxValue, Minimum = 0 };
+    // Vorbild (Bild 350): Feld 72 × 18 mit dunkelgrauem Rand, Hoch/Runter-Knopf 17 × 18 daneben
+    private readonly Steuerelemente.Drehfeld _nr = new(Steuerelemente.DrehfeldStil.Abgesetzt) { Maximum = int.MaxValue, Minimum = 0 };
     private readonly ZeitraumAuswahl _zeitraum;
     private bool _laedt;
     private readonly ZellKommentare _kommentare;
@@ -53,14 +54,28 @@ public sealed class VeranstaltungenFenster : MdiFenster
         HilfeThema = "Vertretungsplanung";
         Size = new Size(980, 330);
         Positionieren();
-        // Symbolleiste wie im Vorbild (Handbuch Kap. 6): Fensterverknüpfung, Neu, Löschen | Felder der Ansicht, Element-Rollup …
+        // Symbolleiste wie im Vorbild (Bild 350): Normalform anzeigen, Felder der Ansicht, Löschen | Filter, Sortieren, Seitenlayout,
+        // Bearbeiten (Zahnrad), Kalender, Aktualisieren – dieselben FatCow-Symbole wie in Absenzen und Vertretungen; alle weiteren
+        // eigenen Befehle (Verknüpfen, Neu, Kopieren, Einfügen, Element-Rollup, Schnellauswahl …) im Überlauf » der Leiste
         var ts = Werkzeugleiste();
-        ts.Items.Add(VerknuepfenKnopf());
+        var normalform = Knopf("Normalform anzeigen", "l_normalform", () => NormalformAnzeigen(_g));
+        var felder = Knopf("Felder der Ansicht", "l_felder", () => TabellenFormate.MenueZeigen(_g, Cursor.Position));
+        var loeschen = Knopf("Löschen", "l_loeschen", Loeschen);
+        _filterKnopf = Knopf("Filter", "filter", FilterSetzen);
+        var sortieren = new ToolStripDropDownButton("Sortieren", Symbole.Get("l_sortieren", 16)) { DisplayStyle = ToolStripItemDisplayStyle.Image, ToolTipText = "Sortieren", ShowDropDownArrow = false };
+        foreach (var (text, art) in new[] { ("Nach Datum", 0), ("Nach Nummer (VA-Nr.)", 1), ("Nach Klasse", 2), ("Nach Text", 3) })
+            sortieren.DropDownItems.Add(new ToolStripMenuItem(text, null, (_, _) => { _sortierung = art; Neuaufbau(); }));
+        sortieren.DropDownOpening += (_, _) => { for (var i = 0; i < sortieren.DropDownItems.Count; i++) ((ToolStripMenuItem)sortieren.DropDownItems[i]).Checked = i == _sortierung; };
+        var layout = Knopf("Seitenlayout (Seitenansicht der Liste)", "l_seitenlayout", () => Drucken(true));
+        var bearbeiten = Knopf("Bearbeiten (Veranstaltung im Dialog)", "einstellungen", Bearbeiten);
+        var kalender = Knopf("Kalender", "l_kalender", () => HauptFenster.Oeffnen("kal", () => new KalenderFenster()));
+        var aktualisieren = Knopf("Aktualisieren", "l_aktualisieren", Neuaufbau);
+        foreach (var k in new ToolStripItem[] { normalform, felder, loeschen, _filterKnopf, sortieren, layout, bearbeiten, kalender, aktualisieren }) ts.Items.Add(k);
+        var verknuepfen = VerknuepfenKnopf();
+        verknuepfen.Text = "Fenster verknüpfen";
+        ts.Items.Add(verknuepfen);
         ts.Items.Add(Knopf("Neue Veranstaltung (Dialog)", "neu", Neu));
-        ts.Items.Add(Knopf("Löschen", "loeschen", Loeschen));
-        ts.Items.Add(new ToolStripSeparator());
-        ts.Items.Add(Knopf("Felder der Ansicht", "rollup", () => TabellenFormate.MenueZeigen(_g, Cursor.Position)));
-        ts.Items.Add(Knopf("Bearbeiten", "einstellungen", Bearbeiten));
+        ts.Items.Add(Knopf("Drucken", "drucken", () => Drucken(false)));
         ts.Items.Add(Knopf("Veranstaltung kopieren (Strg+C)", "kopieren", KopierenMerken));
         ts.Items.Add(Knopf("Veranstaltung am eingestellten Datum einfügen (Strg+V)", "import", Einfuegen));
         ts.Items.Add(Knopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen(_g.CurrentCell?.OwningColumn.Name switch
@@ -68,7 +83,6 @@ public sealed class VeranstaltungenFenster : MdiFenster
             "L" => ElementTyp.Lehrer, "R" => ElementTyp.Raum, _ => ElementTyp.Klasse,
         })));
         ts.Items.Add(Knopf("Vertretungen", "vertretung", () => HauptFenster.Oeffnen("vertr", () => new VertretungenFenster())));
-        ts.Items.Add(new ToolStripSeparator());
         // Schnellauswahl: alle Klassen/Lehrkräfte/Räume, nach Abteilung, Jahrgang, Gruppe … bzw. alles aus den Stunden übernehmen
         var schnell = new ToolStripDropDownButton("Hinzufügen", Symbole.Get("plus", 16))
         {
@@ -83,6 +97,7 @@ public sealed class VeranstaltungenFenster : MdiFenster
         };
         ts.Items.Add(schnell);
         ts.Items.Add(Knopf("Alle aus den Stunden der Veranstaltung übernehmen (Klassen, Lehrkräfte, Räume)", "unterricht", AusStundenUebernehmen));
+        OriginalLeiste = new ToolStripItem?[] { normalform, felder, loeschen, null, _filterKnopf, sortieren, layout, bearbeiten, kalender, aktualisieren };
 
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
@@ -235,7 +250,15 @@ public sealed class VeranstaltungenFenster : MdiFenster
         var springe = _springeZu is int sp ? "VA" + sp : null;
         _springeZu = null;
         _laedt = true;
-        var eintraege = D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis).OrderBy(v => v.Von).ThenBy(v => v.Id).Cast<object>().Append(EingabeZeile).ToList();
+        var auswahl = D.Veranstaltungen.Where(v => v.Bis >= Von && v.Von <= Bis && FilterPasst(v));
+        auswahl = _sortierung switch
+        {
+            1 => auswahl.OrderBy(v => v.Id),
+            2 => auswahl.OrderBy(v => Feldtext(v, ElementTyp.Klasse, v.KlassenIds), StringComparer.CurrentCultureIgnoreCase).ThenBy(v => v.Von),
+            3 => auswahl.OrderBy(v => v.Text, StringComparer.CurrentCultureIgnoreCase).ThenBy(v => v.Von),
+            _ => auswahl.OrderBy(v => v.Von).ThenBy(v => v.Id),
+        };
+        var eintraege = auswahl.Cast<object>().Append(EingabeZeile).ToList();
         try { Steuerelemente.TabellenAbgleich.Anwenden(_g, eintraege, Schluessel, Schluessel, ZeileSetzen, aktuell: springe); }
         finally { _laedt = false; }
     }
@@ -252,8 +275,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         zeile.Tag = eintrag as Veranstaltung;
         for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
             if (!Equals(zeile.Cells[i].Value, werte[i]) && (zeile.Cells[i].Value?.ToString() ?? "") != (werte[i]?.ToString() ?? "")) zeile.Cells[i].Value = werte[i];
-        var hinter = eintrag is Veranstaltung ? Color.Empty : Color.FromArgb(255, 228, 190);
-        if (zeile.DefaultCellStyle.BackColor != hinter) zeile.DefaultCellStyle.BackColor = hinter;
+        // neue Zeile wie im Vorbild (Bild 350): Zeilenfarbe wie die übrigen, nur die aktuelle Zelle hervorgehoben
+        if (zeile.DefaultCellStyle.BackColor != Color.Empty) zeile.DefaultCellStyle.BackColor = Color.Empty;
     }
 
     private void Formatieren(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -663,6 +686,30 @@ public sealed class VeranstaltungenFenster : MdiFenster
         }
         foreach (DataGridViewRow r in _g.Rows) if (r.Tag is Veranstaltung x && x.Id == nr) _g.CurrentCell = r.Cells[1];
     }
+
+    private int _sortierung;
+    private string _filter = "";
+    private ToolStripButton _filterKnopf = null!;
+
+    private bool FilterPasst(Veranstaltung v) => _filter.Length == 0
+        || new[] { v.Id.ToString(), Feldtext(v, ElementTyp.Klasse, v.KlassenIds), LehrerText(v), Feldtext(v, ElementTyp.Raum, v.RaumIds), v.Text, v.Schuelergruppe,
+            D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "" }
+            .Any(t => t?.Contains(_filter, StringComparison.CurrentCultureIgnoreCase) == true);
+
+    /// <summary>Filter wie in den Absenzen: nur Veranstaltungen, deren Nummer, Elemente, Grund oder Text den Suchtext enthalten.</summary>
+    private void FilterSetzen()
+    {
+        var text = Ui.Eingabe("Nur Veranstaltungen anzeigen, deren Nummer, Klasse, Lehrkraft, Raum, Grund oder Text Folgendes enthält (leer = alle):", "Filter", _filter);
+        if (text is null) return;
+        _filter = text.Trim();
+        _filterKnopf.Checked = _filter.Length > 0;
+        _filterKnopf.ToolTipText = _filter.Length > 0 ? $"Filter: {_filter}" : "Filter";
+        Neuaufbau();
+    }
+
+    /// <summary>Seitenlayout: Seitenansicht bzw. Druck der angezeigten Liste.</summary>
+    private void Drucken(bool vorschau) =>
+        ListenDruck.DruckenTabelle(this, $"Veranstaltungen: {Format.Datum(Von)}{(Bis != Von ? " bis " + Format.Datum(Bis) : "")}", _g, vorschau, zeilenFilter: r => r.Tag != null);
 
     private void Neu()
     {
