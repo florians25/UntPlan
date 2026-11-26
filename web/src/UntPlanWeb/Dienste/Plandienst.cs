@@ -602,6 +602,10 @@ public sealed class Plandienst
                 // nur von Hand eingegebener Vertretungstext), daneben die ursprüngliche Stunde als Entfall
                 var alt = Fachwechsel(s, k, typ, kurz);
                 if (alt is not null) k = k with { Zusaetzlich = true, Lehrer = ZusatzLehrer(k.Lehrer.Where(w => w.K.Length > 0).Select(w => new Wert(w.K))), Text = ZusatzText(k.Text, k.Art) };
+                // Ursprung einer Verlegung mit neuem Fach (in UntPlan im freien Platz das Fach geändert): verlegt ist die ursprüngliche
+                // Stunde (sie liegt am Ziel), die neue Stunde ist eine Zusatzstunde – Symbole „+“ und Änderung statt des Verlegungssymbols
+                if (alt is not null && k.Verlegung == "von")
+                    k = k with { VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null };
                 // Fach und Schülergruppe gehören zu einem anderen Unterricht der Klasse: zusätzliche Stunde dieses Unterrichts
                 if (alt is not null && r.Schuelergruppe.Length > 0 && UnterrichtZuGruppe(s, k.Fach, r.Schuelergruppe, k.Klassen.Select(w => w.K), k.Unterricht) is int anderer)
                     k = k with { Unterricht = anderer };
