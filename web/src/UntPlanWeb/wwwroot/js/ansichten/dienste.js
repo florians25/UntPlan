@@ -1,6 +1,6 @@
 // Klassenbuch → Klassendienste wie im Original: Klasse, Dienst und Zeitraum wählen; Zeitansicht (Schüler*innen × Wochen zum
 // Ankreuzen) oder Listenansicht; automatische Schülereinteilung reihum; Bericht.
-import { e, icon, holen, senden, api, toast, heuteIso, plusTage, montag, leer, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
+import { e, icon, holen, senden, api, toast, heuteIso, plusTage, montag, leer, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
@@ -9,7 +9,7 @@ const kurz = iso => { const [, m, d] = iso.split('-'); return `${Number(d)}.${Nu
 
 export async function zeigen(seite, kontext, [klasseParam, dienstParam, ansichtParam, vonParam, bisParam]) {
   const ich = kontext.ich;
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'verwalten');
   const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
   const liste = ansichtParam !== 'zeit';
   const alleKlassen = klasseParam === 'alle' && liste;

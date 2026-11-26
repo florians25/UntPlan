@@ -196,16 +196,20 @@ public static class ErweiterungApi
 
         // ---------------------------------------------------------------- Klassendienste
 
-        api.MapGet("/klassendienste", (string? klasse, string? von, string? bis, int? dienst, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Uhr uhr) =>
+        api.MapGet("/klassendienste", (string? klasse, string? von, string? bis, int? dienst, HttpContext c, Paketdienst p, Klassenbuchverwaltung kv, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Kollegium(c);
             var s = Paket(p);
             var v = D(von, Plandienst.Montag(uhr.Heute));
             var bi = D(bis, s.SchuljahrBis == DateOnly.MaxValue ? uhr.Heute.AddDays(90) : s.SchuljahrBis);
             var k = Leer(klasse);
+            // Klassenleitung (eigene Klassen); in den Stundendetails auch die Lehrkraft der Stunde (Tag der Stunde)
+            if (k != null && !(von != null && von == bis && kb.DarfKlasseImUnterricht(b, s, k, v))) Klassenbuchdienst.KlasseVerwaltenVerlangen(b, s, k);
+            var zuordnungen = kv.Dienste(s, k, v, bi, dienst);
+            if (k is null && !Klassenbuchdienst.AlleKlassen(b)) zuordnungen = zuordnungen.Where(z => Klassenbuchdienst.IstKlassenleitung(b, s, z.Klasse)).ToList();
             return Results.Json(new
             {
-                arten = kv.Dienstarten().Where(a => a.Aktiv), zuordnungen = kv.Dienste(s, k, v, bi, dienst), von = Plandienst.Iso(v), bis = Plandienst.Iso(bi),
+                arten = kv.Dienstarten().Where(a => a.Aktiv), zuordnungen, von = Plandienst.Iso(v), bis = Plandienst.Iso(bi),
                 schueler = k is null ? new List<WebSchueler>() : Klassenbuchdienst.Schueler(s, new[] { k }),
                 verwalten = k != null && Klassenbuchdienst.IstKlassenleitung(b, s, k),
             });
@@ -234,9 +238,12 @@ public static class ErweiterungApi
             var b = Kollegium(c);
             var s = Paket(p);
             var k = Leer(klasse);
+            Klassenbuchdienst.KlasseVerwaltenVerlangen(b, s, k);
+            var befreiungen = kv.Befreiungen(s, k, schueler, D(von, uhr.Heute.AddDays(-30)), D(bis, uhr.Heute.AddDays(180)));
+            if (!Klassenbuchdienst.AlleKlassen(b)) befreiungen = befreiungen.Where(x => Klassenbuchdienst.IstKlassenleitung(b, s, x.Klasse)).ToList();
             return Results.Json(new
             {
-                befreiungen = kv.Befreiungen(s, k, schueler, D(von, uhr.Heute.AddDays(-30)), D(bis, uhr.Heute.AddDays(180))),
+                befreiungen,
                 gruende = kv.Gruende("befreiung").Where(g => g.Aktiv),
                 verwalten = k is null ? s.Paket.Elemente.Klassen.Any(x => Klassenbuchdienst.IstKlassenleitung(b, s, x.Kurz)) : Klassenbuchdienst.IstKlassenleitung(b, s, k),
             });

@@ -93,6 +93,7 @@ public static class SitzplanApi
         {
             var b = Kollegium(c);
             var s = Paket(p);
+            if (!Sitzplandienst.DarfKlasse(b, s, klasse)) Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
             var plan = sd.Laden(s, Sitzplandienst.Klasse, klasse, null, null, null);
             return Results.Json(new
             {

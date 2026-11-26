@@ -122,6 +122,7 @@ public sealed class Entschuldigungsdienst
     public object Fachlehrerliste(Benutzer b, Stand s, DateOnly von, DateOnly bis, string? klasse, string? status, bool nurOffene)
     {
         if (!b.Kollegium || b.LehrerKuerzel is not { Length: > 0 } kuerzel) throw new UnauthorizedAccessException("Die Fachlehrer-Sicht steht Lehrkräften zur Verfügung.");
+        Klassenbuchdienst.KlasseEinsehenVerlangen(b, s, klasse);
         if (bis < von) (von, bis) = (bis, von);
         if (bis.DayNumber - von.DayNumber > 400) von = bis.AddDays(-400);
         var einst = _kb.Einstellungen();
@@ -162,6 +163,7 @@ public sealed class Entschuldigungsdienst
     public List<EntschuldigungsAbwesenheit> Abwesenheiten(Benutzer b, Stand s, DateOnly von, DateOnly bis, string? klasse, string? status)
     {
         if (!Klassenbuchdienst.FehlzeitenVerwalten(b, s)) throw new UnauthorizedAccessException("Die Abwesenheitsverwaltung steht den Klassenleitungen zur Verfügung.");
+        Klassenbuchdienst.KlasseVerwaltenVerlangen(b, s, klasse);
         if (bis < von) (von, bis) = (bis, von);
         if (bis.DayNumber - von.DayNumber > 400) von = bis.AddDays(-400);
         var liste = _kb.FehlzeitenZeitraum(von, bis, klasse).Where(f => Klassenbuchdienst.IstKlassenleitung(b, s, f.Klasse)).ToList();

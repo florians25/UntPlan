@@ -450,12 +450,13 @@ public class OberflaecheTests
         var kl = await s.AlsAsync("klasse" + klasse.Kurz.ToLowerInvariant(), "schueler", klasse.Kurz);
         Assert.Equal(HttpStatusCode.Forbidden, (await kl.GetAsync("/api/app/schueler")).StatusCode);
 
-        // Lehrkraft ohne Klassenleitung: nur lesen, keine persönlichen Angaben, nichts ändern
+        // Lehrkraft ohne Klassenleitung: keine Schülerverwaltung fremder Klassen, nichts ändern
         var lk = await s.AlsAsync(fremdeLehrkraft.ToLowerInvariant(), "lehrer", fremdeLehrkraft);
-        var liste = await Testserver.HolenAsync(lk, $"/api/app/schueler?klasse={klasse.Kurz}");
-        Assert.False(liste["anlegen"]!.GetValue<bool>());
-        var erster = liste["schueler"]![0]!;
-        Assert.False(erster["bearbeiten"]!.GetValue<bool>());
+        Assert.Equal(HttpStatusCode.Forbidden, (await lk.GetAsync($"/api/app/schueler?klasse={klasse.Kurz}")).StatusCode);
+        var ohneKlasse = await Testserver.HolenAsync(lk, "/api/app/schueler");
+        Assert.Empty(ohneKlasse["schueler"]!.AsArray());
+        Assert.False(ohneKlasse["anlegen"]!.GetValue<bool>());
+        var erster = (await Testserver.HolenAsync(await s.AlsAsync("admin"), $"/api/app/schueler?klasse={klasse.Kurz}"))["schueler"]![0]!;
         var id = erster["id"]!.GetValue<int>();
         Assert.Equal(HttpStatusCode.Forbidden, (await lk.PutAsJsonAsync($"/api/app/schueler/{id}", new { vorname = "X", name = "Y", klasse = klasse.Kurz })).StatusCode);
 
@@ -475,13 +476,13 @@ public class OberflaecheTests
         Assert.Equal(HttpStatusCode.BadRequest, (await kli.PostAsJsonAsync("/api/app/schueler", new { vorname = "A", name = "", klasse = klasse.Kurz })).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await kli.PutAsJsonAsync($"/api/app/schueler/{id}", new { vorname = "A", name = "B", klasse = klasse.Kurz, geburtsdatum = "01.05.2012" })).StatusCode);
 
-        // Änderungen gelten überall (Klassenbuch-Schülerliste), andere Lehrkräfte sehen keine persönlichen Angaben
-        var kb = await Testserver.HolenAsync(lk, $"/api/app/klassenbuch/schueler?klasse={klasse.Kurz}");
+        // Änderungen gelten überall (Klassenbuch-Schülerliste); die Klassenleitung sieht die persönlichen Angaben
+        var kb = await Testserver.HolenAsync(kli, $"/api/app/klassenbuch/schueler?klasse={klasse.Kurz}");
         Assert.Contains(kb.AsArray(), x => x!["id"]!.GetValue<int>() == id && x["vorname"]!.GetValue<string>() == "Neu");
         Assert.Contains(kb.AsArray(), x => x!["id"]!.GetValue<int>() == neuId);
-        var fremd = (await Testserver.HolenAsync(lk, $"/api/app/schueler?klasse={klasse.Kurz}"))["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == id)!;
-        Assert.Equal("", fremd["email"]!.GetValue<string>());
-        Assert.Equal("w", fremd["geschlecht"]!.GetValue<string>());
+        var eigen = (await Testserver.HolenAsync(kli, $"/api/app/schueler?klasse={klasse.Kurz}"))["schueler"]!.AsArray().Single(x => x!["id"]!.GetValue<int>() == id)!;
+        Assert.Equal("neu@example.org", eigen["email"]!.GetValue<string>());
+        Assert.Equal("w", eigen["geschlecht"]!.GetValue<string>());
 
         // Administration: Klassenwechsel und Löschen; Änderungen überstehen eine neue Übertragung aus UntPlan
         var admin = await s.AlsAsync("admin");

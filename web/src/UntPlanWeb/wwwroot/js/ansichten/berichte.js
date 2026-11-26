@@ -1,6 +1,6 @@
 // Klassenbuch → Berichte im nl-design: Filterleiste (Klasse, Schüler*in, Zeitraum), Reiter je Berichtsgruppe, Berichte als ruhige Liste
 // (Symbol, Titel, Beschreibung, rechts PDF/CSV); Parameter im Seitenpanel. Keine Vorschau – Berichte nur als PDF bzw. CSV.
-import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, pdfAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden } from '../ui.js';
+import { e, icon, holen, leer, heuteIso, plusTage, herunterladen, ApiFehler, pdfAusrichtung, suchfeldMitFilter, suchfeldMitFilterBinden, klassenFuer } from '../ui.js';
 import { kbDialog as dialog } from '../kbdialog.js';
 import { zeitbereichFeld, zeitbereichBinden } from '../zeitbereich.js';
 
@@ -63,7 +63,7 @@ const holeDatei = async url => {
 };
 
 export async function zeigen(seite, kontext, [berichtParam, klasseParam, vonParam, bisParam, schuelerParam, n1Param, n2Param]) {
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   // Berichte zum Unterricht stehen unter Unterricht → Mein Unterricht → Berichte
   const arten = (await holen('/api/app/berichte/liste')).filter(a => !a.unterricht);
   const art = arten.find(a => a.id === (ALIAS[berichtParam] ?? berichtParam))?.id ?? null;

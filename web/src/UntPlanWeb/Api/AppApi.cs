@@ -151,6 +151,11 @@ public static class AppApi
                     familie = b.Familie, schuelerIds = b.SchuelerIds, klassen = b.Klassen, element = b.Kollegium ? b.Element : b.KlassenKuerzel ?? "",
                     // Fehlzeitenverwaltung (Abwesenheiten, Fehlzeiten) nur für Klassenleitungen, Schulleitung und Administration
                     fehlzeiten = Klassenbuchdienst.FehlzeitenVerwalten(b, p.Aktuell),
+                    // Klassenbezogene Verwaltungsseiten: alle Klassen oder nur die eigenen (Klassenleitung) bzw. die Klassen des eigenen Unterrichts
+                    alleKlassen = !b.Kollegium || Klassenbuchdienst.AlleKlassen(b),
+                    klassenleitung = b.Kollegium && p.Aktuell is { } kl1 ? Klassenbuchdienst.GeleiteteKlassen(b, kl1).Order().ToList() : new List<string>(),
+                    unterrichtsklassen = b.Kollegium && b.LehrerKuerzel is string ul && p.Aktuell is { } kl2
+                        ? kl2.Paket.Elemente.Klassen.Select(k => k.Kurz).Where(k => Klassenbuchdienst.UnterrichtetKlasse(kl2, ul, k)).ToList() : new List<string>(),
                     // Fachlehrer-Entschuldigungen (Modul eingeschaltet und Recht „Fehlstunden im eigenen Unterricht entschuldigen“)
                     fachlehrerEntschuldigungen = ed.FachlehrerAktiv(b),
                     // effektive Rechte (Rechte-Modell) für die Oberfläche: Recht → Stufe (1 = Lesen, 2 = Ja/Schreiben)
@@ -600,17 +605,19 @@ public static class AppApi
             if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
             return Results.Json(new { geloescht = kb.AbwesenheitEntfernen(b, Paket(p), d.Datum, d.Stunde, d.Unterricht, d.SchuelerIds ?? new(), d.Einzelstunde) });
         });
-        api.MapGet("/klassenbuch/klasse", (string klasse, string? von, string? bis, HttpContext c, Klassenbuchdienst kb, Uhr uhr) =>
+        api.MapGet("/klassenbuch/klasse", (string klasse, string? von, string? bis, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, Elementtyp.Klasse, klasse);
+            if (p.Aktuell is { } st0) Klassenbuchdienst.KlasseEinsehenVerlangen(b, st0, klasse);
             var liste = kb.Klasse(klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-28), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute.AddDays(14));
             return Results.Json(b.Kollegium ? liste : liste.Select(e => e with { Notiz = "" }).ToList());
         });
-        api.MapGet("/klassenbuch/hausaufgaben", (string klasse, HttpContext c, Klassenbuchdienst kb) =>
+        api.MapGet("/klassenbuch/hausaufgaben", (string klasse, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
         {
             var b = Ich(c);
             PlanErlaubt(b, Elementtyp.Klasse, klasse);
+            if (p.Aktuell is { } st0) Klassenbuchdienst.KlasseEinsehenVerlangen(b, st0, klasse);
             return Results.Json(kb.Hausaufgaben(klasse).Select(e => e with { Notiz = "" }));
         });
         api.MapGet("/klassenbuch/offen", (int? tage, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
@@ -621,7 +628,9 @@ public static class AppApi
 
         api.MapGet("/klassenbuch/woche", (string klasse, string? datum, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
-            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            Klassenbuchdienst.KlasseEinsehenVerlangen(b, Paket(p), klasse);
             var d = Datum(datum, uhr);
             return Results.Json(kb.Woche(Paket(p), klasse, d.AddDays(-(((int)d.DayOfWeek + 6) % 7))));
         });
@@ -666,9 +675,13 @@ public static class AppApi
             Results.Json(new { geaendert = kb.StatusSetzen(Ich(c), Paket(p), d.Ids ?? new(), d.Status ?? "offen") }));
         api.MapDelete("/klassenbuch/fehlzeiten/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { ok = kb.FehlzeitLoeschen(Ich(c), Paket(p), id) }));
-        api.MapGet("/klassenbuch/vermerke", (string klasse, string? von, string? bis, HttpContext c, Klassenbuchdienst kb, Uhr uhr) =>
+        api.MapGet("/klassenbuch/vermerke", (string klasse, string? von, string? bis, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
-            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            // Klassenleitung, Lehrkräfte der Klasse und Vertretungslehrkräfte mit einer Stunde der Klasse an diesem Tag
+            if (!kb.DarfKlasseImUnterricht(b, Paket(p), klasse, DateOnly.TryParse(bis, out var tag) ? tag : uhr.Heute))
+                Klassenbuchdienst.KlasseEinsehenVerlangen(b, Paket(p), klasse);
             return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, vermerke = kb.Vermerke(klasse, DateOnly.TryParse(von, out var v) ? v : uhr.Heute.AddDays(-90), DateOnly.TryParse(bis, out var bi) ? bi : uhr.Heute.AddDays(7)) });
         });
         api.MapPost("/klassenbuch/vermerke", (VermerkDaten d, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
@@ -677,9 +690,12 @@ public static class AppApi
             Results.Json(kb.VermerkAendern(Ich(c), Paket(p), id, d.Datum, d.SchuelerId, d.Art ?? "", d.Text ?? "", d.Zeit)));
         api.MapDelete("/klassenbuch/vermerke/{id:int}", (int id, HttpContext c, Paketdienst p, Klassenbuchdienst kb) =>
             Results.Json(new { ok = kb.VermerkLoeschen(Ich(c), Paket(p), id) }));
-        api.MapGet("/klassenbuch/schueler", (string klasse, string? datum, HttpContext c, Paketdienst p) =>
+        api.MapGet("/klassenbuch/schueler", (string klasse, string? datum, HttpContext c, Paketdienst p, Klassenbuchdienst kb, Uhr uhr) =>
         {
-            if (!Ich(c).Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            var b = Ich(c);
+            if (!b.Kollegium) throw new UnauthorizedAccessException("Nur für das Kollegium.");
+            if (!kb.DarfKlasseImUnterricht(b, Paket(p), klasse, DateOnly.TryParse(datum, out var tag) ? tag : uhr.Heute))
+                Klassenbuchdienst.KlasseEinsehenVerlangen(b, Paket(p), klasse);
             // mit Datum: Klassenzugehörigkeit an diesem Tag (Klassenwechsel ab Datum), sonst von heute
             return Results.Json(DateOnly.TryParse(datum, out var d) ? Klassenzugehoerigkeit.Am(Paket(p), new[] { klasse }, d) : Klassenbuchdienst.Schueler(Paket(p), new[] { klasse }));
         });
@@ -737,7 +753,12 @@ public static class AppApi
         {
             var b = Ich(c);
             NurKollegium(b);
-            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, eintraege = l.Vermerke(Paket(p), Von(von, uhr.Heute.AddDays(-30)), Von(bis, uhr.Heute), Leer(klasse), Leer(art), b) });
+            var st = Paket(p);
+            Klassenbuchdienst.KlasseEinsehenVerlangen(b, st, Leer(klasse));
+            var darf = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var eintraege = l.Vermerke(st, Von(von, uhr.Heute.AddDays(-30)), Von(bis, uhr.Heute), Leer(klasse), Leer(art), b)
+                .Where(v => darf.TryGetValue(v.Klasse, out var x) ? x : darf[v.Klasse] = Klassenbuchdienst.DarfKlasseEinsehen(b, st, v.Klasse)).ToList();
+            return Results.Json(new { arten = Klassenbuchdienst.VermerkArten, eintraege });
         });
 
         api.MapGet("/abwesenheiten", (string? von, string? bis, string? klasse, string? status, HttpContext c, Paketdienst p, Listendienst l, Uhr uhr) =>
@@ -746,6 +767,7 @@ public static class AppApi
             NurKollegium(b);
             var st = Paket(p);
             if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Die Abwesenheitsverwaltung steht den Klassenleitungen zur Verfügung.");
+            Klassenbuchdienst.KlasseVerwaltenVerlangen(b, st, Leer(klasse));
             // Klassenleitungen sehen die Abwesenheiten ihrer eigenen Klassen
             var zeilen = l.Abwesenheiten(st, b, Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse), Leer(status));
             return Results.Json(b.Rolle is Rollen.Admin or Rollen.Leitung ? zeilen : zeilen.Where(z => z.Verwalten).ToList());
@@ -758,6 +780,7 @@ public static class AppApi
             NurKollegium(b);
             var st = Paket(p);
             if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Die Abwesenheitsverwaltung steht den Klassenleitungen zur Verfügung.");
+            Klassenbuchdienst.KlasseVerwaltenVerlangen(b, st, Leer(klasse));
             var liste = kb.FehlzeitenZeitraum(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse))
                 .Where(f => Klassenbuchdienst.IstKlassenleitung(b, st, f.Klasse)).ToList();
             var zeilen = kb.Zeitraeume(st, liste, k => Klassenbuchdienst.IstKlassenleitung(b, st, k));
@@ -773,6 +796,7 @@ public static class AppApi
             NurKollegium(b);
             var st = Paket(p);
             if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Die Fehlzeiten stehen den Klassenleitungen zur Verfügung.");
+            Klassenbuchdienst.KlasseVerwaltenVerlangen(b, st, Leer(klasse));
             var liste = kb.FehlzeitenZeitraum(Von(von, uhr.Heute.AddDays(-14)), Von(bis, uhr.Heute), Leer(klasse))
                 .Where(f => Klassenbuchdienst.IstKlassenleitung(b, st, f.Klasse) && (schueler is null || f.SchuelerId == schueler)).ToList();
             return Results.Json(kb.Fehlzeilen(st, liste));
@@ -785,6 +809,7 @@ public static class AppApi
             RechtePruefung.Verlangen(b, Recht.BerichteSehen);
             var st = Paket(p);
             if (!Klassenbuchdienst.FehlzeitenVerwalten(b, st)) throw new UnauthorizedAccessException("Fehlzeitenberichte stehen den Klassenleitungen zur Verfügung.");
+            Klassenbuchdienst.KlasseVerwaltenVerlangen(b, st, Leer(klasse));
             var v = Von(von, uhr.Heute.AddDays(-90));
             var bi = Von(bis, uhr.Heute);
             var liste = l.Fehlzeitenbericht(st, v, bi, Leer(klasse))
@@ -794,11 +819,12 @@ public static class AppApi
                 : Results.Json(new { von = Plandienst.Iso(v), bis = Plandienst.Iso(bi), zeilen = liste });
         });
 
-        api.MapGet("/berichte/lehrstoff", (string klasse, string? von, string? bis, string? format, HttpContext c, Listendienst l, Klassenbuchdienst kb, Uhr uhr) =>
+        api.MapGet("/berichte/lehrstoff", (string klasse, string? von, string? bis, string? format, HttpContext c, Paketdienst p, Listendienst l, Klassenbuchdienst kb, Uhr uhr) =>
         {
             var b = Ich(c);
             NurKollegium(b);
             RechtePruefung.Verlangen(b, Recht.BerichteSehen);
+            Klassenbuchdienst.KlasseEinsehenVerlangen(b, Paket(p), klasse);
             var v = Von(von, uhr.Heute.AddDays(-28));
             var bi = Von(bis, uhr.Heute);
             var liste = kb.Klasse(klasse ?? "", v, bi).OrderBy(e => e.Datum).ThenBy(e => e.Stunde).ToList();

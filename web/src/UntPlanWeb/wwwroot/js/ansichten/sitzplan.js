@@ -6,7 +6,7 @@
 //   Leeren, Rückgängig, Drucken (PDF, S/W), Wirkungsbereich Klasse/Unterricht/Raum mit Rechteprüfung, Speichern/Löschen.
 // - Sitzplan-Anordnung der Schülerkacheln in den Stundendetails (rasterHtml) und die Seite „Sitzplan“ einer Klasse (zeigen).
 // Gültiger Plan einer Stunde (Server): Unterricht vor Raum vor Klasse.
-import { e, holen, senden, toast, filterFeld, leer, pdfAusrichtung } from '../ui.js';
+import { e, holen, senden, toast, filterFeld, leer, pdfAusrichtung, klassenFuer } from '../ui.js';
 
 // ------------------------------------------------------------------ Stil und Einstellungen
 
@@ -554,7 +554,7 @@ export function editorOeffnen({ wurzel, d, kontext = {}, titel = 'Sitzplan', unt
 export async function zeigen(seite, kontext, [klasseParam]) {
   cssLaden();
   const ich = kontext.ich;
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
   const klasse = klasseParam && klasseParam !== '-' ? klasseParam : eigene ?? el.klassen[0]?.kurz ?? '';
   if (!klasse) { kontext.titel('Sitzplan'); seite.innerHTML = leer('Keine Klassen vorhanden.'); return; }

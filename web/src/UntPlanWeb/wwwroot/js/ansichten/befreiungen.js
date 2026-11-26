@@ -1,13 +1,13 @@
 // Klassenbuch → Befreiungen vom Unterricht: Liste mit Filter (Klasse, Schüler*in, Zeitraum, Grund), Neu/Bearbeiten/Löschen
 // durch die Klassenleitung, Bericht. Befreite Schüler*innen sind in den Stundendetails gekennzeichnet.
-import { e, icon, holen, senden, api, toast, heuteIso, plusTage, leer, WOCHENTAGE, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern } from '../ui.js';
+import { e, icon, holen, senden, api, toast, heuteIso, plusTage, leer, WOCHENTAGE, suchfeldMitFilter, suchfeldMitFilterBinden, zeitraumPillen, zeilenFiltern, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 
 const datumDe = iso => iso ? iso.split('-').reverse().join('.') : '';
 
 export async function zeigen(seite, kontext, [klasseParam, vonParam, bisParam, grundParam]) {
   const ich = kontext.ich;
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'verwalten');
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const eigene = el.klassen.find(k => ich.element && (k.leitung ?? []).some(l => l.toLowerCase() === ich.element.toLowerCase()))?.kurz;
   const klasse = klasseParam === '-' ? '' : klasseParam ?? eigene ?? '';

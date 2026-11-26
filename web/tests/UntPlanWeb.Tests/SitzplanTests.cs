@@ -169,7 +169,8 @@ public class SitzplanTests
     {
         await using var s = await Testserver.StartenAsync();
         var lan = await s.AlsAsync("lan", "lehrer", "LAN");
-        var mue = await s.AlsAsync("mue", "lehrer", "MUE");
+        // FIS unterrichtet die 7a, leitet sie aber nicht: sieht den Sitzplan, bearbeitet ihn nicht
+        var mue = await s.AlsAsync("fis", "lehrer", "FIS");
         var sitz = await Testserver.HolenAsync(lan, "/api/app/sitzplan/7a");
         Assert.True(sitz["verwalten"]!.GetValue<bool>());
         Assert.False(sitz["plan"]!["vorhanden"]!.GetValue<bool>());

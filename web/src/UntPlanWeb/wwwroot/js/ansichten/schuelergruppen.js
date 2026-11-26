@@ -5,7 +5,7 @@
 // über die Schüler-Gruppen-Zuordnung (Matrix) zu: Auswahlkriterien Klasse, Schüler*innen, Fach (additiv), je Zelle Häkchen und – über das
 // Kalendersymbol – Zeiträume für den Gruppenwechsel im laufenden Schuljahr. Häkchen entfernen löscht die Zugehörigkeit ganz (Warnung).
 // Adressen: #/schuelergruppen/<Klasse>/<Schüler-Id | ->/<Fach | ->, #/schuelergruppen/matrix/<Klassen>/<Schüler-Ids>/<Fächer>
-import { e, holen, senden, api, toast, leer } from '../ui.js';
+import { e, holen, senden, api, toast, leer, klassenFuer } from '../ui.js';
 import { kbDialog as dialog, kbBestaetigen as bestaetigen } from '../kbdialog.js';
 import { elementWahl } from '../elementwahl.js';
 
@@ -32,7 +32,7 @@ export async function zeigen(seite, kontext, teile) {
 // ------------------------------------------------------------------ Unterricht → Schülergruppen (Liste)
 
 async function liste(seite, kontext, [klasseParam, schuelerParam, fachParam]) {
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   // Vorbelegung: die eigene Klasse (Klassenleitung), sonst die erste
   const eigene = el.klassen.find(k => kontext.ich?.element && (k.leitung ?? []).some(l => l.toLowerCase() === kontext.ich.element.toLowerCase()))?.kurz;
   const klasse = (klasseParam && klasseParam !== '-' ? klasseParam : '') || eigene || el.klassen[0]?.kurz || '';
@@ -262,7 +262,7 @@ export async function schuelerDialog(unterricht, gruppe, nachher, stichtag = '')
 const listeAus = p => p && p !== '-' ? decodeURIComponent(p).split(',').filter(Boolean) : [];
 
 async function matrix(seite, kontext, [klassenParam, schuelerParam, faecherParam]) {
-  const el = await kontext.elemente();
+  const el = klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const krit = { klassen: listeAus(klassenParam), schueler: listeAus(schuelerParam).map(Number), faecher: listeAus(faecherParam) };
   const ziel = k => `#/schuelergruppen/matrix/${encodeURIComponent(k.klassen.join(',') || '-')}/${k.schueler.join(',') || '-'}/${encodeURIComponent(k.faecher.join(',') || '-')}`;
   kontext.titel('Schüler-Gruppen-Zuordnung');

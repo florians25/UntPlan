@@ -2,7 +2,7 @@
 // Termine, Schüler*innen, Schülergruppen, Berichte). Schülergruppen eines Unterrichts mit den Schüler*innen und ihrem Zeitraum
 // (Abmeldung vom Unterricht ab einem Datum) und der befristete Unterrichtswechsel als Assistent (Zeitraum → Schüler*innen →
 // Zielklasse → Unterrichte). Klassenwechsel ab Datum (Dialog für die Schülerverwaltung) wird von schueler.js aufgerufen.
-import { e, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen, heuteIso, plusTage, montag, initialen, karteKopf } from '../ui.js';
+import { e, holen, senden, api, toast, dialog, bestaetigen, leer, herunterladen, heuteIso, plusTage, montag, initialen, karteKopf, klassenFuer } from '../ui.js';
 import { elementWahl } from '../elementwahl.js';
 import { zeitraumPfeil, pfeileBinden } from '../zeitbereich.js';
 
@@ -18,9 +18,9 @@ const BEREICHE = {
 const csvFeld = x => `"${String(x ?? '').replace(/"/g, '""')}"`;
 
 export async function zeigen(seite, kontext, [klasseParam, bereichParam, vonParam, bisParam]) {
-  const el = await kontext.elemente();
+  const el = kontext.ich?.rechte?.['unterricht.klassen'] === 2 ? await kontext.elemente() : klassenFuer(await kontext.elemente(), kontext.ich, 'einsehen');
   const sj = kontext.schuljahr;
-  const klasse = (klasseParam && klasseParam !== '-' ? klasseParam : '') || el.klassen[0]?.kurz || '';
+  const klasse = (klasseParam && klasseParam !== '-' ? klasseParam : '') || el.klassen.find(k => (kontext.ich?.klassenleitung ?? []).includes(k.kurz))?.kurz || el.klassen[0]?.kurz || '';
   const bereich = BEREICHE[bereichParam] ? bereichParam : 'woche';
   let [von, bis] = bereich === 'jahr' ? [sj?.von ?? heuteIso(), sj?.bis ?? heuteIso()] : BEREICHE[bereich][1]();
   if (iso.test(vonParam ?? '')) von = vonParam;
