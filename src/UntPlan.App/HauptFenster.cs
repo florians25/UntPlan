@@ -54,7 +54,7 @@ public sealed partial class HauptFenster : Form
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)), _excelKnopf,
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
             WebKnopf(), new ToolStripSeparator(),
-            SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
+            SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretungsmodus", VertretungsmodusUmschalten),
             _titelLabel,
         });
         Updates = new Updateanzeige(this);
@@ -312,8 +312,8 @@ public sealed partial class HauptFenster : Form
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
         g = Gruppe(start, "Module");
-        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, ImmerGross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
-        g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
+        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretungsmodus", Klick = VertretungsmodusUmschalten, Gross = true, ImmerGross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
+        g.Eintraege.Add(E("Info-Stundenplan", "infostundenplan", InfoStundenplan));
         g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster())));
         g.Eintraege.Add(E("Kalender / Ferien", "kalender", () => Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
         g.Eintraege.Add(E("Unterrichtsplanung", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster())));
@@ -451,7 +451,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Wochenwerte", "wertrechnung", () => Oeffnen("wochenwerte", () => new WochenwerteFenster()), true, hinweis: "Je Kalenderwoche geplant, verplant, gehalten, Entfälle, Vertretungen, Sondereinsätze eines Lehrers"));
         g = Gruppe(module, "Weitere Module");
         // Handbuch Kap. 3.1: Vertretungsmodus über Module | Vertretungsplanung ein- und ausschalten
-        g.Eintraege.Add(E("Vertretungs-planung", "vertretung", VertretungsmodusUmschalten, true));
+        g.Eintraege.Add(E("Vertretungs-planung", "vertretungsmodus", VertretungsmodusUmschalten, true));
         g.Eintraege.Add(E("Mehrwochen / Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Bereitschafts-planung", "bereitschaft", () => FensterOeffnen("bereitplan"), true));
         g.Eintraege.Add(E("Unterrichts-gruppen", "perioden", () => FensterOeffnen("ugruppen"), true, hinweis: "A/B-Wochen und weitere Wochenzyklen"));
@@ -791,7 +791,7 @@ public sealed partial class HauptFenster : Form
 
     private static ToolStripButton ExcelKnopf()
     {
-        var b = SKnopf("Export nach Excel", "export", () => { if (AppZustand.Haupt?.ActiveMdiChild is IExcelExport x) ExcelAusgabe.Oeffnen(x); });
+        var b = SKnopf("Export nach Excel", "excel", () => { if (AppZustand.Haupt?.ActiveMdiChild is IExcelExport x) ExcelAusgabe.Oeffnen(x); });
         b.Enabled = false;
         return b;
     }

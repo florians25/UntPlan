@@ -7,6 +7,7 @@ namespace UntPlan.App;
 /// Alle Programmsymbole stammen aus dem FatCow-Satz „Farm-Fresh Web Icons“ (FatCow Web Hosting, CC BY 3.0 US,
 /// Namensnennung in Lizenzen/FatCow-Symbole.txt). Es gibt keine selbst gezeichneten Symbole: Jeder Programmname
 /// verweist auf eine Originaldatei in Bilder/FatCow/16 bzw. Bilder/FatCow/32 (unverändert eingebettet).
+/// Deaktivierte Zustände zeigen die offiziellen grauen FatCow-Varianten (Bilder/FatCow/16g bzw. 32g, aus „16x16-grey“/„32x32-grey“).
 /// 16er-Symbole verwenden die 16er-Vorlage, größere die 32er-Vorlage; andere Größen werden daraus hochwertig skaliert.
 /// Einzige Ausnahme ist das Programmlogo („logo“), das aus build/untplan-logo-256.png geladen wird.
 /// </summary>
@@ -35,25 +36,25 @@ public static class Symbole
         ["stundenplan"] = "calendar_view_week",
         ["uebersicht"] = "application_view_tile",
         ["planen"] = "wand",
-        ["kalender"] = "calendar",
+        ["kalender"] = "date",
         ["datum"] = "date",
         ["zeitraster"] = "clock",
         ["zeitwunsch"] = "time",
         ["ferien"] = "sun_cloudy",
         ["veranstaltung"] = "events",
         ["klausur"] = "report",
-        ["vormerkung"] = "note_pin",
+        ["vormerkung"] = "date_go",
         ["block"] = "bricks",
 
         // Unterricht und Vertretung
         ["unterricht"] = "education",
-        ["vertretung"] = "arrow_switch",
+        ["vertretung"] = "report_user",
         ["abwesenheit"] = "user_delete",
-        ["absenz"] = "user_red",
+        ["absenz"] = "bed",
         ["entfall"] = "cross",
-        ["bereitschaft"] = "bell",
-        ["sondereinsatz"] = "star",
-        ["pausenaufsicht"] = "eye",
+        ["bereitschaft"] = "user_female",
+        ["sondereinsatz"] = "table_add",
+        ["pausenaufsicht"] = "wall",
         ["fixieren"] = "lock",
         ["raumzuordnen"] = "door_in",
         ["tausch"] = "arrow_refresh",
@@ -65,18 +66,23 @@ public static class Symbole
         ["normalform"] = "transform_move",
         ["wertrechnung"] = "calculator",
         ["statistik"] = "chart_bar",
+        // Menüband „Vertretungsplanung“ wie im Vorbild (Bild 308)
+        ["vertretungsmodus"] = "user_go",
+        ["planungsdialog"] = "group_gear",
+        ["vertretungsformate"] = "document_copies",
+        ["infostundenplan"] = "building",
 
         // Symbolleisten der Vertretungs- und Absenzfenster in der Reihenfolge des Originals (möglichst ähnliche Motive)
         ["l_normalform"] = "transform_move",
-        ["l_felder"] = "form",
+        ["l_felder"] = "application_view_list",
         ["l_loeschen"] = "cross",
         ["l_vorschlag"] = "user_student",
-        ["l_vormerkung"] = "note_go",
-        ["l_planung"] = "calendar_edit",
+        ["l_vormerkung"] = "date_go",
+        ["l_planung"] = "door_in",
         ["l_automatik"] = "calculator",
-        ["l_teilen"] = "arrow_divide",
+        ["l_teilen"] = "cut",
         ["l_sortieren"] = "sort_asc_az",
-        ["l_inhalt"] = "data_field",
+        ["l_inhalt"] = "table_select",
         ["l_farbig"] = "palette",
         ["l_seitenlayout"] = "page_white_gear",
         ["l_aktualisieren"] = "arrow_refresh",
@@ -99,6 +105,7 @@ public static class Symbole
         ["suchen"] = "find",
         ["import"] = "table_import",
         ["export"] = "table_export",
+        ["excel"] = "table_excel",
         ["html"] = "html",
         ["pdf"] = "page_white_acrobat",
         ["web"] = "world",
@@ -153,6 +160,10 @@ public static class Symbole
     /// <summary>Alle verwendeten FatCow-Dateinamen (Selbsttest: jede Datei muss in 16 und 32 px eingebettet sein).</summary>
     public static IReadOnlyCollection<string> Dateien => FatCow.Values.Distinct().ToList();
 
+    /// <summary>Graue Varianten, die als Ressource fehlen (Selbsttest: muss leer bleiben).</summary>
+    public static IReadOnlyCollection<string> GrauFehlend =>
+        Dateien.SelectMany(d => new[] { 16, 32 }.Where(s => typeof(Symbole).Assembly.GetManifestResourceInfo($"FatCow.{s}g.{d}.png") is null).Select(s => $"{s}g/{d}")).ToList();
+
     /// <summary>Angeforderte Namen ohne FatCow-Zuordnung (Selbsttest: muss leer bleiben).</summary>
     public static IReadOnlyCollection<string> Fehlend { get { lock (FehlendeNamen) return FehlendeNamen.ToList(); } }
 
@@ -177,10 +188,43 @@ public static class Symbole
         }
     }
 
-    private static Bitmap? FatCowBild(string datei, int groesse)
+    private static Bitmap? FatCowBild(string datei, int groesse, bool grau = false)
     {
         var basis = groesse <= 20 ? 16 : 32;
-        return Skaliert(Ressource($"FatCow.{basis}.{datei}.png"), groesse, basis);
+        var b = Skaliert(Ressource($"FatCow.{basis}{(grau ? "g" : "")}.{datei}.png"), groesse, basis);
+        if (b != null && !grau) lock (Herkunft) Herkunft.AddOrUpdate(b, datei);
+        return b;
+    }
+
+    /// <summary>Herkunft jedes geladenen Symbols (Bild → FatCow-Datei), damit deaktivierte Knöpfe die graue Originalfassung finden.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Image, string> Herkunft = new();
+    private static readonly Dictionary<(string, int), Bitmap> GrauCache = new();
+
+    /// <summary>
+    /// Graue Fassung für deaktivierte Zustände: die offizielle FatCow-Variante aus „16x16-grey“ bzw. „32x32-grey“ (unverändert eingebettet),
+    /// kein berechneter Graufilter. Null, wenn es zum Namen keine FatCow-Datei gibt.
+    /// </summary>
+    public static Bitmap? Grau(string name, int groesse = 16) =>
+        FatCow.TryGetValue(name, out var datei) ? GrauDatei(datei, groesse) : null;
+
+    /// <summary>Graue Fassung zu einem bereits geladenen Symbolbild (z. B. Bild eines ToolStrip-Knopfs); null bei fremden Bildern.</summary>
+    public static Bitmap? Grau(Image? bild)
+    {
+        if (bild is null) return null;
+        string? datei;
+        lock (Herkunft) if (!Herkunft.TryGetValue(bild, out datei)) return null;
+        return GrauDatei(datei, Math.Max(bild.Width, bild.Height));
+    }
+
+    private static Bitmap? GrauDatei(string datei, int groesse)
+    {
+        lock (GrauCache)
+        {
+            if (GrauCache.TryGetValue((datei, groesse), out var b)) return b;
+            b = FatCowBild(datei, groesse, true);
+            if (b != null) GrauCache[(datei, groesse)] = b;
+            return b;
+        }
     }
 
     private static Icon? _logo, _logoKlein;

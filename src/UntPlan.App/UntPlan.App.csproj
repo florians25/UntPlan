@@ -22,6 +22,9 @@
     <!-- Programmsymbole: FatCow „Farm-Fresh Web Icons“ (CC BY 3.0, siehe Bilder/FatCow/LIZENZ.txt) – ausschließlich, keine gezeichneten Symbole -->
     <EmbeddedResource Include="Bilder\FatCow\16\*.png" LogicalName="FatCow.16.%(Filename)%(Extension)" />
     <EmbeddedResource Include="Bilder\FatCow\32\*.png" LogicalName="FatCow.32.%(Filename)%(Extension)" />
+    <!-- offizielle graue Varianten desselben Satzes (Ordner 16x16-grey und 32x32-grey) für deaktivierte Knöpfe -->
+    <EmbeddedResource Include="Bilder\FatCow\16g\*.png" LogicalName="FatCow.16g.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Bilder\FatCow\32g\*.png" LogicalName="FatCow.32g.%(Filename)%(Extension)" />
     <!-- Programmlogo (kein Programmsymbol; erzeugt von build/logo.py) -->
     <EmbeddedResource Include="..\..\build\untplan-logo-256.png" LogicalName="Logo.untplan-logo-256.png" />
     <!-- Fenstersymbol aller Fenster und Dialoge: dasselbe Logo wie das Programmsymbol (16 bis 256 px) -->

@@ -435,6 +435,11 @@ public class MdiFenster : Form
                 e.Graphics.FillRectangle(innen, Einzug, 0, Math.Max(0, l.Width - 2 * Einzug), l.Height);
             }
 
+            protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+            {
+                if (!GrauesSymbol.Zeichnen(e)) base.OnRenderItemImage(e);
+            }
+
             protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
             {
                 if (e.ToolStrip is Fensterleiste) return;

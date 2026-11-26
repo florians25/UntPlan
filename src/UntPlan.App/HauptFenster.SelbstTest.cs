@@ -3061,7 +3061,15 @@ public sealed partial class HauptFenster
             var ohne = Symbole.Dateien.SelectMany(d => new[] { 16, 32 }.Where(s => asm.GetManifestResourceInfo($"FatCow.{s}.{d}.png") is null).Select(s => $"{s}/{d}")).ToList();
             if (ohne.Count > 0) throw new InvalidOperationException("FatCow-Dateien fehlen: " + string.Join(", ", ohne));
             if (Symbole.Fehlend.Count > 0) throw new InvalidOperationException("Symbole ohne FatCow-Zuordnung: " + string.Join(", ", Symbole.Fehlend));
-            log.Add($"INFO  Symbole: {namen.Count} Programmnamen, {Symbole.Dateien.Count} FatCow-Dateien (16 und 32 px), keine gezeichneten Symbole");
+            // graue Originalvarianten für deaktivierte Zustände (16x16-grey, 32x32-grey) zu jeder Datei vorhanden und über das Knopfbild auffindbar
+            if (Symbole.GrauFehlend.Count > 0) throw new InvalidOperationException("Graue FatCow-Varianten fehlen: " + string.Join(", ", Symbole.GrauFehlend));
+            if (Symbole.Grau(Symbole.Get("drucken", 16)) is not { Width: 16 } grau16 || Symbole.Grau("drucken", 32) is not { Width: 32 })
+                throw new InvalidOperationException("Graue Variante zu „drucken“ nicht gefunden.");
+            var bunt = Symbole.Get("drucken", 16);
+            var gleich = true;
+            for (var yy = 0; yy < 16 && gleich; yy++) for (var xx = 0; xx < 16; xx++) if (bunt.GetPixel(xx, yy) != grau16.GetPixel(xx, yy)) { gleich = false; break; }
+            if (gleich) throw new InvalidOperationException("Graue Variante gleicht dem farbigen Symbol.");
+            log.Add($"INFO  Symbole: {namen.Count} Programmnamen, {Symbole.Dateien.Count} FatCow-Dateien (16 und 32 px), graue Varianten vorhanden, keine gezeichneten Symbole");
         }, -1);
         Schritt("28_Speichern_Laden", () =>
         {
