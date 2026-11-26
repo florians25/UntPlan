@@ -2322,6 +2322,14 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>
     /// Selbsttest: Kopplungen stehen in EINER Zeile mit allen Klassen (keine zwei sichtbaren Zeilen mit demselben Kopplungsschlüssel).
     /// </summary>
+    /// <summary>Selbsttest (Vorbild 308): Zelle „Art“ der gewählten Vertretung aktuell, Fokus in der Liste.</summary>
+    internal void SelbsttestArtWaehlen()
+    {
+        if (_g.CurrentRow is not { } r || !_g.Columns.Contains("Art")) return;
+        _g.Focus();
+        _g.CurrentCell = r.Cells["Art"];
+    }
+
     internal string SelbsttestKopplung()
     {
         var zeilen = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Id: > 0 }).ToList();

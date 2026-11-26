@@ -43,6 +43,9 @@ public sealed class VeranstaltungenFenster : MdiFenster
         ["G"] = "Grund der Veranstaltung, wird für die Zählerführung benötigt",
         ["T"] = "Text zur Veranstaltung, erscheint im Vertretungsplan",
         ["Z"] = "Zählen: Stunden der Veranstaltung im Vertretungszähler der Lehrkräfte berücksichtigen",
+        ["F"] = "Fach der Veranstaltung, erscheint in den Zeilen der Vertretungsliste",
+        ["ND"] = "N. Druck: die Zeilen der Veranstaltung erscheinen nicht im gedruckten Vertretungsplan",
+        ["Neu"] = "Neu: Zeilen der Veranstaltung seit Beginn der Sitzung angelegt oder geändert",
         ["SG"] = "Schülergruppe, die an der Veranstaltung teilnimmt",
         ["W"] = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
     };
@@ -102,32 +105,47 @@ public sealed class VeranstaltungenFenster : MdiFenster
         Ui.RasterGestalten(_g, true);
         _g.SelectionMode = DataGridViewSelectionMode.CellSelect;
         _g.MultiSelect = true;
+        // Spalten und Breiten wie im Vorbild (Bild 350 vermessen, samt Rasterlinie): VA-Nr. | Klasse | Kl-Teil | Lehrer | Raum | Fa. |
+        // Von TT.MM. | ab St. | Bis TT.MM. | bis St. | Grund | Text | zählen | N.Druck. (N) | Neu | Schülergruppe | Wert
         foreach (var (n, k, b) in new[]
         {
-            // Spaltenbreiten wie im Handbuch-Bild (Kap. 6.2, auf 96 dpi umgerechnet)
-            ("Nr", "VA-Nr.", 40), ("K", "Klasse", 40), ("KT", "Kl-Teil", 38), ("L", "Lehrer", 39), ("R", "Raum", 36), ("V", "Von TT.MM.", 67), ("SV", "ab St.", 36),
-            ("B", "Bis TT.MM.", 63), ("SB", "bis St.", 38),
+            ("Nr", "VA-Nr.", 44), ("K", "Klasse", 44), ("KT", "Kl-Teil", 42), ("L", "Lehrer", 43), ("R", "Raum", 40),
         })
-            _g.Columns.Add(n is "V" or "B" ? DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr" });
-        _g.Columns.Add(SuchKombi.Spalte("G", "Grund", 38, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 28 });
-        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählen", Width = 39 });
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "SG", HeaderText = "Schülergruppe", Width = 140 });
+            _g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, ReadOnly = n == "Nr" });
+        _g.Columns.Add(SuchKombi.Spalte("F", "Fa.", 27, Stammdaten.Sortiert(D.Faecher).Select(x => x.Kurzname)));
+        foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 71), ("SV", "ab St.", 40), ("B", "Bis TT.MM.", 67), ("SB", "bis St.", 42) })
+            _g.Columns.Add(n is "V" or "B" ? DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b });
+        _g.Columns.Add(SuchKombi.Spalte("G", "Grund", 42, D.Abwesenheitsgruende.Select(x => x.Kurzname)));
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 32 });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Z", HeaderText = "zählen", Width = 43 });
+        _g.Columns.Add(new DataGridViewCheckBoxColumn { Name = "ND", HeaderText = "N.Druck. (N)", Width = 72 });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Neu", HeaderText = "Neu", Width = 31, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "SG", HeaderText = "Schülergruppe", Width = 83 });
         // Handbuch „Wert der Veranstaltung ändern“: selbst definierter Wert für den Vertretungszähler (Wie zählen: Werte)
         _g.Columns.Add(new DataGridViewTextBoxColumn
         {
-            Name = "W", HeaderText = "Wert", Width = 60, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
+            Name = "W", HeaderText = "Wert", Width = 34, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
             ToolTipText = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
         });
+        // Schrift und Zeilenhöhe wie die Absenzen im Vorbild (Segoe UI 8,25, Überschrift und Zeilen 19 Pixel samt Linie)
+        _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.AbsenzSchrift;
+        _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.AbsenzSchrift);
         foreach (DataGridViewColumn c in _g.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
         Ui.Spaltenhilfe(_g, c => Spaltenhilfen.GetValueOrDefault(c.Name));
         foreach (var n in new[] { "K", "KT", "L", "R" }) _g.Columns[n]!.DefaultCellStyle.WrapMode = DataGridViewTriState.True;
         _g.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.DisplayedCells;
+        // Eingabezeile wie im Vorbild: Kontrollkästchen erst in gespeicherten Veranstaltungen
+        _g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _g.Rows[e.RowIndex].Tag is Veranstaltung || _g.Columns[e.ColumnIndex] is not DataGridViewCheckBoxColumn) return;
+            e.Paint(e.CellBounds, DataGridViewPaintParts.All & ~DataGridViewPaintParts.ContentForeground);
+            e.Handled = true;
+        };
         SuchKombi.Aktivieren(_g, (zelle, text) => D.Abwesenheitsgruende.FirstOrDefault(x => x.Kurzname == text) is { } g ? new ListenStil(Color.White, Color.Black, g.Langname) : null);
         _g.CellEndEdit += ZelleGeaendert;
         // während der Eingabe aufgeschobenen Neuaufbau nach dem Verlassen der Zelle nachholen
         _g.CellEndEdit += (_, _) => { if (_neuaufbauAusstehend) NachZellwechsel(() => { if (_neuaufbauAusstehend) Neuaufbau(); }); };
-        _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name == "Z") _g.EndEdit(); };
+        _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name is "Z" or "ND") _g.EndEdit(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0) Bearbeiten(); };
         _g.CellFormatting += Formatieren;
         _g.CellPainting += (_, e) =>
@@ -164,17 +182,20 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.DragDrop += Fallenlassen;
 
         _von.Value = _bis.Value = AppZustand.Datum.ToDateTime(TimeOnly.MinValue);
-        _zeitraum = new ZeitraumAuswahl(_von, _bis, "Veranstaltungen");
+        _zeitraum = new ZeitraumAuswahl(_von, _bis, "Veranstaltungen", kalenderAussen: true);
         _zeitraum.Geaendert += () => { if (!_laedt) Neuaufbau(); };
-        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 56, Padding = new Padding(4, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        var gruppe = new GroupBox { Text = "Von-Bis", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(4, 2, 4, 2), MinimumSize = new Size(0, 50) };
-        gruppe.Controls.Add(_zeitraum);
-        _zeitraum.Location = new Point(6, 18);
+        // Kopf wie im Vorbild (Bild 350): Rahmen „Von-Bis“ mit Datum, Wochentag und Pfeilen, rechts daneben der Kalenderknopf;
+        // 72 Pixel bis zur Tabelle
+        var kopf = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 72, Padding = new Padding(14, 5, 0, 0), BackColor = Ui.Kopf, WrapContents = false, Font = Ui.DialogSchrift };
+        var gruppe = new GroupBox { Text = "Von-Bis", Margin = Padding.Empty };
+        _zeitraum.InRahmen(gruppe);
         kopf.Controls.Add(gruppe);
+        _zeitraum.Kalender.Margin = new Padding(5, 8, 0, 0);
+        kopf.Controls.Add(_zeitraum.Kalender);
         // Fußleiste wie im Bild: 28 hoch, „VA-Nr.“ bei x = 31, Zahlenfeld 72 breit bei x = 79
         // Vorbild (Bild 350): Fußleiste 36 Pixel, „VA-Nr.“ 38 Pixel vom Fensterrand, Zahlenfeld bei 86
-        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(24, 6, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 51, Height = 22 });
+        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(31, 6, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 48, Height = 22 });
         unten.Controls.Add(_nr);
         _nr.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Springen((int)_nr.Value); } };
         _g.SelectionChanged += (_, _) => { if (!_laedt && !_nr.Focused && _g.CurrentRow?.Tag is Veranstaltung v) _nr.Value = Math.Min(_nr.Maximum, v.Id); };
@@ -268,10 +289,13 @@ public sealed class VeranstaltungenFenster : MdiFenster
     {
         object?[] werte = eintrag is Veranstaltung v
             ? new object?[] { v.Id, Feldtext(v, ElementTyp.Klasse, v.KlassenIds), Feldtext(v, ElementTyp.Klasse, v.KlassenteilIds), LehrerText(v),
-                Feldtext(v, ElementTyp.Raum, v.RaumIds), Datum(v.Von), v.StundeVon, Datum(v.Bis), v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
-                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.Schuelergruppe,
+                Feldtext(v, ElementTyp.Raum, v.RaumIds), v.FachId is int fid ? Ix.K(ElementTyp.Fach, fid) : "", Datum(v.Von), v.StundeVon, Datum(v.Bis),
+                v.StundeBis >= 99 ? D.Zeitraster.StundenProTag.ToString() : v.StundeBis.ToString(),
+                D.Abwesenheitsgruende.FirstOrDefault(g => g.Id == v.GrundId)?.Kurzname ?? "", v.Text, v.Zaehlen, v.NichtDrucken,
+                // „Neu“: Zeilen der Veranstaltung seit Beginn der Sitzung angelegt oder geändert (wie in der Vertretungsliste)
+                D.Vertretungen.Any(x => x.VeranstaltungId == v.Id && Vertretungen.IstNeu(x, Doc.Sitzungsbeginn)) ? "Neu" : "", v.Schuelergruppe,
                 v.Wert is decimal w ? w.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) : "" }
-            : new object?[] { "", "", "", "", "", "", "", "", "", "", "", false, "", "" };
+            : new object?[] { "", "", "", "", "", "", "", "", "", "", "", "", false, false, "", "", "" };
         zeile.Tag = eintrag as Veranstaltung;
         for (var i = 0; i < werte.Length && i < zeile.Cells.Count; i++)
             if (!Equals(zeile.Cells[i].Value, werte[i]) && (zeile.Cells[i].Value?.ToString() ?? "") != (werte[i]?.ToString() ?? "")) zeile.Cells[i].Value = werte[i];
@@ -580,6 +604,11 @@ public sealed class VeranstaltungenFenster : MdiFenster
                         ?? throw new FormatException($"Absenzgrund \"{wert}\" ist nicht vorhanden.");
                     break;
                 case "Z": v.Zaehlen = wert == "1"; break;
+                case "ND": v.NichtDrucken = wert == "1"; break;
+                case "F":
+                    v.FachId = wert.Length == 0 ? null : D.Faecher.FirstOrDefault(x => x.Kurzname.Equals(wert, StringComparison.OrdinalIgnoreCase))?.Id
+                        ?? throw new FormatException($"Fach \"{wert}\" ist nicht vorhanden.");
+                    break;
                 case "SG":
                     // neue Schülergruppe (Handbuch Kap. 6.3): Rückfrage, ob der kollidierende Unterricht trotzdem stattfindet –
                     // Ja: die Klassen nehmen nur teilweise teil (Kl-Teil, Unterricht findet statt), Nein: Lehrkräfte werden freigesetzt

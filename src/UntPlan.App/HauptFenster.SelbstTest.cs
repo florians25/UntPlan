@@ -1504,6 +1504,8 @@ public sealed partial class HauptFenster
                     // Zeitraster wie im Vorbild: 9 Stunden, Frühaufsicht „FA“ vor der 1. Stunde (nur in dieser Szene, nicht in den Nutzerdaten)
                     x.Stundenplan.RemoveAll(p => p.Stunde > 9);
                     x.Zeitraster.StundenProTag = 9;
+                    // im Vorbild sind alle Stunden aller Tage verfügbar (keine grauen Felder am Freitagnachmittag)
+                    foreach (var k in x.Zeitraster.Belegung.Where(b => b.Value == Tageszeit.Leer).Select(b => b.Key).ToList()) x.Zeitraster.Belegung.Remove(k);
                     if (!x.Zeitraster.Pausen.Any(p => p.NachStunde == 0))
                         x.Zeitraster.Pausen.Insert(0, new Pause { NachStunde = 0, Bezeichnung = "FA", DauerMinuten = 15 });
                     Nrw.FerienEintragen(x);
@@ -1526,7 +1528,7 @@ public sealed partial class HauptFenster
                 MdiFenster.SelbsttestOhneKlemmen = true;
                 var kleinePlaene = new List<StundenplanFenster>();
                 // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
-                Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
+                var kalender = (KalenderFenster)Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
                 var absenzen = (AbwesenheitenFenster)Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
                 // wie im Vorbild: Zeitraumart „Von-Bis“ vom 30.08.2021 bis 24.07.2022 (329 Tage), Schloss offen
                 absenzen.SelbsttestZeitraum.SelbsttestSetzen(Steuerelemente.Zeitraumart.VonBis, new DateTime(2021, 8, 30), new DateTime(2022, 7, 24));
@@ -1547,11 +1549,18 @@ public sealed partial class HauptFenster
                 AppZustand.VertretungWaehlen(entfall);
                 // wie im Vorbild: im Klassenplan Montag, in Lehrer- und Raumplan Freitag der 5. Stunde gewählt (Tag und Stunde rosa)
                 foreach (var (plan, tag) in kleinePlaene.Zip(new[] { 0, 4, 4 })) { plan.Plan.ZelleMarkieren(tag, 5); plan.Plan.Invalidate(); }
+                // wie im Vorbild: Fokus in der Vertretungsliste, aktuelle Zelle „Art“
+                ((VertretungenFenster)vertr).SelbsttestArtWaehlen();
+                // wie im Vorbild: im Kalender die letzte Spalte des Tags gewählt (Liste nach rechts gerollt)
+                kalender.SelbsttestLetzteSpalte();
                 Steuerelemente.Auswahlbreite.AlleErfassen();
                 Warten(900);
                 var mdi = Controls.OfType<MdiClient>().First();
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
                 foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
+                R3DRollbereich(mdi.Handle, 0, out var hMin, out var hMax);
+                R3DRollbereich(mdi.Handle, 1, out var vMin, out var vMax);
+                log.Add($"MASS  V51 Arbeitsbereich-Rollbalken: Stil {FensterExStilRoh(mdi.Handle, -16) & 0x300000:X}, waagrecht {hMin}..{hMax}, senkrecht {vMin}..{vMax}");
                 Foto(Path.Combine(ordner, "V51_Vorbild308_F.png"));
                 // Messwerte zur Abstimmung auf das Vorbild: Registerkarten (Lage, Textbreite GDI) und Gruppen des Menübands
                 var tabSchrift = new Font("Segoe UI", 9f);
@@ -1689,8 +1698,10 @@ public sealed partial class HauptFenster
             // Abstimmung der Menübandschrift auf das Vorbild (Bild 308): dieselben Beschriftungen mit GDI (TextRenderer) und GDI+
             // (DrawString in verschiedenen Darstellungsarten) auf der Menübandfarbe; Breite der Tinte und Lage bei mittiger Ausrichtung
             var worte = new[] { "Kalender", "Absenzen", "Ausgabe", "Planungsdialog", "Vormerkungen", "Pausenaufsichten", "Veranstaltungen", "Vertretungsformate", "Stundenpläne" };
-            var arten = new[] { "GDI", "GDI+ ClearTypeGridFit", "GDI+ ClearTypeGridFit typografisch", "GDI+ AntiAliasGridFit", "GDI+ SystemDefault" };
+            var arten = new[] { "GDI", "GDI+ ClearTypeGridFit", "GDI+ ClearTypeGridFit typografisch", "GDI 8,75", "GDI+ 8,75", "GDI+ 11,5 px", "GDI+ 8,75 typografisch" };
             using var schrift = new Font("Segoe UI", 9f);
+            using var schrift875 = new Font("Segoe UI", 8.75f);
+            using var schrift115 = new Font("Segoe UI", 11.5f, GraphicsUnit.Pixel);
             const int zeile = 24, spalte = 150;
             using var probe = new Form { FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual, Location = new Point(60, 180),
                 Size = new Size(spalte * worte.Length + 20, zeile * arten.Length + 20), BackColor = Ui.Menueband, ShowInTaskbar = false, TopMost = true };
@@ -1701,10 +1712,10 @@ public sealed partial class HauptFenster
                     for (var w = 0; w < worte.Length; w++)
                     {
                         var r = new Rectangle(10 + w * spalte, 10 + a * zeile, spalte - 10, zeile);
-                        if (a == 0) { TextRenderer.DrawText(g, worte[w], schrift, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.NoPrefix); continue; }
-                        g.TextRenderingHint = a switch { 3 => System.Drawing.Text.TextRenderingHint.AntiAliasGridFit, 4 => System.Drawing.Text.TextRenderingHint.SystemDefault, _ => System.Drawing.Text.TextRenderingHint.ClearTypeGridFit };
-                        using var sf = new StringFormat(a == 2 ? StringFormat.GenericTypographic : StringFormat.GenericDefault) { Alignment = StringAlignment.Center };
-                        g.DrawString(worte[w], schrift, Brushes.Black, r, sf);
+                        if (a == 0 || a == 3) { TextRenderer.DrawText(g, worte[w], a == 0 ? schrift : schrift875, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.NoPrefix); continue; }
+                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                        using var sf = new StringFormat(a is 2 or 6 ? StringFormat.GenericTypographic : StringFormat.GenericDefault) { Alignment = StringAlignment.Center };
+                        g.DrawString(worte[w], a switch { 4 or 6 => schrift875, 5 => schrift115, _ => schrift }, Brushes.Black, r, sf);
                     }
             };
             probe.Show(this);
@@ -1730,8 +1741,8 @@ public sealed partial class HauptFenster
                             if ((c.R + c.G + c.B) / 3 < 110) { l ??= x; rr = x; break; }
                         }
                     var mitte = x0 + (spalte - 10) / 2.0;
-                    var gemessen = a == 0 ? TextRenderer.MeasureText(mg, worte[w], schrift, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width
-                        : mg.MeasureString(worte[w], schrift, PointF.Empty, a == 2 ? StringFormat.GenericTypographic : StringFormat.GenericDefault).Width;
+                    var gemessen = a is 0 or 3 ? TextRenderer.MeasureText(mg, worte[w], a == 0 ? schrift : schrift875, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width
+                        : mg.MeasureString(worte[w], a switch { 4 or 6 => schrift875, 5 => schrift115, _ => schrift }, PointF.Empty, a is 2 or 6 ? StringFormat.GenericTypographic : StringFormat.GenericDefault).Width;
                     teile.Add(l is int li && rr is int ri ? $"{worte[w]} {ri - li + 1} ({(li + ri) / 2.0 - mitte:+0.0;-0.0}, m {gemessen:0.0})" : $"{worte[w]} -");
                 }
                 log.Add($"MASS  V53 {arten[a]}: {string.Join(" | ", teile)}");
@@ -5102,6 +5113,8 @@ public sealed partial class HauptFenster
     private static int FensterExStil(IntPtr hWnd) => FensterExStilRoh(hWnd, -20);
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
     private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetScrollRange")]
+    private static extern bool R3DRollbereich(IntPtr hwnd, int bar, out int min, out int max);
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct KombiInfo

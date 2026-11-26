@@ -143,38 +143,40 @@ public static class SondereinsatzDialog
         var ix = AppZustand.Doc.Index;
         // Maße wie in den Handbuch-Abbildungen (96 dpi): Fenster 768 × 240, oben Datum, Stunde von/bis und die Schaltflächen
         // Klassen, Lehrer, Klassenkonferenz; Tabelle über die ganze Breite mit neun gleich breiten Spalten (83); Ok / Abbrechen mittig
-        using var f = new Dialog("Sondereinsätze", 768, 240);
+        // Vorbild (Bild 348 vermessen): Fenster 870 × 342 samt Titel, Tabelle 858 breit mit neun Spalten zu 95 Pixeln
+        using var f = new Dialog("Sondereinsätze", 870, 311);
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.MinimumSize = new Size(620, 240);
         f.Ok.Text = "Ok";
         f.Ok.Size = f.Abbrechen.Size = VorbildMasse.Knopf;
         f.Controls.Add(new Label { Text = "Datum", Left = 12, Top = 12, AutoSize = true });
-        var dat = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 11, Top = 38, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
+        var dat = new DateTimePicker { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Left = 11, Top = 39, Width = 111, Value = datum.ToDateTime(TimeOnly.MinValue) };
+        Ui.DatumsfeldHoehe(dat, 20);
         f.Controls.Add(new Label { Text = "Stunde von", Left = 142, Top = 12, AutoSize = true });
         var von = ElementListe.Stunde(stunde);
-        von.SetBounds(144, 38, 64, 20);
+        von.SetBounds(144, 39, 64, 20);
         f.Controls.Add(new Label { Text = "Stunde bis", Left = 213, Top = 12, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
-        bis.SetBounds(214, 38, 64, 20);
+        bis.SetBounds(214, 39, 64, 20);
         var bKl = new Button { Text = "Klassen", Left = 297, Top = 37, Width = 118, Height = 23 };
         var bLe = new Button { Text = "Lehrer", Left = 422, Top = 37, Width = 126, Height = 23 };
         var bKk = new Button { Text = "Klassenkonferenz", Left = 555, Top = 37, Width = 118, Height = 23 };
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
-        f.Ok.Location = new Point(f.ClientSize.Width / 2 - 77, 209);
-        f.Abbrechen.Location = new Point(f.ClientSize.Width / 2 + 5, 209);
+        f.Ok.Location = new Point(f.ClientSize.Width / 2 - 77, 280);
+        f.Abbrechen.Location = new Point(f.ClientSize.Width / 2 + 5, 280);
         f.Controls.AddRange(new Control[] { dat, von, bis, bKl, bLe, bKk });
-        var g = new DataGridView { Left = 2, Top = 85, Width = 764, Height = 107, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 2, Top = 83, Width = 858, Height = 179, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, true);
         g.AllowUserToAddRows = true;
         g.AllowUserToDeleteRows = true;
         g.RowHeadersVisible = false;
         foreach (var (n, k) in new[] { ("D", "Datum"), ("SV", "Stunde von"), ("SB", "Stunde bis"), ("L", "Lehrer"), ("K", "Klassen") })
-            g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = 83 });
+            g.Columns.Add(new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = 95 });
         g.Columns["SV"]!.DefaultCellStyle.Alignment = g.Columns["SB"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
-        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("F", "Fach", 83, Stammdaten.Sortiert(d.Faecher).Select(x => x.Kurzname)));
-        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 83, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
-        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 83 });
-        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 83 });
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("F", "Fach", 95, Stammdaten.Sortiert(d.Faecher).Select(x => x.Kurzname)));
+        g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 95, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 95 });
+        g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 95 });
         // Auswahllisten mit Langnamen wie im Veranstaltungsfenster
         Steuerelemente.SuchKombi.Aktivieren(g, (zelle, text) => (zelle.OwningColumn.Name == "F"
                 ? (Element?)d.Faecher.FirstOrDefault(x => x.Kurzname == text) : d.Raeume.FirstOrDefault(x => x.Kurzname == text)) is { } el
@@ -582,14 +584,15 @@ public static class SondereinsatzAuswahl
         var lehrer = typ == ElementTyp.Lehrer;
         // Maße wie im Handbuch (96 dpi): Fenster 275 × 376, Tabelle oben über die ganze Breite, Spalten nach Inhalt;
         // (Lehrer: „Filter“ mit Auswahlliste), Alle | Inverse | Markierte und darunter Ok / Abbrechen
-        using var f = new Dialog("Auswahl", 275, 376);
+        // Vorbild (Bild 349 vermessen): Fenster 284 × 441 samt Titel, Tabelle 2 Pixel eingerückt
+        using var f = new Dialog("Auswahl", 284, 410);
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.MinimumSize = new Size(290, 300);
         f.Ok.Text = "Ok";
         f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
         // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
         f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
-        var g = new DataGridView { Left = 0, Top = 0, Width = 275, Height = 278, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 2, Top = 2, Width = 278, Height = 311, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
@@ -614,14 +617,15 @@ public static class SondereinsatzAuswahl
             foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
         };
         f.Controls.Add(g);
-        var y = 316;
+        var y = 350;
         if (lehrer)
         {
             // Filter: Lehrer / Klassenlehrer (Klassen) / Lehrer im Unterricht (Klassen)
             var kText = AppZustand.Doc.Index.KKlassen(klassenAlle);
             // wie im Vorbild: „Filter“ links, Auswahlliste ab gut einem Drittel der Breite bis zum rechten Rand
-            f.Controls.Add(new Label { Text = "Filter", Left = 13, Top = 289, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
-            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 103, Top = 284, Width = 166, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            g.Height = 280;
+            f.Controls.Add(new Label { Text = "Filter", Left = 13, Top = 323, Width = 50, Anchor = AnchorStyles.Bottom | AnchorStyles.Left });
+            var filter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Left = 103, Top = 318, Width = 175, Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             filter.Items.AddRange(new object[] { "Lehrer", $"Klassenlehrer ({kText})", $"Lehrer im Unterricht ({kText})" });
             filter.SelectedIndex = 0;
             var kls = d.Klassen.Where(k => klassenAlle.Contains(k.Id)).SelectMany(k => k.KlassenlehrerIds).ToHashSet();
@@ -643,13 +647,15 @@ public static class SondereinsatzAuswahl
         void Knopf(string text, int x, Action a)
         {
             var anker = x == 0 ? AnchorStyles.Left : x == 2 ? AnchorStyles.Right : AnchorStyles.None;
-            var b = new Button { Text = text, Left = x switch { 0 => 7, 1 => 103, _ => 195 }, Top = y, Width = x == 0 ? 81 : 75, Height = 23, Anchor = AnchorStyles.Bottom | anker };
+            var b = new Button { Text = text, Left = x switch { 0 => 12, 1 => 105, _ => 196 }, Top = y, Width = x == 0 ? 76 : 75, Height = 22, Anchor = AnchorStyles.Bottom | anker };
             b.Click += (_, _) => a();
             f.Controls.Add(b);
         }
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
-        f.Ok.Location = new Point(62, 348);
-        f.Abbrechen.Location = new Point(144, 348);
+        f.Ok.Size = new Size(73, 22);
+        f.Abbrechen.Size = new Size(75, 22);
+        f.Ok.Location = new Point(64, 381);
+        f.Abbrechen.Location = new Point(145, 381);
         Knopf("Alle", 0, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
         Knopf("Inverse", 1, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });
         Knopf("Markierte", 2, () =>
@@ -685,7 +691,7 @@ public static class SondereinsatzAuswahl
         Ui.RasterGestalten(g, false);
         g.RowHeadersVisible = false;
         g.Columns[g.Columns.Add("N", "Kurzname")].Width = 48;
-        g.Columns[g.Columns.Add("L", "Langname")].Width = 83;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = 95;
         var lehrer = new List<int>();
         cb.SelectedIndexChanged += (_, _) =>
         {

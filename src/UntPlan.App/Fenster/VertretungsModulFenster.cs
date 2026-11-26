@@ -40,6 +40,14 @@ public sealed class KalenderFenster : MdiFenster
     private readonly ToolTip _tipp = new();
     private bool _laedt;
 
+    /// <summary>Selbsttest (Vorbild 308): letzte Spalte des gewählten Tags aktuell (die Liste ist dann ganz nach rechts gerollt).</summary>
+    internal void SelbsttestLetzteSpalte()
+    {
+        if (_woche.Rows.Count == 0 || _woche.Columns.GetLastColumn(DataGridViewElementStates.Visible, DataGridViewElementStates.None) is not { } c) return;
+        var zeile = _woche.CurrentCell?.RowIndex ?? 0;
+        _woche.CurrentCell = _woche.Rows[Math.Max(0, zeile)].Cells[c.Index];
+    }
+
     public KalenderFenster()
     {
         Text = "Kalender";

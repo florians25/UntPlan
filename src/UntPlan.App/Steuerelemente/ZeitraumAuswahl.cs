@@ -23,6 +23,7 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
     private readonly Label _wochentagBis = new() { AutoSize = true, MinimumSize = new Size(34, 16), Padding = new Padding(2, 1, 0, 0) };
     private readonly Label _strich = new() { Text = "", AutoSize = true, Width = 0, Visible = false };
     private Control? _bisZeile;
+    private readonly Control _vonZeile;
     /// <summary>Platzhalter für Schloss und Bis-Datum, solange sie ausgeblendet sind.</summary>
     private readonly Panel _schlossPlatz;
     private readonly int _volleBreite;
@@ -124,7 +125,8 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         }
         _bisZeile = Spalte(_bis, _wochentagBis, bisZurueck, bisVor);
         _bisZeile.Margin = new Padding(0, 0, 0, 0);
-        Controls.Add(Spalte(_von, _wochentag, zurueck, vor));
+        _vonZeile = Spalte(_von, _wochentag, zurueck, vor);
+        Controls.Add(_vonZeile);
         _schlossPlatz = new Panel { Size = new Size(34, 1), Margin = Padding.Empty, BackColor = Color.Transparent };
         if (schloss)
         {
@@ -208,8 +210,10 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
                      (_bisZeile is { Visible: true } ? _bisZeile.Width + _bisZeile.Margin.Horizontal : 0) +
                      (Controls.Contains(Kalender) ? Kalender.Width + Kalender.Margin.Horizontal : 0);
         _schlossPlatz.Width = Math.Max(0, _volleBreite - belegt);
-        // Platzhalter vor dem Kalenderknopf (bzw. am Ende)
-        Controls.SetChildIndex(_schlossPlatz, Controls.Count - (Controls.Contains(Kalender) ? 2 : 1));
+        // Reihenfolge wie im Vorbild (Bild 308): Von, Schloss, Bis, Platzhalter, Kalenderknopf
+        var i = 0;
+        foreach (var c in new Control?[] { _vonZeile, _schloss, _bisZeile, _schlossPlatz, Controls.Contains(Kalender) ? Kalender : null })
+            if (c != null && Controls.Contains(c)) Controls.SetChildIndex(c, i++);
     }
 
     /// <summary>

@@ -37,6 +37,25 @@ public class VeranstaltungTests
     }
 
     [Fact]
+    public void FachUndNichtDruckenGehenAufDieVeranstaltungszeilenUeber()
+    {
+        var (d, tag) = Daten();
+        var lehrer = d.Lehrer[0].Id;
+        var fach = d.Faecher[0].Id;
+        var va = new Veranstaltung { Id = d.NeueId(), Von = tag, Bis = tag, StundeVon = 1, StundeBis = 2, LehrerIds = new() { lehrer }, Text = "Exkursion", FachId = fach, NichtDrucken = true };
+        d.Veranstaltungen.Add(va);
+        Vertretungen.Aktualisieren(d, tag);
+        var zeilen = d.Vertretungen.Where(v => v.VeranstaltungId == va.Id && v.Art == VertretungsArt.Veranstaltung).ToList();
+        Assert.NotEmpty(zeilen);
+        Assert.All(zeilen, v => { Assert.Equal(fach, v.FachId); Assert.True(v.NichtDrucken); });
+        // geändert: die Zeilen folgen der Veranstaltung
+        va.NichtDrucken = false;
+        va.FachId = null;
+        Vertretungen.Aktualisieren(d, tag);
+        Assert.All(d.Vertretungen.Where(v => v.VeranstaltungId == va.Id && v.Art == VertretungsArt.Veranstaltung), v => { Assert.Null(v.FachId); Assert.False(v.NichtDrucken); });
+    }
+
+    [Fact]
     public void KlasseMitSchuelergruppeSetztAnderenLehrerFrei()
     {
         var (d, tag) = Daten();

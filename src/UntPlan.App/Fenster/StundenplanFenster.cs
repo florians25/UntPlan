@@ -164,6 +164,10 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _kleinSichtbar.Add(ts.Items[^1]);
         foreach (var (t, name, symbol) in new[] { (ElementTyp.Klasse, "Klasse", "klassen"), (ElementTyp.Lehrer, "Lehrer", "lehrer"), (ElementTyp.Raum, "Raum", "raeume"), (ElementTyp.Fach, "Fach", "faecher") })
             _typKnopf.DropDownItems.Add(name, Symbole.Get(symbol, 16), (_, _) => TypSetzen(t));
+        // Vorbild (Bild 312): Symbol 9 Pixel nach dem Hoch/Runter-Knopf, Pfeil 20 Pixel nach dem Symbolanfang
+        _typKnopf.AutoSize = false;
+        _typKnopf.Size = new Size(34, 22);
+        _typKnopf.Margin = new Padding(3, 1, 0, 2);
         ts.Items.Add(_typKnopf);
         _kleinSichtbar.Add(_typKnopf);
         // blaue Durchschaltknöpfe im Fenstertitel
@@ -174,6 +178,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _sync = Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
         _sync.Text = "Fenster verknüpfen";
         ts.Items.Add(_sync);
+        // Vorbild (Bild 312): Trennstrich nach der Planart
+        ts.Items.Add(new ToolStripSeparator());
+        _kleinSichtbar.Add(ts.Items[^1]);
         // Vorbild-Symbolleiste: Normalform anzeigen | Raum zuordnen / löschen, Unterr.-Std. fixieren (F7), Tauschvorschläge,
         // Änderungen rückgängig | Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert | Seitenlayout, Einstellungen |
         // Alle Elemente im Unterricht; danach die eigenen Schaltflächen (klein, Lupe, Entplanen, Druck, HTML, Woche)

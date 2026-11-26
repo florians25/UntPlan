@@ -172,6 +172,16 @@ public static class Auswahlbreite
                 }
                 cb.VisibleChanged += (_, _) => { if (cb.Visible) Vereinheitlichen(cb); };
                 cb.Enter += (_, _) => Vereinheitlichen(cb);
+                // wie im Vorbild: ein vom Programm gesetzter Text eines Eingabefelds bleibt ohne blaue Markierung, solange das Feld
+                // nicht bedient wird (Windows lässt den Text sonst auch in inaktiven Fenstern markiert)
+                if (cb.DropDownStyle == ComboBoxStyle.DropDown && cb.Parent is not DataGridView)
+                {
+                    void Entmarkieren() { if (!cb.IsDisposed && cb.IsHandleCreated && !cb.Focused && cb.SelectionLength > 0) cb.SelectionLength = 0; }
+                    cb.SelectedIndexChanged += (_, _) => { if (cb.IsHandleCreated && !cb.Focused) cb.BeginInvoke(Entmarkieren); };
+                    cb.Leave += (_, _) => { if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren); };
+                    if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren);
+                    else cb.HandleCreated += (_, _) => cb.BeginInvoke(Entmarkieren);
+                }
                 // auch eigene, selbst gezeichnete Listen: mindestens so breit wie Kurz- und Langname und immer nach unten
                 cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) { ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); ListenSuche.NachUnten(cb); } };
                 // kein versehentliches Umschalten mit dem Mausrad: nur in der geöffneten Liste blättert das Rad, sonst rollt die Umgebung

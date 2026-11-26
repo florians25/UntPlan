@@ -44,7 +44,13 @@ public class Drehfeld : Control
         _eingabe.KeyDown += (_, e) => TasteGedrueckt(e);
         _eingabe.KeyUp += (_, e) => OnKeyUp(e);
         _eingabe.KeyPress += (_, e) => ZeichenPruefen(e);
-        _eingabe.MouseWheel += (_, e) => Rad(e.Delta);
+        _eingabe.MouseWheel += (_, e) =>
+        {
+            // das Eingabefeld reicht das Rad danach an dieses Feld weiter: nur einmal zählen
+            Rad(e.Delta);
+            _radGezaehlt = true;
+            if (e is HandledMouseEventArgs h) h.Handled = true;
+        };
         _eingabe.Leave += (_, _) => Uebernehmen();
         _eingabe.GotFocus += (_, _) => OnGotFocus(EventArgs.Empty);
         _eingabe.LostFocus += (_, _) => OnLostFocus(EventArgs.Empty);
@@ -185,9 +191,12 @@ public class Drehfeld : Control
         Drehen(delta > 0 ? 1 : -1);
     }
 
+    private bool _radGezaehlt;
+
     protected override void OnMouseWheel(MouseEventArgs e)
     {
-        Rad(e.Delta);
+        if (_radGezaehlt) _radGezaehlt = false;
+        else Rad(e.Delta);
         base.OnMouseWheel(e);
     }
 
@@ -244,7 +253,7 @@ public class Drehfeld : Control
     {
         var hoehe = _eingabe.PreferredHeight;
         var feld = Feld;
-        var links = _stil == DrehfeldStil.Frei ? 0 : 2;
+        var links = _stil switch { DrehfeldStil.Frei => 0, DrehfeldStil.Abgesetzt => 3, _ => 2 };
         var rechts = _stil == DrehfeldStil.Abgesetzt ? feld.Right - 2 : KnopfFlaeche.X - 1;
         // Kalenderwoche (Bild 308): Ziffern 6 Pixel unter der Oberkante des 23 Pixel hohen Knopfs
         var oben = _stil == DrehfeldStil.Frei ? Math.Max(0, feld.Height / 2 - 7) : Math.Max(0, (feld.Height - hoehe + 1) / 2);

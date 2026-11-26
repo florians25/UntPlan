@@ -35,6 +35,7 @@ public static class MehrfachAuswahl
             BorderStyle = BorderStyle.None, Font = ListenSchrift, IntegralHeight = false, BackColor = Color.White,
         };
         foreach (var e in eintraege) liste.Items.Add(e);
+        var tastatur = false;
         var vorher = gewaehlt.Select(x => x.Trim()).Where(x => x.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < eintraege.Count; i++)
             if (vorher.Contains(eintraege[i].Kurz)) liste.SetSelected(i, true);
@@ -59,7 +60,7 @@ public static class MehrfachAuswahl
             var farbe = Color.Black;
             Ui.ListenText(e.Graphics, x.Kurz, ListenSchrift, new Rectangle(e.Bounds.X + einzug, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
             Ui.ListenText(e.Graphics, x.Lang, ListenSchrift, new Rectangle(e.Bounds.X + einzug + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - einzug, e.Bounds.Height), farbe, vorbildBreite is null);
-            if ((e.State & DrawItemState.Focus) != 0)
+            if ((e.State & DrawItemState.Focus) != 0 && tastatur)
                 using (var p = new Pen(Color.FromArgb(120, 120, 120))) e.Graphics.DrawRectangle(p, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
         };
         var breite = vorbildBreite ?? Math.Min(420, Math.Max(g.Columns[spalte].Width, einzug + breiteKurz + breiteLang + SystemInformation.VerticalScrollBarWidth + 2));
@@ -149,7 +150,8 @@ public static class MehrfachAuswahl
         }
         var host = new ToolStripControlHost(inhalt) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
         host.Size = new Size(breite, hoehe);
-        var dd = new ToolStripDropDown { Padding = Padding.Empty, AutoClose = true, DropShadowEnabled = true };
+        // Rahmen wie im Vorbild (Bilder 348, 351, 352): 1 Pixel (100, 100, 100)
+        var dd = new ToolStripDropDown { Padding = Padding.Empty, AutoClose = true, DropShadowEnabled = true, Renderer = new ToolStripProfessionalRenderer(new ListenRahmen()) };
         dd.Items.Add(host);
         _offenesFenster = dd;
         var uebernommen = false;
@@ -170,6 +172,8 @@ public static class MehrfachAuswahl
         dd.Closed += (_, _) => { if (ReferenceEquals(Offen, liste)) { Offen = null; _uebernehmen = null; } };
         liste.KeyDown += (_, e) =>
         {
+            // Fokusrahmen erst bei Bedienung mit der Tastatur (das Vorbild öffnet die Liste ohne Rahmen)
+            if (!tastatur) { tastatur = true; liste.Invalidate(); }
             if (e.KeyCode == Keys.Enter) { e.Handled = true; Uebernehmen(); }
             else if (e.KeyCode == Keys.Escape) { e.Handled = true; uebernommen = true; dd.Close(); }
         };
@@ -183,8 +187,9 @@ public static class MehrfachAuswahl
         };
         // Schließen durch Klick daneben: Auswahl der Mehrfachliste übernehmen (wie im Vorbild)
         dd.Closed += (_, e) => { if (mehrfach && e.CloseReason == ToolStripDropDownCloseReason.AppClicked) Uebernehmen(); };
+        // Vorbild: Liste 2 Pixel rechts der Zellkante, ihr Rahmen liegt auf der unteren Rasterlinie der Zelle
         var r = g.GetCellDisplayRectangle(spalte, zeile, false);
-        dd.Show(g, new Point(r.Left, r.Bottom));
+        dd.Show(g, new Point(r.Left + 2, r.Bottom - 1));
         liste.Focus();
         if (liste.SelectedIndices.Count > 1) leisteZeigen?.Invoke();
         if (liste.SelectedIndex >= 0) liste.TopIndex = Math.Max(0, liste.SelectedIndex - 3);
@@ -273,4 +278,10 @@ public static class MehrfachAuswahl
 
     /// <summary>Liegt der Mauspunkt (Zellkoordinaten) auf dem Aufklappdreieck?</summary>
     public static bool AufPfeil(DataGridView g, DataGridViewCellMouseEventArgs e) => e.X >= g.Columns[e.ColumnIndex].Width - 19;
+
+    private sealed class ListenRahmen : ProfessionalColorTable
+    {
+        public override Color MenuBorder => Color.FromArgb(100, 100, 100);
+        public override Color ToolStripDropDownBackground => Color.White;
+    }
 }
