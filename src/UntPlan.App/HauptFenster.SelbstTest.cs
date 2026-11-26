@@ -1177,6 +1177,32 @@ public sealed partial class HauptFenster
             m.Close();
             d.Close();
         }, -1);
+        Schritt("V45_Krypton_Muster", () =>
+        {
+            // Entscheidungsgrundlage Bibliothek oder Eigenbau: Menüband und Tabelle als Krypton-Steuerelemente neben dem Vorbild.
+            // Krypton darf dabei die eigene Darstellung der Menüs und Leisten nicht ersetzen.
+            var vorher = ToolStripManager.Renderer;
+            var band = Steuerelemente.KryptonPruefung.MenuebandMuster();
+            var tabelle = Steuerelemente.KryptonPruefung.TabellenMuster();
+            band.TopMost = tabelle.TopMost = true;
+            band.Show(this);
+            tabelle.Show(this);
+            Warten(800);
+            band.Refresh();
+            tabelle.Refresh();
+            foreach (var (form, name) in new[] { (band, "V45_Krypton_Menueband_F.png"), (tabelle, "V45_Krypton_Tabelle_F.png") })
+            {
+                var r = form.RectangleToScreen(form.ClientRectangle);
+                using var bmp = new Bitmap(r.Width, r.Height);
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, name), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            var rib = band.Controls.OfType<Krypton.Ribbon.KryptonRibbon>().First();
+            log.Add($"MASS  V45_Krypton: Menüband {rib.Height} Pixel hoch (eigenes {_ribbon.Height})");
+            band.Close();
+            tabelle.Close();
+            if (!ReferenceEquals(ToolStripManager.Renderer, vorher)) throw new InvalidOperationException("Krypton hat den globalen ToolStrip-Zeichner ersetzt.");
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts

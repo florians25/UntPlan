@@ -307,7 +307,7 @@ public sealed partial class HauptFenster : Form
             E("Handbuch: Erste Schritte", "hilfe", () => HilfeFenster.Zeigen("Eingabeassistent")),
             null,
             E("Nach Updates suchen", "info", () => Updates.JetztPruefen()),
-            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.\n\nSymbole: „Farm-Fresh Web Icons“ von FatCow (fatcow.com/free-icons), Lizenz CC BY 3.0." +
+            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.\n\nSymbole: „Farm-Fresh Web Icons“ von FatCow (fatcow.com/free-icons), Lizenz CC BY 3.0.\nAndockleisten: Krypton Suite (github.com/Krypton-Suite), Lizenz BSD 3-Clause.\nLizenztexte im Programmordner unter „Lizenzen“." +
                 (Updates.Stand is { UpdateVerfuegbar: true } u ? $"\n\nNeue Version verfügbar: {u.Neueste} (Hilfethemen → Nach Updates suchen)" : ""), "Über UntPlan")),
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
