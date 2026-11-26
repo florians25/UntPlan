@@ -24,7 +24,7 @@ export async function zeigen(seite, kontext, [typParam, datumParam]) {
       </div>
       <div class="rechts"><button type="button" class="rundknopf" data-drucken title="Drucken" aria-label="Drucken">${icon('drucken')}</button><button type="button" class="heute-pill${datum === heuteIso() ? ' aktuell' : ''}" data-tage="0">Heute</button></div>
     </div>
-    <div data-inhalt>${lade()}</div>`;
+    <div data-inhalt>${lade(true)}</div>`;
   seite.querySelector('[data-drucken]').onclick = () => window.print();
   seite.querySelectorAll('[data-tage]').forEach(b => b.onclick = () => {
     const n = Number(b.dataset.tage);

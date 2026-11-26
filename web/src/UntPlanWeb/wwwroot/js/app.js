@@ -815,7 +815,8 @@ async function route() {
   const seite = document.getElementById('seite');
   if (!seite) return;
   const nummer = laufendeAnsicht = Symbol(name);
-  seite.innerHTML = lade();
+  // Stundenpläne ohne Ladekreis (Inhalt erscheint direkt)
+  seite.innerHTML = lade(name === 'plan' || name === 'tag');
   kontext.titel('');
   kontext.werkzeug('');
   document.querySelector('.u-app')?.setAttribute('data-ansicht', name);

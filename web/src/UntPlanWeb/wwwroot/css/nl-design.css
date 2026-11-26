@@ -41,6 +41,8 @@ body.leiste-zu .modal:not(.stundendetails), body.leiste-zu .modal-backdrop, body
   content: ""; position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%;
   border: 3px solid rgba(var(--u-akzent-rgb), .2); border-top-color: var(--u-akzent); animation: u-dreh .8s linear infinite;
 }
+/* Stundenpläne: kein Ladekreis */
+.u-laedt-still::after { content: none; }
 @keyframes u-dreh { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .u-laedt::after { animation-duration: 2.4s; } }
 
