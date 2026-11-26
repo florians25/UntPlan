@@ -178,6 +178,8 @@ public static class Auswahlbreite
                 ListenSuche.MausradSchuetzen(cb);
                 break;
             case DataGridView g:
+                // jede Tabelle flimmerfrei (doppelte Pufferung), auch ohne gemeinsame Rastergestaltung
+                Ui.DoppeltPuffern(g);
                 // Auswahlzellen jeder Tabelle (auch in Dialogen) mit demselben Baustein wie die Vertretungsliste: Kurz- und Langname,
                 // Direktsuche, Enter/Tab übernimmt, Esc stellt zurück, ungültige Eingabe bleibt beim alten Wert
                 if (!SuchKombi.IstAktiv(g)) SuchKombi.Aktivieren(g);

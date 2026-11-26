@@ -1274,6 +1274,60 @@ public sealed partial class HauptFenster
             Pruefen(_ribbon.Seiten[_ribbon.AktiveSeite].Gruppen.All(x => x.StarterBounds.IsEmpty), "Im Menüband Vertretungsplanung erscheint ein Dialogstarter (Vorbild: keiner).");
             WindowState = vorher;
         }, -1);
+        Schritt("V48_Tabellen_Kopfgruppen", () =>
+        {
+            // alle Tabellen flimmerfrei (doppelt gepuffert); Kopfgruppen im Vertretungsvorschlag; zweizeilige Kopfgruppen bleiben beim
+            // Bildlauf durchgehend; Füllzeit von 1000 Zeilen als Messwert
+            ModusFuerBild(true);
+            var vorschlag = VorschlagNormal(0);
+            FensterOeffnen("abw");
+            FensterOeffnen("vertr");
+            FensterOeffnen("kal");
+            Warten(300);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var ohne = MdiChildren.SelectMany(Ui.Tabellen).Where(t => !Ui.IstDoppeltGepuffert(t)).Select(t => $"{t.FindForm()?.Text}/{t.Name}").ToList();
+            Pruefen(ohne.Count == 0, "Tabellen ohne doppelte Pufferung: " + string.Join(", ", ohne));
+            var vg = Ui.Tabellen(vorschlag).First(t => t.Name == "Vorschlag");
+            var vz = Ui.Tabellen(vorschlag).First(t => t.Name == "Vorziehung2");
+            Pruefen(Steuerelemente.KopfGruppen.Aktiv(vg) && !Steuerelemente.KopfGruppen.Zweizeilig(vg), "Vorschlag: verbundener Kopf „Stundenplan“ fehlt.");
+            Pruefen(Steuerelemente.KopfGruppen.Zweizeilig(vz) && vz.ColumnHeadersHeight >= 2 * vz.RowTemplate.Height - 2, "Vorziehungen: zweizeiliger Kopf „Schritt 1/Schritt 2“ fehlt.");
+            // Muster: zweizeilige Gruppen über einer breiten Tabelle, dann waagrecht gerollt
+            using var f = new Form { Text = "Kopfgruppen", ClientSize = new Size(620, 200), StartPosition = FormStartPosition.Manual, Location = new Point(0, 0), ShowInTaskbar = false, TopMost = true };
+            var g = new Steuerelemente.BleibendeTabelle { Dock = DockStyle.Fill, Name = "Muster" };
+            f.Controls.Add(g);
+            Ui.RasterGestalten(g, false);
+            g.RowHeadersVisible = false;
+            foreach (var (n, t) in new[] { ("Nr", "Nr."), ("Name", "Name"), ("Tag", "von"), ("Merker", "Merker"), ("Name2", "Name"), ("Tag2", "von"), ("Merker2", "Merker"), ("Text", "Text") })
+                g.Columns[g.Columns.Add(n, t)].Width = 90;
+            Steuerelemente.KopfGruppen.Einrichten(g, true, new Steuerelemente.KopfGruppen.Gruppe("Schritt 1", "Name", "Tag", "Merker"), new Steuerelemente.KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
+            g.CellPainting += (_, e) => { if (e.RowIndex == -1) Steuerelemente.KopfGruppen.Zeichnen(g, e, Ui.Kopf); };
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+            var zeilen = Enumerable.Range(1, 1000).Select(i => { var r = new DataGridViewRow(); r.CreateCells(g, i, "KRU", "Mo-" + (i % 8 + 1), "x", "NEU", "Di-2", "", "Text " + i); return r; }).ToArray();
+            g.Rows.AddRange(zeilen);
+            uhr.Stop();
+            f.Show(this);
+            Warten(400);
+            var kopf = g.ColumnHeadersHeight;
+            Pruefen(kopf >= 2 * g.RowTemplate.Height - 2, "Muster: zweizeiliger Kopf zu niedrig.");
+            g.HorizontalScrollingOffset = 120;
+            Warten(300);
+            f.Refresh();
+            var r1 = f.RectangleToScreen(f.ClientRectangle);
+            using (var bmp = new Bitmap(r1.Width, r1.Height))
+            {
+                using (var gg = Graphics.FromImage(bmp)) gg.CopyFromScreen(r1.Location, Point.Empty, r1.Size);
+                bmp.Save(Path.Combine(ordner, "V48_Kopfgruppen_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+                // Gruppentitel „Schritt 2“ sichtbar: dunkle Schriftpixel in der oberen Kopfhälfte über der Gruppe
+                var b2 = Steuerelemente.KopfGruppen.Bereich(g, new Steuerelemente.KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
+                var dunkel = 0;
+                for (var x = b2.X + 2; x < Math.Min(b2.X + 60, bmp.Width); x++)
+                    for (var y = 2; y < kopf / 2 - 1; y++)
+                        if (bmp.GetPixel(x, y).GetBrightness() < 0.4f) dunkel++;
+                Pruefen(dunkel > 10, "Gruppentitel „Schritt 2“ nach dem Bildlauf nicht sichtbar.");
+            }
+            log.Add($"MASS  V48: 1000 Zeilen in {uhr.ElapsedMilliseconds} ms gefüllt, Kopf {kopf} Pixel (Zeile {g.RowTemplate.Height}), doppelt gepuffert {Ui.IstDoppeltGepuffert(g)}");
+            f.Close();
+        }, -1);
         Schritt("V45_Krypton_Muster", () =>
         {
             // Entscheidungsgrundlage Bibliothek oder Eigenbau: Menüband und Tabelle als Krypton-Steuerelemente neben dem Vorbild.

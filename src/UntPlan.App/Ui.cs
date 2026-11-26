@@ -379,8 +379,23 @@ public static partial class Ui
             if (neu != null) neu.HeaderCell.Style.BackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
             kopfAktiv = neu;
         };
-        typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.SetValue(g, true);
+        DoppeltPuffern(g);
     }
+
+    private static readonly System.Reflection.PropertyInfo? PufferEigenschaft =
+        typeof(Control).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+    /// <summary>
+    /// Flimmerfreies Zeichnen (doppelte Pufferung) für Tabellen: zentral für jede DataGridView (BleibendeTabelle, gemeinsame Gestaltung
+    /// jedes Fensters), damit Bildlauf, Neuaufbau und Hover ohne Flackern laufen.
+    /// </summary>
+    public static void DoppeltPuffern(Control c)
+    {
+        if (PufferEigenschaft?.GetValue(c) is false) PufferEigenschaft.SetValue(c, true);
+    }
+
+    /// <summary>Selbsttest: Steuerelement zeichnet doppelt gepuffert.</summary>
+    public static bool IstDoppeltGepuffert(Control c) => PufferEigenschaft?.GetValue(c) is true;
 
     [System.Runtime.InteropServices.DllImport("uxtheme.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr hwnd, string? appName, string? idList);

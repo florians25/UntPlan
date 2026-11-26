@@ -6,6 +6,9 @@ namespace UntPlan.App.Steuerelemente;
 /// </summary>
 public class BleibendeTabelle : DataGridView
 {
+    /// <summary>Flimmerfrei von Anfang an (doppelte Pufferung).</summary>
+    public BleibendeTabelle() => Ui.DoppeltPuffern(this);
+
     protected override bool ProcessDialogKey(Keys keyData) =>
         Tabellenbedienung.Bearbeitungstaste(this, keyData) || base.ProcessDialogKey(keyData);
 }
