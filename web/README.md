@@ -209,6 +209,20 @@ Im Einzelnen:
 |---|
 | ![Administration](docs/bilder/administration.png) |
 
+### Schulbetrieb simulieren (Administration)
+
+Unter **Administration → Schulbetrieb simulieren** lässt sich ein realistischer Schulbetrieb einschalten (Standard: aus), um mit UntPlanWeb wie im Alltag zu arbeiten.
+Simulierte Lehrkräfte, Klassenleitungen und Erziehungsberechtigte tragen im Hintergrund ein:
+
+- **Klassenbuch:** Abwesenheitskontrolle kurz nach Stundenbeginn, Lehrstoff passend zum Fach nach Stundenende bis abends (selten Tage später, selten gar nicht), gelegentlich Hausaufgaben und Klassenbucheinträge.
+- **Abwesenheiten:** Schüler*innen sind über mehrere Tage krank, einzelne Stunden fehlen wegen Arztterminen, Verspätungen gibt es nur in der 1. bis 3. Stunde.
+- **Entschuldigungen:** Die Klassenleitungen entschuldigen unregelmäßig mit einigen Tagen Verzug, mit Begründung und Nachweis; manches bleibt offen oder unentschuldigt.
+- **Krankmeldungen:** Lehrkräfte melden sich bei der Verteilerliste „Vertretung“ im Mitteilungsmodul krank (Erkältung, Magen-Darm, krankes Kind, Arzttermin, längere Ausfälle mit Verlängerungen, Gesundmeldungen), jeden Schultag mindestens einmal, meist nachmittags oder abends, manchmal nachts oder früh morgens. Die Absenz in der Vertretungsplanung tragen Sie selbst ein; kranke Lehrkräfte tragen aber nichts ein, bei Vertretungen trägt die Vertretungslehrkraft ein.
+- **Prüfungen:** je Klasse und Fach eine Klassenarbeit bzw. Klausur im Halbjahr (nicht in den ausgenommenen Fächern wie Sport, Religion, Kunst, Musik), höchstens eine je Tag und zwei je Woche, einige Wochen im Voraus.
+- **Sprechtag:** Einladungen der Lehrkräfte und Buchungen der Erziehungsberechtigten in den Anmeldephasen veröffentlichter Sprechtage.
+
+Ausgenommene Lehrkräfte (Standard: die Konten der Schulleitung und Administration) bleiben unberührt. Alle Einträge stammen von eigenen, gesperrten Konten, die in keiner Liste erscheinen; **Simulationsdaten entfernen** löscht sie vollständig. Nach einem Neustart holt die Simulation nach (höchstens 14 Tage), ohne doppelt einzutragen.
+
 ### Weitere Endpunkte der App-Schnittstelle
 
 Zusätzlich zu Plan, Vertretungen, Klassenbuch und Mitteilungen (alle unter `/api/app`, Anmeldung per Sitzungscookie):

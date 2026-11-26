@@ -825,6 +825,14 @@ public sealed class Db
         );
         INSERT INTO klassendienste (kurz, name, reihenfolge) VALUES ('KS Stv.', 'Klassensprecher*in Stv.', 25);
         """),
+
+        // 68: Schulsimulation – ausgeführte Ereignisse (Schlüssel je Ereignis, damit nach einem Neustart nichts doppelt eingetragen wird) – nur Standard-SQL
+        Nr(68, """
+        CREATE TABLE simulation_ereignisse (
+            schluessel VARCHAR(190) NOT NULL PRIMARY KEY, zeit VARCHAR(30) NOT NULL DEFAULT '', ausgefuehrt VARCHAR(30) NOT NULL DEFAULT '',
+            ergebnis VARCHAR(300) NOT NULL DEFAULT ''
+        );
+        """),
     };
 
 

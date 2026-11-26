@@ -1,0 +1,41 @@
+using UntPlanWeb.Dienste;
+
+namespace UntPlanWeb.Api;
+
+/// <summary>
+/// Administration → Schulbetrieb simulieren (nur Administration):
+/// <list type="bullet">
+/// <item><c>GET /api/app/admin/simulation</c> – Einstellungen, Auswahl (Lehrkräfte, Fächer) und Anzahl der simulierten Einträge.</item>
+/// <item><c>PUT /api/app/admin/simulation</c> – Einstellungen speichern (Einschalten beginnt die Simulation jetzt).</item>
+/// <item><c>POST /api/app/admin/simulation/lauf</c> – fällige Ereignisse sofort ausführen.</item>
+/// <item><c>POST /api/app/admin/simulation/entfernen</c> – alle simulierten Daten und Konten entfernen.</item>
+/// </list>
+/// </summary>
+public static class SimulationApi
+{
+    private static Benutzer Admin(HttpContext c) =>
+        c.Ich() is { } b ? b.IstAdmin ? b : throw new UnauthorizedAccessException("Nur für die Administration.") : throw new NichtAngemeldetException();
+
+    public static void Abbilden(WebApplication app)
+    {
+        var api = app.MapGroup("/api/app/admin/simulation");
+        api.MapGet("", (HttpContext c, Schulsimulation sim) => { Admin(c); return Results.Json(sim.Status()); });
+        api.MapPut("", (Simulationseinstellungen d, HttpContext c, Schulsimulation sim, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var vorher = sim.Laden().Aktiv;
+            var e = sim.Speichern(b, d);
+            if (vorher != e.Aktiv) prot.Schreiben(b.Login, e.Aktiv ? "Schulsimulation eingeschaltet" : "Schulsimulation ausgeschaltet");
+            if (e.Aktiv) sim.Lauf();
+            return Results.Json(sim.Status());
+        });
+        api.MapPost("/lauf", (HttpContext c, Schulsimulation sim) => { Admin(c); return Results.Json(sim.Lauf()); });
+        api.MapPost("/entfernen", (HttpContext c, Schulsimulation sim, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var n = sim.Entfernen(b);
+            prot.Schreiben(b.Login, "Simulationsdaten entfernt", $"{n} Datensätze");
+            return Results.Json(new { entfernt = n });
+        });
+    }
+}

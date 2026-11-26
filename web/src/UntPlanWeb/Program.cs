@@ -80,6 +80,9 @@ public class Program
         builder.Services.AddSingleton<Klassenbucherinnerung>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<Klassenbucherinnerung>());
         builder.Services.AddHostedService<Sprechtagerinnerung>();
+        // Schulsimulation (Administration → Schulbetrieb simulieren): simulierte Lehrkräfte, Klassenleitungen und Eltern im Hintergrund
+        builder.Services.AddSingleton<Schulsimulation>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<Schulsimulation>());
         builder.Services.AddSingleton<Unterrichtsgruppen>();
         // Leitfaden Klassenleitung: E-Mail-Versand, Kennwort vergessen/Selbstregistrierung/Kennwort-Blatt, Kontaktdaten und Bilder
         builder.Services.AddSingleton<Maildienst>();
@@ -210,6 +213,7 @@ public class Program
         UnterrichtKlassenApi.Abbilden(app);
         KlassenleitungApi.Abbilden(app);
         WartungApi.Abbilden(app);
+        SimulationApi.Abbilden(app);
         app.MapGet("/monitor/{token}", (string token, IWebHostEnvironment env) => env.WebRootFileProvider.GetFileInfo("monitor.html") is { Exists: true, PhysicalPath: { } pfad }
             ? Results.File(pfad, "text/html; charset=utf-8") : Results.NotFound());
         app.MapGet("/gesundheit", () => Results.Ok(new { ok = true }));

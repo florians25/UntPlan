@@ -23,6 +23,7 @@ const BEREICHE = [
   { id: 'ansicht', text: 'Ansichtseinstellungen', admin: true },
   { id: 'monitore', text: 'Monitoransichten', admin: true },
   { id: 'protokoll', text: 'Protokoll', admin: true },
+  { id: 'simulation', text: 'Schulbetrieb simulieren', admin: true },
 ];
 const ROLLEN = { admin: 'Administration', leitung: 'Schulleitung', lehrer: 'Lehrkraft', schueler: 'Schüler*in / Klasse', eltern: 'Erziehungsberechtigte*r' };
 const kurzZeit = s => s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
@@ -53,7 +54,7 @@ export async function zeigen(seite, kontext, [bereichParam, ...weitere]) {
   seite.innerHTML = '<div data-bereich></div>';
   const ziel = seite.querySelector('[data-bereich]');
   const neu = () => kontext.navigieren(location.hash);
-  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, zugriff, ueber, rechte, zuordnung, sperren, raumsperren, verspaetung, ansicht })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
+  await ({ sync, benutzer, personen, rueckmeldungen, nachrichten, monitore, protokoll, freietage, importieren, exportieren, aktive, zugriff, ueber, rechte, zuordnung, sperren, raumsperren, verspaetung, ansicht, simulation })[bereich.id === 'import' ? 'importieren' : bereich.id === 'export' ? 'exportieren' : bereich.id](ziel, kontext, neu, weitere);
   ziel.querySelectorAll('[data-kopie]').forEach(b => b.onclick = () => kopieren(b.dataset.kopie));
 }
 
@@ -410,6 +411,8 @@ async function exportieren(ziel) {
 async function aktive(ziel, kontext, neu, weitere = []) { return (await import('./wartung.js')).aktive(ziel, kontext, neu, weitere); }
 async function zugriff(ziel, kontext, neu) { return (await import('./wartung.js')).zugriff(ziel, kontext, neu); }
 async function ueber(ziel) { return (await import('./wartung.js')).ueber(ziel); }
+// Schulbetrieb simulieren (simulation.js)
+async function simulation(ziel, kontext, neu) { return (await import('./simulation.js')).zeigen(ziel, kontext, neu); }
 
 // ------------------------------------------------------------------ Rechte und Rollen
 

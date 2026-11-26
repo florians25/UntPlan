@@ -52,7 +52,23 @@ public sealed class Uhr
     /// <summary>Für Tests: feste Zeit.</summary>
     public DateTime? Fest { get; set; }
 
-    public DateTime Jetzt => Fest ?? TimeZoneInfo.ConvertTime(DateTime.UtcNow, _zone);
+    /// <summary>Zeit des gerade ausgeführten Simulationsereignisses (nur im Ablauf der Schulsimulation, siehe <see cref="Simuliert"/>).</summary>
+    private static readonly AsyncLocal<DateTime?> Simulationszeit = new();
+
+    public DateTime Jetzt => Simulationszeit.Value ?? Fest ?? TimeZoneInfo.ConvertTime(DateTime.UtcNow, _zone);
+
+    /// <summary>
+    /// Schulsimulation: innerhalb des Blocks gilt die angegebene Zeit als „jetzt“ (nur für den aktuellen Ablauf, andere Anfragen sehen die echte Zeit).
+    /// So tragen simulierte Lehrkräfte z. B. den Lehrstoff mit der Uhrzeit nach Stundenende ein, auch wenn ein Neustart nachgeholt wird.
+    /// </summary>
+    public IDisposable Simuliert(DateTime zeit)
+    {
+        var vorher = Simulationszeit.Value;
+        Simulationszeit.Value = zeit;
+        return new Zurueck(() => Simulationszeit.Value = vorher);
+    }
+
+    private sealed class Zurueck(Action a) : IDisposable { public void Dispose() => a(); }
     public DateOnly Heute => DateOnly.FromDateTime(Jetzt);
 }
 
