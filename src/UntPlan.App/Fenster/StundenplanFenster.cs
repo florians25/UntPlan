@@ -121,6 +121,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         // Elementauswahl wie im Vorbild (Bild 312, gemessen): klassisches Auswahlfeld mit vertieftem Rahmen und eigenem Knopf,
         // Schrift Microsoft Sans Serif 8,25 – nicht das flache, höhere Windows-11-Feld
         _auswahl.Font = Ui.DialogSchrift;
+        _auswahl.FlatStyle = FlatStyle.Standard;
         Ui.KlassischeDarstellung(_auswahl.ComboBox);
         // Mausrad über der geschlossenen Elementauswahl blättert wie im Vorbild zum vorherigen/nächsten Element (je Rastung ein Plan)
         Steuerelemente.ListenSuche.MausradBlaettern(_auswahl.ComboBox, Blaettern);
