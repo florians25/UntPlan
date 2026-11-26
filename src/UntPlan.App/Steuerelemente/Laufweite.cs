@@ -18,7 +18,7 @@ internal static class Laufweite
     /// <summary>Waagrechter Versatz mittiger Beschriftungen in Pixeln (gemessen: Lage der Tinte im Vorbild minus hier).</summary>
     private static readonly Dictionary<string, int> Versatz = new()
     {
-        ["Vertretungsstatistik"] = -1, ["Planungsdialog"] = 1, ["Pausenaufsichten"] = -1,
+        ["Vertretungsstatistik"] = -1, ["Pausenaufsichten"] = -1, ["Kalender"] = -1, ["Ausgabe"] = -1, ["Vormerkungen"] = -1,
     };
 
     private const TextFormatFlags Einzeln = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.NoClipping;

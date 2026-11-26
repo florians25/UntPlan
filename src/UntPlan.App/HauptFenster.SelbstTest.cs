@@ -1745,13 +1745,12 @@ public sealed partial class HauptFenster
                                 f.Location = new Point(Math.Max(0, Left + 330), Top + 290);
                                 g.Focus();
                                 g.CurrentCell = g.Rows[g.Rows.Count - 1].Cells["L"];
-                                // Klick auf den Aufklappknopf der Zelle (wie mit der Maus)
-                                var zr = g.GetCellDisplayRectangle(g.CurrentCell.ColumnIndex, g.CurrentCell.RowIndex, false);
-                                var lp = (IntPtr)(((zr.Top + zr.Height / 2) << 16) | ((zr.Right - 8) & 0xFFFF));
-                                R3BPostMessage(g.Handle, 0x201, (IntPtr)1, lp);
-                                R3BPostMessage(g.Handle, 0x202, IntPtr.Zero, lp);
+                                // Liste der Zelle öffnen wie mit Alt+↓ (der gepostete Mausklick erreichte die Zelle im Runner nicht zuverlässig)
+                                f.Activate();
+                                SendKeys.Send("%{DOWN}");
                                 break;
                             case 1:
+                                log.Add($"MASS  V52 Sondereinsätze Lehrerliste offen: {Steuerelemente.MehrfachAuswahl.Offen is { Visible: true }}");
                                 Foto(Path.Combine(ordner, "V52d_Sondereinsaetze_Lehrer_F.png"));
                                 Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
                                 break;
