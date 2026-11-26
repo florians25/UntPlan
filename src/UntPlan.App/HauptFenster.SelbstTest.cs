@@ -1598,8 +1598,18 @@ public sealed partial class HauptFenster
                 AppZustand.Einstellungen.KalenderDetailOffen = false;
                 var dd = AppZustand.D;
                 var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, vorbildTag);
-                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "07A") ?? dd.Klassen.First();
-                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
+                // wie im Vorbild: Klassenplan voll in den Stunden 1 bis 6 und frei am Nachmittag, Lehrerplan möglichst voll
+                var unt = dd.Unterrichte.ToDictionary(u => u.Id);
+                var wochenplan = dd.AktivePeriode.Plan.Where(p => unt.ContainsKey(p.UnterrichtId)).ToList();
+                int KlassenWert(Klasse k)
+                {
+                    var stunden = wochenplan.Where(p => unt[p.UnterrichtId].Zeilen.Any(z => z.KlassenIds.Contains(k.Id))).Select(p => (p.Tag, p.Stunde)).Distinct().ToList();
+                    return stunden.Count(t => t.Stunde <= 6) - 2 * stunden.Count(t => t.Stunde > 6);
+                }
+                var klasse = dd.Klassen.Where(k => k.Kurzname.Length == 3 && char.IsDigit(k.Kurzname[0])).OrderByDescending(KlassenWert)
+                    .ThenBy(k => k.Kurzname, StringComparer.Ordinal).FirstOrDefault() ?? dd.Klassen.First();
+                int LehrerWoche(Lehrer l) => wochenplan.Where(p => unt[p.UnterrichtId].Zeilen.Any(z => z.LehrerId == l.Id)).Select(p => (p.Tag, p.Stunde)).Distinct().Count();
+                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(LehrerWoche).ThenByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
                 var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
                 Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
                 MdiFenster.SelbsttestOhneKlemmen = true;
