@@ -52,23 +52,20 @@ public static class Andockleiste
     private static bool IstKrypton(Control? c) => c?.GetType().Namespace?.StartsWith("Krypton", StringComparison.Ordinal) == true;
 
     /// <summary>
-    /// Krypton-Randleisten direkt vor den MDI-Arbeitsbereich einreihen (angedockt wird in umgekehrter Reihenfolge der Steuerelemente:
-    /// so bleiben Kopf, Menüband und Statuszeile außen und behalten ihren Platz). Die Reihenfolge der Krypton-Leisten untereinander bleibt.
+    /// Krypton-Randleisten innen einreihen, direkt am MDI-Arbeitsbereich: Windows Forms dockt Steuerelemente mit höherem Index zuerst
+    /// (außen), daher kommen die Krypton-Leisten an den Anfang der Liste. So bleiben Kopf, Menüband und Statuszeile außen und behalten
+    /// ihren Platz. Die Reihenfolge der Krypton-Leisten untereinander bleibt erhalten.
     /// </summary>
     private static void Einordnen(Form haupt)
     {
-        if (_ordnet || haupt.IsDisposed || haupt.Controls.OfType<MdiClient>().FirstOrDefault() is not { } mdi) return;
+        if (_ordnet || haupt.IsDisposed) return;
         var kr = haupt.Controls.Cast<Control>().Where(IstKrypton).OrderByDescending(c => haupt.Controls.GetChildIndex(c)).ToList();
-        if (kr.Count == 0) return;
-        // schon richtig: alle Krypton-Leisten unmittelbar über dem Arbeitsbereich
-        var mi = haupt.Controls.GetChildIndex(mdi);
-        var soll = Enumerable.Range(mi + 1, kr.Count).ToHashSet();
-        if (kr.All(c => soll.Contains(haupt.Controls.GetChildIndex(c)))) return;
+        if (kr.Count == 0 || kr.All(c => haupt.Controls.GetChildIndex(c) < kr.Count)) return;
         _ordnet = true;
         haupt.SuspendLayout();
         try
         {
-            foreach (var c in kr) haupt.Controls.SetChildIndex(c, haupt.Controls.GetChildIndex(mdi) + 1);
+            foreach (var c in kr) haupt.Controls.SetChildIndex(c, 0);
         }
         finally
         {
