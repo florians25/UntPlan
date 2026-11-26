@@ -74,6 +74,18 @@ export async function zeigen(ziel, kontext, neu) {
         <p class="ug-hinweis mb-0">${d.verteilerVorhanden ? 'Die Liste ist vorhanden. Die Krankmeldungen gehen an ihre Mitglieder.'
           : 'Die Liste gibt es noch nicht. Beim Einschalten wird sie mit der Schulleitung und Administration angelegt.'}</p>
       </div>
+      <div class="wt-karte">
+        <h4>Vergangenheit nachpflegen</h4>
+        <p class="ug-hinweis mt-0">Die Lehrkräfte tragen fehlende Abwesenheitskontrollen, Lehrstoff und Klassenbucheinträge nach, die Klassenleitungen entschuldigen,
+          wie im Alltag gesammelt einige Tage später. Ausgenommene und abwesende Lehrkräfte tragen nichts ein, Ihre eigenen Einträge bleiben unverändert.
+          Mehrfaches Nachpflegen trägt nichts doppelt ein.</p>
+        <div class="d-flex flex-wrap align-items-end gap-2">
+          <label class="sim-feld"><span>Von</span><input class="form-control" type="date" data-np-von value="${e(d.schuljahrVon)}" min="${e(d.schuljahrVon)}" max="${e(d.gestern)}"></label>
+          <label class="sim-feld"><span>Bis</span><input class="form-control" type="date" data-np-bis value="${e(d.gestern)}" min="${e(d.schuljahrVon)}" max="${e(d.gestern)}"></label>
+          <button class="btn btn-outline-secondary" type="button" data-nachpflegen ${d.nachpflegen.laeuft ? 'disabled' : ''}>Vergangenheit nachpflegen</button>
+        </div>
+        <div class="sim-fortschritt" data-np-stand></div>
+      </div>
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary" type="submit">Speichern</button>
         ${w.aktiv ? '<button class="btn btn-outline-secondary" type="button" data-lauf>Jetzt ausführen</button>' : ''}
@@ -101,6 +113,33 @@ export async function zeigen(ziel, kontext, neu) {
       neu();
     } catch (err) { kontext.fehler(err); }
   });
+  const stand = ziel.querySelector('[data-np-stand]');
+  const zeigeStand = n => {
+    if (!n || (!n.laeuft && !n.ende)) { stand.innerHTML = ''; return; }
+    const pro = n.tage ? Math.round(n.fertig * 100 / n.tage) : 0;
+    stand.innerHTML = `<div class="sim-balken"><span style="width:${pro}%"></span></div>
+      <small>${n.laeuft ? `Läuft: ${n.fertig} von ${n.tage} Schultagen (${pro} %)` : `Abgeschlossen am ${e(zeit(n.ende))}: ${n.tage} Schultage`}, ${n.eintraege} Einträge nachgepflegt${n.uebersprungen ? `, ${n.uebersprungen} übersprungen` : ''}.${n.fehler ? ` Fehler: ${e(n.fehler)}` : ''}</small>`;
+  };
+  zeigeStand(d.nachpflegen);
+  const verfolgen = () => {
+    const t = setInterval(async () => {
+      if (!document.body.contains(stand)) { clearInterval(t); return; }
+      try {
+        const n = (await holen('/api/app/admin/simulation')).nachpflegen;
+        zeigeStand(n);
+        if (!n.laeuft) { clearInterval(t); ziel.querySelector('[data-nachpflegen]').disabled = false; toast('Das Nachpflegen ist abgeschlossen.'); }
+      } catch { clearInterval(t); }
+    }, 2000);
+  };
+  if (d.nachpflegen.laeuft) verfolgen();
+  ziel.querySelector('[data-nachpflegen]').onclick = async ev => {
+    try {
+      const n = await senden('/api/app/admin/simulation/nachpflegen', { von: ziel.querySelector('[data-np-von]').value || null, bis: ziel.querySelector('[data-np-bis]').value || null });
+      ev.target.disabled = true;
+      zeigeStand(n);
+      verfolgen();
+    } catch (err) { kontext.fehler(err); }
+  };
   ziel.querySelector('[data-entfernen]').onclick = async () => {
     if (!await bestaetigen('Simulationsdaten entfernen', 'Alle von der Simulation erzeugten Einträge (Lehrstoff, Abwesenheiten, Entschuldigungen, Krankmeldungen, Prüfungen, Raumänderungen, Sprechtagstermine) und ihre Konten werden gelöscht. Die Simulation wird ausgeschaltet.', 'Entfernen')) return;
     try {

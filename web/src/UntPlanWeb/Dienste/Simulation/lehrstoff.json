@@ -1,0 +1,418 @@
+{
+  "hinweis": "Unterrichtsreihen der Schulsimulation je Fachgruppe und Stufe (sek1u: Klassen 5 und 6, sek1o: Klassen 7 bis 10, sek2: gymnasiale Oberstufe, bk: Berufskolleg). Eigene Formulierungen in Anlehnung an die Kernlehrpläne bzw. Bildungs- und Rahmenlehrpläne (Lernfelder). Jede Reihe: Titel|Stunde|Stunde|... ({s} = Buchseite, {a}/{b} = Aufgaben).",
+  "nicht": {
+    "kuerzel": ["BER", "BEREI", "SPRE", "STDPL", "V-PLA", "VERAN", "SL", "ZBesp", "ZUSA", "ZfsL", "Beratung", "ONLIN", "Onl.", "Onl.1", "Onl.2", "HS", "MPT", "MPTIK", "MPTIN", "ZF_BT", "BP", "FPM", "WuB"],
+    "worte": ["bereitschaft", "besprech", "sprechstunde", "stundenplan", "vertretungsplan", "veranstaltung", "seminar", "beratung", "online", "distanzunterricht", "homeschooling", "multiprofessionell", "mpt", "betreuung", "praktikum"]
+  },
+  "gruppen": [
+    {
+      "id": "deutsch", "kuerzel": ["D", "DEU", "DDQ", "D-FÖ", "SPK"], "worte": ["deutsch", "sprache/kommunikation", "kommunikation"],
+      "stufen": {
+        "sek1u": [
+          "Wir lernen uns kennen|Steckbriefe schreiben und vorstellen|Erzählen von Erlebnissen|Lesezeichen und Lesekiste|Rechtschreibung: Wörter mit ie|Wortarten: Nomen und Artikel|Briefe und E-Mails schreiben",
+          "Märchen|Merkmale von Märchen|Grimms Märchen lesen, Stationen|Märchen umschreiben|Eigenes Märchen planen|Eigenes Märchen schreiben, Schreibkonferenz|Überarbeitung mit Checkliste",
+          "Wortarten und Satzglieder|Verben und Zeitformen, Übungen S. {s}|Adjektive steigern|Subjekt und Prädikat|Objekte erfragen|Umstellprobe|Test zu Satzgliedern",
+          "Jugendbuch|Einstieg in die Lektüre|Figuren beschreiben|Kapitel 3 bis 5, Lesetagebuch|Spannungskurve|Szenen nachspielen|Buchvorstellung",
+          "Tiere in Sachtexten|Sachtexte lesen, Fünf-Schritt-Lesemethode|Informationen markieren|Tiersteckbrief|Kurzvortrag vorbereiten|Kurzvorträge halten, Feedback",
+          "Gedichte|Reim und Strophe|Gedichte vortragen|Gedichte zu Bildern|Elfchen und Haiku|Gedichtwerkstatt"
+        ],
+        "sek1o": [
+          "Argumentieren|These, Argument, Beispiel|Argumente gewichten|Stellungnahme schreiben|Leserbrief zu Handyverbot an Schulen|Diskussion führen, Regeln|Überarbeitung der Stellungnahmen",
+          "Kurzgeschichten|Merkmale der Kurzgeschichte|Inhaltsangabe: Aufbau und Tempus|Inhaltsangabe zu Das Brot|Erzählperspektive|Figurencharakterisierung|Interpretationsansatz formulieren",
+          "Balladen|Der Zauberlehrling: Inhalt und Aufbau|Ballade szenisch lesen|Sprachliche Mittel|Die Bürgschaft, Gruppenarbeit|Balladenvortrag",
+          "Sachtexte und Medien|Sachtexte analysieren|Diagramme auswerten|Zeitungsartikel: Bericht und Kommentar|Nachrichten im Netz prüfen|Fake News erkennen",
+          "Grammatik und Rechtschreibung|Kommasetzung bei Nebensätzen, Übungen S. {s}|das oder dass|Aktiv und Passiv|Konjunktiv in der indirekten Rede|Fehleranalyse eigener Texte",
+          "Lektüre im Unterricht|Einstieg und Leseauftrag|Figurenkonstellation|Kapitel 4 bis 6 besprechen|Konflikte im Roman|Zentrale Textstelle interpretieren|Lektüre abschließen, Rezension",
+          "Bewerbung und Beruf|Stellenanzeigen auswerten|Lebenslauf erstellen|Anschreiben formulieren|Vorstellungsgespräch üben"
+        ],
+        "sek2": [
+          "Sachtextanalyse|Aufbau einer Analyse|Argumentationsstruktur erschließen|Sprachliche Mittel und Funktion|Analyse schreiben, Übung|Musteranalyse besprechen",
+          "Drama: Faust I|Prolog und Zueignung|Gelehrtentragödie|Pakt und Wette|Gretchenhandlung|Szenenanalyse Kerker|Faust im Epochenkontext",
+          "Lyrik von der Romantik bis zur Gegenwart|Merkmale romantischer Lyrik|Gedichtvergleich: Aufbau|Naturlyrik im Wandel|Großstadtlyrik des Expressionismus|Gedichtvergleich schreiben",
+          "Epik: Kafka|Die Verwandlung: Einstieg|Erzählweise und Perspektive|Familie Samsa|Deutungsansätze|Erörterung literarischer Texte",
+          "Sprache und Kommunikation|Kommunikationsmodelle nach Schulz von Thun|Sprachwandel|Jugendsprache und Denglisch|Mehrsprachigkeit|Sprachkritik in Medien"
+        ],
+        "bk": [
+          "Kommunikation im Betrieb|Kommunikationsmodell nach Schulz von Thun|Gesprächsregeln|Telefonate führen, Rollenspiel|Feedback geben und nehmen|Konflikte im Team",
+          "Berichte und Protokolle|Arbeitsbericht schreiben|Berichtsheft führen|Verlaufsprotokoll|Ergebnisprotokoll einer Besprechung|Protokolle überarbeiten",
+          "Bewerbung|Stellenanzeigen analysieren|Lebenslauf tabellarisch|Anschreiben|Online-Bewerbung|Vorstellungsgespräch, Rollenspiel",
+          "Sachtexte und Fachtexte|Fachtexte erschließen|Diagramme und Tabellen beschreiben|Zusammenfassung schreiben|Visualisierung von Informationen|Präsentation vorbereiten|Präsentationen halten, Feedback",
+          "Argumentieren und Erörtern|Argumentationsaufbau|Lineare Erörterung|Dialektische Erörterung: KI am Arbeitsplatz|Stellungnahme zu einem Zeitungsartikel|Textüberarbeitung",
+          "Literatur und Medien|Kurzgeschichte zur Arbeitswelt|Inhaltsangabe|Figuren und Konflikte|Film und Literatur im Vergleich",
+          "Rechtschreibung und Zeichensetzung|Kommaregeln, Übungen S. {s}|Groß- und Kleinschreibung|Fremdwörter im Beruf|Diktat und Fehleranalyse"
+        ]
+      }
+    },
+    {
+      "id": "literatur", "kuerzel": ["LIT"], "worte": ["literatur"],
+      "stufen": { "alle": [
+        "Theaterprojekt|Rollenfindung und Improvisation|Szenisches Spiel|Textvorlage auswählen|Rollen verteilen, Leseprobe|Probe Szene 1 und 2|Bühnenbild und Requisite|Generalprobe",
+        "Kreatives Schreiben|Schreibimpulse|Perspektivwechsel|Kurzprosa schreiben|Textwerkstatt|Lesung vorbereiten"
+      ] }
+    },
+    {
+      "id": "mathe", "kuerzel": ["M", "MDQ", "NH-M"], "worte": ["mathe"],
+      "stufen": {
+        "sek1u": [
+          "Natürliche Zahlen|Zahlen darstellen, Stellenwerttafel|Runden und Überschlagen|Schriftliche Addition und Subtraktion|Schriftliche Multiplikation, Übungen S. {s}|Schriftliche Division|Rechengesetze",
+          "Geometrische Grundbegriffe|Strecken, Geraden, Strahlen|Senkrecht und parallel|Koordinatensystem|Achsensymmetrie|Vierecke und ihre Eigenschaften",
+          "Brüche|Bruchteile darstellen|Erweitern und Kürzen|Brüche vergleichen|Brüche addieren und subtrahieren, Übungen S. {s}|Brüche multiplizieren|Brüche dividieren",
+          "Dezimalzahlen|Dezimalschreibweise|Dezimalzahlen runden|Rechnen mit Dezimalzahlen|Periodische Dezimalzahlen",
+          "Flächen und Größen|Längen und Maßeinheiten|Flächeninhalt Rechteck|Umfang und Flächeninhalt, Übungen|Volumen von Quadern"
+        ],
+        "sek1o": [
+          "Zuordnungen|Proportionale Zuordnungen|Dreisatz|Antiproportionale Zuordnungen|Zuordnungen im Alltag, Übungen S. {s}",
+          "Prozentrechnung|Grundwert, Prozentwert, Prozentsatz|Prozentrechnung mit dem Dreisatz|Zinsrechnung|Diagramme mit Prozenten",
+          "Terme und Gleichungen|Terme aufstellen|Terme vereinfachen|Binomische Formeln|Gleichungen lösen, Äquivalenzumformungen|Textaufgaben mit Gleichungen",
+          "Lineare Funktionen|Funktionsbegriff|Steigungsdreieck, Übungen S. {s}|Achsenabschnitt und Funktionsgleichung|Geraden zeichnen|Schnittpunkte zweier Geraden|Lineare Gleichungssysteme",
+          "Satz des Pythagoras|Rechtwinklige Dreiecke|Satz des Pythagoras beweisen|Anwendungsaufgaben|Pythagoras im Raum",
+          "Quadratische Funktionen|Normalparabel|Scheitelpunktform|pq-Formel|Anwendungsaufgaben, Übungen S. {s}",
+          "Wahrscheinlichkeit|Zufallsexperimente|Baumdiagramme|Pfadregeln|Wahrscheinlichkeit im Alltag"
+        ],
+        "sek2": [
+          "Funktionen und Ableitungen|Änderungsraten|Ableitung als Grenzwert|Ableitungsregeln, Übungen S. {s}|Tangentengleichung|Monotonie",
+          "Kurvendiskussion|Extrempunkte|Wendepunkte|Funktionsuntersuchung komplett|Steckbriefaufgaben|Extremwertprobleme",
+          "Integralrechnung|Rekonstruktion von Beständen|Stammfunktionen|Hauptsatz der Differential- und Integralrechnung|Flächen zwischen Graphen",
+          "Exponentialfunktionen|Wachstum und Zerfall|e-Funktion und Ableitung|Logarithmus|Anwendungen aus Biologie und Wirtschaft",
+          "Analytische Geometrie|Vektoren im Raum|Geradengleichungen|Lagebeziehungen von Geraden|Ebenen und Skalarprodukt",
+          "Stochastik|Bernoulli-Ketten|Binomialverteilung|Erwartungswert und Standardabweichung|Hypothesentests"
+        ],
+        "bk": [
+          "Grundlagen und Terme|Bruchrechnung wiederholen|Potenzen und Wurzeln|Terme umformen, Übungen S. {s}|Formeln umstellen",
+          "Lineare Funktionen|Steigung und y-Achsenabschnitt|Funktionsgleichung aus zwei Punkten|Kostenfunktionen|Gleichungssysteme lösen",
+          "Quadratische Funktionen|Scheitelpunkt und Nullstellen|pq-Formel, Übungen S. {s}|Gewinnfunktion und Gewinnschwelle|Anwendungen in der Technik",
+          "Geometrie und Trigonometrie|Flächen und Volumen technischer Körper|Satz des Pythagoras|Sinus, Kosinus, Tangens|Berechnungen am Bauteil",
+          "Prozent- und Zinsrechnung|Prozentrechnung im Beruf|Rabatt und Skonto|Zinsen und Kredit|Statistik: Mittelwerte und Diagramme",
+          "Exponentielles Wachstum|Wachstumsprozesse|Exponentialgleichungen|Logarithmus|Anwendungsaufgaben"
+        ]
+      }
+    },
+    {
+      "id": "englisch", "kuerzel": ["E"], "worte": ["englisch"],
+      "stufen": {
+        "sek1u": [
+          "Unit 1: My new school|Vocabulary Unit 1|Simple present|Talking about my timetable|Listening: First day at school|Writing about my school",
+          "Unit 2: Family and friends|Possessive determiners|Describing people|Present progressive|Role play: At home",
+          "Unit 3: Free time|Hobbies vocabulary|Adverbs of frequency|Can and can't|Writing an email",
+          "Unit 4: Around town|Directions|Simple past|Reading: A trip to London|Postcard from London"
+        ],
+        "sek1o": [
+          "Unit 1: Life in Britain|Present perfect|Present perfect and simple past|Reading: Teenage life|Mediation",
+          "Unit 2: Going places|Going to future|Will future|Travel vocabulary|Writing a travel blog",
+          "Unit 3: Growing up|If clauses type 1|If clauses type 2|Discussion: rules at home|Writing a comment",
+          "Unit 4: The USA|American states|Passive voice|Reading: The American Dream|Presentation about a US state",
+          "Unit 5: Media|Reported speech|Social media vocabulary|Film scene analysis|Mediation exercise"
+        ],
+        "sek2": [
+          "Globalisation|Globalisation: definitions|Fair trade|Analysing statistics|Writing a comment",
+          "The American Dream|Myth and reality|Analysing a political speech|Rhetorical devices|Mediation",
+          "Shakespeare|Shakespeare's world|Romeo and Juliet: Act 1|Sonnets|Film analysis: camera work",
+          "Dystopian fiction|Features of dystopias|Reading Brave New World|Character analysis|Creative writing",
+          "Post-colonial Britain|The Commonwealth|Multicultural Britain|Analysing a short story|Exam training: analysis"
+        ],
+        "bk": [
+          "Working life|Introducing yourself and your company|Job descriptions|Telephoning at work|Writing emails",
+          "Applications|Job adverts|Writing a CV|Cover letter|Job interview role play",
+          "Technical English|Describing products and functions|Instructions and manuals|Safety at work|Mediation: German manual",
+          "Customer service|Handling complaints|Small talk|Presentations in English|Giving feedback",
+          "Grammar review|Tenses review, exercises p. {s}|Passive in technical texts|Conditionals|Linking words"
+        ]
+      }
+    },
+    {
+      "id": "fachenglisch", "kuerzel": ["FEN"], "worte": ["fachliches englisch", "fachenglisch"],
+      "stufen": { "alle": [
+        "IT and technical vocabulary|Computer hardware vocabulary|Describing networks|Reading technical documentation|Writing a support ticket",
+        "Customer support|Handling a support call|Troubleshooting dialogues|Writing instructions|Mediation: product data sheet",
+        "Projects in English|Project planning vocabulary|Meetings and minutes|Presenting project results|Feedback round",
+        "Safety and quality|Safety instructions|Quality management terms|Describing processes|Exam training: reading and mediation"
+      ] }
+    },
+    {
+      "id": "franzoesisch", "kuerzel": [], "worte": ["französisch", "franzoesisch"],
+      "stufen": { "alle": [
+        "Unité 1: Bonjour|Se présenter|Les articles|Le verbe être|Les nombres",
+        "Unité 2: Ma famille|Décrire sa famille|Les adjectifs possessifs|Le présent des verbes en -er|Dialogue: chez moi",
+        "Unité 3: En ville|Demander le chemin|Le futur composé|Au marché|Écrire une carte postale",
+        "Unité 4: Le collège|L'emploi du temps|Le passé composé avec avoir|Compréhension orale|Médiation"
+      ] }
+    },
+    {
+      "id": "latein", "kuerzel": ["L"], "worte": ["latein"],
+      "stufen": { "alle": [
+        "Lektion 1 bis 3|Vokabeln und Formen|a- und o-Deklination|Präsens der Verben|Übersetzung: Auf dem Forum",
+        "Lektion 4 bis 6|Ablativ|Präpositionen|Perfekt|Römischer Alltag",
+        "Lektion 7 bis 9|AcI|Partizipien|Übersetzungsübung|Römische Götter",
+        "Originallektüre|Caesar: Bellum Gallicum|Satzanalyse|Stilmittel|Interpretation"
+      ] }
+    },
+    {
+      "id": "spanisch", "kuerzel": ["S", "SPA"], "worte": ["spanisch"],
+      "stufen": { "alle": [
+        "Unidad 1: ¡Hola!|Presentarse|Los artículos|El verbo ser|Los números",
+        "Unidad 2: Mi familia|La familia|Ser y estar|Verbos regulares|Diálogo en casa",
+        "Unidad 3: En la ciudad|Pedir el camino|Hay y está|En el restaurante|Escribir un correo",
+        "Unidad 4: El tiempo libre|Gustar|El pretérito indefinido|Comprensión auditiva|Mediación"
+      ] }
+    },
+    {
+      "id": "fotografie", "kuerzel": ["F"], "worte": ["fotograf"],
+      "stufen": { "alle": [
+        "Grundlagen der Kamera|Kameratypen und Aufbau|Blende und Schärfentiefe|Belichtungszeit|ISO und Belichtungsdreieck|Übung: Belichtungsreihe",
+        "Bildgestaltung|Drittelregel und Goldener Schnitt|Perspektive und Standpunkt|Linien und Formen|Fotoexkursion Schulgelände|Bildbesprechung",
+        "Licht|Natürliches Licht|Studiolicht: Hauptlicht und Aufheller|Porträtbeleuchtung|Studioübung Porträt",
+        "Bildbearbeitung|RAW-Entwicklung|Tonwerte und Farbe|Retusche|Export und Dateiformate",
+        "Fotoprojekt|Projektidee und Konzept|Shooting Teil 1|Shooting Teil 2|Bildauswahl|Präsentation der Serie"
+      ] }
+    },
+    {
+      "id": "biologie", "kuerzel": ["BI"], "worte": ["biologie"],
+      "stufen": {
+        "sek1u": ["Lebewesen|Kennzeichen des Lebendigen|Mikroskopieren: Zwiebelhaut|Pflanzenzelle und Tierzelle|Haustiere und Nutztiere", "Pflanzen|Aufbau einer Blütenpflanze|Fotosynthese einfach|Bestäubung und Samen|Pflanzen bestimmen"],
+        "sek1o": ["Der Mensch|Verdauung|Atmung|Blut und Blutkreislauf|Herz und Kreislauf", "Ökologie|Ökosystem Wald|Nahrungsnetze|Stoffkreisläufe|Mensch und Umwelt", "Genetik|Zellteilung|Mendelsche Regeln|Erbgänge|Gentechnik"],
+        "sek2": ["Zellbiologie|Biomembranen|Transportvorgänge|Enzyme|Enzymkinetik", "Genetik|DNA und Replikation|Proteinbiosynthese|Genregulation|Mutationen", "Neurobiologie|Bau des Neurons|Ruhepotential|Aktionspotential|Synapse", "Ökologie und Evolution|Populationsdynamik|Evolutionstheorien|Artbildung|Stammbäume"],
+        "bk": ["Zellen und Gewebe|Aufbau der Zelle|Gewebearten|Mikroskopie", "Ernährung und Stoffwechsel|Nährstoffe|Enzyme in der Verdauung|Energiebedarf", "Mikrobiologie und Hygiene|Bakterien und Viren|Hygienemaßnahmen|Lebensmittelhygiene"]
+      }
+    },
+    {
+      "id": "chemie", "kuerzel": ["CH"], "worte": ["chemie"],
+      "stufen": {
+        "sek1o": ["Stoffe und Eigenschaften|Sicherheit im Fachraum|Stoffeigenschaften untersuchen|Trennverfahren|Reinstoffe und Gemische", "Chemische Reaktionen|Verbrennung|Energieumsatz|Reaktionsgleichungen|Gesetz von der Erhaltung der Masse", "Atombau und Periodensystem|Atommodell nach Bohr|Periodensystem|Ionenbindung|Salze", "Säuren und Laugen|Säuren im Alltag|pH-Wert|Neutralisation|Titration"],
+        "sek2": ["Reaktionsgeschwindigkeit|Geschwindigkeit messen|Einflussfaktoren|Katalyse", "Chemisches Gleichgewicht|Gleichgewichtsreaktionen|Massenwirkungsgesetz|Prinzip von Le Chatelier", "Organische Chemie|Alkane und Alkene|Alkohole|Carbonsäuren und Ester", "Elektrochemie|Redoxreaktionen|Galvanische Zellen|Elektrolyse"],
+        "bk": ["Grundlagen|Stoffe und Gemische|Atombau|Chemische Bindung", "Werkstoffchemie|Korrosion|Korrosionsschutz|Kunststoffe", "Reinigung und Desinfektion|Tenside|Reinigungsmittel|Wasserhärte"]
+      }
+    },
+    {
+      "id": "physik", "kuerzel": ["PH", "PHY"], "worte": ["physik"],
+      "stufen": {
+        "sek1u": ["Temperatur und Wärme|Thermometer|Ausdehnung bei Erwärmung|Wärmetransport", "Licht und Schatten|Lichtausbreitung|Schatten|Spiegel"],
+        "sek1o": ["Mechanik|Geschwindigkeit|Kräfte und ihre Wirkung|Hebel|Dichte", "Elektrizität|Stromkreis|Reihen- und Parallelschaltung|Ohmsches Gesetz|Elektrische Leistung", "Optik|Reflexion|Brechung|Linsen", "Energie|Energieformen|Energieerhaltung|Kraftwerke"],
+        "sek2": ["Kinematik|Gleichförmige Bewegung|Beschleunigung|Freier Fall", "Dynamik|Newtonsche Axiome|Impuls|Energieerhaltung", "Elektrisches Feld|Feldbegriff|Kondensator|Elektronen im Feld", "Quantenphysik|Photoeffekt|Welle-Teilchen|Atommodelle"],
+        "bk": ["Mechanik|Kräfte und Momente|Arbeit, Energie, Leistung|Reibung", "Elektrizitätslehre|Spannung, Strom, Widerstand|Ohmsches Gesetz, Übungen|Elektrische Leistung", "Wärmelehre|Temperatur und Wärme|Wärmeausdehnung|Wärmedämmung"]
+      }
+    },
+    {
+      "id": "informatik", "kuerzel": ["IF"], "worte": ["informatik"],
+      "stufen": {
+        "sek1o": ["Daten und Codierung|Binärzahlen|Zeichencodierung|Bilder als Daten", "Algorithmen|Ablaufdiagramme|Programmieren mit Scratch|Schleifen und Bedingungen", "Netzwerke und Internet|Wie das Internet funktioniert|Datenschutz|Sichere Passwörter"],
+        "sek2": ["Objektorientierte Modellierung|Klassen und Objekte|UML-Klassendiagramm|Vererbung", "Algorithmen und Datenstrukturen|Sortierverfahren|Rekursion|Listen und Bäume", "Datenbanken|ER-Modell|Relationales Modell|SQL-Abfragen"],
+        "bk": ["Programmieren|Variablen und Datentypen|Kontrollstrukturen|Funktionen", "Datenbanken|ER-Modell|SQL", "Netzwerke|OSI-Modell|IP-Adressen"]
+      }
+    },
+    {
+      "id": "erdkunde", "kuerzel": ["EK"], "worte": ["erdkunde", "geograf"],
+      "stufen": { "sek1u": ["Orientierung|Atlas und Karten|Gradnetz|Deutschland im Überblick", "Landwirtschaft|Landwirtschaft in Deutschland|Massentierhaltung|Bio-Landwirtschaft"], "sek1o": ["Naturgefahren|Vulkane|Erdbeben|Tsunamis", "Klima und Vegetation|Klimazonen|Klimadiagramme|Regenwald", "Stadt und Raum|Stadtentwicklung|Tourismus|Strukturwandel im Ruhrgebiet"], "sek2": ["Globale Disparitäten|Entwicklungsindikatoren|Globalisierung|Raumanalyse", "Stadtentwicklung|Stadtmodelle|Gentrifizierung|Megastädte"] }
+    },
+    {
+      "id": "geschichte", "kuerzel": ["GE"], "worte": ["geschichte"],
+      "stufen": { "sek1u": ["Frühe Kulturen|Steinzeit|Das alte Ägypten|Griechische Antike", "Das Römische Reich|Gründung Roms|Leben in Rom|Römer in Germanien"], "sek1o": ["Mittelalter|Lehnswesen|Leben im Mittelalter|Stadt im Mittelalter", "Revolutionen|Französische Revolution|Industrialisierung|Soziale Frage", "20. Jahrhundert|Erster Weltkrieg|Weimarer Republik|Nationalsozialismus|Teilung Deutschlands"], "sek2": ["Deutsche Geschichte|Reichsgründung 1871|Imperialismus|Ende der Weimarer Republik", "Nach 1945|Kalter Krieg|Deutsche Einheit|Erinnerungskultur"] }
+    },
+    {
+      "id": "politik", "kuerzel": ["PK", "POL", "PK/WW", "GL"], "worte": ["politik", "gesellschaftslehre"],
+      "stufen": {
+        "sek1u": ["Zusammenleben|Regeln in der Klasse|Kinderrechte|Klassenrat", "Medien|Mediennutzung|Werbung|Sicher im Netz"],
+        "sek1o": ["Demokratie|Wahlen in Deutschland|Parteien|Der Bundestag", "Europa|Die Europäische Union|Institutionen der EU", "Wirtschaft|Markt und Preis|Soziale Marktwirtschaft"],
+        "sek2": ["Politisches System|Grundgesetz|Parteien|Gesetzgebung", "Internationale Politik|Friedenssicherung|Vereinte Nationen"],
+        "bk": ["Arbeit und Beruf|Duales System der Ausbildung|Berufsausbildungsvertrag|Rechte und Pflichten in der Ausbildung|Jugendarbeitsschutz", "Sozialstaat|Sozialversicherungen|Generationenvertrag|Rente und Pflege", "Demokratie|Grundrechte|Wahlen und Parteien|Beteiligung im Betrieb: Betriebsrat und JAV", "Wirtschaft und Gesellschaft|Soziale Marktwirtschaft|Tarifverträge|Globalisierung und Arbeitswelt", "Europa und Welt|Europäische Union|Migration|Nachhaltigkeit"]
+      }
+    },
+    {
+      "id": "wirtschaft", "kuerzel": ["WI", "WW", "SW"], "worte": ["wirtschaft", "sozialwissenschaft"],
+      "stufen": { "alle": [
+        "Der Betrieb|Betriebsformen|Rechtsformen von Unternehmen|Aufbauorganisation|Ablauforganisation",
+        "Verträge|Rechtsgeschäfte|Kaufvertrag|Störungen beim Kaufvertrag|Verbraucherschutz",
+        "Arbeitsverhältnis|Arbeitsvertrag|Lohnabrechnung|Kündigungsschutz|Mitbestimmung",
+        "Markt und Wirtschaft|Angebot und Nachfrage|Preisbildung|Konjunktur|Geldpolitik",
+        "Kosten und Kalkulation|Kostenarten|Kalkulation|Break-even-Point"
+      ] }
+    },
+    {
+      "id": "philosophie", "kuerzel": ["PPL", "PE"], "worte": ["philosoph", "ethik"],
+      "stufen": { "alle": [
+        "Fragen nach dem Ich|Wer bin ich|Gefühle und Verstand|Freiheit und Verantwortung",
+        "Gerechtigkeit|Was ist gerecht|Gerechtigkeit nach Rawls|Strafe und Gerechtigkeit",
+        "Ethik|Utilitarismus|Kants kategorischer Imperativ|Ethische Dilemmata",
+        "Mensch und Technik|Künstliche Intelligenz|Verantwortung in der Technik|Medienethik"
+      ] }
+    },
+    {
+      "id": "religion", "kuerzel": ["KR", "ER", "REL"], "worte": ["religion"],
+      "stufen": { "alle": [
+        "Religion und Leben|Was ist Religion|Rituale im Alltag|Feste im Jahreskreis",
+        "Weltreligionen|Judentum|Christentum|Islam|Interreligiöser Dialog",
+        "Ethik und Verantwortung|Gewissen|Nächstenliebe und Diakonie|Bewahrung der Schöpfung",
+        "Sinnfragen|Leid und Hoffnung|Tod und Trauer|Was gibt meinem Leben Sinn"
+      ] }
+    },
+    {
+      "id": "kunst", "kuerzel": ["KU"], "worte": ["kunst"],
+      "stufen": { "alle": [
+        "Farbe|Farbkreis|Farbkontraste|Farbmischungen|Bild nach Itten",
+        "Zeichnen|Linie und Schraffur|Perspektive|Porträt",
+        "Plastik|Ton modellieren|Plastisches Gestalten|Präsentation",
+        "Bildanalyse|Werkbetrachtung|Expressionismus|Pop Art"
+      ] }
+    },
+    {
+      "id": "gestaltung", "kuerzel": ["GT", "PD", "GAM"], "worte": ["gestaltung", "produktdesign", "gaming"],
+      "stufen": { "alle": [
+        "Gestaltungsgrundlagen|Punkt, Linie, Fläche|Farbwirkung|Typografie|Layoutraster",
+        "Entwurf und Skizze|Ideenfindung, Moodboard|Scribbles|Entwurf ausarbeiten|Präsentation der Entwürfe",
+        "Produktentwicklung|Briefing und Zielgruppe|Funktion und Form|Modellbau|Bewertung",
+        "Digitale Gestaltung|Vektorgrafik|Bildbearbeitung|Gestaltung für Bildschirm und Mobilgeräte|Portfolio"
+      ] }
+    },
+    {
+      "id": "musik", "kuerzel": ["MU"], "worte": ["musik"],
+      "stufen": { "alle": ["Musik machen|Rhythmus und Takt|Singen im Klassenverband|Klassenmusizieren", "Musik hören|Instrumentenkunde|Musikalische Formen|Filmmusik", "Musik und Gesellschaft|Popmusik analysieren|Musik und Werbung"] }
+    },
+    {
+      "id": "sport", "kuerzel": ["SP", "SPO", "AERO", "TL"], "worte": ["sport", "aerobic", "trainingslehre"],
+      "stufen": { "alle": [
+        "Ausdauer|Ausdauerlauf|Intervalltraining|Cooper-Test",
+        "Spielen|Basketball: Passen und Fangen|Basketball: Korbleger|Spiel 3 gegen 3|Turnier",
+        "Volleyball|Pritschen|Baggern|Aufschlag|Spiel 4 gegen 4",
+        "Turnen|Bodenturnen|Gerätebahn|Akrobatik|Präsentation",
+        "Fitness und Gesundheit|Kraftzirkel|Aufwärmen selbst gestalten|Dehnen und Mobilisation|Aerobic-Choreografie",
+        "Leichtathletik|Sprint|Weitsprung|Kugelstoßen|Staffellauf"
+      ] }
+    },
+    {
+      "id": "koerper", "kuerzel": ["KB", "BEB", "PSM"], "worte": ["körperbildung", "bewegungsbildung", "psychomotorik"],
+      "stufen": { "alle": [
+        "Bewegung und Entwicklung|Motorische Entwicklung im Kindesalter|Bewegungsbedürfnisse|Bewegungsbaustelle planen",
+        "Bewegungsangebote|Kleine Spiele für Kinder|Bewegungslandschaft|Angebot durchführen und reflektieren",
+        "Psychomotorik|Grundlagen der Psychomotorik|Wahrnehmung und Körpererfahrung|Psychomotorische Förderung",
+        "Entspannung|Entspannungsverfahren|Fantasiereise|Yoga für Kinder"
+      ] }
+    },
+    {
+      "id": "naturwissenschaft", "kuerzel": ["NW", "SU"], "worte": ["naturwissenschaft", "sachunterricht"],
+      "stufen": { "alle": ["Wasser|Wasser im Alltag|Aggregatzustände|Wasserkreislauf", "Pflanzen und Tiere|Pflanzen untersuchen|Tiere im Wald|Lebensräume", "Energie und Wetter|Wetterbeobachtung|Luft und Luftdruck|Strom im Alltag"] }
+    },
+    {
+      "id": "klassenleitung", "kuerzel": ["KL", "KL-ST"], "worte": ["klassenleit", "klassenleiter"],
+      "stufen": { "alle": [
+        "Klassenleitung|Organisatorisches und Termine|Klassenrat|Wahl der Klassensprecher|Klassenregeln besprechen|Organisatorisches: Fehlzeiten und Entschuldigungen|Klassenrat|Planung des Wandertags|Organisatorisches und Termine|Lernen lernen: Lernplan|Klassenrat|Rückmeldung zum Halbjahr|Organisatorisches: Praktikum"
+      ] }
+    },
+    {
+      "id": "berufsorientierung", "kuerzel": ["BZO", "SELM", "AOR", "PeAr"], "worte": ["berufliche zukunft", "selbstmanagement", "arbeitsorganisation", "personal"],
+      "stufen": { "alle": [
+        "Berufsorientierung|Stärken und Interessen|Berufsfelder erkunden|Praktikum vorbereiten|Praktikumsbericht",
+        "Selbstmanagement|Zeitmanagement|Lernstrategien|Prüfungsangst und Stress|Ziele setzen",
+        "Arbeitsorganisation|Arbeitsplanung|Arbeitsschutz und Ergonomie|Qualitätssicherung|Teamarbeit",
+        "Personal und Organisation|Dienstplan erstellen|Mitarbeitergespräch|Arbeitsrecht im Betrieb"
+      ] }
+    },
+    {
+      "id": "foerder", "kuerzel": ["FÖ", "NH-ET", "D-FÖ", "SI", "SL-TE", "SOL", "DIFF", "DIFF/FB", "FB", "VT", "PRÜ"], "worte": ["förder", "nachhilfe", "selbst organisiert", "differenzierung", "vertiefung", "prüfungsvorbereitung"],
+      "stufen": { "alle": [
+        "Individuelle Förderung|Lernstand ermitteln|Übungen nach Förderplan|Grundrechenarten sicher anwenden|Leseverstehen trainieren|Rechtschreibstrategien|Lernfortschritt besprechen",
+        "Selbstorganisiertes Lernen|Lernaufgaben auswählen|Bearbeitung der Lernaufgaben|Lernjournal führen|Ergebnisse präsentieren",
+        "Prüfungsvorbereitung|Prüfungsaufgaben des Vorjahres|Zeitmanagement in der Prüfung|Typische Fehler|Probeprüfung|Besprechung der Probeprüfung"
+      ] }
+    },
+    {
+      "id": "anwendungsentwicklung", "kuerzel": ["AWE", "SOFT", "SuD"], "worte": ["anwendungsentwicklung", "software"],
+      "stufen": { "alle": [
+        "Grundlagen der Programmierung|Entwicklungsumgebung einrichten|Variablen und Datentypen|Ein- und Ausgabe|Verzweigungen|Schleifen|Übungen: Konsolenanwendung",
+        "Strukturierte Programmierung|Methoden und Parameter|Arrays|Struktogramme|Fehlersuche mit dem Debugger|Übungsaufgabe Notenrechner",
+        "Objektorientierung|Klassen und Objekte|Attribute und Methoden|Konstruktoren|Kapselung|UML-Klassendiagramm|Vererbung und Polymorphie",
+        "Software und Daten|Dateien lesen und schreiben|JSON und CSV|Datenbankanbindung|Fehlerbehandlung mit Ausnahmen",
+        "Benutzerschnittstellen|Anforderungen und Personas|Mockups erstellen|Oberfläche umsetzen|Barrierefreiheit|Usability-Test",
+        "Qualität und Tests|Unit-Tests|Testfälle ableiten|Refactoring|Versionsverwaltung mit Git|Code-Review",
+        "Projekt Kundenauftrag|Lastenheft analysieren|Pflichtenheft|Planung mit Kanban|Umsetzung Sprint 1|Umsetzung Sprint 2|Projektpräsentation"
+      ] }
+    },
+    {
+      "id": "datenbanken", "kuerzel": ["DB"], "worte": ["datenbank"],
+      "stufen": { "alle": [
+        "Datenmodellierung|Anforderungen an Daten|ER-Modell|Kardinalitäten|ER-Modell zur Fallsituation",
+        "Relationales Modell|Tabellen, Schlüssel|Überführung ER in Tabellen|Normalisierung bis 3. NF|Übungen zur Normalisierung",
+        "SQL Abfragen|SELECT und WHERE|Sortieren und Gruppieren|Aggregatfunktionen|JOIN über mehrere Tabellen|Unterabfragen",
+        "SQL Datenmanipulation|CREATE TABLE|INSERT, UPDATE, DELETE|Constraints und Integrität|Views",
+        "Datenbanken im Betrieb|Benutzer und Rechte|Datensicherung|Datenschutz nach DSGVO|NoSQL im Überblick"
+      ] }
+    },
+    {
+      "id": "itsysteme", "kuerzel": ["BS/NW", "ITG", "GID", "FU0", "FU1", "IT", "BJ"], "worte": ["betriebssystem", "netz", "it-grundschutz", "it-dienst", "it-beruf", "informationstechnik"],
+      "stufen": { "alle": [
+        "LF1 Das Unternehmen und die eigene Rolle|Ausbildungsbetrieb vorstellen|Geschäftsprozesse|Marktformen|Kommunikation mit Kunden",
+        "LF2 Arbeitsplätze nach Kundenwunsch ausstatten|Kundenanforderungen aufnehmen|Hardwarekomponenten|Angebotsvergleich|Nutzwertanalyse|Ergonomie am Arbeitsplatz",
+        "LF3 Clients in Netzwerke einbinden|OSI- und TCP/IP-Modell|IPv4-Adressierung|Subnetting, Übungen|IPv6|Client konfigurieren",
+        "LF4 Schutzbedarfsanalyse|Schutzziele|IT-Grundschutz nach BSI|Schutzbedarf feststellen|Maßnahmen ableiten|Datenschutz",
+        "Betriebssysteme|Aufgaben eines Betriebssystems|Benutzer und Rechte|Dateisysteme|Kommandozeile|Skripte zur Automatisierung",
+        "LF6 Serviceanfragen bearbeiten|Ticketsysteme|Fehleranalyse|Kundengespräch|Dokumentation",
+        "LF9 Netzwerke und Dienste bereitstellen|VLAN|Routing|DHCP und DNS|Firewall-Regeln|Netzwerkplan",
+        "IT-Dienste gestalten|Service Level Agreement|Cloud-Dienste|Virtualisierung|Monitoring"
+      ] }
+    },
+    {
+      "id": "elektrotechnik", "kuerzel": ["ET", "EO", "EOT", "MP", "MIK", "TI", "EvP", "ING"], "worte": ["elektro", "elektronik", "mess", "mikroprozessor", "technische informatik", "vernetzt", "ingenieur"],
+      "stufen": { "alle": [
+        "Grundlagen der Elektrotechnik|Spannung, Strom, Widerstand|Ohmsches Gesetz|Reihenschaltung|Parallelschaltung|Gemischte Schaltungen, Übungen",
+        "Elektrische Anlagen sicher betreiben|Gefahren des Stroms|Schutzmaßnahmen|Fünf Sicherheitsregeln|Prüfen nach DIN VDE",
+        "Wechselstromtechnik|Sinusgrößen|Kondensator und Spule|Blindwiderstand|Leistung im Wechselstromkreis",
+        "Elektronische Bauelemente|Dioden|Transistor als Schalter|Operationsverstärker|Schaltungssimulation",
+        "Messtechnik|Messgeräte|Messfehler|Oszilloskop|Messprotokoll",
+        "Steuerungstechnik|Logische Grundfunktionen|Schaltnetze|SPS-Grundlagen|SPS-Programm erstellen",
+        "Mikrocontroller|Aufbau eines Mikrocontrollers|Digitale Ein- und Ausgänge|Programmierung in C|Sensoren auslesen|Projekt Ampelsteuerung",
+        "Vernetzte Systeme|Bussysteme|IoT-Grundlagen|Daten übertragen|Inbetriebnahme"
+      ] }
+    },
+    {
+      "id": "bautechnik", "kuerzel": ["BAU"], "worte": ["bau"],
+      "stufen": { "alle": ["Baustelle einrichten|Baustelleneinrichtungsplan|Arbeitsschutz auf der Baustelle|Vermessung", "Mauerwerk|Steinformate|Mauerverbände|Mörtel|Mengenermittlung", "Beton und Stahlbeton|Betonherstellung|Bewehrung|Schalung", "Bauzeichnen|Grundriss|Schnitt|Bemaßung"] }
+    },
+    {
+      "id": "holz", "kuerzel": ["FPH", "FPHT"], "worte": ["holz"],
+      "stufen": { "alle": [
+        "Holz als Werkstoff|Aufbau des Holzes|Holzarten bestimmen|Holzfeuchte|Holzwerkstoffe",
+        "Handwerkzeuge|Sägen und Stemmen|Hobeln|Werkzeugpflege|Übungsstück",
+        "Holzverbindungen|Überblattung|Schlitz und Zapfen|Dübelverbindung|Zinken",
+        "Maschinen|Sicherheit an Holzbearbeitungsmaschinen|Kreissäge|Hobelmaschine|Oberfräse",
+        "Werkstück Kleinmöbel|Technische Zeichnung|Stückliste|Zuschnitt|Montage|Oberflächenbehandlung"
+      ] }
+    },
+    {
+      "id": "textil", "kuerzel": ["FPTX"], "worte": ["textil"],
+      "stufen": { "alle": ["Faserkunde|Naturfasern|Chemiefasern|Brennprobe", "Nähtechnik|Nähmaschine einrichten|Nahtarten|Säume", "Schnitt und Werkstück|Maß nehmen|Schnittmuster|Zuschnitt|Fertigung", "Textilpflege|Pflegekennzeichen|Waschen und Bügeln|Fleckentfernung"] }
+    },
+    {
+      "id": "ernaehrung", "kuerzel": ["FPEH", "FPEHT", "SEH"], "worte": ["ernährung", "hauswirtschaft"],
+      "stufen": { "alle": [
+        "Hygiene in der Küche|Persönliche Hygiene|Lebensmittelhygiene und HACCP|Reinigungsplan|Arbeitsschutz",
+        "Grundlagen der Nahrungszubereitung|Garverfahren|Schneidetechniken|Rezepte umrechnen|Praxis: Gemüsesuppe",
+        "Ernährungslehre|Nährstoffe|Ernährungspyramide|Energiebedarf|Speiseplan bewerten",
+        "Menüplanung|Speisenfolge|Kalkulation|Praxis: Drei-Gänge-Menü|Reflexion",
+        "Service und Gästebetreuung|Tisch eindecken|Servierregeln|Getränkeservice|Gästekommunikation",
+        "Hauswirtschaftliche Versorgung|Wäschepflege|Reinigung von Räumen|Vorratshaltung|Nachhaltigkeit im Haushalt"
+      ] }
+    },
+    {
+      "id": "pflege", "kuerzel": ["PfGe", "MED", "GS", "GF", "PS"], "worte": ["pflege", "gesundheit", "medizin", "psycholog"],
+      "stufen": { "alle": [
+        "Gesundheit und Krankheit|Gesundheitsbegriff der WHO|Salutogenese|Risikofaktoren|Prävention",
+        "Anatomie und Physiologie|Bewegungsapparat|Herz-Kreislauf-System|Atmungssystem|Verdauungssystem|Nervensystem",
+        "Pflegerische Grundlagen|Vitalzeichen messen|Körperpflege|Mobilisation und Lagerung|Pflegedokumentation",
+        "Hygiene im Gesundheitswesen|Händehygiene|Infektionsketten|Desinfektion",
+        "Psychologie|Wahrnehmung|Entwicklungspsychologie|Psychische Erkrankungen im Überblick|Umgang mit Demenz",
+        "Gesundheitsförderung|Bewegung und Ernährung|Stressbewältigung|Projekt Gesundheitstag"
+      ] }
+    },
+    {
+      "id": "sozialpaedagogik", "kuerzel": ["ESO", "ErSo", "SOP", "SPT", "SPP", "EW", "SOZ", "TPH", "DM", "MB"], "worte": ["erziehung", "sozialpäd", "soziolog", "didaktik", "heilerzieh", "hep", "medienbildung"],
+      "stufen": { "alle": [
+        "LF1 Berufliche Identität entwickeln|Berufsbild Erzieherin und Erzieher|Rollenverständnis|Biografiearbeit|Arbeitsfelder der Kinder- und Jugendhilfe",
+        "LF2 Pädagogische Beziehungen gestalten|Beobachtung und Dokumentation|Bindungstheorie|Gruppenprozesse|Kommunikation mit Kindern",
+        "LF3 Lebenswelten und Diversität|Lebenswelten von Familien|Inklusion|Kulturelle Vielfalt|Kinderrechte",
+        "LF4 Bildungsbereiche gestalten|Bildungsgrundsätze NRW|Sprachbildung|Naturwissenschaftliche Bildung|Bildungsangebot planen|Angebot reflektieren",
+        "LF5 Erziehungspartnerschaft mit Eltern|Elterngespräche vorbereiten|Elternabend planen|Eingewöhnung",
+        "LF6 Institution und Team|Konzeption einer Einrichtung|Teamarbeit|Qualitätsentwicklung|Rechtliche Grundlagen SGB VIII",
+        "Praxisbegleitung|Praxisaufgabe besprechen|Kollegiale Beratung|Reflexion der Praxisphase",
+        "Medienbildung|Medien im Kinderalltag|Medienpädagogische Angebote|Datenschutz in der Kita"
+      ] }
+    }
+  ]
+}

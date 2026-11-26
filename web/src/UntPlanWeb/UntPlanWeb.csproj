@@ -18,6 +18,11 @@
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Unterrichtsreihen der Schulsimulation (eingebettet, nicht als Datei ausgeliefert) -->
+    <Content Remove="Dienste\Simulation\lehrstoff.json" />
+    <EmbeddedResource Include="Dienste\Simulation\lehrstoff.json" LogicalName="UntPlanWeb.Simulation.lehrstoff.json" />
+  </ItemGroup>
+  <ItemGroup>
     <Content Include="..\..\demo\beispiel-paket.json" Link="demo\beispiel-paket.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

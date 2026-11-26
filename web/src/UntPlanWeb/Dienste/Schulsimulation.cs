@@ -198,6 +198,9 @@ public sealed partial class Schulsimulation : BackgroundService
             lehrer = (s?.Paket.Elemente.Lehrer ?? new()).Where(l => l.Kurz is not ("---" or "???" or "+++")).Select(l => new { l.Kurz, name = $"{l.Vorname} {l.Name}".Trim() }),
             faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name }),
             verteilerVorhanden = Verteilerliste(e.Verteiler) is not null,
+            nachpflegen = _nachpflegen,
+            schuljahrVon = s is null ? "" : Plandienst.Iso(Halbjahre(s)[0].Von),
+            gestern = Plandienst.Iso(_uhr.Heute.AddDays(-1)),
             zahlen = new
             {
                 lehrstoff = Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND benutzer_id IN {Konten}"),
@@ -218,6 +221,7 @@ public sealed partial class Schulsimulation : BackgroundService
     public int Entfernen(Benutzer ich)
     {
         if (!ich.IstAdmin) throw new UnauthorizedAccessException("Nur für die Administration.");
+        if (_nachpflegen.Laeuft) throw new ArgumentException("Bitte warten, bis das Nachpflegen abgeschlossen ist.");
         lock (_sperre)
         {
             var konten = _db.Liste("SELECT id FROM benutzer WHERE login LIKE 'sim~%'", r => r.Zahl("id"));

@@ -346,4 +346,177 @@ public class SchulsimulationTests
             entschuldigungen = true, krankmeldungen = true, pruefungen = true, sprechtag = true, lehreraktionen = true, verteiler = "Vertretung" }));
         Assert.Equal(100, neu["einstellungen"]!["klausurraumanteil"]!.GetValue<int>());
     }
+
+    /// <summary>Fächer einer echten Schule (technisches Berufskolleg): Kürzel und Langname, wie sie aus dem Desktop-Programm kommen.</summary>
+    private static readonly (string Kurz, string Name)[] Unterrichtsfaecher =
+    {
+        ("D", "Deutsch"), ("M", "Mathematik"), ("E", "Englisch"), ("F", "Fotografie"), ("L", "Latein"), ("S", "Spanisch"), ("BI", "Biologie"), ("CH", "Chemie"),
+        ("PH", "Physik"), ("IF", "Informatik"), ("EK", "Erdkunde"), ("GE", "Geschichte"), ("PK", "Politik"), ("WI", "Wirtschaft-Politik"), ("SW", "Sozialwissenschaften"),
+        ("PPL", "Praktische Philosophie"), ("KR", "Kath. Religion"), ("ER", "Evang. Religion"), ("KU", "Kunsterziehung"), ("MU", "Musik"), ("SP", "Sport"),
+        ("NW", "Naturwissenschaften"), ("GL", "Gesellschaftslehre"), ("SU", "Sachunterricht"), ("FÖ", "Förderunterricht"), ("AERO", "Aerobic"),
+        ("AOR", "Arbeitsorganisation und Selbstmanagement"), ("AWE", "Anwendungsentwicklung"), ("BAU", "Bautechnik"), ("BEB", "Bewegungsbildung"),
+        ("BS/NW", "Betriebssysteme/Netzwerke"), ("DB", "Datenbanken"), ("DEU", "Deutsch"), ("DM", "Didaktik/Methodik"), ("EO", "Elektronik"), ("EOT", "Elektronik THEORIE"),
+        ("ESO", "Erziehung und Soziales"), ("ET", "Elektrotechnik"), ("EW", "Erziehungswissenschaften"), ("ErSo", "Erziehung und Soziales"),
+        ("EvP", "Entwicklung vernetzter Prozesse"), ("FEN", "Fachliches Englisch"), ("FPEH", "Fachpraxis Ernährung und Hauswirtschaft"), ("FPEHT", "Fachpraxis Ernährung THEORIE"),
+        ("FPH", "Fachpraxis Holz"), ("FPHT", "Fachpraxis Holz THEORIE"), ("FPTX", "Fachpraxis Textil"), ("FU0", "Fachunterricht 0 (IT-Berufe)"), ("FU1", "Fachunterricht 1 (IT-Berufe)"),
+        ("GAM", "Gaming"), ("GF", "Gesundheitsförderung"), ("GID", "Gestaltung von IT-Diensten"), ("GS", "Gesundheitswissenschaften"), ("GT", "Gestaltung"),
+        ("ING", "Ingenieurtechnik"), ("IT", "Informationstechnik"), ("ITG", "IT-Grundschutz"), ("KB", "Körperbildung"), ("LIT", "Literatur"), ("MB", "Medienbildung"),
+        ("MED", "Med. Grundlagen"), ("MIK", "Mikroprozessortechnik"), ("MP", "Mess- und Prozesstechnik"), ("NH-ET", "Nachhilfe Elektrotechnik"), ("NH-M", "Nachhilfe Mathematik"),
+        ("PD", "Produktdesign"), ("PE", "Philosophie/Ethik"), ("PHY", "Physik"), ("PK/WW", "Politik/Wirtschaft"), ("POL", "Politik"), ("PRÜ", "Prüfungsvorbereitung"),
+        ("PS", "Psychologie/Psychatrie"), ("PSM", "Psychomotorik"), ("PeAr", "Personal- und Arbeitsorganisation"), ("PfGe", "Pflege und Gesundheit"), ("REL", "Religion"),
+        ("SEH", "SW-Pkt. Ernähr. u. Hauswirtschaft"), ("SELM", "Selbstmanagement"), ("SOFT", "Software"), ("SOZ", "Soziologie"), ("SPA", "Spanisch"),
+        ("SPK", "Sprache/Kommunikation"), ("SPO", "Sport"), ("SPP", "Sozialpäd. Praxis"), ("SPT", "Sozialpäd. Theorie"), ("SOP", "Sozialpädagogik"), ("SuD", "Software und Daten"),
+        ("TI", "Technische Informatik"), ("TL", "Trainingslehre"), ("TPH", "HEP Theorie u. Praxis"), ("WW", "Wirtschaftslehre"), ("D-FÖ", "Deutsch - Förderung"),
+        ("MDQ", "Mathe (Doppelqualifikation)"), ("DDQ", "Deutsch (Doppelqualifikation)"), ("BZO", "Berufliche Zukunftsorientierung"), ("PL", "Klassenleitungsstunde"),
+        ("KL", "Klassenleitungsstunde"), ("KL-ST", "Klassenleiter-Stunde"), ("SOL", "Selbst organisiertes Lernen"), ("VT", "Vertiefungsbereich"),
+    };
+
+    private static readonly (string Kurz, string Name)[] KeinUnterricht =
+    {
+        ("BER", "Bereitschaft"), ("BEREI", "Vertretungsbereitschaft"), ("SPRE", "SPRECHSTUNDE"), ("STDPL", "STUNDENPLANUNG"), ("V-PLA", "VERTRETUNGSPLANUNG"),
+        ("VERAN", "Veranstaltung"), ("SL", "Besprechnug"), ("ZBesp", "Besprechnug"), ("ZUSA", "Besprechnug"), ("ZfsL", "Seminar"), ("Beratung", "Beratung"),
+        ("HS", "Homeschooling"), ("MPT", "Multiprofessionelles Team"), ("MPTIK", "MPT-Inklusion"), ("MPTIN", "MPT Integration"), ("ZF_BT", "Betreuung"),
+        ("ONLIN", "Online/Distanzunterricht"), ("Onl.", "Online"), ("Onl.1", "Online"), ("Onl.2", "Online"),
+    };
+
+    [Fact]
+    public void Jedes_Unterrichtsfach_hat_Lehrstoff_kein_Lehrstoff_fuer_Nicht_Unterricht()
+    {
+        foreach (var (k, n) in Unterrichtsfaecher)
+        {
+            var g = Schulsimulation.Zuordnung(k, n);
+            Assert.True(g is not null, $"{k} {n}");
+            Assert.True(g!.Id != "allgemein", $"{k} {n} hat keine eigene Fachgruppe");
+            Assert.Contains(g.Stufen.Values, l => l.Count > 0);
+        }
+        foreach (var (k, n) in KeinUnterricht) Assert.Null(Schulsimulation.Zuordnung(k, n));
+        // gleiche Kürzel, andere Fächer: der Langname entscheidet
+        Assert.Equal("fotografie", Schulsimulation.Zuordnung("F", "Fotografie")!.Id);
+        Assert.Equal("franzoesisch", Schulsimulation.Zuordnung("F", "Französisch")!.Id);
+        Assert.Equal("klassenleitung", Schulsimulation.Zuordnung("PL", "Klassenleitungsstunde")!.Id);
+        Assert.Equal("philosophie", Schulsimulation.Zuordnung("PL", "Philosophie")!.Id);
+        Assert.Equal("elektrotechnik", Schulsimulation.Zuordnung("TI", "Technische Informatik")!.Id);
+        Assert.Equal("allgemein", Schulsimulation.Zuordnung("XYZ", "Werkstoffprüfung")!.Id);
+    }
+
+    [Fact]
+    public async Task Lehrstoffreihe_laeuft_fortlaufend_durchs_Schuljahr_passend_zur_Stufe()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 12, 6, 30, 0));
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden();
+        var w = sim.Welt(paket, e, DateTime.Parse(e.Start), DateTime.Parse(e.Start));
+        var geprueft = 0;
+        foreach (var u in paket.Unterricht.Values.Where(u => u.Zeilen.Count > 0 && u.Zeilen[0].Klassen.Count > 0))
+        {
+            var z = u.Zeilen[0];
+            if (Schulsimulation.Zuordnung(z.Fach, paket.Faecher.TryGetValue(z.Fach, out var f) ? f.Name : null) is not { } g) continue;
+            var bloecke = sim.Bloecke(paket, u.Id);
+            if (bloecke.Count < 20) continue;
+            var texte = bloecke.Select(b => sim.Lehrstoff(paket, w, e, z.Fach, z.Klassen[0], u.Id, b.Tag, b.Von)!).ToList();
+            Assert.All(texte, t => Assert.False(string.IsNullOrWhiteSpace(t)));
+            Assert.StartsWith(g.Zyklisch ? "Organisatorisches" : "Einstieg ins Schuljahr", texte[0]);
+            if (!g.Zyklisch)
+                for (var i = 1; i < texte.Count; i++) Assert.True(texte[i] != texte[i - 1], $"{z.Fach} {z.Klassen[0]}: gleiche Stunde {texte[i]}");
+            Assert.DoesNotContain(texte, t => t.Contains('{'));
+            // Stufe: Klasse 5 und 6 nie mit Oberstufenthemen
+            if (z.Fach == "M" && z.Klassen[0].StartsWith("5")) Assert.DoesNotContain(texte, t => t.Contains("Integralrechnung") || t.Contains("Ableitung"));
+            if (z.Fach == "M" && z.Klassen[0] == "EF") Assert.DoesNotContain(texte, t => t.Contains("Brüche"));
+            geprueft++;
+        }
+        Assert.True(geprueft > 10);
+        // Prüfungstermine: Wiederholung davor, Prüfung am Termin, Rückgabe danach
+        var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
+        var p = sim.Pruefungsplanung(paket, e, w, hv, hb, DateTime.Parse(e.Start)).First(x => x.Unterricht > 0);
+        var bl = sim.Bloecke(paket, p.Unterricht);
+        var pi = bl.IndexOf((p.Datum, p.Von));
+        Assert.True(pi > 0);
+        var klasse = paket.Unterricht[p.Unterricht].Zeilen[0].Klassen[0];
+        string Am(int i) => sim.Lehrstoff(paket, w, e, p.Fach, klasse, p.Unterricht, bl[i].Tag, bl[i].Von)!;
+        Assert.StartsWith("Klassenarbeit: ", Am(pi));
+        Assert.Contains("Wiederholung zur Klassenarbeit", Am(pi - 1));
+        Assert.Contains(Enumerable.Range(pi + 1, 6).Where(i => i < bl.Count), i => Am(i).StartsWith("Rückgabe"));
+    }
+
+    [Fact]
+    public async Task Krankmeldung_nennt_nur_betroffene_Klassen()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 16, 23, 30, 0));
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden();
+        var w = sim.Welt(paket, e, DateTime.Parse(e.Start), new DateTime(2026, 10, 16, 23, 30, 0));
+        var meldungen = Liste(s, $"SELECT b.element, m.betreff, m.text, m.erstellt FROM mitteilungen m JOIN benutzer b ON b.id = m.absender_id WHERE b.login LIKE 'sim~l.%'",
+            r => (Lehrer: r.Text("element"), Betreff: r.Text("betreff"), Text: r.Text("text"), Erstellt: DateTime.Parse(r.Text("erstellt"))));
+        Assert.NotEmpty(meldungen);
+        var klassen = paket.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList();
+        var geprueft = 0;
+        foreach (var m in meldungen.Where(m => !new[] { "gesund", "wieder", "verlänger", "folge" }.Any(x => m.Betreff.Contains(x, StringComparison.OrdinalIgnoreCase))))
+        {
+            // erste Meldung: vor dem ersten Ausfalltag bzw. früh morgens an ihm
+            var a = w.Ausfaelle.Where(x => x.Lehrer == m.Lehrer && (DateOnly.FromDateTime(m.Erstellt) < x.Von || (DateOnly.FromDateTime(m.Erstellt) == x.Von && m.Erstellt.Hour < 8)))
+                .OrderBy(x => x.Von).First();
+            var betroffen = sim.BetroffeneStunden(paket, a, a.Tage[Math.Min(a.Tage.Count - 1, 4)]).SelectMany(b => b.Klassen.Split('/')).ToHashSet();
+            var genannt = klassen.Where(k => System.Text.RegularExpressions.Regex.IsMatch(m.Text, $@"(?<![\w]){System.Text.RegularExpressions.Regex.Escape(k)}(?![\w])")).ToList();
+            Assert.All(genannt, k => Assert.True(betroffen.Contains(k), $"{m.Lehrer}: {k} ist nicht betroffen ({string.Join(",", betroffen)}; {a.Art.Id} {a.Von}..{a.Bis})\n{m.Text.Replace("\n", " | ")}"));
+            geprueft++;
+        }
+        Assert.True(geprueft > 0);
+    }
+
+    [Fact]
+    public async Task Vergangenheit_nachpflegen_idempotent_mit_Ausnahmen()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var uhr = s.Dienst<Uhr>();
+        var bd = s.Dienst<Benutzerdienst>();
+        var sl = bd.Anlegen("schulleitung", "test-passwort-1", Rollen.Leitung, "MUE", "Anna Müller");
+        var admin = bd.NachLogin("admin")!;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var sim = s.Dienst<Schulsimulation>();
+        uhr.Fest = new DateTime(2026, 10, 14, 10, 0, 0);
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+        sim.Speichern(admin, new Simulationseinstellungen { Aktiv = true });
+        // eigener Eintrag der Schulleitung (für eine andere Lehrkraft) vorab
+        var plan = s.Dienst<Plandienst>();
+        var tag = new DateOnly(2026, 10, 8);
+        var karte = plan.Karten(paket, tag, Elementtyp.Lehrer, "SCH").First(k => k.Unterricht.HasValue && k.Status == "regulaer");
+        s.Dienst<Klassenbuchdienst>().Speichern(sl, paket, tag, karte.Von, karte.Unterricht!.Value, "Eigener Eintrag der Schulleitung", "", null, "", lehrerHinweis: "SCH");
+        var db = s.Dienst<Db>();
+        int Zahl(string sql) => Convert.ToInt32(db.Wert(sql));
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var st = sim.Nachpflegen(paket, sim.Laden(), new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 13));
+        Assert.False(st.Laeuft);
+        Assert.Equal(st.Tage, st.Fertig);
+        Assert.True(st.Eintraege > 200, $"{st.Eintraege} Einträge in {sw.ElapsedMilliseconds} ms");
+        var lehrstoff = Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND datum < '2026-10-14' AND benutzer_id IN {Konten}");
+        Assert.True(lehrstoff > 150);
+        // Ausnahmen und eigene Einträge
+        Assert.Equal(0, Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE lehrer = 'MUE' AND benutzer_id IN {Konten}"));
+        Assert.Equal("Eigener Eintrag der Schulleitung", db.Wert("SELECT thema FROM klassenbuch WHERE datum = '2026-10-08' AND unterricht = @u AND benutzer_id = @b", Db.P("@u", karte.Unterricht), Db.P("@b", sl.Id)));
+        Assert.Equal(0, Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM klassenbuch WHERE datum = '2026-10-08' AND unterricht = @u AND thema <> '' AND benutzer_id IN {Konten}", Db.P("@u", karte.Unterricht))));
+        // gesammelt nachgetragen, nie in der Zukunft
+        var zeiten = Liste(s, $"SELECT datum, geaendert FROM klassenbuch WHERE benutzer_id IN {Konten} AND datum < '2026-10-14'", r => (D: r.Text("datum"), G: r.Text("geaendert")));
+        // frühestens am Vorabend (vorausplanende Lehrkräfte), nie in der Zukunft
+        Assert.All(zeiten, x => Assert.True(string.CompareOrdinal(x.G, "2026-10-14 10:00") < 0 && string.CompareOrdinal(x.G, DateOnly.Parse(x.D).AddDays(-1).ToString("yyyy-MM-dd")) >= 0));
+        Assert.Contains(zeiten, x => DateTime.Parse(x.G).DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday or DayOfWeek.Sunday && DateTime.Parse(x.G).Date > DateTime.Parse(x.D));
+        // Entschuldigungen nachgepflegt
+        Assert.True(Zahl($"SELECT COUNT(*) FROM fehlzeiten WHERE status <> 'offen' AND benutzer_id IN {Konten}") > 0);
+        // idempotent: zweiter Lauf trägt nichts ein
+        var vorher = (Zahl("SELECT COUNT(*) FROM klassenbuch"), Zahl("SELECT COUNT(*) FROM fehlzeiten"), Zahl("SELECT COUNT(*) FROM vermerke"));
+        var zweiter = sim.Nachpflegen(paket, sim.Laden(), new DateOnly(2026, 9, 28), new DateOnly(2026, 10, 13));
+        Assert.Equal(0, zweiter.Eintraege + zweiter.Uebersprungen);
+        Assert.Equal(vorher, (Zahl("SELECT COUNT(*) FROM klassenbuch"), Zahl("SELECT COUNT(*) FROM fehlzeiten"), Zahl("SELECT COUNT(*) FROM vermerke")));
+        // über die Oberfläche als Hintergrundauftrag mit Fortschritt; Entfernen räumt alles weg
+        var api = await s.AlsAsync("admin");
+        var gestartet = await Testserver.JsonAsync(await api.PostAsJsonAsync("/api/app/admin/simulation/nachpflegen", new { von = "2026-10-01", bis = "2026-10-02" }));
+        Assert.True(gestartet["laeuft"]!.GetValue<bool>());
+        for (var i = 0; i < 100 && sim.Nachpflegestatus.Laeuft; i++) await Task.Delay(100);
+        Assert.False(sim.Nachpflegestatus.Laeuft);
+        sim.Entfernen(admin);
+        Assert.Equal(0, Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE benutzer_id IN {Konten}"));
+        Assert.Equal(1, Zahl("SELECT COUNT(*) FROM klassenbuch WHERE thema = 'Eigener Eintrag der Schulleitung'"));
+    }
 }

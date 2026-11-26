@@ -20,7 +20,8 @@ public sealed partial class Schulsimulation
                                                     || (k.Kurz.Length >= 2 && k.Kurz[0] is 'Q' or 'q' && char.IsDigit(k.Kurz[1])));
 
     /// <summary>Abwesenheitskontrolle, Lehrstoff und Klassenbucheinträge der Stunden eines Schultages.</summary>
-    private IEnumerable<Ereignis> Tagesereignisse(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d)
+    /// <param name="vollstaendig">Nachpflegen: jede Stunde erhält Abwesenheitskontrolle und Lehrstoff (keine vergessenen Stunden).</param>
+    private IEnumerable<Ereignis> Tagesereignisse(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d, bool vollstaendig = false)
     {
         var lehrer = w.KlassenDerLehrkraft.Keys.Where(l => !w.Ausgenommen.Contains(l) && s.Lehrer.ContainsKey(l)).Order(StringComparer.Ordinal).ToList();
         var vorab = e.Lehreraktionen && Klassenbucheinstellungen.Laden(_db).LehrstoffZukunft;
@@ -34,6 +35,8 @@ public sealed partial class Schulsimulation
             foreach (var k in karten.DistinctBy(k => (k.Unterricht, k.Von)))
             {
                 if (w.Krank(l, d, k.Von)) continue;
+                // kein Unterricht (Bereitschaft, Besprechung, Sprechstunde, Online-Platzhalter …): keine Einträge
+                if (Zuordnung(k.Fach, s.Faecher.TryGetValue(k.Fach, out var fk) ? fk.Name : null) is null) continue;
                 var u = k.Unterricht!.Value;
                 var basis = $"{d:yyyy-MM-dd}|{u}|{k.Von}|{l}";
                 var z = Zufall.Fuer(w.Seed, "kb", basis);
@@ -43,7 +46,7 @@ public sealed partial class Schulsimulation
                 var kontrolle = e.Abwesenheiten && (k.Lehrer.Count == 0 || Ci.Equals(k.Lehrer[0].K, l));
                 var wk = z.Wert();
                 var sofort = kontrolle && wk < 0.9;
-                var spaeter = kontrolle && !sofort && wk < 0.97;
+                var spaeter = kontrolle && !sofort && (wk < 0.97 || vollstaendig);
                 if (sofort)
                     yield return new($"an|{basis}", beginn.AddMinutes(z.Zahl(1, 8)), () => Kontrolle(s, w, d, l, u, k.Von));
                 if (e.Klassenbuch || spaeter)
@@ -56,13 +59,13 @@ public sealed partial class Schulsimulation
                         < 0.78 => Max(ende.AddMinutes(20), Um(d, z.Zahl(13 * 60 + 15, 17 * 60 + 45))),
                         < 0.91 => Um(d, z.Zahl(19 * 60, 22 * 60 + 30)),
                         < 0.97 => Um(w.Schultag(d, z.Zahl(1, 3)), z.Zahl(14 * 60, 20 * 60)),
-                        _ => null,
+                        _ => vollstaendig ? Um(w.Schultag(d, z.Zahl(2, 6)), z.Zahl(15 * 60, 20 * 60)) : null,
                     };
                     if (zeit is DateTime t)
                         yield return new($"kb|{basis}", t, () =>
                         {
                             if (spaeter) Kontrolle(s, w, d, l, u, k.Von);
-                            if (e.Klassenbuch) Lehrstoff(s, w, d, l, u, k.Von);
+                            if (e.Klassenbuch) Lehrstoff(s, e, w, d, l, u, k.Von);
                         });
                 }
                 if (e.Klassenbuch && z.Chance(0.045))
@@ -93,6 +96,12 @@ public sealed partial class Schulsimulation
     private void Kontrolle(Stand s, Weltstand w, DateOnly d, string l, int u, int von)
     {
         var karte = KarteJetzt(s, d, l, u, von);
+        // schon kontrolliert bzw. Abwesenheiten von anderen erfasst: nichts überschreiben
+        if (_db.Wert($"SELECT 1 FROM klassenbuch WHERE datum = @d AND unterricht = @u AND stunde BETWEEN @v AND @b AND anwesenheit IS NOT NULL AND (benutzer_id IS NULL OR benutzer_id NOT IN {SimKonten})",
+                Db.P("@d", d), Db.P("@u", u), Db.P("@v", karte.Von), Db.P("@b", karte.Bis)) is not null
+            || _db.Wert($"SELECT 1 FROM fehlzeiten WHERE datum = @d AND unterricht = @u AND stunde BETWEEN @v AND @b AND (benutzer_id IS NULL OR benutzer_id NOT IN {SimKonten})",
+                Db.P("@d", d), Db.P("@u", u), Db.P("@v", karte.Von), Db.P("@b", karte.Bis)) is not null)
+            throw new InvalidOperationException("Die Abwesenheiten wurden bereits erfasst.");
         var b = LehrerKonto(s, l);
         var eintraege = new List<AnwesenheitEintrag>();
         foreach (var sch in _kb.SchuelerDerStunde(s, karte, d))
@@ -125,15 +134,24 @@ public sealed partial class Schulsimulation
         return _ersteStunde[(klasse, d)] = n;
     }
 
-    private void Lehrstoff(Stand s, Weltstand w, DateOnly d, string l, int u, int von)
+    /// <summary>Konten der Simulation (für „eigene Einträge des Nutzers nie überschreiben“).</summary>
+    private const string SimKonten = "(SELECT id FROM benutzer WHERE login LIKE 'sim~%')";
+
+    private void Lehrstoff(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d, string l, int u, int von)
     {
         var karte = KarteJetzt(s, d, l, u, von);
+        // Lehrstoff, den jemand anderes (z. B. die Schulleitung) schon eingetragen hat, bleibt unverändert
+        if (_db.Wert($"SELECT 1 FROM klassenbuch WHERE datum = @d AND stunde = @s AND unterricht = @u AND thema <> '' AND (benutzer_id IS NULL OR benutzer_id NOT IN {SimKonten})",
+                Db.P("@d", d), Db.P("@s", Klassenbuchdienst.Schluessel(karte)), Db.P("@u", u)) is not null)
+            throw new InvalidOperationException("Lehrstoff ist bereits eingetragen.");
         var b = LehrerKonto(s, l);
         var z = Zufall.Fuer(w.Seed, "ls", d, u, von, l);
         var sekII = karte.Klassen.Any(k => Oberstufe(s, k.K));
-        var thema = Thema(s, w, karte, d, z, sekII);
+        var thema = LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
+        if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
-        var hausaufgabe = karte.Fach.Equals("SP", StringComparison.OrdinalIgnoreCase) || !z.Chance(sekII ? 0.16 : 0.32) ? ""
+        var ohneHausaufgabe = Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fh) ? fh.Name : null)?.Id is "sport" or "klassenleitung" or "koerper";
+        var hausaufgabe = ohneHausaufgabe || !z.Chance(sekII ? 0.16 : 0.32) ? ""
             : z.Zahlen(z.Wahl(sprache && z.Chance(0.6) ? HausaufgabenSprachen : Hausaufgaben));
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
         var notiz = z.Chance(0.03) ? z.Wahl(Notizen) : "";
@@ -185,18 +203,6 @@ public sealed partial class Schulsimulation
         var hinzufuegen = fach is not "SP" && Ci.Equals(s.Raeume[neu].Raumart, art) && z.Chance(0.3);
         var raeume = hinzufuegen ? bisher.Append(neu).ToList() : bisher.Skip(1).Prepend(neu).ToList();
         _rm.Raumaenderung(s, LehrerKonto(s, l), d, karte.Von, karte.Bis, u, raeume, bisher);
-    }
-
-    /// <summary>Lehrstoff: fachpassend, im Lauf des Schuljahres fortschreitend (je Unterricht und Woche ein Abschnitt).</summary>
-    private static string Thema(Stand s, Weltstand w, Karte karte, DateOnly d, Zufall z, bool sekII)
-    {
-        var liste = Themen.TryGetValue(karte.Fach, out var t) ? (sekII && t.SekII.Length > 0 ? t.SekII : t.SekI.Length > 0 ? t.SekI : t.SekII) : AllgemeineThemen;
-        if (liste.Length == 0) liste = AllgemeineThemen;
-        var woche = Math.Max(0, (d.DayNumber - s.SchuljahrVon.DayNumber) / 7);
-        var versatz = (int)(Zufall.Fuer(w.Seed, "ab", karte.Unterricht ?? 0).Naechste() % (ulong)liste.Length);
-        var thema = liste[(woche / 2 + versatz) % liste.Length];
-        var zusatz = z.Wahl(ThemenZusatz);
-        return zusatz.Length > 0 && !thema.Contains(':') ? zusatz + thema : thema;
     }
 
     private void Vermerk(Stand s, Weltstand w, DateOnly d, string l, int u, int von)
@@ -370,11 +376,69 @@ public sealed partial class Schulsimulation
             else if (z.Chance(0.5))
                 sb.Append(' ').Append(z.Wahl(new[] { "Ich hoffe, dass ich übermorgen wieder fit bin.", "Ich melde mich, falls es länger dauert.", "Wenn es besser wird, bin ich am nächsten Tag wieder da." }));
         }
-        if (w.KlassenDerLehrkraft.TryGetValue(a.Lehrer, out var klassen) && klassen.Count > 0 && z.Chance(0.5))
-            sb.Append("\n\n").Append(z.Wahl(Aufgabenhinweise).Replace("{k}", z.Wahl(klassen)));
+        var betroffen = BetroffeneStunden(s, a, bis);
+        var absatz = BetroffenText(betroffen, z, a.Tage.Count(t => t <= bis) > 1);
+        if (absatz.Length > 0) sb.Append("\n\n").Append(absatz);
+        var aufgaben = AufgabenText(betroffen, z);
+        if (aufgaben.Length > 0) sb.Append(absatz.Length > 0 ? " " : "\n\n").Append(aufgaben);
         if (!a.Art.Teil && (_uhr.Jetzt.Hour < 7 || _uhr.Jetzt.Hour >= 22) && z.Chance(0.6)) sb.Append("\n\nEntschuldigung für die kurzfristige Meldung.");
         sb.Append("\n\n").Append(z.Wahl(Gruesse)).Append('\n').Append(Name(s, a.Lehrer, z));
-        return (betreff, sb.ToString());
+        return (betreff, sb.ToString().Replace(".. ", ". ").Replace("..\n", ".\n"));
+    }
+
+    /// <summary>Stunde, die wegen des Ausfalls entfällt bzw. vertreten werden muss (laut Plan der Lehrkraft).</summary>
+    public sealed record BetroffeneStunde(DateOnly Tag, int Von, int Bis, string Klassen, string Fach);
+
+    /// <summary>Gehaltene Unterrichtsstunden der Lehrkraft an den Ausfalltagen bis <paramref name="bis"/> (beim Arzttermin nur die betroffenen Stunden).</summary>
+    public List<BetroffeneStunde> BetroffeneStunden(Stand s, Ausfall a, DateOnly bis)
+    {
+        var res = new List<BetroffeneStunde>();
+        foreach (var d in a.Tage.Where(t => t <= bis))
+        {
+            List<Karte> karten;
+            try { karten = _plan.Karten(s, d, Elementtyp.Lehrer, a.Lehrer); }
+            catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
+            foreach (var k in karten.Where(k => Gehalten(k) && k.Klassen.Count > 0 && (!a.Art.Teil || (k.Bis >= a.StundeVon && k.Von <= a.StundeBis)))
+                         .Where(k => Zuordnung(k.Fach, s.Faecher.TryGetValue(k.Fach, out var f) ? f.Name : null) is not null)
+                         .DistinctBy(k => (k.Unterricht, k.Von)).OrderBy(k => k.Von))
+                res.Add(new(d, k.Von, k.Bis, string.Join("/", k.Klassen.Select(x => x.K)), k.Fach));
+        }
+        return res;
+    }
+
+    private static string Stunden(int von, int bis) => von == bis ? $"{von}." : bis == von + 1 ? $"{von}./{bis}." : $"{von}. bis {bis}.";
+
+    private static string Aufzaehlung(IReadOnlyList<string> teile) => teile.Count <= 1 ? string.Join("", teile) : string.Join(", ", teile.Take(teile.Count - 1)) + " und " + teile[^1];
+
+    private static string Kurztag(DateOnly d) => $"{Wochentage[((int)d.DayOfWeek + 6) % 7][..2]} {d.ToString("dd.MM.", De)}";
+
+    /// <summary>Welche Klassen betroffen sind: nur die laut Plan im Ausfallzeitraum, mit Tag und Stunde bzw. knapp als Klassenliste.</summary>
+    private static string BetroffenText(List<BetroffeneStunde> b, Zufall z, bool mehrereTage)
+    {
+        if (b.Count == 0) return z.Chance(0.4) ? "Unterricht hätte ich in dieser Zeit ohnehin keinen." : "";
+        var klassen = b.Select(x => x.Klassen).Distinct().ToList();
+        var form = z.Wert();
+        if (form < 0.35) return $"Betroffen {(klassen.Count == 1 ? "ist die Klasse" : "sind die Klassen")} {Aufzaehlung(klassen)}.";
+        if (mehrereTage)
+            return "Betroffen:\n" + string.Join("\n", b.GroupBy(x => x.Tag).Select(g => $"{Kurztag(g.Key)}: {string.Join(", ", g.Select(x => $"{x.Klassen} ({Stunden(x.Von, x.Bis)} Std.)"))}"));
+        if (form < 0.7) return $"Betroffen {(b.Count == 1 ? "ist" : "sind")} {Aufzaehlung(b.Select(x => $"die {Stunden(x.Von, x.Bis)} Stunde in der {x.Klassen} ({x.Fach})").ToList())}.";
+        return $"Klassen {string.Join(", ", klassen)}.";
+    }
+
+    /// <summary>Aufgaben: meist über Teams, manchmal keine Angabe, selten eine konkrete Aufgabe für eine der betroffenen Klassen.</summary>
+    private static string AufgabenText(List<BetroffeneStunde> b, Zufall z)
+    {
+        if (b.Count == 0) return "";
+        var w = z.Wert();
+        if (w < 0.32) return "";
+        if (w < 0.86) return z.Wahl(new[]
+        {
+            "Aufgaben liegen in Teams.", "Die Aufgaben liegen in Teams.", "Aufgaben habe ich in Teams hochgeladen.", "Arbeitsaufträge stehen im jeweiligen Teams-Kanal.",
+            "Die Klassen finden ihre Aufgaben in Teams.", "Aufgaben sind in Teams unter Dateien.", "Material ist in Teams, die Klassen wissen Bescheid.",
+        });
+        var k = z.Wahl(b).Klassen;
+        return z.Wahl(new[] { $"Die {k} bearbeitet Buch S. {{s}} Nr. {{a}} bis {{b}}.", $"Die {k} kann am Arbeitsblatt aus der letzten Stunde weiterarbeiten.",
+            $"Für die {k} liegen Kopien in meinem Fach im Lehrerzimmer." }) is var t ? z.Zahlen(t) : "";
     }
 
     private (string, string) Verlaengerung(Stand s, Ausfall a, DateOnly bis, Zufall z)
@@ -397,7 +461,10 @@ public sealed partial class Schulsimulation
     // ------------------------------------------------------------------------------------------ Klassenarbeiten und Klausuren
 
     /// <summary>Geplante Prüfung (eine je Klasse, Fach und Halbjahr).</summary>
-    public sealed record Pruefungsplan(string Klasse, string Fach, DateOnly Datum, int Von, int Bis, string Lehrer, List<string> Raeume, DateTime Eintragen, DateOnly HjVon, DateOnly HjBis);
+    public sealed record Pruefungsplan(string Klasse, string Fach, DateOnly Datum, int Von, int Bis, string Lehrer, List<string> Raeume, DateTime Eintragen, DateOnly HjVon, DateOnly HjBis)
+    {
+        public int Unterricht { get; init; }
+    }
 
     private readonly Dictionary<string, List<Pruefungsplan>> _pruefungsCache = new();
 
@@ -427,12 +494,12 @@ public sealed partial class Schulsimulation
     public List<Pruefungsplan> Pruefungsplanung(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly hv, DateOnly hb, DateTime start)
     {
         var (sekI, sekII) = Pruefungsfaecher(s, e);
-        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{string.Join(",", sekI.Order(StringComparer.Ordinal))}|{string.Join(",", sekII.Order(StringComparer.Ordinal))}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}";
+        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{start:yyyy-MM-dd HH:mm}|{string.Join(",", sekI.Order(StringComparer.Ordinal))}|{string.Join(",", sekII.Order(StringComparer.Ordinal))}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}";
         if (_pruefungsCache.TryGetValue(schluessel, out var fertig)) return fertig;
         if (_pruefungsCache.Count > 4) _pruefungsCache.Clear();
         var res = new List<Pruefungsplan>();
         // frühestens eine Woche nach dem Start (vorher geplante Prüfungen stehen gleich nach dem Start im Kalender)
-        var tage = w.Tagesliste.Where(d => d >= hv.AddDays(28) && d <= hb.AddDays(-14) && d >= DateOnly.FromDateTime(start).AddDays(7)).ToList();
+        var tage = Schuljahrestage(s).Where(d => d >= hv.AddDays(28) && d <= hb.AddDays(-14) && d >= DateOnly.FromDateTime(start).AddDays(7)).ToList();
         foreach (var kl in s.Paket.Elemente.Klassen.OrderBy(k => k.Kurz, StringComparer.Ordinal))
         {
             var z = Zufall.Fuer(w.Seed, "pr", hv, kl.Kurz);
@@ -461,7 +528,7 @@ public sealed partial class Schulsimulation
                 var eintragen = Um(tag.AddDays(-z.Zahl(14, 35)), z.Zahl(14 * 60, 20 * 60 + 30));
                 // vor dem Start geplante Prüfungen stehen gleich nach dem Start im Kalender, aber nicht kurzfristiger als eine Woche
                 if (eintragen < start) eintragen = start.AddMinutes(z.Zahl(3, 300));
-                res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb));
+                res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0 });
             }
         }
         _pruefungsCache[schluessel] = res;
@@ -480,7 +547,8 @@ public sealed partial class Schulsimulation
         ErweiterungApi.PruefungssperrePruefen(_vw, _listen, _rm, s, b, p.Datum, new[] { p.Klasse });
         var art = Oberstufe(s, p.Klasse) ? "Klausur" : "Klassenarbeit";
         var z = Zufall.Fuer(Laden().Seed, "prt", p.Klasse, p.Fach, p.Datum);
-        var thema = Themen.TryGetValue(p.Fach, out var t) && (Oberstufe(s, p.Klasse) ? t.SekII : t.SekI) is { Length: > 0 } liste ? z.Wahl(liste) : fachName;
+        // Thema: die Unterrichtsreihe, die zum Prüfungstermin läuft
+        var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von) is { } ls && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
         _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
     }
 
