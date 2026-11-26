@@ -54,7 +54,7 @@ public sealed partial class HauptFenster : Form
             SKnopf("Drucken", "drucken", () => Drucken(false)), SKnopf("Seitenansicht", "vorschau", () => Drucken(true)), _excelKnopf,
             SKnopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen()), new ToolStripSeparator(),
             WebKnopf(), new ToolStripSeparator(),
-            SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretung", VertretungsmodusUmschalten),
+            SKnopf("Stunden- / Vertretungsplanung umschalten (Strg+Umschalt+V)", "vertretungsmodus", VertretungsmodusUmschalten),
             _titelLabel,
         });
         Updates = new Updateanzeige(this);
@@ -307,13 +307,13 @@ public sealed partial class HauptFenster : Form
             E("Handbuch: Erste Schritte", "hilfe", () => HilfeFenster.Zeigen("Eingabeassistent")),
             null,
             E("Nach Updates suchen", "info", () => Updates.JetztPruefen()),
-            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.\n\nSymbole: „Farm-Fresh Web Icons“ von FatCow (fatcow.com/free-icons), Lizenz CC BY 3.0." +
+            E("Über UntPlan", "info", () => Ui.Info($"UntPlan {Updates.Version}\nStundenplan- und Vertretungsplanung für Schulen in Nordrhein-Westfalen.\n\nAlle Daten werden lokal in der Schuldatei (*.up) gespeichert.\n\nSymbole: „Farm-Fresh Web Icons“ von FatCow (fatcow.com/free-icons), Lizenz CC BY 3.0.\nAndockleisten: Krypton Suite (github.com/Krypton-Suite), Lizenz BSD 3-Clause.\nLizenztexte im Programmordner unter „Lizenzen“." +
                 (Updates.Stand is { UpdateVerfuegbar: true } u ? $"\n\nNeue Version verfügbar: {u.Neueste} (Hilfethemen → Nach Updates suchen)" : ""), "Über UntPlan")),
         }));
         g.Eintraege.Add(E("MultiUser", "datenbank", null, true, MultiUserMenue(), hinweis: "Gemeinsame Datenbank für mehrere Benutzer (SQLite, SQL Server, MySQL, Access)"));
         g = Gruppe(start, "Module");
-        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretung", Klick = VertretungsmodusUmschalten, Gross = true, ImmerGross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
-        g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan));
+        g.Eintraege.Add(new RibbonEintrag { Text = "Vertretungsplanung", Symbol = "vertretungsmodus", Klick = VertretungsmodusUmschalten, Gross = true, ImmerGross = true, Gedrueckt = () => AppZustand.Vertretungsmodus, Hinweis = "Vertretungsmodus ein/aus (Strg+Umschalt+V): eigene Fenster, grüne Oberfläche", Tastenkuerzel = Keys.Control | Keys.Shift | Keys.V });
+        g.Eintraege.Add(E("Info-Stundenplan", "infostundenplan", InfoStundenplan));
         g.Eintraege.Add(E("Pausenaufsichten", "pausenaufsicht", () => Oeffnen<PausenaufsichtFenster>("pause", () => new PausenaufsichtFenster())));
         g.Eintraege.Add(E("Kalender / Ferien", "kalender", () => Oeffnen<FerienFenster>("ferien", () => new FerienFenster())));
         g.Eintraege.Add(E("Unterrichtsplanung", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster())));
@@ -451,7 +451,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Wochenwerte", "wertrechnung", () => Oeffnen("wochenwerte", () => new WochenwerteFenster()), true, hinweis: "Je Kalenderwoche geplant, verplant, gehalten, Entfälle, Vertretungen, Sondereinsätze eines Lehrers"));
         g = Gruppe(module, "Weitere Module");
         // Handbuch Kap. 3.1: Vertretungsmodus über Module | Vertretungsplanung ein- und ausschalten
-        g.Eintraege.Add(E("Vertretungs-planung", "vertretung", VertretungsmodusUmschalten, true));
+        g.Eintraege.Add(E("Vertretungs-planung", "vertretungsmodus", VertretungsmodusUmschalten, true));
         g.Eintraege.Add(E("Mehrwochen / Perioden", "perioden", () => new PeriodenDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Bereitschafts-planung", "bereitschaft", () => FensterOeffnen("bereitplan"), true));
         g.Eintraege.Add(E("Unterrichts-gruppen", "perioden", () => FensterOeffnen("ugruppen"), true, hinweis: "A/B-Wochen und weitere Wochenzyklen"));
@@ -463,6 +463,20 @@ public sealed partial class HauptFenster : Form
         }));
         g.Eintraege.Add(E("Web-Portal", "web", () => new PortalDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Modulübersicht", "modul", () => ModuleDialog.Zeigen(this), true));
+
+        // Dialogstarter in den Gruppenecken (Office-Menüband): öffnen den Einstellungsdialog der Gruppe. Im Vertretungsmodus wie im Vorbild
+        // (Bild 308) ohne Dialogstarter.
+        void Starter(RibbonSeite seite, string gruppe, Action aktion, string hinweis)
+        {
+            var gr = seite.Gruppen.First(x => x.Text == gruppe);
+            gr.DialogStarter = aktion;
+            gr.DialogStarterHinweis = hinweis;
+        }
+        Starter(start, "Planungswerkzeuge", () => new GewichtungDialog().ShowDialog(this), "Gewichtung der Planungsziele einstellen.");
+        Starter(start, "Schule", () => new EinstellungenDialog().ShowDialog(this), "Einstellungen der Schule (Schuljahr, Schulname, Allgemeines).");
+        Starter(eingabe, "Zeit", () => new ZeitrasterDialog().ShowDialog(this), "Zeitraster der Schule bearbeiten.");
+        Starter(planung, "Werkzeuge", () => new GewichtungDialog().ShowDialog(this), "Gewichtung der Planungsziele einstellen.");
+        Starter(plaene, "Ausgabe", () => BerichtseinstellungenDialog.Zeigen(this), "Kopf- und Fußzeile aller Ausdrucke, Drucknamen.");
 
         VertretungsSeiteAufbauen();
     }
@@ -791,7 +805,7 @@ public sealed partial class HauptFenster : Form
 
     private static ToolStripButton ExcelKnopf()
     {
-        var b = SKnopf("Export nach Excel", "export", () => { if (AppZustand.Haupt?.ActiveMdiChild is IExcelExport x) ExcelAusgabe.Oeffnen(x); });
+        var b = SKnopf("Export nach Excel", "excel", () => { if (AppZustand.Haupt?.ActiveMdiChild is IExcelExport x) ExcelAusgabe.Oeffnen(x); });
         b.Enabled = false;
         return b;
     }

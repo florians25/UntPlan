@@ -88,9 +88,9 @@ public sealed partial class HauptFenster
         }));
 
         g = Gruppe(vp, "Planung");
-        g.Eintraege.Add(E("Planungsdialog", "stundenplan", PlanungsdialogOeffnen, true, new()
+        g.Eintraege.Add(E("Planungsdialog", "planungsdialog", PlanungsdialogOeffnen, true, new()
         {
-            E("Planungsdialog", "stundenplan", PlanungsdialogOeffnen),
+            E("Planungsdialog", "planungsdialog", PlanungsdialogOeffnen),
             null,
             Fenstergruppe(),
         }, hinweis: "Klassen- und Lehrerplan tagesaktuell nebeneinander (Drag & Drop: Verlegen, Tauschen)"));
@@ -123,10 +123,10 @@ public sealed partial class HauptFenster
 
         g = Gruppe(vp, "Einstellungen");
         // wie im Handbuch (Kap. 13.3): „Vertretungsformate“ öffnet das Fenster „Formate / Vertretung“
-        g.Eintraege.Add(E("Vertretungsformate", "uebersicht", () => VertretungsformateOeffnen(), hinweis: "Formate / Vertretung: alle Vertretungsansichten mit Standard und Tagesliste"));
-        g.Eintraege.Add(E("Info-Stundenplan", "html", InfoStundenplan, menue: new()
+        g.Eintraege.Add(E("Vertretungsformate", "vertretungsformate", () => VertretungsformateOeffnen(), hinweis: "Formate / Vertretung: alle Vertretungsansichten mit Standard und Tagesliste"));
+        g.Eintraege.Add(E("Info-Stundenplan", "infostundenplan", InfoStundenplan, menue: new()
         {
-            E("Info-Stundenplan", "html", InfoStundenplan),
+            E("Info-Stundenplan", "infostundenplan", InfoStundenplan),
         }));
         g.Eintraege.Add(E("Einstellungen", "einstellungen", () => VertretungsEinstellungenDialog.Zeigen(this), menue: new()
         {
@@ -144,7 +144,7 @@ public sealed partial class HauptFenster
         g = Gruppe(vp, "Modus");
         g.Eintraege.Add(new RibbonEintrag
         {
-            Text = "Vertretungsplanung", Symbol = "vertretung", Gross = true, ImmerGross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
+            Text = "Vertretungsplanung", Symbol = "vertretungsmodus", Gross = true, ImmerGross = true, Klick = VertretungsmodusUmschalten, Gedrueckt = () => AppZustand.Vertretungsmodus,
             Hinweis = "Zurück zur Stundenplanung (Strg+Umschalt+V)",
         });
     }
@@ -489,7 +489,7 @@ public sealed partial class HauptFenster
             cm.Items.Add("Unterricht Klassen", Symbole.Get("unterricht"), (_, _) => FensterOeffnen("u:Klasse"));
             cm.Items.Add("Standard-Fenstergruppe", Symbole.Get("uebersicht"), (_, _) => StandardFenster());
             cm.Items.Add(new ToolStripSeparator());
-            cm.Items.Add("Zur Vertretungsplanung wechseln", Symbole.Get("vertretung"), (_, _) => VertretungsmodusUmschalten());
+            cm.Items.Add("Zur Vertretungsplanung wechseln", Symbole.Get("vertretungsmodus"), (_, _) => VertretungsmodusUmschalten());
         }
         cm.Items.Add(new ToolStripSeparator());
         cm.Items.Add(_assistent.Visible ? "Eingabeassistent ausblenden" : "Eingabeassistent einblenden", Symbole.Get("assistent"), (_, _) => AssistentUmschalten());

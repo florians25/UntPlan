@@ -1177,6 +1177,310 @@ public sealed partial class HauptFenster
             m.Close();
             d.Close();
         }, -1);
+        void KopfFoto(string datei)
+        {
+            Refresh();
+            _ribbon.Refresh();
+            var r = RectangleToScreen(new Rectangle(0, 0, Math.Min(ClientSize.Width, 1300), _schnell.Height + _ribbon.Height));
+            using var bmp = new Bitmap(r.Width, r.Height);
+            using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+            bmp.Save(Path.Combine(ordner, datei), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        Schritt("V46_KeyTips", () =>
+        {
+            // Alt allein blendet die Zugriffstasten der Registerkarten ein, die Taste einer Registerkarte die ihrer Befehle; ein Befehl wird
+            // über seine Taste ausgeführt; Esc geht stufenweise zurück; F10 wirkt wie Alt
+            ModusFuerBild(true);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            var filter = new KeyTipFilter(this);
+            Message Nachricht(int msg, Keys k, long lp = 0) => Message.Create(Handle, msg, (IntPtr)(int)k, (IntPtr)lp);
+            bool Senden(int msg, Keys k, long lp = 0) { var m = Nachricht(msg, k, lp); return filter.PreFilterMessage(ref m); }
+            const int WM_KEYDOWN = 0x100, WM_SYSKEYDOWN = 0x104, WM_SYSKEYUP = 0x105;
+            // Alt mit weiterer Taste (z. B. Alt+Tab) zeigt keine Zugriffstasten
+            Senden(WM_SYSKEYDOWN, Keys.Menu); Senden(WM_SYSKEYDOWN, Keys.Tab); Senden(WM_SYSKEYUP, Keys.Menu);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Alt+weitere Taste hat die Zugriffstasten eingeblendet.");
+            Senden(WM_SYSKEYDOWN, Keys.Menu);
+            Pruefen(Senden(WM_SYSKEYUP, Keys.Menu) && _ribbon.KeyTipStufe == 1, "Alt allein blendet die Zugriffstasten nicht ein.");
+            var register = _ribbon.KeyTipZiele();
+            Pruefen(register.Select(z => z.Taste).Distinct().Count() == register.Count && register.All(z => z.Taste.Length > 0), "Zugriffstasten der Registerkarten nicht eindeutig.");
+            KopfFoto("V46_KeyTips_Register_F.png");
+            var vp = register.First(z => z.Name == "Vertretungsplanung");
+            foreach (var ch in vp.Taste) Senden(WM_KEYDOWN, ch is >= '0' and <= '9' ? Keys.D0 + (ch - '0') : Keys.A + (ch - 'A'));
+            Pruefen(_ribbon.KeyTipStufe == 2 && _ribbon.Seiten[_ribbon.AktiveSeite].Text == "Vertretungsplanung", "Taste der Registerkarte wählt sie nicht.");
+            var befehle = _ribbon.KeyTipZiele();
+            Pruefen(befehle.Select(z => z.Taste).Distinct().Count() == befehle.Count && befehle.All(z => z.Taste.Length > 0), "Zugriffstasten der Befehle nicht eindeutig.");
+            // keine Taste ist Anfang einer anderen (sonst wäre die längere nicht erreichbar)
+            Pruefen(!befehle.Any(a => befehle.Any(b => b != a && b.Taste.StartsWith(a.Taste, StringComparison.Ordinal))), "Zugriffstaste ist Anfang einer anderen.");
+            KopfFoto("V46_KeyTips_Befehle_F.png");
+            log.Add($"INFO  V46: Registerkarten {string.Join(" ", register.Select(z => z.Name + "=" + z.Taste))}; Befehle {string.Join(" ", befehle.Select(z => z.Name + "=" + z.Taste))}");
+            Senden(WM_KEYDOWN, Keys.Escape);
+            Pruefen(_ribbon.KeyTipStufe == 1, "Esc geht nicht zur Registerkartenstufe zurück.");
+            Senden(WM_KEYDOWN, Keys.Escape);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Esc beendet die Zugriffstasten nicht.");
+            // F10, Registerkarte, Befehl „Vertretungen“ öffnet das Fenster
+            AlleSchliessen();
+            Pruefen(Senden(WM_SYSKEYDOWN, Keys.F10) && _ribbon.KeyTipStufe == 1, "F10 blendet die Zugriffstasten nicht ein.");
+            foreach (var ch in vp.Taste) Senden(WM_KEYDOWN, Keys.A + (ch - 'A'));
+            var vertr = _ribbon.KeyTipZiele().First(z => z.Name == "Vertretungen");
+            foreach (var ch in vertr.Taste) Senden(WM_KEYDOWN, ch is >= '0' and <= '9' ? Keys.D0 + (ch - '0') : Keys.A + (ch - 'A'));
+            Warten(500);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Zugriffstasten bleiben nach dem Befehl stehen.");
+            Pruefen(MdiChildren.OfType<VertretungenFenster>().Any(), "Zugriffstaste „Vertretungen“ öffnet das Fenster nicht.");
+            // Mausklick beendet die Anzeige
+            _ribbon.KeyTipsStarten();
+            var klick = Message.Create(_ribbon.Handle, 0x201, IntPtr.Zero, IntPtr.Zero);
+            filter.PreFilterMessage(ref klick);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Mausklick beendet die Zugriffstasten nicht.");
+            // Trennlinien der Gruppen wie im Vorbild (Bild 308 gemessen: 98, 391, 523, 795, 902, 1040, 1160)
+            _ribbon.LayoutStand();
+            var trenner = _ribbon.Seiten[_ribbon.AktiveSeite].Gruppen.Select(x => _ribbon.Left + x.Bounds.Right).ToList();
+            int[] vorbild = { 98, 391, 523, 795, 902, 1040, 1160 };
+            log.Add($"MASS  V46 Gruppentrenner: {string.Join(", ", trenner)} (Vorbild {string.Join(", ", vorbild)}; Abweichung {string.Join(", ", trenner.Zip(vorbild, (a, b) => (a - b).ToString("+0;-0;0")))})");
+            WindowState = vorher;
+        }, -1);
+        Schritt("V47_Dialogstarter", () =>
+        {
+            // Dialogstarter in der Gruppenecke öffnet den Einstellungsdialog (Stundenplanmodus); im Vertretungsmodus wie im Vorbild keiner
+            ModusFuerBild(false);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            _ribbon.AktiveSeite = 0;
+            _ribbon.LayoutStand();
+            _ribbon.Invalidate();
+            Warten(400);
+            var gr = _ribbon.Seiten[0].Gruppen.First(x => x.Text == "Schule");
+            Pruefen(!gr.StarterBounds.IsEmpty && gr.Bounds.Contains(gr.StarterBounds), "Dialogstarter der Gruppe „Schule“ fehlt oder liegt außerhalb.");
+            KopfFoto("V47_Dialogstarter_F.png");
+            var gefunden = false;
+            var t = new System.Windows.Forms.Timer { Interval = 700 };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                var d = Application.OpenForms.OfType<EinstellungenDialog>().FirstOrDefault();
+                gefunden = d != null;
+                d?.Close();
+            };
+            t.Start();
+            var mitte = new Point(gr.StarterBounds.X + 5, gr.StarterBounds.Y + 5);
+            _ribbon.GetType().GetMethod("OnMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(_ribbon, new object[] { new MouseEventArgs(MouseButtons.Left, 1, mitte.X, mitte.Y, 0) });
+            t.Dispose();
+            Pruefen(gefunden, "Dialogstarter öffnet die Einstellungen nicht.");
+            ModusFuerBild(true);
+            _ribbon.AktiveSeite = _ribbon.Seiten.FindIndex(x => x.Text == "Vertretungsplanung");
+            _ribbon.LayoutStand();
+            Pruefen(_ribbon.Seiten[_ribbon.AktiveSeite].Gruppen.All(x => x.StarterBounds.IsEmpty), "Im Menüband Vertretungsplanung erscheint ein Dialogstarter (Vorbild: keiner).");
+            WindowState = vorher;
+        }, -1);
+        Schritt("V48_Tabellen_Kopfgruppen", () =>
+        {
+            // alle Tabellen flimmerfrei (doppelt gepuffert); Kopfgruppen im Vertretungsvorschlag; zweizeilige Kopfgruppen bleiben beim
+            // Bildlauf durchgehend; Füllzeit von 1000 Zeilen als Messwert
+            ModusFuerBild(true);
+            var vorschlag = VorschlagNormal(0);
+            FensterOeffnen("abw");
+            FensterOeffnen("vertr");
+            FensterOeffnen("kal");
+            Warten(300);
+            Steuerelemente.Auswahlbreite.AlleErfassen();
+            var ohne = MdiChildren.SelectMany(Ui.Tabellen).Where(t => !Ui.IstDoppeltGepuffert(t)).Select(t => $"{t.FindForm()?.Text}/{t.Name}").ToList();
+            Pruefen(ohne.Count == 0, "Tabellen ohne doppelte Pufferung: " + string.Join(", ", ohne));
+            var vg = Ui.Tabellen(vorschlag).First(t => t.Name == "Vorschlag");
+            var vz = Ui.Tabellen(vorschlag).First(t => t.Name == "Vorziehung2");
+            Pruefen(Steuerelemente.KopfGruppen.Aktiv(vg) && !Steuerelemente.KopfGruppen.Zweizeilig(vg), "Vorschlag: verbundener Kopf „Stundenplan“ fehlt.");
+            Pruefen(Steuerelemente.KopfGruppen.Zweizeilig(vz) && vz.ColumnHeadersHeight >= 2 * vz.RowTemplate.Height - 2, "Vorziehungen: zweizeiliger Kopf „Schritt 1/Schritt 2“ fehlt.");
+            // Muster: zweizeilige Gruppen über einer breiten Tabelle, dann waagrecht gerollt
+            using var f = new Form { Text = "Kopfgruppen", ClientSize = new Size(620, 200), StartPosition = FormStartPosition.Manual, Location = new Point(0, 0), ShowInTaskbar = false, TopMost = true };
+            var g = new Steuerelemente.BleibendeTabelle { Dock = DockStyle.Fill, Name = "Muster" };
+            f.Controls.Add(g);
+            Ui.RasterGestalten(g, false);
+            g.RowHeadersVisible = false;
+            foreach (var (n, t) in new[] { ("Nr", "Nr."), ("Name", "Name"), ("Tag", "von"), ("Merker", "Merker"), ("Name2", "Name"), ("Tag2", "von"), ("Merker2", "Merker"), ("Text", "Text") })
+                g.Columns[g.Columns.Add(n, t)].Width = 90;
+            Steuerelemente.KopfGruppen.Einrichten(g, true, new Steuerelemente.KopfGruppen.Gruppe("Schritt 1", "Name", "Tag", "Merker"), new Steuerelemente.KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
+            g.CellPainting += (_, e) => { if (e.RowIndex == -1) Steuerelemente.KopfGruppen.Zeichnen(g, e, Ui.Kopf); };
+            var uhr = System.Diagnostics.Stopwatch.StartNew();
+            var zeilen = Enumerable.Range(1, 1000).Select(i => { var r = new DataGridViewRow(); r.CreateCells(g, i, "KRU", "Mo-" + (i % 8 + 1), "x", "NEU", "Di-2", "", "Text " + i); return r; }).ToArray();
+            g.Rows.AddRange(zeilen);
+            uhr.Stop();
+            f.Show(this);
+            Warten(400);
+            var kopf = g.ColumnHeadersHeight;
+            Pruefen(kopf >= 2 * g.RowTemplate.Height - 2, "Muster: zweizeiliger Kopf zu niedrig.");
+            g.HorizontalScrollingOffset = 120;
+            Warten(300);
+            f.Refresh();
+            var r1 = f.RectangleToScreen(f.ClientRectangle);
+            using (var foto = new Bitmap(r1.Width, r1.Height))
+            {
+                using (var gg = Graphics.FromImage(foto)) gg.CopyFromScreen(r1.Location, Point.Empty, r1.Size);
+                foto.Save(Path.Combine(ordner, "V48_Kopfgruppen_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            // Prüfung am selbst gezeichneten Bild (unabhängig von der Bildschirmskalierung)
+            using (var bmp = new Bitmap(g.Width, g.Height))
+            {
+                g.DrawToBitmap(bmp, new Rectangle(0, 0, g.Width, g.Height));
+                // Gruppentitel „Schritt 2“ sichtbar: dunkle Schriftpixel in der oberen Kopfhälfte über der Gruppe
+                var b2 = Steuerelemente.KopfGruppen.Bereich(g, new Steuerelemente.KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
+                var dunkel = 0;
+                for (var x = b2.X + 2; x < Math.Min(b2.X + 60, bmp.Width); x++)
+                    for (var y = 2; y < kopf / 2 - 1; y++)
+                        if (bmp.GetPixel(x, y).GetBrightness() < 0.4f) dunkel++;
+                Pruefen(dunkel > 10, "Gruppentitel „Schritt 2“ nach dem Bildlauf nicht sichtbar.");
+            }
+            log.Add($"MASS  V48: 1000 Zeilen in {uhr.ElapsedMilliseconds} ms gefüllt, Kopf {kopf} Pixel (Zeile {g.RowTemplate.Height}), doppelt gepuffert {Ui.IstDoppeltGepuffert(g)}");
+            f.Close();
+        }, -1);
+        Schritt("V49_Leisten", () =>
+        {
+            // Werkzeugleisten wie im Vorbild: kleiner Plan 25 Pixel hoch mit 18 Pixel hoher Elementauswahl (Bild 312), Trennstriche
+            // hellgrau, eingedrückte Umschalter als grüne Fläche, graue Aufklappdreiecke, „»“ über dem Dreieck bei Überlauf
+            ModusFuerBild(true);
+            var plan = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            plan.WindowState = FormWindowState.Normal;
+            plan.Location = new Point(0, 0);
+            Warten(600);
+            var leiste = plan.Controls.OfType<ToolStrip>().First(t => t.Items.OfType<ToolStripComboBox>().Any());
+            var auswahl = leiste.Items.OfType<ToolStripComboBox>().First().ComboBox;
+            log.Add($"MASS  V49 kleiner Plan: Leiste {leiste.Height} Pixel (Vorbild {leiste.LogicalToDeviceUnits(25)}), Elementauswahl {auswahl.Height} (Vorbild {auswahl.LogicalToDeviceUnits(18)}), Überlauf {leiste.OverflowButton.HasDropDownItems}");
+            Pruefen(leiste.Height == leiste.LogicalToDeviceUnits(25), $"Leiste des kleinen Plans {leiste.Height} statt {leiste.LogicalToDeviceUnits(25)} Pixel hoch.");
+            Pruefen(Math.Abs(auswahl.Height - auswahl.LogicalToDeviceUnits(18)) <= 1, $"Elementauswahl {auswahl.Height} statt {auswahl.LogicalToDeviceUnits(18)} Pixel hoch.");
+            Bitmap Ausschnitt(Control c)
+            {
+                c.Refresh();
+                var r = c.RectangleToScreen(c.ClientRectangle);
+                var bmp = new Bitmap(r.Width, r.Height);
+                using var g = Graphics.FromImage(bmp);
+                g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                return bmp;
+            }
+            // Prüfungen am selbst gezeichneten Bild (unabhängig von der Bildschirmskalierung)
+            Bitmap Gezeichnet(Control c)
+            {
+                var bmp = new Bitmap(c.Width, c.Height);
+                c.DrawToBitmap(bmp, new Rectangle(0, 0, c.Width, c.Height));
+                return bmp;
+            }
+            using (var b = Ausschnitt(plan)) b.Clone(new Rectangle(0, 0, Math.Min(b.Width, 430), Math.Min(b.Height, 120)), b.PixelFormat).Save(Path.Combine(ordner, "V49_Leiste_kleiner_Plan_F.png"));
+            if (leiste.OverflowButton.HasDropDownItems)
+            {
+                using var b = Gezeichnet(leiste);
+                var ob = leiste.OverflowButton.Bounds;
+                var dunkel = 0;
+                for (var x = ob.X; x < Math.Min(ob.Right, b.Width); x++)
+                    for (var y = 2; y < 11; y++)
+                        if (b.GetPixel(x, y).R < 170) dunkel++;
+                Pruefen(dunkel >= 6, "Überlaufknopf ohne „»“ trotz verborgener Befehle.");
+            }
+            // Vertretungen: Umschalter „Zu zählende farbig“ eingedrückt, Trennstriche hellgrau
+            var vertr = FensterOeffnen("vertr")!;
+            vertr.WindowState = FormWindowState.Normal;
+            vertr.Bounds = new Rectangle(0, 0, 1000, 400);
+            var vl = vertr.Controls.OfType<ToolStrip>().First(t => t.Items.Count > 10);
+            var farbig = vl.Items.OfType<ToolStripButton>().First(i => i.Text == "Zu zählende farbig");
+            var war = farbig.Checked;
+            farbig.Checked = true;
+            Warten(400);
+            using (var foto = Ausschnitt(vl)) foto.Save(Path.Combine(ordner, "V49_Leiste_Vertretungen_F.png"));
+            using (var b = Gezeichnet(vl))
+            {
+                var fb = farbig.Bounds;
+                var c = b.GetPixel(fb.X + 2, fb.Y + 3);
+                Pruefen(Math.Abs(c.R - 104) + Math.Abs(c.G - 174) + Math.Abs(c.B - 146) < 12, $"Eingedrückter Umschalter nicht in der Vorbildfarbe (104,174,146): {c}.");
+                var sep = vl.Items.OfType<ToolStripSeparator>().First(x => x.Visible && x.Bounds.Width > 0).Bounds;
+                var sc = b.GetPixel(sep.X + sep.Width / 2, vl.Height / 2);
+                Pruefen(sc.R == 213 && sc.G == 213 && sc.B == 213, $"Trennstrich nicht hellgrau (213,213,213): {sc}.");
+                log.Add($"MASS  V49 Vertretungen: Leiste {vl.Height} Pixel (Vorbild 25), Umschalter {c}, Trennstrich {sc}");
+            }
+            farbig.Checked = war;
+        }, -1);
+        Schritt("V50_Andockleiste", () =>
+        {
+            // wahlweise Andockleiste (Krypton.Docking) für das Element-Rollup: rechts andocken, schweben, lösen; Kopf, Menüband,
+            // Statuszeile, MDI-Arbeitsfenster und die eigene Darstellung der Menüs bleiben unverändert
+            ModusFuerBild(true);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            var mdi = Controls.OfType<MdiClient>().First();
+            var mdiVorher = mdi.Bounds;
+            var ribbonVorher = _ribbon.Bounds;
+            var statusVorher = _status.Bounds;
+            var zeichner = ToolStripManager.Renderer;
+            var vertr = FensterOeffnen("vertr")!;
+            ElementRollup.AndockleisteKante(DockStyle.Right);
+            try
+            {
+                Warten(700);
+                Pruefen(ElementRollup.InAndockleiste, "Rollup nicht in der Andockleiste.");
+                var lage = Andockleiste.Lage("ElementRollup");
+                Pruefen(lage.Contains("Docked"), "Rollup nicht angedockt: " + lage);
+                Pruefen(mdi.Width < mdiVorher.Width && mdi.Left == mdiVorher.Left && mdi.Top == mdiVorher.Top, $"Arbeitsbereich nicht neben der Andockleiste: {mdi.Bounds} (vorher {mdiVorher}).");
+                if (_ribbon.Bounds != ribbonVorher || _status.Bounds != statusVorher)
+                    log.Add("INFO  V50 Steuerelemente: " + string.Join(" | ", Controls.Cast<Control>().Select(c => $"{Controls.GetChildIndex(c)} {c.GetType().Name} {c.Dock} {c.Bounds}")) +
+                        $"; Menüband {_ribbon.Bounds} (vorher {ribbonVorher}), Statuszeile {_status.Bounds} (vorher {statusVorher})");
+                Pruefen(_ribbon.Bounds == ribbonVorher && _status.Bounds == statusVorher, "Menüband oder Statuszeile durch die Andockleiste verschoben.");
+                Pruefen(vertr.IsMdiChild && vertr.MdiParent == this, "Arbeitsfenster ist kein MDI-Fenster mehr.");
+                Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
+                var seite = Andockleiste.Seite("ElementRollup")!;
+                log.Add($"MASS  V50: angedockt {seite.RectangleToScreen(seite.ClientRectangle)}, Arbeitsbereich {mdi.Bounds} (vorher {mdiVorher})");
+                Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
+                Andockleiste.Schweben("ElementRollup");
+                Warten(700);
+                lage = Andockleiste.Lage("ElementRollup");
+                Pruefen(lage.Contains("Floating"), "Rollup schwebt nicht: " + lage);
+                Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Schweben nicht wieder voll: {mdi.Bounds}.");
+                Foto(Path.Combine(ordner, "V50b_Andockleiste_schwebend_F.png"));
+                ElementRollup.AndockleisteKante(DockStyle.None);
+                Warten(500);
+                Pruefen(!ElementRollup.InAndockleiste && Application.OpenForms.OfType<ElementRollup>().Any(f => f.TopLevel && f.Visible), "Rollup nach dem Lösen nicht wieder als Fenster sichtbar.");
+                Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Lösen verändert: {mdi.Bounds}.");
+                // das eigene Andocken bleibt daneben unverändert nutzbar
+                ElementRollup.KanteSetzen(DockStyle.Left);
+                Warten(300);
+                Pruefen(ElementRollup.Kante == DockStyle.Left, "Eigenes Andocken des Rollups funktioniert nicht mehr.");
+                ElementRollup.KanteSetzen(DockStyle.None);
+                Warten(300);
+                Pruefen(Application.OpenForms.OfType<ElementRollup>().Any(f => f.TopLevel && f.Visible), "Rollup nach dem Lösen vom eigenen Rand nicht sichtbar.");
+            }
+            finally
+            {
+                // auch nach einem Fehler nichts angedockt lassen (die folgenden Bildschirmfotos brauchen den vollen Arbeitsbereich)
+                if (ElementRollup.InAndockleiste) ElementRollup.AndockleisteKante(DockStyle.None);
+                if (ElementRollup.Kante != DockStyle.None) ElementRollup.KanteSetzen(DockStyle.None);
+                foreach (var r in Application.OpenForms.OfType<ElementRollup>().ToList()) r.Close();
+                AppZustand.Einstellungen.RollupAngedockt = "";
+                WindowState = vorher;
+            }
+        }, -1);
+        Schritt("V45_Krypton_Muster", () =>
+        {
+            // Entscheidungsgrundlage Bibliothek oder Eigenbau: Menüband und Tabelle als Krypton-Steuerelemente neben dem Vorbild.
+            // Krypton darf dabei die eigene Darstellung der Menüs und Leisten nicht ersetzen.
+            var vorher = ToolStripManager.Renderer;
+            var band = Steuerelemente.KryptonPruefung.MenuebandMuster();
+            var tabelle = Steuerelemente.KryptonPruefung.TabellenMuster();
+            band.TopMost = tabelle.TopMost = true;
+            band.Show(this);
+            tabelle.Show(this);
+            Warten(800);
+            band.Refresh();
+            tabelle.Refresh();
+            foreach (var (form, name) in new[] { (band, "V45_Krypton_Menueband_F.png"), (tabelle, "V45_Krypton_Tabelle_F.png") })
+            {
+                var r = form.RectangleToScreen(form.ClientRectangle);
+                using var bmp = new Bitmap(r.Width, r.Height);
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, name), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            var rib = band.Controls.OfType<Krypton.Ribbon.KryptonRibbon>().First();
+            log.Add($"MASS  V45_Krypton: Menüband {rib.Height} Pixel hoch (eigenes {_ribbon.Height})");
+            band.Close();
+            tabelle.Close();
+            if (!ReferenceEquals(ToolStripManager.Renderer, vorher)) throw new InvalidOperationException("Krypton hat den globalen ToolStrip-Zeichner ersetzt.");
+        }, -1);
         Schritt("V6_Gesamt", () =>
         {
             // Gesamtfenster wie auf dem Original-Bildschirmfoto: Absenzen oben, Vertretungen darunter, Vertretungsvorschlag rechts
@@ -3061,7 +3365,15 @@ public sealed partial class HauptFenster
             var ohne = Symbole.Dateien.SelectMany(d => new[] { 16, 32 }.Where(s => asm.GetManifestResourceInfo($"FatCow.{s}.{d}.png") is null).Select(s => $"{s}/{d}")).ToList();
             if (ohne.Count > 0) throw new InvalidOperationException("FatCow-Dateien fehlen: " + string.Join(", ", ohne));
             if (Symbole.Fehlend.Count > 0) throw new InvalidOperationException("Symbole ohne FatCow-Zuordnung: " + string.Join(", ", Symbole.Fehlend));
-            log.Add($"INFO  Symbole: {namen.Count} Programmnamen, {Symbole.Dateien.Count} FatCow-Dateien (16 und 32 px), keine gezeichneten Symbole");
+            // graue Originalvarianten für deaktivierte Zustände (16x16-grey, 32x32-grey) zu jeder Datei vorhanden und über das Knopfbild auffindbar
+            if (Symbole.GrauFehlend.Count > 0) throw new InvalidOperationException("Graue FatCow-Varianten fehlen: " + string.Join(", ", Symbole.GrauFehlend));
+            if (Symbole.Grau(Symbole.Get("drucken", 16)) is not { Width: 16 } grau16 || Symbole.Grau("drucken", 32) is not { Width: 32 })
+                throw new InvalidOperationException("Graue Variante zu „drucken“ nicht gefunden.");
+            var bunt = Symbole.Get("drucken", 16);
+            var gleich = true;
+            for (var yy = 0; yy < 16 && gleich; yy++) for (var xx = 0; xx < 16; xx++) if (bunt.GetPixel(xx, yy) != grau16.GetPixel(xx, yy)) { gleich = false; break; }
+            if (gleich) throw new InvalidOperationException("Graue Variante gleicht dem farbigen Symbol.");
+            log.Add($"INFO  Symbole: {namen.Count} Programmnamen, {Symbole.Dateien.Count} FatCow-Dateien (16 und 32 px), graue Varianten vorhanden, keine gezeichneten Symbole");
         }, -1);
         Schritt("28_Speichern_Laden", () =>
         {

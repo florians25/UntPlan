@@ -394,6 +394,11 @@ public static class Erscheinungsbild
     {
         public MenueDarstellung() : base(new MenueFarben()) => RoundedEdges = false;
 
+        protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+        {
+            if (!GrauesSymbol.Zeichnen(e)) base.OnRenderItemImage(e);
+        }
+
         protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
         {
             if (e.Item.Enabled && e.TextColor != Color.White) e.TextColor = Color.Black;

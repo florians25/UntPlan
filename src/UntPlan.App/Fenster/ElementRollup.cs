@@ -112,7 +112,7 @@ public sealed class ElementRollup : Form
         void Gewechselt() { AppZustand.Doc.Geaendert += Geaendert; if (!IsDisposed) Fuellen(); }
         AppZustand.Doc.Geaendert += Geaendert;
         AppZustand.DokumentGewechselt += Gewechselt;
-        FormClosed += (_, _) => { AppZustand.Doc.Geaendert -= Geaendert; AppZustand.DokumentGewechselt -= Gewechselt; _hilfe?.Dispose(); };
+        FormClosed += (_, _) => { if (Andockleiste.Angedockt(AndockName)) Andockleiste.Loesen(AndockName, wiederherstellen: false); AppZustand.Doc.Geaendert -= Geaendert; AppZustand.DokumentGewechselt -= Gewechselt; _hilfe?.Dispose(); };
         // Andocken: beim Verschieben die Andocksymbole zeigen, beim Loslassen über einem Symbol andocken
         Move += (_, _) => { if (TopLevel && Visible && MouseButtons == MouseButtons.Left) (_hilfe ??= new Andockhilfe()).Zeigen(Cursor.Position); };
         ResizeEnd += (_, _) =>
@@ -182,11 +182,16 @@ public sealed class ElementRollup : Form
             zu.Click += (_, _) => { Loesen(); Close(); };
             _dock.Controls.Add(titel);
         }
-        if (TopLevel)
+        // aus der Andockleiste (Krypton) übernehmen: dort lösen, ohne das schwebende Fenster wiederherzustellen
+        if (Andockleiste.Angedockt(AndockName)) Andockleiste.Loesen(AndockName, wiederherstellen: false);
+        if (TopLevel || Parent is null)
         {
-            Hide();
-            Owner = null;
-            TopLevel = false;
+            if (TopLevel)
+            {
+                Hide();
+                Owner = null;
+                TopLevel = false;
+            }
             FormBorderStyle = FormBorderStyle.None;
             Dock = DockStyle.Fill;
             _dock.Controls.Add(this);
@@ -209,6 +214,7 @@ public sealed class ElementRollup : Form
     /// <summary>Angedocktes Rollup wieder als frei schwebendes Fenster zeigen.</summary>
     private void Loesen()
     {
+        if (Andockleiste.Angedockt(AndockName)) { Andockleiste.Loesen(AndockName); return; }
         if (TopLevel) return;
         var haupt = AppZustand.Haupt;
         var lage = _dock is { IsDisposed: false } p ? p.RectangleToScreen(p.ClientRectangle) : Bounds;
@@ -219,7 +225,9 @@ public sealed class ElementRollup : Form
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         Size = new Size(320, 380);
         Location = new Point(Math.Max(0, lage.Left + 30), Math.Max(0, lage.Top + 30));
-        if (haupt != null) Show(haupt); else Show();
+        // nach dem Wechsel zum eigenen Fenster kann Visible noch gesetzt sein (Show mit Besitzer würde dann scheitern)
+        if (haupt != null) Owner = haupt;
+        if (!Visible) Show(); else Activate();
         AppZustand.Einstellungen.RollupAngedockt = "";
         AppZustand.Einstellungen.Speichern();
     }
@@ -354,8 +362,65 @@ public sealed class ElementRollup : Form
             it.Click += (_, _) => { if (it.Checked) Sichtbar[typ].Add(name); else Sichtbar[typ].Remove(name); Fuellen(); };
             cm.Items.Add(it);
         }
+        // wahlweise Andockleiste (Krypton): an einen Rand des Hauptfensters docken, mit Teiler, Anheften und Schweben
+        cm.Items.Add(new ToolStripSeparator());
+        var leiste = new ToolStripMenuItem("Andockleiste");
+        foreach (var (text, kante) in new[] { ("Links andocken", DockStyle.Left), ("Rechts andocken", DockStyle.Right), ("Unten andocken", DockStyle.Bottom) })
+            leiste.DropDownItems.Add(text, null, (_, _) => AndockleisteSetzen(kante));
+        if (Andockleiste.Angedockt(AndockName))
+        {
+            leiste.DropDownItems.Add(new ToolStripSeparator());
+            leiste.DropDownItems.Add("Schwebend", null, (_, _) => Andockleiste.Schweben(AndockName));
+            leiste.DropDownItems.Add("Vom Rand lösen", null, (_, _) => AndockleisteSetzen(DockStyle.None));
+        }
+        cm.Items.Add(leiste);
         cm.Show(_g, pt);
     }
+
+    private const string AndockName = "ElementRollup";
+
+    /// <summary>Selbsttest: Rollup über die Andockleiste (Krypton) andocken bzw. lösen (<see cref="DockStyle.None"/>).</summary>
+    internal static void AndockleisteKante(DockStyle kante)
+    {
+        Zeigen(null);
+        _instanz!.AndockleisteSetzen(kante);
+    }
+
+    /// <summary>Rollup an die Andockleiste (Krypton) eines Randes geben bzw. wieder als klassisches Fenster zeigen.</summary>
+    private void AndockleisteSetzen(DockStyle kante)
+    {
+        var haupt = AppZustand.Haupt;
+        if (haupt is null) return;
+        if (kante == DockStyle.None) { Andockleiste.Loesen(AndockName); return; }
+        // eigenes Andocken vorher lösen: es gibt immer nur eine Art des Andockens
+        if (!TopLevel && _dock != null) Loesen();
+        if (TopLevel)
+        {
+            Hide();
+            Owner = null;
+            TopLevel = false;
+            FormBorderStyle = FormBorderStyle.None;
+        }
+        var rand = kante switch { DockStyle.Left => Krypton.Docking.DockingEdge.Left, DockStyle.Bottom => Krypton.Docking.DockingEdge.Bottom, DockStyle.Top => Krypton.Docking.DockingEdge.Top, _ => Krypton.Docking.DockingEdge.Right };
+        Andockleiste.Andocken(haupt, AndockName, "Element-Rollup", this, rand, kante is DockStyle.Left or DockStyle.Right ? 260 : 200, () =>
+        {
+            if (IsDisposed) return;
+            Hide();
+            Parent?.Controls.Remove(this);
+            Dock = DockStyle.None;
+            TopLevel = true;
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
+            Size = new Size(320, 380);
+            Location = new Point(Math.Max(0, haupt.Right - 380), haupt.Top + 160);
+            // nach dem Wechsel zu einem eigenen Fenster kann Visible noch gesetzt sein: dann nur Besitzer setzen und zeigen
+            Owner = haupt;
+            if (!Visible) Show(); else Activate();
+        });
+        Show();
+    }
+
+    /// <summary>Selbsttest: über die Andockleiste angedockt?</summary>
+    internal static bool InAndockleiste => Andockleiste.Angedockt(AndockName);
 
     private static string Ueberschrift(string spalte, ElementTyp typ, string text) => spalte == "L" && typ == ElementTyp.Lehrer ? "Nachname" : text;
 

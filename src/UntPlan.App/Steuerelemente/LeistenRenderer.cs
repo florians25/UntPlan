@@ -64,10 +64,29 @@ public sealed class LeistenRenderer : ToolStripProfessionalRenderer
         e.Graphics.DrawLine(p, x, 4, x, e.Item.Height - 4);
     }
 
+    protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+    {
+        if (!GrauesSymbol.Zeichnen(e)) base.OnRenderItemImage(e);
+    }
+
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         if (e.ToolStrip is ToolStripDropDown) { base.OnRenderItemText(e); return; }
         e.TextColor = Color.White;
         base.OnRenderItemText(e);
+    }
+}
+
+/// <summary>
+/// Deaktivierte Knöpfe und Menüeinträge zeigen die offizielle graue FatCow-Variante ihres Symbols (statt des berechneten Graufilters
+/// von Windows Forms). Für Bilder, die nicht aus <see cref="Symbole"/> stammen, bleibt die Standarddarstellung.
+/// </summary>
+internal static class GrauesSymbol
+{
+    public static bool Zeichnen(ToolStripItemImageRenderEventArgs e)
+    {
+        if (e.Item.Enabled || e.ImageRectangle.Width <= 0 || Symbole.Grau(e.Item.Image) is not { } grau) return false;
+        e.Graphics.DrawImage(grau, e.ImageRectangle);
+        return true;
     }
 }

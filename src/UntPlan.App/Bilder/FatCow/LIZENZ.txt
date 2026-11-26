@@ -6,4 +6,6 @@ Alle Symbole der Desktop-Anwendung (Menüband, Symbolleisten, Kontextmenüs, Sch
 stammen aus diesem Satz. Verwendet werden ausschließlich die Originaldateien in 16×16 und 32×32 Pixeln, unverändert
 und unter ihren Originalnamen; andere Größen entstehen nur durch Skalieren. Bezugsquelle der Dateien: unveränderter
 Spiegel des Originalarchivs v3.9.2 (https://github.com/gammasoft/fatcow, Ordner 16x16 und 32x32).
+Für deaktivierte Knöpfe werden die grauen Originalvarianten desselben Archivs verwendet (Ordner 16x16-grey und
+32x32-grey, hier Bilder/FatCow/16g und 32g), ebenfalls unverändert und unter ihren Originalnamen.
 Die Zuordnung der Dateien zu den Programmbefehlen steht in Symbole.cs.

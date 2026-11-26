@@ -1,5 +1,6 @@
 using System.Globalization;
 using UntPlan.App.Dialoge;
+using UntPlan.App.Steuerelemente;
 using UntPlan.Core;
 using UntPlan.Core.Model;
 using UntPlan.Core.Planung;
@@ -221,7 +222,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         });
         foreach (var n in new[] { "Klasse", "Fach", "Raum", "Art" }) _vorziehung2.Columns[n]!.Visible = false;
         // zweizeilige Überschrift: oben „Schritt 1“ bzw. „Schritt 2“, darunter Name, von, Merker
-        _vorziehung2.ColumnHeadersHeight = 2 * _vorziehung2.ColumnHeadersHeight;
+        KopfGruppen.Einrichten(_vorziehung2, true, new KopfGruppen.Gruppe("Schritt 1", "Name", "Tag", "Merker"), new KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
         _vorziehung2.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Vorziehen(); };
         _vorziehung2.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { Vorziehen(); e.Handled = true; } };
         _vorziehung2.ContextMenuStrip = Menue(("Vorziehen: beide Schritte durchführen (Doppelklick, Enter)", Vorziehen));
@@ -407,6 +408,12 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.DefaultCellStyle.SelectionForeColor = Color.Black;
         g.ShowCellToolTips = true;
         g.CellPainting += ZelleZeichnen;
+        // „Stundenplan“ als verbundener Kopf über allen Planspalten (wie im Vorbild)
+        g.ColumnAdded += (_, e) =>
+        {
+            if (Stundenplanspalten.Contains(e.Column.Name) && !KopfGruppen.Aktiv(g))
+                KopfGruppen.Einrichten(g, false, new KopfGruppen.Gruppe("Stundenplan", Stundenplanspalten));
+        };
         g.CellFormatting += (_, e) =>
         {
             // Vorbild: nur die aktuelle Zelle ist orange hinterlegt (auch nach einem Moduswechsel der Tabellenfarben)
@@ -1106,38 +1113,19 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         var r = e.CellBounds;
         // wie im Original-Bildschirmfoto: Überschriften grünlich, die Spalte der aktuellen Zelle hell orange, Linie unten in Rasterfarbe
         var aktuell = g.CurrentCell?.ColumnIndex == spalte.Index;
-        using (var br = new SolidBrush(aktuell ? Ui.ZelleAktivVertretung : Ui.Kopf)) e.Graphics!.FillRectangle(br, r);
-        var i = Array.IndexOf(Stundenplanspalten, spalte.Name);
-        var textRect = new Rectangle(r.X + 3, r.Y, r.Width - 4, r.Height - 1);
-        var text = spalte.HeaderText;
-        if (i >= 0 && g.Columns.Contains("S1"))
-        {
-            // „Stundenplan“ über alle drei Spalten
-            var s1 = g.GetColumnDisplayRectangle(g.Columns["S1"]!.Index, false);
-            textRect = new Rectangle((s1.Width > 0 ? s1.X : r.X) + 3, r.Y, 200, r.Height - 1);
-            text = g.Columns["S1"]!.HeaderText;
-            if (s1.Width == 0 && i > 0) text = "";
-        }
+        var grund = aktuell ? Ui.ZelleAktivVertretung : Ui.Kopf;
+        // Kopfgruppen („Stundenplan“ über den Planspalten, „Schritt 1“/„Schritt 2“ der Vorziehungen) zeichnet der gemeinsame Baustein
+        if (KopfGruppen.Zeichnen(g, e, grund)) return;
+        using (var br = new SolidBrush(grund)) e.Graphics!.FillRectangle(br, r);
         var clip = e.Graphics!.Clip;
         e.Graphics.SetClip(r);
-        if (g.Name == "Vorziehung2")
-        {
-            // zweizeilig: oben „Schritt 1“ über Name/von/Merker, „Schritt 2“ über den Spalten des zweiten Schritts
-            var halb = r.Height / 2;
-            var gruppe = spalte.Name switch { "Name" => "Schritt 1", "Name2" => "Schritt 2", _ => "" };
-            if (gruppe.Length > 0)
-                TextRenderer.DrawText(e.Graphics, gruppe, g.ColumnHeadersDefaultCellStyle.Font ?? g.Font, new Rectangle(r.X + 3, r.Y, r.Width - 4, halb), Color.Black,
-                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
-            if (spalte.Name is "Merker" or "Merker2")
-                using (var pg = new Pen(g.GridColor)) e.Graphics.DrawLine(pg, r.Right - 1, r.Y, r.Right - 1, r.Y + halb);
-            using (var pg = new Pen(g.GridColor)) e.Graphics.DrawLine(pg, r.X, r.Y + halb, r.Right, r.Y + halb);
-            textRect = new Rectangle(textRect.X, r.Y + halb, textRect.Width, r.Height - halb - 1);
-        }
-        TextRenderer.DrawText(e.Graphics, text, g.ColumnHeadersDefaultCellStyle.Font ?? g.Font, textRect, Color.Black,
+        TextRenderer.DrawText(e.Graphics, spalte.HeaderText, g.ColumnHeadersDefaultCellStyle.Font ?? g.Font, new Rectangle(r.X + 3, r.Y, r.Width - 4, r.Height - 1), Color.Black,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
         using (var p = new Pen(g.GridColor))
-            if (i < 0 || i == Stundenplanspalten.Length - 1) e.Graphics.DrawLine(p, r.Right - 1, r.Y, r.Right - 1, r.Bottom - 1);
-        using (var p = new Pen(g.GridColor)) e.Graphics.DrawLine(p, r.X, r.Bottom - 1, r.Right, r.Bottom - 1);
+        {
+            e.Graphics.DrawLine(p, r.Right - 1, r.Y, r.Right - 1, r.Bottom - 1);
+            e.Graphics.DrawLine(p, r.X, r.Bottom - 1, r.Right, r.Bottom - 1);
+        }
         e.Graphics.Clip = clip;
         e.Handled = true;
     }
