@@ -158,9 +158,9 @@ public static class SondereinsatzDialog
         f.Controls.Add(new Label { Text = "Stunde bis", Left = 213, Top = 12, AutoSize = true });
         var bis = ElementListe.Stunde(stunde);
         bis.SetBounds(214, 39, 64, 20);
-        var bKl = new Button { Text = "Klassen", Left = 297, Top = 37, Width = 118, Height = 23 };
-        var bLe = new Button { Text = "Lehrer", Left = 422, Top = 37, Width = 126, Height = 23 };
-        var bKk = new Button { Text = "Klassenkonferenz", Left = 555, Top = 37, Width = 118, Height = 23 };
+        var bKl = new Button { Text = "Klassen", Left = 297, Top = 36, Width = 118, Height = 23 };
+        var bLe = new Button { Text = "Lehrer", Left = 422, Top = 36, Width = 126, Height = 23 };
+        var bKk = new Button { Text = "Klassenkonferenz", Left = 555, Top = 36, Width = 118, Height = 23 };
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
         f.Ok.Location = new Point(f.ClientSize.Width / 2 - 77, 280);
         f.Abbrechen.Location = new Point(f.ClientSize.Width / 2 + 5, 280);
@@ -177,6 +177,23 @@ public static class SondereinsatzDialog
         g.Columns.Add(Steuerelemente.SuchKombi.Spalte("R", "Raum", 95, Stammdaten.Sortiert(d.Raeume).Select(x => x.Kurzname)));
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "G", HeaderText = "Schülergruppe", Width = 95 });
         g.Columns.Add(new DataGridViewTextBoxColumn { Name = "T", HeaderText = "Text", Width = 95 });
+        // aktuelle Zeile wie im Vorbild (Bild 348): gefüllte Zellen (192, 217, 207), leere (206, 226, 218)
+        g.CellFormatting += (_, e) =>
+        {
+            if (e.RowIndex < 0 || e.CellStyle is null || g.CurrentCell?.RowIndex != e.RowIndex) return;
+            var farbe = string.IsNullOrEmpty(e.Value?.ToString()) ? Color.FromArgb(206, 226, 218) : Color.FromArgb(192, 217, 207);
+            e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = farbe;
+            e.CellStyle.SelectionForeColor = Color.Black;
+        };
+        var letzteZeile = -1;
+        g.CurrentCellChanged += (_, _) =>
+        {
+            var z = g.CurrentCell?.RowIndex ?? -1;
+            if (z == letzteZeile) return;
+            if (letzteZeile >= 0 && letzteZeile < g.Rows.Count) g.InvalidateRow(letzteZeile);
+            if (z >= 0) g.InvalidateRow(z);
+            letzteZeile = z;
+        };
         // Auswahllisten mit Langnamen wie im Veranstaltungsfenster
         Steuerelemente.SuchKombi.Aktivieren(g, (zelle, text) => (zelle.OwningColumn.Name == "F"
                 ? (Element?)d.Faecher.FirstOrDefault(x => x.Kurzname == text) : d.Raeume.FirstOrDefault(x => x.Kurzname == text)) is { } el
@@ -592,14 +609,15 @@ public static class SondereinsatzAuswahl
         f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
         // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
         f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
-        var g = new DataGridView { Left = 2, Top = 2, Width = 278, Height = 311, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 1, Top = 1, Width = 281, Height = 312, BorderStyle = BorderStyle.Fixed3D, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
         g.RowHeadersVisible = false;
-        g.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
-        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 56;
-        g.Columns[g.Columns.Add("L", "Langname")].Width = 117;
+        // Spalten wie im Vorbild (Bild 349): Kurzname 58, Langname 64 Pixel (Lehrkräfte mit Klassen: Langname breiter)
+        Ui.BreitenWieOriginal(g);
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 58;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = lehrer ? 117 : 64;
         var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
         string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
         if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 53;
@@ -652,9 +670,11 @@ public static class SondereinsatzAuswahl
             f.Controls.Add(b);
         }
         f.Ok.Anchor = f.Abbrechen.Anchor = AnchorStyles.Bottom;
-        f.Ok.Size = new Size(73, 22);
+        // Vorbild: Ok weiß mit 2 Pixel Rand (die Liste hat den Fokus)
+        f.Ok.Tag = Steuerelemente.Erscheinungsbild.StandardWeiss;
+        f.Ok.Size = new Size(75, 22);
         f.Abbrechen.Size = new Size(75, 22);
-        f.Ok.Location = new Point(64, 381);
+        f.Ok.Location = new Point(63, 381);
         f.Abbrechen.Location = new Point(145, 381);
         Knopf("Alle", 0, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = true; });
         Knopf("Inverse", 1, () => { foreach (DataGridViewRow r in g.Rows) if (r.Visible) r.Selected = !r.Selected; });

@@ -166,6 +166,13 @@ public static class MehrfachAuswahl
             fertig(res);
         }
         _uebernehmen = Uebernehmen;
+        _offeneZelle = (zeile, spalte);
+        g.InvalidateCell(spalte, zeile);
+        dd.Closed += (_, _) =>
+        {
+            if (_offeneZelle == (zeile, spalte)) _offeneZelle = null;
+            if (!g.IsDisposed && zeile < g.Rows.Count && spalte < g.Columns.Count) g.InvalidateCell(spalte, zeile);
+        };
         _leisteZeigen = leisteZeigen;
         _abbrechen = () => { uebernommen = true; dd.Close(); };
         Offen = liste;
@@ -253,6 +260,12 @@ public static class MehrfachAuswahl
         if (e.Graphics is null) return;
         e.Paint(e.CellBounds, DataGridViewPaintParts.All);
         var b = e.CellBounds;
+        if (_offeneZelle is { } oz && oz.Zeile == e.RowIndex && oz.Spalte == e.ColumnIndex && Offen != null)
+        {
+            OffenZeichnen(e.Graphics, b);
+            e.Handled = true;
+            return;
+        }
         var r = new Rectangle(b.Right - 19, b.Top + 1, 17, b.Height - 3);
         var g = e.Graphics;
         using (var f = new SolidBrush(Color.FromArgb(253, 253, 253))) g.FillRectangle(f, r);
@@ -274,6 +287,32 @@ public static class MehrfachAuswahl
             if (k < 3) { g.FillRectangle(weich, x0 + k + 1, y0 + k, 1, 1); g.FillRectangle(weich, x0 + 6 - k, y0 + k, 1, 1); }
         }
         e.Handled = true;
+    }
+
+    /// <summary>Zelle, unter der die Liste gerade offen ist (Zeile, Spalte).</summary>
+    private static (int Zeile, int Spalte)? _offeneZelle;
+
+    /// <summary>
+    /// Zelle mit offener Liste wie im Vorbild (Bild 351 pixelweise): vertieftes Eingabefeld über die Zelle, rechts der gedrückte
+    /// Aufklappknopf (24 Pixel, Fläche 145/205/181, Rand 175/208/195) mit schwarzem Dreieck 8 × 4 Pixel.
+    /// </summary>
+    private static void OffenZeichnen(Graphics g, Rectangle b)
+    {
+        int l = b.Left, t = b.Top, r = b.Right, u = b.Bottom - 1;
+        void Linie(Color c, int x0, int y0, int x1, int y1) { using var p = new Pen(c); g.DrawLine(p, x0, y0, x1, y1); }
+        g.FillRectangle(Brushes.White, l, t, r - l - 1, u - t);
+        Linie(Color.FromArgb(160, 160, 160), l, t, r - 3, t);
+        Linie(Color.FromArgb(160, 160, 160), l, t, l, u - 1);
+        Linie(Color.White, r - 2, t, r - 2, u - 1);
+        Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, r - 4, t + 1);
+        Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, l + 1, u - 1);
+        Linie(Color.FromArgb(227, 227, 227), r - 3, t + 1, r - 3, u - 1);
+        var knopf = Rectangle.FromLTRB(r - 27, t + 2, r - 3, u);
+        using (var f = new SolidBrush(Color.FromArgb(145, 205, 181))) g.FillRectangle(f, knopf);
+        using (var p = new Pen(Color.FromArgb(175, 208, 195))) g.DrawRectangle(p, knopf.X, knopf.Y, knopf.Width - 1, knopf.Height - 1);
+        var ox = r - 18;
+        var oy = knopf.Y + (knopf.Height - 4) / 2;
+        for (var i = 0; i < 4; i++) g.FillRectangle(Brushes.Black, ox + i, oy + i, 8 - 2 * i, 1);
     }
 
     /// <summary>Liegt der Mauspunkt (Zellkoordinaten) auf dem Aufklappdreieck?</summary>

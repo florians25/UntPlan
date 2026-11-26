@@ -2326,6 +2326,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     internal void SelbsttestArtWaehlen()
     {
         if (_g.CurrentRow is not { } r || !_g.Columns.Contains("Art")) return;
+        ActiveControl = _g;
         _g.Focus();
         _g.CurrentCell = r.Cells["Art"];
     }

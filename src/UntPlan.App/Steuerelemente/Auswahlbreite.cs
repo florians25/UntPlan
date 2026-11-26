@@ -178,6 +178,7 @@ public static class Auswahlbreite
                 {
                     void Entmarkieren() { if (!cb.IsDisposed && cb.IsHandleCreated && !cb.Focused && cb.SelectionLength > 0) cb.SelectionLength = 0; }
                     cb.SelectedIndexChanged += (_, _) => { if (cb.IsHandleCreated && !cb.Focused) cb.BeginInvoke(Entmarkieren); };
+                    cb.TextChanged += (_, _) => { if (cb.IsHandleCreated && !cb.Focused) cb.BeginInvoke(Entmarkieren); };
                     cb.Leave += (_, _) => { if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren); };
                     if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren);
                     else cb.HandleCreated += (_, _) => cb.BeginInvoke(Entmarkieren);

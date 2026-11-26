@@ -511,6 +511,9 @@ public sealed partial class Ribbon : Control
     /// </summary>
     internal static void Pfeil(Graphics g, int x, int y, Color c)
     {
+        var alt = g.SmoothingMode;
+        // ganze Pixel (mit Kantenglättung würde jedes 1-Pixel-Rechteck auf zwei Pixel verschmiert)
+        g.SmoothingMode = SmoothingMode.None;
         var kern = c.ToArgb() == Color.Black.ToArgb() ? Color.FromArgb(72, 72, 72) : c;
         using var voll = new SolidBrush(kern);
         using var weich = new SolidBrush(Color.FromArgb(76, kern));
@@ -520,6 +523,7 @@ public sealed partial class Ribbon : Control
         P(weich, 0, 1); P(voll, 1, 1); P(weich, 2, 1); P(weich, 3, 1); P(voll, 4, 1); P(weich, 5, 1);
         P(weich, 1, 2); P(voll, 2, 2); P(voll, 3, 2); P(weich, 4, 2);
         P(weich, 2, 3); P(weich, 3, 3);
+        g.SmoothingMode = alt;
     }
 
     private IEnumerable<RibbonEintrag> Sichtbare() => Seiten.ElementAtOrDefault(AktiveSeite)?.Gruppen.SelectMany(g => g.Angezeigt) ?? Enumerable.Empty<RibbonEintrag>();

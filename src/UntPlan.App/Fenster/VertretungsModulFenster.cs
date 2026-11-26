@@ -46,6 +46,7 @@ public sealed class KalenderFenster : MdiFenster
         if (_woche.Rows.Count == 0 || _woche.Columns.GetLastColumn(DataGridViewElementStates.Visible, DataGridViewElementStates.None) is not { } c) return;
         var zeile = _woche.CurrentCell?.RowIndex ?? 0;
         _woche.CurrentCell = _woche.Rows[Math.Max(0, zeile)].Cells[c.Index];
+        _woche.FirstDisplayedScrollingColumnIndex = c.Index;
     }
 
     public KalenderFenster()

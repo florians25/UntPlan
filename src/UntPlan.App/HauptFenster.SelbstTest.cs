@@ -1556,6 +1556,8 @@ public sealed partial class HauptFenster
                 Steuerelemente.Auswahlbreite.AlleErfassen();
                 Warten(900);
                 var mdi = Controls.OfType<MdiClient>().First();
+                kalender.SelbsttestLetzteSpalte();
+                Warten(300);
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
                 foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
                 R3DRollbereich(mdi.Handle, 0, out var hMin, out var hMax);

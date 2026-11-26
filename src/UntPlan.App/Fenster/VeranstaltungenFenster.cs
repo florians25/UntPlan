@@ -127,6 +127,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
             Name = "W", HeaderText = "Wert", Width = 34, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight },
             ToolTipText = "Selbst definierter Wert der Veranstaltung für den Vertretungszähler (leer = Wert der Stunden)",
         });
+        // Spaltenbreiten wie im Vorbild, lange Überschriften werden wie dort abgeschnitten (Tooltipp zeigt sie ganz)
+        Ui.BreitenWieOriginal(_g);
         // Schrift und Zeilenhöhe wie die Absenzen im Vorbild (Segoe UI 8,25, Überschrift und Zeilen 19 Pixel samt Linie)
         _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.AbsenzSchrift;
         _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.AbsenzSchrift);
@@ -198,7 +200,14 @@ public sealed class VeranstaltungenFenster : MdiFenster
         unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 48, Height = 22 });
         unten.Controls.Add(_nr);
         _nr.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Springen((int)_nr.Value); } };
-        _g.SelectionChanged += (_, _) => { if (!_laedt && !_nr.Focused && _g.CurrentRow?.Tag is Veranstaltung v) _nr.Value = Math.Min(_nr.Maximum, v.Id); };
+        // Vorbild: das Feld bleibt leer, solange keine gespeicherte Veranstaltung gewählt ist
+        _nr.Text = "";
+        _g.SelectionChanged += (_, _) =>
+        {
+            if (_laedt || _nr.Focused) return;
+            if (_g.CurrentRow?.Tag is Veranstaltung v) _nr.Value = Math.Min(_nr.Maximum, v.Id);
+            else _nr.Text = "";
+        };
         // Tabelle wie im Vorbild 9 Pixel vom Fensterrand im vertieften Rahmen (wie die Vertretungsliste)
         _g.BorderStyle = BorderStyle.Fixed3D;
         var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 0), BackColor = Ui.Kopf };
@@ -533,7 +542,11 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     internal void SelbsttestAuswahlZeigen(string spalte)
     {
-        if (_g.CurrentCell is { } c) AuswahlZeigen(c.RowIndex, _g.Columns[spalte]!.Index);
+        if (_g.CurrentCell is not { } c) return;
+        // wie beim Klick auf den Aufklappknopf: die Zelle der Spalte wird aktuell
+        var zelle = _g.Rows[c.RowIndex].Cells[spalte];
+        if (!ReferenceEquals(_g.CurrentCell, zelle)) _g.CurrentCell = zelle;
+        AuswahlZeigen(zelle.RowIndex, zelle.ColumnIndex);
     }
 
     /// <summary>Selbsttest: Einträge des Schnellauswahl-Menüs (Toolbar).</summary>
