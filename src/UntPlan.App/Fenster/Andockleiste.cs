@@ -99,7 +99,7 @@ public static class Andockleiste
         m.AddDockspace(Pfad, rand, new[] { seite });
         Einordnen(haupt);
         // Breite bzw. Höhe der Leiste wie das schwebende Werkzeugfenster
-        if (m.FindDockingEdgeDocked(Pfad + "|" + rand) is { } kante)
+        if (m.FindDockingEdgeDocked(name) is { } kante)
             foreach (var ds in kante.OfType<KryptonDockingDockspace>())
                 if (ds.DockspaceControl is { } c)
                 {

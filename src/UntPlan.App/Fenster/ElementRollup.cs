@@ -410,7 +410,9 @@ public sealed class ElementRollup : Form
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Size = new Size(320, 380);
             Location = new Point(Math.Max(0, haupt.Right - 380), haupt.Top + 160);
-            Show(haupt);
+            // nach dem Wechsel zu einem eigenen Fenster kann Visible noch gesetzt sein: dann nur Besitzer setzen und zeigen
+            Owner = haupt;
+            if (!Visible) Show(); else Activate();
         });
         Show();
     }
