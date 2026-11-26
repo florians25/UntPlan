@@ -1418,6 +1418,9 @@ public sealed partial class HauptFenster
                 var lage = Andockleiste.Lage("ElementRollup");
                 Pruefen(lage.Contains("Docked"), "Rollup nicht angedockt: " + lage);
                 Pruefen(mdi.Width < mdiVorher.Width && mdi.Left == mdiVorher.Left && mdi.Top == mdiVorher.Top, $"Arbeitsbereich nicht neben der Andockleiste: {mdi.Bounds} (vorher {mdiVorher}).");
+                if (_ribbon.Bounds != ribbonVorher || _status.Bounds != statusVorher)
+                    log.Add("INFO  V50 Steuerelemente: " + string.Join(" | ", Controls.Cast<Control>().Select(c => $"{Controls.GetChildIndex(c)} {c.GetType().Name} {c.Dock} {c.Bounds}")) +
+                        $"; Menüband {_ribbon.Bounds} (vorher {ribbonVorher}), Statuszeile {_status.Bounds} (vorher {statusVorher})");
                 Pruefen(_ribbon.Bounds == ribbonVorher && _status.Bounds == statusVorher, "Menüband oder Statuszeile durch die Andockleiste verschoben.");
                 Pruefen(vertr.IsMdiChild && vertr.MdiParent == this, "Arbeitsfenster ist kein MDI-Fenster mehr.");
                 Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
