@@ -48,7 +48,7 @@ document.addEventListener('toggle', ev => {
   if (ueber > 0) t.style.left = `${-8 - ueber}px`;
 }, true);
 /** Platzhalter während des Ladens – bewusst ohne Animation (die Inhalte erscheinen direkt). */
-export const lade = () => '<div class="u-laedt" role="status"><span class="visually-hidden">Wird geladen …</span></div>';
+export const lade = (still = false) => `<div class="u-laedt${still ? ' u-laedt-still' : ''}" role="status"><span class="visually-hidden">Wird geladen …</span></div>`;
 export const alarm = (art, text, html = false) => `<div class="alert alert-${art} py-2 px-3 small mb-3" role="alert">${html ? text : e(text)}</div>`;
 
 // ------------------------------------------------------------------ Schnittstelle

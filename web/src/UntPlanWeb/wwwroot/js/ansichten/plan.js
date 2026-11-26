@@ -208,7 +208,7 @@ export async function zeigen(seite, kontext, [typParam, elementParam, datumParam
       <div class="rechts"><button type="button" class="heute-pill${mo === montag(heuteIso()) ? ' aktuell' : ''}" data-woche="0">Heute</button></div>
       ${istMein ? '' : '<div class="kw-raster" data-raster hidden></div>'}
     </div>
-    <div data-inhalt>${lade()}</div>`;
+    <div data-inhalt>${lade(true)}</div>`;
 
   // Elementwahl wie im Original: Pille als Suchfeld, Menü mit „Alle anzeigen“ (alle Elemente als Pillen unter dem Kopf)
   seite.querySelector('[data-wahl]')?.replaceWith(kopfWahl({
