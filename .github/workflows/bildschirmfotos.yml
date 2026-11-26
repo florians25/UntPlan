@@ -9,6 +9,10 @@ on:
         description: 'Regulärer Ausdruck der Selbsttest-Schritte'
         required: false
         default: '^(16_Vertretungsmodus|V[0-9])'
+      skalierung:
+        description: 'Anzeigeskalierung in Prozent (100, 125, 150); leer = 100'
+        required: false
+        default: ''
   push:
     branches: [ 'claude/**' ]
     paths: [ 'src/UntPlan.App/**' ]
@@ -34,6 +38,41 @@ jobs:
         run: |
           # Bildschirm wie beim Original-Bildschirmfoto (Vollbild ca. 1920 × 1080, 100 %), falls der Runner das zulässt
           try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Output "Auflösung nicht änderbar: $_" }
+          # optional andere Anzeigeskalierung (Prüfung der hochauflösenden Darstellung): Stufe relativ zur empfohlenen (100 %)
+          $skal = '${{ github.event.inputs.skalierung }}'
+          if ($skal -and $skal -ne '100') {
+            Add-Type -TypeDefinition @'
+          using System; using System.Runtime.InteropServices;
+          public static class Skalierung {
+            [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, int b, int[] c, uint d);
+            [DllImport("user32.dll", EntryPoint = "SystemParametersInfo")] public static extern bool Setzen(uint a, int b, IntPtr c, uint d);
+          }
+          '@
+            $info = New-Object int[] 3
+            [void][Skalierung]::SystemParametersInfo(0x009E, 0, $info, 1)
+            Write-Output "Skalierung vorher: min $($info[0]) max $($info[1]) aktuell $($info[2])"
+            $stufen = @(100, 125, 150, 175, 200, 225, 250, 300)
+            $rel = [Array]::IndexOf($stufen, [int]$skal)
+            Write-Output "Skalierung $skal %: Stufe $rel, Ergebnis $([Skalierung]::Setzen(0x009F, $rel, [IntPtr]::Zero, 1))"
+            Start-Sleep -Seconds 3
+            [void][Skalierung]::SystemParametersInfo(0x009E, 0, $info, 1)
+            Write-Output "Skalierung nachher: aktuell $($info[2])"
+            if ($info[2] -eq 0) {
+              # Ersatzweg: Skalierung je Bildschirm in der Registrierung, wirksam nach einem Moduswechsel der Anzeige
+              $schluessel = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\ScaleFactors'
+              $ids = if (Test-Path $schluessel) { Get-ChildItem $schluessel | ForEach-Object { $_.PSChildName } } else { @() }
+              Write-Output "Bildschirme: $($ids -join ', ')"
+              foreach ($id in $ids) {
+                $k = "HKCU:\Control Panel\Desktop\PerMonitorSettings\$id"
+                New-Item -Path $k -Force | Out-Null
+                Set-ItemProperty -Path $k -Name DpiValue -Value $rel -Type DWord
+              }
+              try { Set-DisplayResolution -Width 1600 -Height 900 -Force -ErrorAction Stop; Start-Sleep -Seconds 2; Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Output "Moduswechsel: $_" }
+              Start-Sleep -Seconds 3
+              [void][Skalierung]::SystemParametersInfo(0x009E, 0, $info, 1)
+              Write-Output "Skalierung nach Registrierung: min $($info[0]) max $($info[1]) aktuell $($info[2])"
+            }
+          }
           $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(16_Vertretungsmodus|V[0-9])' }
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru
           # sobald der Selbsttest „ENDE“ meldet, nicht auf das Schließen des Programms warten (höchstens 15 Minuten)

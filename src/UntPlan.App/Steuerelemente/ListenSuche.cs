@@ -510,10 +510,38 @@ public static class ListenSuche
     /// <summary>Hat die Liste den Mausradschutz?</summary>
     public static bool HatMausradSchutz(ComboBox cb) => MitMausradSchutz.TryGetValue(cb, out _);
 
+    private sealed class Blaetterer { public required Action<int> Schritt; public int Rest; }
+    private static readonly ConditionalWeakTable<ComboBox, Blaetterer> MitMausradBlaettern = new();
+
+    /// <summary>
+    /// Elementauswahl der Stundenpläne (wie im Vorbild): das Mausrad über der geschlossenen Liste blättert zum vorherigen bzw.
+    /// nächsten Element – je Rastung genau ein Schritt (wie die Hoch/Runter-Knöpfe daneben); feine Räder sammeln bis zu einer Rastung.
+    /// </summary>
+    public static void MausradBlaettern(ComboBox cb, Action<int> schritt)
+    {
+        MausradSchuetzen(cb);
+        MitMausradBlaettern.AddOrUpdate(cb, new Blaetterer { Schritt = schritt });
+    }
+
+    /// <summary>Blättert das Mausrad diese Liste (Elementauswahl eines Plans)?</summary>
+    public static bool HatMausradBlaettern(ComboBox cb) => MitMausradBlaettern.TryGetValue(cb, out _);
+
     private static void Mausrad(object? sender, MouseEventArgs e)
     {
         if (sender is not ComboBox cb || cb.DroppedDown || e is not HandledMouseEventArgs h) return;
         h.Handled = true;
+        if (MitMausradBlaettern.TryGetValue(cb, out var bl))
+        {
+            // Rad nach oben = vorheriges Element, nach unten = nächstes; je volle Rastung (120) ein Schritt
+            bl.Rest += e.Delta;
+            while (Math.Abs(bl.Rest) >= 120)
+            {
+                var r = bl.Rest > 0 ? -1 : 1;
+                bl.Rest += r * 120;
+                bl.Schritt(r);
+            }
+            return;
+        }
         for (var p = cb.Parent; p != null; p = p.Parent)
         {
             if (p is DataGridView g)

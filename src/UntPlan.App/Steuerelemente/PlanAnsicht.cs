@@ -426,7 +426,8 @@ public sealed partial class PlanAnsicht : Control
     {
         using var _m = Core.Messung.Start("PlanAnsicht.EintraegeBerechnen");
         var tp = _tage[tag];
-        return tp.Stunde(stunde).Where(e => Typ switch
+        // Bereitschaften, in denen die Lehrkraft nun eine Stunde hat, werden ausgeblendet
+        return tp.SichtbareStunde(stunde).Where(e => Typ switch
         {
             // Kopplungszeile ohne eigene Klassen (z. B. zweite Lehrkraft) gehört zu den Klassen der ganzen Kopplung
             ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false) ||
@@ -589,10 +590,11 @@ public sealed partial class PlanAnsicht : Control
         if (KlassikStil)
         {
             // Vorbild: Feld füllt die Zelle bis an die Rasterlinien, parallele Stunden durch eine Linie getrennt
-            var x0 = (int)(r.X + Math.Round(f.Spur * r.Width / f.Spuren));
-            var x1 = (int)(r.X + Math.Round((f.Spur + 1) * r.Width / f.Spuren));
-            var y0 = (int)(r.Y + Math.Round(f.StapelIndex * hoehe / f.StapelAnzahl));
-            var y1 = (int)(r.Y + Math.Round((f.StapelIndex + 1) * hoehe / f.StapelAnzahl));
+            // Teilung wie im Vorbild (Bild 344): bei ungerader Breite ist das linke bzw. obere Teilfeld das größere
+            var x0 = (int)(r.X + Math.Round(f.Spur * r.Width / f.Spuren, MidpointRounding.AwayFromZero));
+            var x1 = (int)(r.X + Math.Round((f.Spur + 1) * r.Width / f.Spuren, MidpointRounding.AwayFromZero));
+            var y0 = (int)(r.Y + Math.Round(f.StapelIndex * hoehe / f.StapelAnzahl, MidpointRounding.AwayFromZero));
+            var y1 = (int)(r.Y + Math.Round((f.StapelIndex + 1) * hoehe / f.StapelAnzahl, MidpointRounding.AwayFromZero));
             return new RectangleF(x0 + 1, y0 + 1, x1 - x0 - 1, y1 - y0 - 1);
         }
         var breite = (r.Width - 1) / f.Spuren;
@@ -644,10 +646,13 @@ public sealed partial class PlanAnsicht : Control
     /// <summary>
     /// Gescrollter Anteil des Plans (der Plan liegt in einem scrollenden Rahmen): Tageskopf und Stundenspalte bleiben beim Scrollen
     /// stehen – sie werden an der sichtbaren Ober- bzw. Linkskante noch einmal gezeichnet.
+    /// Maßgeblich ist die tatsächliche Lage des Plans im Rahmen (nicht die Scrollposition des Rahmens): nach einem Umbau (z. B. Fenster
+    /// schmaler, senkrechter Rollbalken entfällt) kann die Scrollposition noch versetzt sein, während der Plan wieder oben liegt – der Kopf
+    /// stünde dann tiefer und darüber blieben Reste der Spaltenlinien sichtbar.
     /// </summary>
     internal (int X, int Y) Fixversatz =>
-        KlassikStil && !Transponiert && Parent is ScrollableControl { AutoScroll: true } sc
-            ? (Math.Max(0, -sc.AutoScrollPosition.X), Math.Max(0, -sc.AutoScrollPosition.Y)) : (0, 0);
+        KlassikStil && !Transponiert && Parent is ScrollableControl
+            ? (Math.Max(0, -Left), Math.Max(0, -Top)) : (0, 0);
 
     /// <summary>Zusätzliche Textflags für Kopf und Pausen (beim festen Kopf: Beschneidung der Graphics auch für GDI-Text beachten).</summary>
     private TextFormatFlags _kopfFlags;
@@ -803,6 +808,7 @@ public sealed partial class PlanAnsicht : Control
         using var duenn = new Pen(klassik ? Color.Black : klein ? Color.FromArgb(200, 200, 200) : Color.FromArgb(210, 216, 226));
         GezeichneteLinien.Clear();
         GezeichneteFelder.Clear();
+        if (!druck) GezeichneteTagesfelder.Clear();
         if (Transponiert) TransponierteKoepfe(g, bounds, druck, linie);
         else if (klassik) KlassikKoepfe(g, bounds, druck, linie);
         else KoepfeZeichnen(g, bounds, druck, linie);
@@ -859,6 +865,7 @@ public sealed partial class PlanAnsicht : Control
                         var fr = SichtbarerTeil(fr0, druck);
                         EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x) || IstZusatz(datum.Value, x)));
                         if (klassik) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                        if (!druck) GezeichneteTagesfelder.Add((t, f.Start, f.Laenge, f.Spur, f.Spuren, f.StapelIndex, f.StapelAnzahl, f.Erster.Unterricht?.Id ?? f.Erster.Vertretung?.UnterrichtId, f.Erster.Status, Rectangle.Round(fr)));
                         Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
             }
@@ -1089,6 +1096,8 @@ public sealed partial class PlanAnsicht : Control
 
     /// <summary>Gezeichnete Formatlinien (für den Selbsttest), z. B. „dick vor 5“.</summary>
     internal List<string> GezeichneteLinien { get; } = new();
+    /// <summary>Zuletzt gezeichnete Felder des tagesaktuellen Plans (Selbsttest: parallele Stunden nebeneinander, gleich breit, ohne Überlappung).</summary>
+    internal List<(int Tag, int Start, int Laenge, int Spur, int Spuren, int Stapel, int Stapelanzahl, int? UnterrichtId, TagesStatus Status, Rectangle Bereich)> GezeichneteTagesfelder { get; } = new();
 
     /// <summary>Räumliche Darstellung (Layout 1): erhaben = hell oben/links und dunkel unten/rechts, versenkt umgekehrt.</summary>
     private static void Relief(Graphics g, RectangleF r, Raeumlich art)
@@ -1551,6 +1560,18 @@ public sealed partial class PlanAnsicht : Control
     /// <summary>Kleiner Stundenplan: nur das Fachkürzel (mit Präfixen), zentriert; Entfall durchgestrichen, Änderungen rot.</summary>
     private void KleinZeichnen(Graphics g, RectangleF r, string text, Color farbe, bool durchgestrichen = false)
     {
+        if (KlassikStil)
+        {
+            // Vorbild (Bilder 343/344): Schrift bleibt gleich groß – passt der Text nicht (schmales Teilfeld paralleler Stunden,
+            // z. B. „?E?“), steht er linksbündig und wird rechts abgeschnitten („?E“), sonst mittig
+            var gr = Math.Max(6f, Math.Min(Format.Schriftgroesse, r.Height / 1.45f));
+            var fk = Schriftcache.Holen(gr, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
+            const TextFormatFlags basis = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+            var bereich = Rectangle.Round(r);
+            var breit = TextRenderer.MeasureText(g, text, fk, Size.Empty, basis).Width > bereich.Width;
+            TextRenderer.DrawText(g, text, fk, bereich, farbe, basis | (breit ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
+            return;
+        }
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse + (KlassikStil ? 0 : 1), Math.Min(r.Height / 1.45f, r.Width / Math.Max(2.2f, text.Length * 0.62f))));
         var f = Schriftcache.Holen(groesse, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
         TextRenderer.DrawText(g, text, f, Rectangle.Round(r), farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);

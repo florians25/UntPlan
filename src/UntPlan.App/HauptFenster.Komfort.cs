@@ -89,11 +89,13 @@ public sealed partial class HauptFenster
     /// </summary>
     private void SchnellanordnungenAufbauen()
     {
-        // wie im Vorbild 2026: kleine Fenstersymbole rechts in der Registerleiste
-        for (var n = 1; n <= 8; n++)
+        // wie im Vorbild (Bild 308): rechts in der Registerleiste Trennlinie, drei nummerierte Fenstersymbole, Trennlinie und ein
+        // Fenstersymbol ohne Nummer (Menü der benannten Fensteranordnungen)
+        _ribbon.Rechts.Items.Add(new ToolStripSeparator());
+        for (var n = 1; n <= 3; n++)
         {
             var nr = n;
-            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 20, Height = 20, Margin = new Padding(0, 1, 0, 1) };
+            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Height = 20, Margin = new Padding(0, 1, 0, 1) };
             b.MouseUp += (_, e) =>
             {
                 if (e.Button == MouseButtons.Right) SchnellanordnungSpeichern(nr);
@@ -102,6 +104,11 @@ public sealed partial class HauptFenster
             _schnellAnordnung[nr - 1] = b;
             _ribbon.Rechts.Items.Add(b);
         }
+        _ribbon.Rechts.Items.Add(new ToolStripSeparator());
+        var menue = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Height = 20, Margin = new Padding(0, 1, 0, 1),
+            Image = Symbole.Get("anordnung", 16), ToolTipText = "Fensteranordnungen speichern, laden, löschen" };
+        menue.Click += (_, _) => FensteranordnungMenue();
+        _ribbon.Rechts.Items.Add(menue);
         SchnellanordnungenAnzeigen();
     }
 
@@ -121,8 +128,8 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>
-    /// Schnellknopf wie in der Vorlage: FatCow-Symbol „überlappende Fenster“ mit der Nummer unten rechts (dunkel mit hellem Rand);
-    /// frei = Symbol blass.
+    /// Schnellknopf wie in der Vorlage: FatCow-Symbol „überlappende Fenster“ mit der Nummer unten rechts (dunkel mit hellem Rand),
+    /// belegt oder frei gleich kräftig wie im Vorbild (der Tooltip nennt die Belegung).
     /// </summary>
     private static Bitmap SchnellBild(int n, bool belegt)
     {
@@ -130,7 +137,7 @@ public sealed partial class HauptFenster
         using var g = Graphics.FromImage(bmp);
         using (var attr = new System.Drawing.Imaging.ImageAttributes())
         {
-            attr.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix { Matrix33 = belegt ? 1f : .45f });
+            attr.SetColorMatrix(new System.Drawing.Imaging.ColorMatrix { Matrix33 = 1f });
             g.DrawImage(Symbole.Get("anordnung", 16), new Rectangle(0, 0, 16, 16), 0, 0, 16, 16, GraphicsUnit.Pixel, attr);
         }
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
@@ -138,10 +145,10 @@ public sealed partial class HauptFenster
         var text = n.ToString();
         var r = new RectangleF(8, 5, 9, 12);
         using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        using (var hell = new SolidBrush(Color.FromArgb(belegt ? 255 : 170, Color.White)))
+        using (var hell = new SolidBrush(Color.White))
             foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
                 g.DrawString(text, f, hell, new RectangleF(r.X + dx, r.Y + dy, r.Width, r.Height), sf);
-        using var dunkel = new SolidBrush(belegt ? Color.FromArgb(16, 42, 72) : Color.FromArgb(150, 16, 42, 72));
+        using var dunkel = new SolidBrush(Color.FromArgb(16, 42, 72));
         g.DrawString(text, f, dunkel, r, sf);
         return bmp;
     }

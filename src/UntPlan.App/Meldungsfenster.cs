@@ -70,8 +70,10 @@ public static partial class Ui
         IReadOnlyList<bool>? aktiv, StrongBox<int?> ergebnis)
     {
         // ohne eigenen Titel wie im Vorbild „UntPlan - Hinweis“ (bzw. Frage/Fehler)
-        if (string.IsNullOrWhiteSpace(titel) || titel.Trim() == "UntPlan")
-            titel = "UntPlan - " + art switch { MeldungsArt.Fehler => "Fehler", MeldungsArt.Frage => "Frage", _ => "Hinweis" };
+        var artTitel = art switch { MeldungsArt.Fehler => "Fehler", MeldungsArt.Frage => "Frage", _ => "Hinweis" };
+        if (string.IsNullOrWhiteSpace(titel) || titel.Trim() == "UntPlan") titel = "UntPlan - " + artTitel;
+        // Titel passend zur Art: eine Meldung ohne Frage (z. B. „Datenübertragung erfolgreich“) heißt nie „Frage“
+        else if (art != MeldungsArt.Frage && titel.Trim() == "UntPlan - Frage") titel = "UntPlan - " + artTitel;
         var f = new MeldungsForm { Text = titel, Art = art };
         var liste = knoepfe.Where(k => !abbrechen || k != "Abbrechen").ToList();
         var alle = abbrechen ? liste.Append("Abbrechen").ToList() : liste;
@@ -85,8 +87,8 @@ public static partial class Ui
         var maxText = 460;
         var textBreite = Math.Min(maxText, einzeilig.Width + 8);
         // Vorbild: rechts neben der längsten Zeile 21 Pixel bis zum Rand
-        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 3, knopfSumme), 206, 900);
-        textBreite = breite - textLinks - 3;
+        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 2, knopfSumme), 206, 900);
+        textBreite = breite - textLinks - 2;
         var groesse = TextRenderer.MeasureText(normal, Schrift, new Size(textBreite, 0), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
         var hoehe = Math.Clamp(groesse.Height + 4, 16, 440);
         // kurze Meldungen mittig in der Mindestfläche; längere wie im Vorbild 45 Pixel unter der Titelleiste und 27 über der Knopfleiste
@@ -170,6 +172,8 @@ public static partial class Ui
 
         /// <summary>Bereich des Schließen-Knopfes (×) in der Titelleiste.</summary>
         internal Rectangle SchliessenBereich => new(ClientSize.Width - 1 - SchliessenBreite, 1, SchliessenBreite, TitelHoehe);
+        /// <summary>Mitte des × wie im Meldungsfenster des Vorbilds (Bild 326, gemessen): 24 Pixel vor der rechten und 11 unter der oberen Randlinie.</summary>
+        private const int SchliessenRechts = 24, SchliessenOben = 11;
 
         protected override void OnActivated(EventArgs e) { base.OnActivated(e); Aktiv = true; RandfarbeSetzen(); Invalidate(); }
         protected override void OnDeactivate(EventArgs e) { base.OnDeactivate(e); Aktiv = false; RandfarbeSetzen(); Invalidate(); }
@@ -192,7 +196,10 @@ public static partial class Ui
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Raender r);
         [System.Runtime.InteropServices.DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int wert, int groesse);
 
-        /// <summary>Weicher Schatten rundum wie im Vorbild (Fensterschatten des Systems auch ohne Rahmen).</summary>
+        /// <summary>
+        /// Weicher Schatten rundum wie im Vorbild (Fensterschatten des Systems auch ohne Rahmen). Kein zusätzlicher Klassenschatten
+        /// (CS_DROPSHADOW): der läge als harter grauer Streifen rechts und unten neben dem weichen Schatten (Bild 345, Ecke neben OK).
+        /// </summary>
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
@@ -203,6 +210,9 @@ public static partial class Ui
                 DwmSetWindowAttribute(Handle, 2, ref an, 4);
                 var r = new Raender { L = 1, R = 1, O = 1, U = 1 };
                 DwmExtendFrameIntoClientArea(Handle, ref r);
+                // eckige Fensterecken wie im Vorbild (Bild 326); Windows 11 rundet sonst die Ecken ab und schneidet
+                // die Titelleiste neben dem × sowie die Ecke unten rechts neben den Knöpfen an (Bild 345)
+                if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) { var eckig = 1; DwmSetWindowAttribute(Handle, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, ref eckig, 4); }
                 RandfarbeSetzen();
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
@@ -220,16 +230,6 @@ public static partial class Ui
             DoubleBuffered = true;
             ShowIcon = false;
             SetStyle(ControlStyles.ResizeRedraw, true);
-        }
-
-        protected override CreateParams CreateParams
-        {
-            get
-            {
-                var cp = base.CreateParams;
-                cp.ClassStyle |= 0x20000; // CS_DROPSHADOW
-                return cp;
-            }
         }
 
         protected override void OnTextChanged(EventArgs e)
@@ -286,11 +286,11 @@ public static partial class Ui
                 using (var rot = new SolidBrush(Color.FromArgb(232, 17, 35))) g.FillRectangle(rot, SchliessenBereich);
             // UntPlan-Logo oben links wie in allen Fenstern
             g.DrawIconUnstretched(Symbole.LogoKlein, new Rectangle(9, 1 + (TitelHoehe - 16) / 2, 16, 16));
-            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(31, 5, w - 31 - SchliessenBreite, TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
+            TextRenderer.DrawText(g, Text, TitelSchrift, new Rectangle(31, 5, Math.Max(0, SchliessenBereich.X - 31), TitelHoehe - 2), Aktiv ? Color.White : Color.Black,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
-            // × wie bei den Arbeitsfenstern (9 × 9 mit weichen Kanten), Mitte 24 Pixel vor dem rechten Rand und 11 unter dem oberen
+            // × wie im Meldungsfenster des Vorbilds (9 × 9 mit weichen Kanten), Mitte 24 Pixel vor der rechten und 11 unter der oberen Randlinie
             var grund = _schliessenHover ? Color.FromArgb(232, 17, 35) : TitelFarbe;
-            Steuerelemente.FensterTitel.GlypheZeichnen(g, 2, new Point(w - 1 - 24, 11), _schliessenHover || Aktiv ? Color.White : Color.FromArgb(72, 72, 72), grund);
+            Steuerelemente.FensterTitel.GlypheZeichnen(g, 2, new Point(w - 1 - SchliessenRechts, SchliessenOben), _schliessenHover || Aktiv ? Color.White : Color.FromArgb(72, 72, 72), grund);
             using (var r = new Pen(Aktiv ? MeldungKnopfRand : MeldungRahmen)) g.DrawRectangle(r, 0, 0, w - 1, ClientSize.Height - 1);
             if (!SymbolBereich.IsEmpty) SymbolZeichnen(g, SymbolBereich, Art);
         }

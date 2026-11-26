@@ -225,9 +225,51 @@ public static class Erscheinungsbild
                 case TabPage p: Karte(p); break;
                 case DataGridView g when g.BorderStyle == BorderStyle.Fixed3D: KlassischVertieft.Anmelden(g); break;
                 case GroupBox gb when gb.FlatStyle == FlatStyle.Standard: Gruppenrahmen(gb); break;
+                case CheckBox cb when cb.Appearance == Appearance.Normal && cb.FlatStyle == FlatStyle.Standard: Kontrollkaestchen(cb); break;
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Kontrollkästchen wie im Vorbild (gemessen, „Offene Vertretungen“): flaches Quadrat 11 × 11 Pixel, Rand (171,171,171), weiß
+    /// gefüllt – statt des größeren, abgerundeten Windows-Kästchens.
+    /// </summary>
+    private static void Kontrollkaestchen(CheckBox cb)
+    {
+        if (Gestaltet.TryGetValue(cb, out _) || InEigenemFenster(cb)) return;
+        Gestaltet.Add(cb, new object());
+        cb.FlatStyle = FlatStyle.Flat;
+        cb.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
+        // Windows zeichnet das flache Kästchen schwarz umrandet und getönt: wie im Vorbild weiß mit grauem Rand, Text 14 Pixel
+        // nach dem Kästchenrand (gemessen in Bild 308)
+        if (cb.CheckAlign != ContentAlignment.MiddleLeft || cb.RightToLeft == RightToLeft.Yes) return;
+        cb.Padding = new Padding(cb.Padding.Left, cb.Padding.Top, Math.Max(cb.Padding.Right, 4), cb.Padding.Bottom);
+        cb.Paint += (_, e) =>
+        {
+            var g = e.Graphics;
+            var grund = cb.BackColor.A == 255 ? cb.BackColor : cb.Parent?.BackColor ?? SystemColors.Control;
+            using (var b = new SolidBrush(grund)) g.FillRectangle(b, cb.ClientRectangle);
+            var box = new Rectangle(0, (cb.ClientSize.Height - 11) / 2, 11, 11);
+            using (var weiss = new SolidBrush(cb.Enabled ? Color.White : Color.FromArgb(244, 244, 244))) g.FillRectangle(weiss, box);
+            using (var p = new Pen(Color.FromArgb(171, 171, 171))) g.DrawRectangle(p, box.X, box.Y, 10, 10);
+            if (cb.CheckState != CheckState.Unchecked)
+            {
+                var farbe = cb.Enabled ? Color.Black : Color.FromArgb(160, 160, 160);
+                if (cb.CheckState == CheckState.Indeterminate) using (var b = new SolidBrush(farbe)) g.FillRectangle(b, box.X + 3, box.Y + 3, 5, 5);
+                else
+                    using (var b = new SolidBrush(farbe))
+                        for (var i = 0; i < 7; i++)
+                        {
+                            // klassisches Häkchen 7 × 7, drei Pixel hoch
+                            var y = i < 3 ? box.Y + 4 + i : box.Y + 6 - (i - 2);
+                            g.FillRectangle(b, box.X + 2 + i, y, 1, 3);
+                        }
+            }
+            var textFarbe = cb.Enabled ? cb.ForeColor : SystemColors.GrayText;
+            TextRenderer.DrawText(g, cb.Text, cb.Font, new Rectangle(13, 0, Math.Max(0, cb.ClientSize.Width - 13), cb.ClientSize.Height), textFarbe,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | (cb.UseMnemonic ? 0 : TextFormatFlags.NoPrefix));
+        };
     }
 
     /// <summary>
