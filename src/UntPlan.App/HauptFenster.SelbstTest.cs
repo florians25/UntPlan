@@ -13,6 +13,60 @@ namespace UntPlan.App;
 public sealed partial class HauptFenster
 {
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void mouse_event(uint flags, int dx, int dy, int daten, UIntPtr extra);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetDpiForSystem();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr GetThreadDpiAwarenessContext();
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern int GetAwarenessFromDpiAwarenessContext(IntPtr ctx);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr ctx);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [System.Runtime.InteropServices.DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int art, out uint x, out uint y);
+
+    /// <summary>Selbsttest V44: gleicher Inhalt auf verschiedenen Zeichenwegen (0 direkt GDI, 1 doppelt gepuffert, 2 GDI+, 3 eigener kompatibler Puffer).</summary>
+    private sealed class DpiProbe : Control
+    {
+        private readonly int _art;
+        public DpiProbe(int art)
+        {
+            _art = art;
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            SetStyle(ControlStyles.OptimizedDoubleBuffer, art == 1);
+        }
+        private void Inhalt(Graphics g)
+        {
+            g.Clear(Color.White);
+            using var p = new Pen(Color.Black);
+            g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
+            for (var x = 30; x < Width; x += 30) g.DrawLine(p, x, 0, x, 40);
+            g.DrawLine(p, 0, 40, Width, 40);
+            if (_art == 2) g.DrawString("Mo Di .?E? 0123", Ui.Schrift, Brushes.Black, 4, 48);
+            else TextRenderer.DrawText(g, "Mo Di .?E? 0123", Ui.Schrift, new Point(4, 48), Color.Black);
+            TextRenderer.DrawText(g, "Stundenplan", new Font("Arial", 8.25f, FontStyle.Bold), new Point(4, 68), Color.Black);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if (_art != 3) { Inhalt(e.Graphics); return; }
+            var hdc = e.Graphics.GetHdc();
+            try
+            {
+                var mem = CreateCompatibleDC(hdc);
+                var bmp = CreateCompatibleBitmap(hdc, Width, Height);
+                var alt = SelectObject(mem, bmp);
+                using (var g = Graphics.FromHdc(mem)) Inhalt(g);
+                BitBlt(hdc, 0, 0, Width, Height, mem, 0, 0, 0x00CC0020);
+                SelectObject(mem, alt);
+                DeleteObject(bmp);
+                DeleteDC(mem);
+            }
+            finally { e.Graphics.ReleaseHdc(hdc); }
+        }
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int w, int h);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hdc, IntPtr o);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr o);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hdc);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr ziel, int x, int y, int w, int h, IntPtr quelle, int qx, int qy, uint rop);
+    }
+
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")] private static extern IntPtr GetClassLongPtr(IntPtr hwnd, int index);
 
     /// <summary>Schnelle Druckprobe (UntPlan.exe --druckprobe=Ordner): Beispielschule planen, Stundenplandrucke als Bilder speichern, beenden.</summary>
@@ -2163,6 +2217,51 @@ public sealed partial class HauptFenster
                 f.Close();
             }
             if (fehler.Count > 0) log.Add($"FEHLER V43: {string.Join("; ", fehler)}");
+        }, -1);
+        // Hochauflösende Darstellung: DPI-Modus des Prozesses protokollieren und gleiche Inhalte auf verschiedenen Zeichenwegen
+        // (direkt, doppelt gepuffert, GDI+, Knopf) in echten Bildschirmpunkten aufnehmen – bei 125/150 % zeigt sich, was unscharf wird
+        Schritt("V44_Hochaufloesung", () =>
+        {
+            var monitor = MonitorFromWindow(Handle, 2);
+            GetDpiForMonitor(monitor, 0, out var mx, out _);
+            var bewusst = GetAwarenessFromDpiAwarenessContext(GetThreadDpiAwarenessContext());
+            log.Add($"INFO  V44 DPI: System {GetDpiForSystem()}, Monitor {mx}, Fenster {GetDpiForWindow(Handle)}, DeviceDpi {DeviceDpi}, Modus {Application.HighDpiMode}, Bewusstsein {bewusst}");
+            var f = new Form { FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual, Location = new Point(40, 40), ClientSize = new Size(560, 140), BackColor = Color.White, ShowInTaskbar = false };
+            for (var i = 0; i < 4; i++) f.Controls.Add(new DpiProbe(i) { Bounds = new Rectangle(4 + i * 138, 4, 134, 90) });
+            var knopf = new Button { Text = "OK", FlatStyle = FlatStyle.Flat, Bounds = new Rectangle(4, 100, 88, 26), Font = Ui.Schrift, BackColor = Ui.StandardKnopfFlaeche };
+            Ui.StandardKnopf(knopf);
+            f.Controls.Add(knopf);
+            f.Controls.Add(new Label { Text = "Beschriftung Stundenplan", Bounds = new Rectangle(100, 104, 200, 18), Font = Ui.Schrift });
+            f.Show(this);
+            Warten(600);
+            f.Refresh();
+            var faktor = mx / 96f;
+            var logisch = f.Bounds;
+            var vorher = SetThreadDpiAwarenessContext((IntPtr)(-4));
+            try
+            {
+                var r = new Rectangle((int)(logisch.X * faktor), (int)(logisch.Y * faktor), (int)Math.Ceiling(logisch.Width * faktor), (int)Math.Ceiling(logisch.Height * faktor));
+                using var bmp = new Bitmap(r.Width, r.Height);
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, "V44_Hochaufloesung_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+                // Schärfe je Feld: Anteil der Zwischentöne an allen nicht weißen Bildpunkten (scharf gezeichnet: wenige Zwischentöne)
+                var namen = new[] { "direkt", "doppelt gepuffert", "GDI+", "eigener Puffer" };
+                for (var i = 0; i < 4; i++)
+                {
+                    var feld = new Rectangle((int)((4 + i * 138) * faktor), (int)(4 * faktor), (int)(134 * faktor), (int)(90 * faktor));
+                    int dunkel = 0, zwischen = 0;
+                    for (var x = feld.Left; x < Math.Min(feld.Right, bmp.Width); x++)
+                        for (var y = feld.Top; y < Math.Min(feld.Bottom, bmp.Height); y++)
+                        {
+                            var h = bmp.GetPixel(x, y).GetBrightness();
+                            if (h < 0.25f) dunkel++;
+                            else if (h < 0.9f) zwischen++;
+                        }
+                    log.Add($"MASS  V44 {namen[i]}: dunkel {dunkel}, Zwischentöne {zwischen}, Anteil {(dunkel + zwischen == 0 ? 0 : 100 * zwischen / (dunkel + zwischen))} %");
+                }
+            }
+            finally { SetThreadDpiAwarenessContext(vorher); }
+            f.Close();
         }, -1);
         Schritt("V16_Einzelstunden", () =>
         {
