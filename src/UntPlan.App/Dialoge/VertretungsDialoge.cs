@@ -392,22 +392,7 @@ public static class SondereinsatzDialog
                 Uebertragen(zeile, name);
             });
         }
-        bool Mehrfach(int spalte) => spalte >= 0 && g.Columns[spalte].Name is "L" or "K";
-        g.CellPainting += (_, e) =>
-        {
-            if (e.RowIndex < 0 || !Mehrfach(e.ColumnIndex) || g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || g.IsCurrentCellInEditMode) return;
-            Steuerelemente.MehrfachAuswahl.PfeilZeichnen(e);
-        };
-        g.CellMouseClick += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.Button != MouseButtons.Left || !Mehrfach(e.ColumnIndex)) return;
-            if (Steuerelemente.MehrfachAuswahl.AufPfeil(g, e)) MehrfachZeigen(e.RowIndex, e.ColumnIndex);
-        };
-        g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && Mehrfach(e.ColumnIndex)) MehrfachZeigen(e.RowIndex, e.ColumnIndex); };
-        g.KeyDown += (_, e) =>
-        {
-            if (e.Alt && e.KeyCode == Keys.Down && g.CurrentCell is { } c && Mehrfach(c.ColumnIndex)) { e.Handled = true; MehrfachZeigen(c.RowIndex, c.ColumnIndex); }
-        };
+        Steuerelemente.MehrfachAuswahl.Anbinden(g, z => z.OwningColumn.Name is "L" or "K", MehrfachZeigen);
         bKl.Click += (_, _) =>
         {
             var i = Zeile();

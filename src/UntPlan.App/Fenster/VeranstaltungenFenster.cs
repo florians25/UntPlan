@@ -150,16 +150,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _g.CellContentClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _g.Columns[e.ColumnIndex].Name is "Z" or "ND") _g.EndEdit(); };
         _g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && e.ColumnIndex == 0) Bearbeiten(); };
         _g.CellFormatting += Formatieren;
-        _g.CellPainting += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex) return;
-            if (AuswahlSpalten.Contains(_g.Columns[e.ColumnIndex].Name) && !_g.IsCurrentCellInEditMode) MehrfachAuswahl.PfeilZeichnen(e);
-        };
-        _g.CellMouseClick += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Button != MouseButtons.Left || !AuswahlSpalten.Contains(_g.Columns[e.ColumnIndex].Name)) return;
-            if (MehrfachAuswahl.AufPfeil(_g, e)) AuswahlZeigen(e.RowIndex, e.ColumnIndex);
-        };
+        // Auswahlspalten wie jede Zelle mit Aufklappliste: Knopf in der aktuellen Zelle, Klick, Alt+↓/F4 und Doppelklick öffnen
+        MehrfachAuswahl.Anbinden(_g, z => AuswahlSpalten.Contains(z.OwningColumn.Name), AuswahlZeigen);
         _g.KeyDown += Taste;
         _kommentare = ZellKommentare.Aktivieren(_g, r => r.Tag is Veranstaltung va ? ("Veranstaltung:" + va.Id, "Veranstaltung Nr. " + va.Id) : null);
         // Kontextmenü: Schnellauswahl für die angeklickte Spalte (Klasse, Kl-Teil, Lehrer, Raum)
@@ -333,11 +325,6 @@ public sealed class VeranstaltungenFenster : MdiFenster
         if (_g.IsCurrentCellInEditMode) return;
         if (e.Control && e.KeyCode == Keys.C) { KopierenMerken(); _ablageText = Steuerelemente.Tabellenbedienung.DatensaetzeKopieren(_g); e.Handled = true; }
         else if (e.Control && e.KeyCode == Keys.V && _zwischenablage != null && Steuerelemente.Tabellenbedienung.DatensatzEinfuegen(_ablageText)) { Einfuegen(); e.Handled = true; }
-        else if ((e.KeyCode == Keys.F4 || (e.Alt && e.KeyCode == Keys.Down)) && _g.CurrentCell is { } c && AuswahlSpalten.Contains(c.OwningColumn.Name))
-        {
-            AuswahlZeigen(c.RowIndex, c.ColumnIndex);
-            e.Handled = true;
-        }
         else if (e.KeyData == (Keys.Control | Keys.Delete)) { Loeschen(); e.Handled = true; }
     }
 

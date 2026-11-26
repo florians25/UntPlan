@@ -422,17 +422,8 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             return el is null ? null : new Steuerelemente.ListenStil(Color.White, Color.Black, el is Lehrer l ? l.VollerName : el is Raumgruppe ? "Raumgruppe " + el.Langname : el.Langname);
         });
         // Klassen: Mehrfachauswahl mit Langnamen über den Pfeil in der aktuellen Zelle bzw. Alt+↓
-        _grid.CellPainting += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.CurrentCell is not { } c ||
-                c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || _grid.IsCurrentCellInEditMode || _grid[e.ColumnIndex, e.RowIndex].ReadOnly) return;
-            MehrfachAuswahl.PfeilZeichnen(e);
-        };
-        _grid.CellMouseClick += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.Button != MouseButtons.Left || _grid.Columns[e.ColumnIndex].Name != "Klassen") return;
-            if (MehrfachAuswahl.AufPfeil(_grid, e)) KlassenAuswahl(e.RowIndex);
-        };
+        // (Doppelklick öffnet hier den Dialog „Klassen des Unterrichts“)
+        MehrfachAuswahl.Anbinden(_grid, z => z.OwningColumn.Name == "Klassen", (zeile, _) => KlassenAuswahl(zeile), doppelklick: false);
         _grid.CellDoubleClick += (_, e) =>
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Klassen" || _grid.Rows[e.RowIndex].Tag is not ZeilenTag zt) return;
@@ -467,7 +458,6 @@ public sealed class UnterrichtFenster : MdiFenster, IDruckbar
             else if (e.Control && !e.Shift && !e.Alt && e.KeyCode == Keys.V && !_grid.IsCurrentCellInEditMode && _zwischenablage.Count > 0) { UnterrichteEinfuegen(); e.Handled = true; e.SuppressKeyPress = true; }
             // Erweitertes Einfügen (mit Stundenplan): Strg+Umschalt+V
             else if (e.Control && e.Shift && !e.Alt && e.KeyCode == Keys.V && !_grid.IsCurrentCellInEditMode && _zwischenablage.Count > 0) { UnterrichteEinfuegen(true); e.Handled = true; e.SuppressKeyPress = true; }
-            else if (e.Alt && e.KeyCode == Keys.Down && _grid.CurrentCell is { } c && _grid.Columns[c.ColumnIndex].Name == "Klassen" && !c.ReadOnly) { e.Handled = true; KlassenAuswahl(c.RowIndex); }
         };
 
         var unten = new Fussleiste { BackColor = Color.FromArgb(246, 248, 251) };

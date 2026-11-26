@@ -11,9 +11,11 @@ namespace UntPlan.App.Steuerelemente;
 /// <item>Tippen öffnet die Liste und springt sofort zum besten Treffer (Kurzname, dann Langname)</item>
 /// <item>Enter/Tab übernimmt den markierten Eintrag (wie ein Mausklick), Esc stellt den alten Wert her</item>
 /// <item>ungültige Eingabe wird nicht übernommen (kurzer Hinweis, der alte Wert bleibt)</item>
-/// <item>das Mausrad ändert den Wert nie, solange die Liste geschlossen ist (es rollt die Umgebung)</item>
+/// <item>das Mausrad über der zugeklappten Liste blättert je Rastung einen Eintrag weiter (wie ein Klick), sonst rollt die Umgebung</item>
 /// </list>
-/// Freie Eingabefelder (z. B. Land, Schuljahr) nutzen nur Darstellung, Breite, Richtung und Mausradschutz.
+/// Die Regeln selbst (Treffer, Blättern, Farben, Zahl der Einträge) stehen in <see cref="Aufklappliste"/> und gelten genauso für die
+/// Listen unter Tabellenzellen (<see cref="MehrfachAuswahl"/>). Freie Eingabefelder (z. B. Land, Schuljahr) nutzen nur Darstellung,
+/// Breite, Richtung und das Mausrad.
 /// </summary>
 public static class ListenSuche
 {
@@ -35,7 +37,7 @@ public static class ListenSuche
     }
 
     /// <summary>Zahl der Einträge, die eine geöffnete Liste höchstens zeigt (überall gleich, danach Rollbalken).</summary>
-    public const int SichtbareEintraege = 20;
+    public const int SichtbareEintraege = Aufklappliste.SichtbareEintraege;
 
     /// <summary>Zuletzt gezeigter Hinweis auf eine ungültige Eingabe (für den Selbsttest).</summary>
     public static string? LetzterHinweis { get; private set; }
@@ -496,9 +498,10 @@ public static class ListenSuche
     private static readonly ConditionalWeakTable<ComboBox, object> MitMausradSchutz = new();
 
     /// <summary>
-    /// Mausradschutz (für jede Auswahlliste genau einmal): über einer geschlossenen Liste ändert das Rad nie den Wert – auch nicht,
-    /// wenn sie den Fokus hat (zu leicht passiert das beim Rollen durch einen Dialog oder eine Tabelle); stattdessen rollt die
-    /// umgebende Tabelle bzw. Fläche. In der geöffneten Liste blättert das Rad wie gewohnt.
+    /// Mausrad (für jede Auswahlliste genau einmal, siehe <see cref="Aufklappliste"/>): über der zugeklappten Liste blättert das Rad
+    /// je Rastung genau einen Eintrag weiter, wie ein Klick auf diesen Eintrag (das Fenster reagiert wie sonst auch). Steht der
+    /// Mauszeiger nicht über der Liste (sie hat nur den Fokus), rollt die umgebende Tabelle bzw. Fläche. In der geöffneten Liste
+    /// rollt das Rad die Liste wie gewohnt.
     /// </summary>
     public static void MausradSchuetzen(ComboBox cb)
     {
@@ -510,12 +513,13 @@ public static class ListenSuche
     /// <summary>Hat die Liste den Mausradschutz?</summary>
     public static bool HatMausradSchutz(ComboBox cb) => MitMausradSchutz.TryGetValue(cb, out _);
 
-    private sealed class Blaetterer { public required Action<int> Schritt; public int Rest; }
+    private sealed class Blaetterer { public required Action<int> Schritt; public readonly Aufklappliste.Rad Rad = new(); }
+    private static readonly ConditionalWeakTable<ComboBox, Aufklappliste.Rad> Raeder = new();
     private static readonly ConditionalWeakTable<ComboBox, Blaetterer> MitMausradBlaettern = new();
 
     /// <summary>
-    /// Elementauswahl der Stundenpläne (wie im Vorbild): das Mausrad über der geschlossenen Liste blättert zum vorherigen bzw.
-    /// nächsten Element – je Rastung genau ein Schritt (wie die Hoch/Runter-Knöpfe daneben); feine Räder sammeln bis zu einer Rastung.
+    /// Eigener Schritt für das Mausrad (Elementauswahl der Stundenpläne: wie die Hoch/Runter-Knöpfe daneben, z. B. mit Planaufbau);
+    /// ohne Anmeldung blättert das Rad den Eintrag der Liste selbst (<see cref="Blaettern"/>).
     /// </summary>
     public static void MausradBlaettern(ComboBox cb, Action<int> schritt)
     {
@@ -526,20 +530,40 @@ public static class ListenSuche
     /// <summary>Blättert das Mausrad diese Liste (Elementauswahl eines Plans)?</summary>
     public static bool HatMausradBlaettern(ComboBox cb) => MitMausradBlaettern.TryGetValue(cb, out _);
 
+    /// <summary>
+    /// Mausrad über der zugeklappten Liste: einen Eintrag weiter (+1) bzw. zurück (-1), gemeldet wie ein Mausklick (Auswahl geändert
+    /// und bestätigt); an den Enden bleibt die Liste stehen.
+    /// </summary>
+    public static void Blaettern(ComboBox cb, int richtung)
+    {
+        if (cb.IsDisposed || !cb.Enabled || cb.Items.Count == 0) return;
+        var i = Aufklappliste.Blaettern(cb.SelectedIndex, cb.Items.Count, richtung);
+        if (i < 0 || i == cb.SelectedIndex) return;
+        cb.SelectedIndex = i;
+        if (Zustaende.TryGetValue(cb, out var z)) VorherMerken(cb, z);
+        if (cb is not IDataGridViewEditingControl)
+        {
+            try { AuswahlBestaetigt?.Invoke(cb, new object[] { EventArgs.Empty }); }
+            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
+        }
+    }
+
     private static void Mausrad(object? sender, MouseEventArgs e)
     {
         if (sender is not ComboBox cb || cb.DroppedDown || e is not HandledMouseEventArgs h) return;
         h.Handled = true;
+        // Rad nach oben = vorheriger Eintrag, nach unten = nächster; je volle Rastung (120) ein Schritt
         if (MitMausradBlaettern.TryGetValue(cb, out var bl))
         {
-            // Rad nach oben = vorheriges Element, nach unten = nächstes; je volle Rastung (120) ein Schritt
-            bl.Rest += e.Delta;
-            while (Math.Abs(bl.Rest) >= 120)
-            {
-                var r = bl.Rest > 0 ? -1 : 1;
-                bl.Rest += r * 120;
-                bl.Schritt(r);
-            }
+            foreach (var r in bl.Rad.Schritte(e.Delta)) bl.Schritt(r);
+            return;
+        }
+        // eine laufende Tippsuche bzw. ein getippter Suchtext wird nicht vom Rad überschrieben
+        var getippt = Zustaende.TryGetValue(cb, out var zz) && zz.Getippt || Tippsuchtext(cb).Length > 0;
+        if (Aufklappliste.UeberDerListe(cb, e.Location) && cb.Enabled && cb.Items.Count > 0 && !getippt && !(zz?.Frei == true && cb.SelectedIndex < 0))
+        {
+            var rad = Raeder.GetValue(cb, _ => new Aufklappliste.Rad());
+            foreach (var r in rad.Schritte(e.Delta)) Blaettern(cb, r);
             return;
         }
         for (var p = cb.Parent; p != null; p = p.Parent)
@@ -582,14 +606,7 @@ public static class ListenSuche
         var eintraege = cb.Items.Cast<object>().ToList();
         var kurz = eintraege.Select(o => cb.GetItemText(o) ?? "").ToList();
         var lang = kurz.Select((k, n) => Zusatz(eintraege[n], k, z.Langname) ?? "").ToList();
-        const StringComparison ci = StringComparison.CurrentCultureIgnoreCase;
-        var i = kurz.FindIndex(k => k.Equals(text, ci));
-        if (i < 0) i = kurz.FindIndex(k => k.StartsWith(text, ci));
-        if (i < 0) i = lang.FindIndex(l => l.StartsWith(text, ci));
-        if (i < 0) i = lang.FindIndex(l => l.Split(' ', ',', '-').Any(w => w.StartsWith(text, ci)));
-        if (i < 0) i = kurz.FindIndex(k => k.Contains(text, ci));
-        if (i < 0) i = lang.FindIndex(l => l.Contains(text, ci));
-        return i;
+        return Aufklappliste.Treffer(kurz, lang, text);
     }
 
     private static void Suchen(ComboBox cb, Zustand z)
@@ -751,8 +768,8 @@ public static class ListenSuche
         var s = z?.Stil?.Invoke(text);
         var zusatz = !string.IsNullOrEmpty(s?.Zusatz) ? s.Value.Zusatz : Zusatz(cb.Items[e.Index], text, z?.Langname);
         var ausgewaehlt = (e.State & DrawItemState.Selected) != 0;
-        var hinter = ausgewaehlt ? SystemColors.Highlight : s?.Hintergrund is Color h && h != Color.Empty ? h : cb.BackColor;
-        var vorder = ausgewaehlt ? SystemColors.HighlightText : s?.Text is Color t && t != Color.Empty ? t : cb.ForeColor;
+        var hinter = ausgewaehlt ? Aufklappliste.AuswahlHintergrund : s?.Hintergrund is Color h && h != Color.Empty ? h : cb.BackColor;
+        var vorder = ausgewaehlt ? Aufklappliste.AuswahlText : s?.Text is Color t && t != Color.Empty ? t : cb.ForeColor;
         using (var b = new SolidBrush(hinter)) e.Graphics.FillRectangle(b, e.Bounds);
         var r = e.Bounds;
         // Symbol vor dem Kurznamen (z. B. Lehrersymbol in der Vertreterliste wie im Vorbild)

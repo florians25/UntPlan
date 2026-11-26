@@ -1805,6 +1805,75 @@ public sealed partial class HauptFenster
                 WindowState = vorher;
             }
         }, -1);
+        Schritt("V56_Aufklapplisten_einheitlich", () =>
+        {
+            // eine Regel für alle Aufklapplisten (Steuerelemente.Aufklappliste): auch die Listen unter Tabellenzellen (Veranstaltungen,
+            // Unterricht, Sondereinsätze) öffnen mit Knopf, Alt+↓ und F4, Tippen markiert den besten Treffer, Tab/Enter übernehmen,
+            // Esc schließt ohne Änderung
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var fehler = new List<string>();
+            try
+            {
+                ModusFuerBild(false);
+                var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                va.WindowState = FormWindowState.Normal;
+                va.Bounds = new Rectangle(60, 40, 988, 416);
+                va.Activate();
+                va.SelbsttestNeueZeile();
+                Warten(300);
+                var g = Ui.Tabellen(va).First();
+                if (!Steuerelemente.MehrfachAuswahl.IstAngebunden(g)) fehler.Add("Veranstaltungen: Auswahlzellen nicht über den gemeinsamen Baustein");
+                // Alt+↓ öffnet
+                g.Focus();
+                Aufrufen(g, "OnKeyDown", new KeyEventArgs(Keys.Alt | Keys.Down));
+                Warten(300);
+                if (Steuerelemente.MehrfachAuswahl.Offen is not { Visible: true } liste) { fehler.Add("Alt+↓ öffnet die Klassenliste nicht"); }
+                else
+                {
+                    // Tippen: bester Treffer (Kurzname beginnt), danach Tab übernimmt
+                    var ziel = Stammdaten.Sortiert(AppZustand.D, ElementTyp.Klasse).Where(k => !k.Ignorieren).Skip(1).First().Kurzname;
+                    foreach (var z in ziel) Aufrufen(liste, "OnKeyPress", new KeyPressEventArgs(z));
+                    var markiert = liste.SelectedItems.Cast<Steuerelemente.MehrfachAuswahl.Eintrag>().Select(x => x.Kurz).ToList();
+                    if (!markiert.SequenceEqual(new[] { ziel })) fehler.Add($"Tippen „{ziel}“ markiert {string.Join(",", markiert)}");
+                    Aufrufen(liste, "OnKeyDown", new KeyEventArgs(Keys.Tab));
+                    Warten(300);
+                    if (Steuerelemente.MehrfachAuswahl.Offen != null) fehler.Add("Tab schließt die Liste nicht");
+                    var wert = g.Rows.Cast<DataGridViewRow>().Select(r => r.Cells["K"].Value?.ToString()).FirstOrDefault(v => v == ziel);
+                    if (wert != ziel) fehler.Add($"Tab übernimmt „{ziel}“ nicht in die Zelle");
+                }
+                // F4 öffnet, Esc schließt ohne Änderung
+                va.SelbsttestNeueZeile();
+                Warten(150);
+                Aufrufen(g, "OnKeyDown", new KeyEventArgs(Keys.F4));
+                Warten(300);
+                if (Steuerelemente.MehrfachAuswahl.Offen is not { Visible: true } l2) fehler.Add("F4 öffnet die Liste nicht");
+                else
+                {
+                    var zeilen = g.Rows.Count;
+                    Aufrufen(l2, "OnKeyPress", new KeyPressEventArgs('0'));
+                    Aufrufen(l2, "OnKeyDown", new KeyEventArgs(Keys.Escape));
+                    Warten(300);
+                    if (Steuerelemente.MehrfachAuswahl.Offen != null) fehler.Add("Esc schließt die Liste nicht");
+                    if (g.Rows.Count != zeilen) fehler.Add("Esc hat trotzdem einen Eintrag übernommen");
+                }
+                va.Close();
+                // Unterricht (Spalte Klassen) nutzt denselben Baustein
+                if (FensterOeffnen("u:Klasse") is { } uf)
+                {
+                    Warten(300);
+                    if (!Ui.Tabellen(uf).Any(Steuerelemente.MehrfachAuswahl.IstAngebunden)) fehler.Add("Unterricht: Klassenzellen nicht über den gemeinsamen Baustein");
+                    uf.Close();
+                }
+            }
+            finally
+            {
+                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+            if (fehler.Count > 0) throw new InvalidOperationException("Aufklapplisten uneinheitlich: " + string.Join("; ", fehler));
+            log.Add("INFO  V56 Aufklapplisten: Zellenlisten mit Alt+↓, F4, Tippen, Tab und Esc wie alle Auswahllisten");
+        }, -1);
         Schritt("V53_Schriftprobe", () =>
         {
             // Abstimmung der Menübandschrift auf das Vorbild (Bild 308): dieselben Beschriftungen mit GDI (TextRenderer) und GDI+
@@ -2940,11 +3009,14 @@ public sealed partial class HauptFenster
             Warten(400);
             log.Add($"INFO  V40 Systemrad: Index {vor} → {cb.SelectedIndex}, Aufbauten {f.Ladungen - l2}");
             if (cb.SelectedIndex != vor + 1 || f.Ladungen - l2 != 1) fehler.Add($"Systemrad: Index {vor} → {cb.SelectedIndex}, {f.Ladungen - l2} Aufbauten");
-            // andere Auswahllisten (Formatauswahl) bleiben beim Mausrad unverändert
+            // dasselbe Verhalten in jeder Auswahlliste (hier die Formatauswahl): je Rastung ein Eintrag, zurück mit der Gegenrichtung
             var fmt = f.FormatAuswahl;
             var fIndex = fmt.SelectedIndex;
-            Rad(fmt, -120);
-            if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl durch Mausrad verändert ({fIndex} → {fmt.SelectedIndex})");
+            var fSchritt = fIndex < fmt.Items.Count - 1 ? 1 : -1;
+            Rad(fmt, -120 * fSchritt);
+            if (fmt.Items.Count > 1 && fmt.SelectedIndex != fIndex + fSchritt) fehler.Add($"Formatauswahl: Mausrad blättert nicht ({fIndex} → {fmt.SelectedIndex})");
+            Rad(fmt, 120 * fSchritt);
+            if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl: Mausrad zurück {fmt.SelectedIndex} statt {fIndex}");
             log.Add($"INFO  V40 Elementauswahl {start} → {cb.SelectedIndex} ({cb.Text}), Planaufbauten {f.Ladungen - l0}");
             Vergleich("V40_Mausrad_Elementauswahl", f, new Size(272, 120));
             if (fehler.Count > 0) log.Add($"FEHLER V40: {string.Join("; ", fehler)}");
@@ -4069,7 +4141,7 @@ public sealed partial class HauptFenster
                 if (!Steuerelemente.ListenSuche.IstFrei(frei)) fehler.Add("freies Feld nicht als frei erkannt");
                 if (lehrerListen.Count > 1 && lehrerListen.Select(x => x.Breite).Distinct().Count() > 2)
                     log.Add("INFO  Lehrerlisten-Breiten: " + string.Join(", ", lehrerListen.Select(x => $"{x.Ort}={x.Breite}")));
-                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad ändert nichts
+                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad blättert
                 log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld Lehrer", lehrer, lehrerSortiert));
                 log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld kurz", kurz, new List<string> { "Standard", "links", "rechts" }));
                 d.Close();
@@ -4095,9 +4167,11 @@ public sealed partial class HauptFenster
                         Warten(60);
                         if (zc.Text != vorher) fehler.Add($"Vertreterzelle: ungültige Eingabe übernommen („{zc.Text}“ statt „{vorher}“)");
                         if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) fehler.Add("Vertreterzelle: kein Hinweis auf die ungültige Eingabe");
+                        // Mausrad über der zugeklappten Zellliste: wie überall ein Eintrag weiter
+                        var iVor = zc.SelectedIndex;
                         var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
                         Aufrufen(zc, "OnMouseWheel", rad);
-                        if (!rad.Handled || zc.Text != vorher) fehler.Add("Vertreterzelle: Mausrad ändert den Wert");
+                        if (!rad.Handled || zc.SelectedIndex != Math.Min(iVor + 1, zc.Items.Count - 1)) fehler.Add($"Vertreterzelle: Mausrad blättert nicht ({iVor} → {zc.SelectedIndex})");
                     }
                     g.CancelEdit();
                     g.EndEdit();
@@ -5032,7 +5106,7 @@ public sealed partial class HauptFenster
 
     /// <summary>
     /// R3-A: Bedienung einer Auswahlliste prüfen – Tippen springt zum Treffer, Enter übernimmt (wie ein Mausklick), Esc stellt den
-    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad ändert nichts.
+    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad blättert die zugeklappte Liste.
     /// </summary>
     private static string AuswahlVerhaltenPruefen(string ort, ComboBox cb, List<string> werte)
     {
@@ -5080,10 +5154,22 @@ public sealed partial class HauptFenster
             Aufrufen(cb, "OnPreviewKeyDown", new PreviewKeyDownEventArgs(Keys.Tab));
             Warten(40);
             if (Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Tab übernimmt „{Wert()}“ statt „{kandidaten[1]}“");
-            // 5) Mausrad über der geschlossenen Liste
-            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+            // 5) Mausrad über der zugeklappten Liste: eine Rastung nach unten = nächster Eintrag (wie ein Klick), nach oben zurück
+            var indexVorRad = cb.SelectedIndex;
+            var bestaetigtVorRad = bestaetigt;
+            // am Listenende zuerst nach oben (dann zurück nach unten)
+            var schritt = indexVorRad < cb.Items.Count - 1 ? 1 : -1;
+            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120 * schritt);
             Aufrufen(cb, "OnMouseWheel", rad);
-            if (!rad.Handled || Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Mausrad ändert den Wert der geschlossenen Liste");
+            var erwartet = Math.Clamp(indexVorRad + schritt, 0, cb.Items.Count - 1);
+            if (!rad.Handled || cb.SelectedIndex != erwartet) throw new InvalidOperationException($"{ort}: Mausrad blättert nicht ({indexVorRad} → {cb.SelectedIndex} statt {erwartet})");
+            if (erwartet != indexVorRad && bestaetigt == bestaetigtVorRad) throw new InvalidOperationException($"{ort}: Mausrad meldet die Auswahl nicht wie ein Klick");
+            if (cb.DroppedDown) throw new InvalidOperationException($"{ort}: Mausrad öffnet die Liste");
+            Aufrufen(cb, "OnMouseWheel", new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, 120 * schritt));
+            if (cb.SelectedIndex != indexVorRad) throw new InvalidOperationException($"{ort}: Mausrad in Gegenrichtung führt nicht zurück ({cb.SelectedIndex} statt {indexVorRad})");
+            // außerhalb der Liste (nur Fokus): die Liste bleibt, wie sie ist
+            Aufrufen(cb, "OnMouseWheel", new HandledMouseEventArgs(MouseButtons.None, 0, -40, -40, -120));
+            if (cb.SelectedIndex != indexVorRad) throw new InvalidOperationException($"{ort}: Mausrad neben der Liste ändert den Wert");
             return $"{ort}: Tippen/Enter, Esc, ungültig, Tab und Mausrad wie überall";
         }
         finally
