@@ -146,6 +146,7 @@ public static class Vertretungen
                             VertreterId = l, ErsatzFuerLehrerId = fuer, LehrerId = fuer ?? l, KlassenIds = vaKlassen.ToList(),
                             VertretungsraumId = vaRaum, ZusatzraumIds = vaZusatzraeume.ToList(),
                             GrundId = va.GrundId, Grund = vaGrund, Text = va.Text, Schuelergruppe = va.Schuelergruppe, Wert = va.Wert,
+                            FachId = va.FachId, NichtDrucken = va.NichtDrucken,
                         });
                     }
                 }
@@ -566,7 +567,8 @@ public static class Vertretungen
                 v.ZusatzraumIds = b.ZusatzraumIds;
                 v.Schuelergruppe = b.Schuelergruppe;
                 v.Wert = b.Wert;
-                if (!v.Bearbeitet) v.Text = b.Text;
+                v.FachId = b.FachId;
+                if (!v.Bearbeitet) { v.Text = b.Text; v.NichtDrucken = b.NichtDrucken; }
                 return;
             }
             // Von Hand bearbeitete Raumvertretung (z. B. gesperrter Raum, Ausweichraum gewählt) mit der eigenen Lehrkraft: wird die

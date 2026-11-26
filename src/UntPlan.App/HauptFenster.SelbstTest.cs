@@ -1501,6 +1501,13 @@ public sealed partial class HauptFenster
                     x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
                     x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
                     foreach (var p in x.Perioden.Where(p => p.Von <= altVon)) p.Von = x.Einstellungen.SchuljahrVon;
+                    // Zeitraster wie im Vorbild: 9 Stunden, Frühaufsicht „FA“ vor der 1. Stunde (nur in dieser Szene, nicht in den Nutzerdaten)
+                    x.Stundenplan.RemoveAll(p => p.Stunde > 9);
+                    x.Zeitraster.StundenProTag = 9;
+                    // im Vorbild sind alle Stunden aller Tage verfügbar (keine grauen Felder am Freitagnachmittag)
+                    foreach (var k in x.Zeitraster.Belegung.Where(b => b.Value == Tageszeit.Leer).Select(b => b.Key).ToList()) x.Zeitraster.Belegung.Remove(k);
+                    if (!x.Zeitraster.Pausen.Any(p => p.NachStunde == 0))
+                        x.Zeitraster.Pausen.Insert(0, new Pause { NachStunde = 0, Bezeichnung = "FA", DauerMinuten = 15 });
                     Nrw.FerienEintragen(x);
                     var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(x, vorbildTag);
                     // wie im Vorbild: Entfall der 1. Stunde einer höheren Klasse (dort 10A), ohne Absenz
@@ -1519,9 +1526,12 @@ public sealed partial class HauptFenster
                 var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
                 Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
                 MdiFenster.SelbsttestOhneKlemmen = true;
+                var kleinePlaene = new List<StundenplanFenster>();
                 // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
-                Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
-                Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
+                var kalender = (KalenderFenster)Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
+                var absenzen = (AbwesenheitenFenster)Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
+                // wie im Vorbild: Zeitraumart „Von-Bis“ vom 30.08.2021 bis 24.07.2022 (329 Tage), Schloss offen
+                absenzen.SelbsttestZeitraum.SelbsttestSetzen(Steuerelemente.Zeitraumart.VonBis, new DateTime(2021, 8, 30), new DateTime(2022, 7, 24));
                 // die drei Pläne zeigen wie im Vorbild eigene Elemente (sie folgen der gewählten Entfallstunde nicht)
                 // gemessen: Klassenplan 309 breit ab 500/408, Lehrerplan 287 ab 807/406, Raumplan 362 ab 1094/403 (die beiden ersten reichen unter
                 // den Arbeitsbereich, daher Rollbalken wie im Vorbild)
@@ -1530,17 +1540,35 @@ public sealed partial class HauptFenster
                     var plan = StundenplanFenster.Neu(typ, id, false, true);
                     plan.Verknuepft = false;
                     Lage(plan, new Rectangle(x, y, w, h));
+                    kleinePlaene.Add(plan);
                 }
                 Lage(FensterOeffnen("vorschlag")!, new Rectangle(1455, 7, 444, 769));
                 var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(500, 8, 950, 400));
                 vertr.Activate();
                 Warten(500);
                 AppZustand.VertretungWaehlen(entfall);
+                // wie im Vorbild: im Klassenplan Montag, in Lehrer- und Raumplan Freitag der 5. Stunde gewählt (Tag und Stunde rosa)
+                foreach (var (plan, tag) in kleinePlaene.Zip(new[] { 0, 4, 4 })) { plan.Plan.ZelleMarkieren(tag, 5); plan.Plan.Invalidate(); }
+                // wie im Vorbild: Fokus in der Vertretungsliste, aktuelle Zelle „Art“
+                ((VertretungenFenster)vertr).SelbsttestArtWaehlen();
+                // wie im Vorbild: im Kalender die letzte Spalte des Tags gewählt (Liste nach rechts gerollt)
+                kalender.SelbsttestLetzteSpalte();
                 Steuerelemente.Auswahlbreite.AlleErfassen();
                 Warten(900);
                 var mdi = Controls.OfType<MdiClient>().First();
+                kalender.SelbsttestLetzteSpalte();
+                // wie im Vorbild: in den Absenzen die Spalte „Lehrer“ der Eingabezeile aktuell
+                absenzen.SelbsttestWaehlen("E");
+                foreach (var m in MdiChildren.OfType<MdiFenster>()) m.AuswahlMarkierungenAufheben();
+                Warten(300);
+                foreach (var f in MdiChildren) foreach (var rl in R3cAlle(f).OfType<Steuerelemente.Reiterleiste>()) log.Add($"MASS  V51 Reiter {f.Text}: {rl.SelbsttestMasse()}");
+                log.Add("MASS  V51 Auswahlfelder: " + string.Join(" | ", MdiChildren.SelectMany(MdiFenster.AlleAuswahlfelder).Where(c => c.Visible)
+                    .Select(c => $"{c.Text}:{c.DropDownStyle}/{c.SelectionLength}/{(c.Focused ? "F" : "-")}")) + $"; Vertretungen Fokus {vertr.ContainsFocus}, aktiv {Form.ActiveForm?.Text}, Kind {ActiveMdiChild?.Text}");
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
                 foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
+                R3DRollbereich(mdi.Handle, 0, out var hMin, out var hMax);
+                R3DRollbereich(mdi.Handle, 1, out var vMin, out var vMax);
+                log.Add($"MASS  V51 Arbeitsbereich-Rollbalken: Stil {FensterExStilRoh(mdi.Handle, -16) & 0x300000:X}, waagrecht {hMin}..{hMax}, senkrecht {vMin}..{vMax}");
                 Foto(Path.Combine(ordner, "V51_Vorbild308_F.png"));
                 // Messwerte zur Abstimmung auf das Vorbild: Registerkarten (Lage, Textbreite GDI) und Gruppen des Menübands
                 var tabSchrift = new Font("Segoe UI", 9f);
@@ -1567,10 +1595,15 @@ public sealed partial class HauptFenster
             // Sondereinsätze mit offener Lehrerliste und der Dialog „Auswahl“ (Klassen)
             ModusFuerBild(true);
             var vorher = WindowState;
+            var datumVorher = AppZustand.Datum;
             WindowState = FormWindowState.Maximized;
             Warten(400);
             try
             {
+                // wie im Vorbild: ein Unterrichtstag ohne Veranstaltungen (leere Liste, nur die Eingabezeile)
+                var leer = Enumerable.Range(0, 400).Select(i => AppZustand.Datum.AddDays(-i))
+                    .FirstOrDefault(t => t.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !AppZustand.D.Veranstaltungen.Any(v => v.Von <= t && v.Bis >= t));
+                if (leer != default) AppZustand.DatumSetzen(leer);
                 var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
                 va.WindowState = FormWindowState.Normal;
                 va.Bounds = new Rectangle(131, 45, 988, 416);
@@ -1587,6 +1620,17 @@ public sealed partial class HauptFenster
                     log.Add($"MASS  V52 Liste {spalte}: {l.RectangleToScreen(l.ClientRectangle)}, Zeile {l.ItemHeight}, Schrift {l.Font.Name} {l.Font.SizeInPoints}");
                     Pruefen(l.ItemHeight == 16, "Zeilenhöhe der Aufklappliste nicht 16 Pixel wie im Vorbild.");
                     Foto(Path.Combine(ordner, bild));
+                    if (spalte == "K")
+                    {
+                        // Liste wie im Vorbild 141 Pixel breit ohne Knöpfe; nach einer Mehrfachauswahl erscheinen „Alle“, „Inverse“,
+                        // „Markierte“, „Ok“, „Abbrechen“ wie im Dialog „Auswahl“
+                        var (knoepfe, b0, b1) = Steuerelemente.MehrfachAuswahl.SelbsttestMehrfach();
+                        log.Add($"MASS  V52 Mehrfachauswahl: Breite {b0} → {b1}, Knöpfe {string.Join(", ", knoepfe)}");
+                        Pruefen(b0 == 141, $"Klassenliste {b0} statt 141 Pixel breit.");
+                        Pruefen(knoepfe.SequenceEqual(new[] { "Alle", "Inverse", "Markierte", "Ok", "Abbrechen" }), "Knopfleiste der Mehrfachauswahl: " + string.Join(", ", knoepfe));
+                        Warten(300);
+                        Foto(Path.Combine(ordner, "V52c2_Liste_Klasse_mehrfach_F.png"));
+                    }
                     Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
                     Warten(200);
                 }
@@ -1653,7 +1697,178 @@ public sealed partial class HauptFenster
             finally
             {
                 Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                AppZustand.DatumSetzen(datumVorher);
                 WindowState = vorher;
+            }
+        }, -1);
+        Schritt("V53_Schriftprobe", () =>
+        {
+            // Abstimmung der Menübandschrift auf das Vorbild (Bild 308): dieselben Beschriftungen mit GDI (TextRenderer) und GDI+
+            // (DrawString in verschiedenen Darstellungsarten) auf der Menübandfarbe; Breite der Tinte und Lage bei mittiger Ausrichtung
+            var worte = new[] { "Kalender", "Absenzen", "Ausgabe", "Planungsdialog", "Vormerkungen", "Pausenaufsichten", "Veranstaltungen", "Vertretungsformate", "Stundenpläne" };
+            var arten = new[] { "GDI", "GDI+ ClearTypeGridFit", "GDI+ ClearTypeGridFit typografisch", "GDI 8,75", "GDI+ 8,75", "GDI+ 11,5 px", "GDI+ 8,75 typografisch" };
+            using var schrift = new Font("Segoe UI", 9f);
+            using var schrift875 = new Font("Segoe UI", 8.75f);
+            using var schrift115 = new Font("Segoe UI", 11.5f, GraphicsUnit.Pixel);
+            const int zeile = 24, spalte = 150;
+            using var probe = new Form { FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual, Location = new Point(60, 180),
+                Size = new Size(spalte * worte.Length + 20, zeile * arten.Length + 20), BackColor = Ui.Menueband, ShowInTaskbar = false, TopMost = true };
+            probe.Paint += (_, e) =>
+            {
+                var g = e.Graphics;
+                for (var a = 0; a < arten.Length; a++)
+                    for (var w = 0; w < worte.Length; w++)
+                    {
+                        var r = new Rectangle(10 + w * spalte, 10 + a * zeile, spalte - 10, zeile);
+                        if (a == 0 || a == 3) { TextRenderer.DrawText(g, worte[w], a == 0 ? schrift : schrift875, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.NoPrefix); continue; }
+                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                        using var sf = new StringFormat(a is 2 or 6 ? StringFormat.GenericTypographic : StringFormat.GenericDefault) { Alignment = StringAlignment.Center };
+                        g.DrawString(worte[w], a switch { 4 or 6 => schrift875, 5 => schrift115, _ => schrift }, Brushes.Black, r, sf);
+                    }
+            };
+            probe.Show(this);
+            Warten(700);
+            probe.Refresh();
+            Warten(300);
+            var bereich = probe.RectangleToScreen(probe.ClientRectangle);
+            using var bmp = new Bitmap(bereich.Width, bereich.Height);
+            using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(bereich.Location, Point.Empty, bereich.Size);
+            bmp.Save(Path.Combine(ordner, "V53_Schriftprobe_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            using var mg = probe.CreateGraphics();
+            for (var a = 0; a < arten.Length; a++)
+            {
+                var teile = new List<string>();
+                for (var w = 0; w < worte.Length; w++)
+                {
+                    var x0 = 10 + w * spalte;
+                    int? l = null, rr = null;
+                    for (var x = x0; x < x0 + spalte - 10; x++)
+                        for (var y = 10 + a * zeile; y < 10 + (a + 1) * zeile; y++)
+                        {
+                            var c = bmp.GetPixel(x, y);
+                            if ((c.R + c.G + c.B) / 3 < 110) { l ??= x; rr = x; break; }
+                        }
+                    var mitte = x0 + (spalte - 10) / 2.0;
+                    var gemessen = a is 0 or 3 ? TextRenderer.MeasureText(mg, worte[w], a == 0 ? schrift : schrift875, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width
+                        : mg.MeasureString(worte[w], a switch { 4 or 6 => schrift875, 5 => schrift115, _ => schrift }, PointF.Empty, a is 2 or 6 ? StringFormat.GenericTypographic : StringFormat.GenericDefault).Width;
+                    teile.Add(l is int li && rr is int ri ? $"{worte[w]} {ri - li + 1} ({(li + ri) / 2.0 - mitte:+0.0;-0.0}, m {gemessen:0.0})" : $"{worte[w]} -");
+                }
+                log.Add($"MASS  V53 {arten[a]}: {string.Join(" | ", teile)}");
+            }
+            probe.Close();
+        }, -1);
+        Schritt("V54_Drehfeld", () =>
+        {
+            // eigenes Zahlenfeld wie im Vorbild: Maße je Stil, Begrenzung, Pfeiltasten, Mausrad, Knöpfe, Eingabe und Ereignisse
+            using var f = new Form { Text = "Drehfeld", StartPosition = FormStartPosition.Manual, Location = new Point(300, 300), ClientSize = new Size(320, 120), BackColor = Ui.Kopf, Font = Ui.DialogSchrift };
+            var a = new Steuerelemente.Drehfeld(Steuerelemente.DrehfeldStil.Abgesetzt) { Location = new Point(10, 10), Minimum = 0, Maximum = 500 };
+            var b = new Steuerelemente.Drehfeld(Steuerelemente.DrehfeldStil.Eingebettet) { Location = new Point(10, 40), Minimum = 1, Maximum = 9, Value = 1 };
+            var c = new Steuerelemente.Drehfeld(Steuerelemente.DrehfeldStil.Frei) { Location = new Point(10, 70), Minimum = 1, Maximum = 53, Value = 35 };
+            f.Controls.AddRange(new Control[] { a, b, c });
+            var aenderungen = 0;
+            b.ValueChanged += (_, _) => aenderungen++;
+            f.Show(this);
+            Warten(400);
+            Pruefen(a.Height == 18 && a.Width == 89 && a.KnopfFlaeche.Size == new Size(17, 18), $"Drehfeld „Abgesetzt“ {a.Size}, Knopf {a.KnopfFlaeche} statt 89 × 18 / 17 × 18.");
+            Pruefen(b.Height == 20 && b.Width == 64 && b.KnopfFlaeche.Size == new Size(16, 18), $"Drehfeld „Eingebettet“ {b.Size}, Knopf {b.KnopfFlaeche} statt 64 × 20 / 16 × 18.");
+            Pruefen(c.Height == 23 && c.KnopfFlaeche.Size == new Size(17, 23), $"Drehfeld „Frei“ {c.Size}, Knopf {c.KnopfFlaeche} statt 17 × 23.");
+            // Begrenzung und Knöpfe
+            b.Value = 50;
+            Pruefen(b.Value == 9 && b.Text == "9", $"Maximum nicht eingehalten: {b.Value} / „{b.Text}“.");
+            b.UpButton();
+            Pruefen(b.Value == 9, "Hoch über das Maximum hinaus.");
+            b.DownButton(); b.DownButton();
+            Pruefen(b.Value == 7, $"Runter: {b.Value} statt 7.");
+            // Tastatur: Pfeil hoch/runter, Bild auf, Ziffern, Buchstaben abgewiesen, Enter übernimmt
+            b.Eingabe.Focus();
+            Warten(100);
+            SendKeys.SendWait("{UP}");
+            Warten(100);
+            Pruefen(b.Value == 8, $"Pfeil hoch: {b.Value} statt 8.");
+            SendKeys.SendWait("{DOWN}{DOWN}{DOWN}");
+            Warten(100);
+            Pruefen(b.Value == 5, $"Pfeil runter: {b.Value} statt 5.");
+            b.Eingabe.SelectAll();
+            SendKeys.SendWait("x3{ENTER}");
+            Warten(150);
+            Pruefen(b.Value == 3 && b.Text == "3", $"Eingabe „x3“ + Enter: {b.Value} / „{b.Text}“ statt 3.");
+            b.Eingabe.SelectAll();
+            SendKeys.SendWait("77");
+            a.Eingabe.Focus();
+            Warten(150);
+            Pruefen(b.Value == 9 && b.Text == "9", $"Eingabe 77 beim Verlassen nicht auf 9 begrenzt: {b.Value} / „{b.Text}“.");
+            // Mausrad (eine Raste hoch) und Klick auf den unteren Knopf
+            b.Eingabe.Focus();
+            b.Value = 4;
+            R3BPostMessage(b.Eingabe.Handle, 0x020A, (IntPtr)(120 << 16), (IntPtr)(((b.PointToScreen(Point.Empty).Y + 5) << 16) | (b.PointToScreen(Point.Empty).X + 5)));
+            Warten(200);
+            Pruefen(b.Value == 5, $"Mausrad: {b.Value} statt 5.");
+            var k = b.KnopfFlaeche;
+            var lp = (IntPtr)(((k.Bottom - 4) << 16) | (k.X + k.Width / 2));
+            R3BPostMessage(b.Handle, 0x201, (IntPtr)1, lp);
+            R3BPostMessage(b.Handle, 0x202, IntPtr.Zero, lp);
+            Warten(200);
+            Pruefen(b.Value == 4, $"Klick auf den unteren Knopf: {b.Value} statt 4.");
+            Pruefen(aenderungen >= 8, $"ValueChanged nur {aenderungen}-mal ausgelöst.");
+            // leerer Text (Vtr-Nr. ohne gewählte Vertretung) bleibt leer, bis eine Zahl eingegeben wird
+            a.Text = "";
+            Pruefen(a.Text == "" && a.Value == 0, "Leeres Feld nicht leer.");
+            Warten(200);
+            using (var bmp = new Bitmap(f.Width, f.Height))
+            {
+                f.DrawToBitmap(bmp, new Rectangle(Point.Empty, f.Size));
+                bmp.Save(Path.Combine(ordner, "V54_Drehfeld_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            log.Add($"MASS  V54 Drehfeld: Abgesetzt {a.Size} Knopf {a.KnopfFlaeche}, Eingebettet {b.Size} Knopf {b.KnopfFlaeche}, Frei {c.Size} Knopf {c.KnopfFlaeche}");
+            f.Close();
+            // eingebaut: Vtr-Nr. (Vertretungen) und Kalenderwoche (Kalender) wie im Vorbild
+            ModusFuerBild(true);
+            var vt = FensterOeffnen("vertr")!;
+            var kal = FensterOeffnen("kal")!;
+            Warten(400);
+            var nr = R3cAlle(vt).OfType<Steuerelemente.Drehfeld>().FirstOrDefault();
+            var kw = R3cAlle(kal).OfType<Steuerelemente.Drehfeld>().FirstOrDefault();
+            Pruefen(nr is { Height: 18, Width: 89 }, $"Vtr-Nr.: {nr?.Size} statt 89 × 18.");
+            Pruefen(kw is { Height: 23 }, $"Kalenderwoche: {kw?.Size} statt 23 hoch.");
+        }, -1);
+        Schritt("V55_Absenzen_Zeitraum", () =>
+        {
+            // Absenzen im Zeitraummodus „Von-Bis“ wie im Vorbild (Bild 308): zwei Datumsfelder mit Wochentag und Pfeilen, dazwischen das
+            // Schloss, rechts „329 Tage“; das Schloss friert den Tages-Abstand ein, „Tag“ zeigt wieder nur ein Datum
+            ModusFuerBild(true);
+            var abw = (AbwesenheitenFenster)FensterOeffnen("abw")!;
+            abw.WindowState = FormWindowState.Normal;
+            abw.Bounds = new Rectangle(0, 308, 500, 400);
+            var z = abw.SelbsttestZeitraum;
+            var schlossVorher = z.Schloss?.Checked ?? false;
+            var artVorher = z.Art;
+            var datumVorher = AppZustand.Datum;
+            try
+            {
+                z.SelbsttestSetzen(Steuerelemente.Zeitraumart.VonBis, new DateTime(2021, 8, 30), new DateTime(2022, 7, 24));
+                Warten(300);
+                Pruefen(abw.SelbsttestTage == "329 Tage", $"Anzahl der Tage „{abw.SelbsttestTage}“ statt „329 Tage“.");
+                Pruefen(z.Schloss is { Visible: true }, "Schloss im Zeitraummodus „Von-Bis“ nicht sichtbar.");
+                Pruefen(abw.SelbsttestZeitraum.Art == Steuerelemente.Zeitraumart.VonBis, "Zeitraumart nicht „Von-Bis“.");
+                Foto(Path.Combine(ordner, "V55_Absenzen_Zeitraum_F.png"));
+                // Schloss: Abstand bleibt beim Verschieben des Von-Datums
+                z.SelbsttestSetzen(Steuerelemente.Zeitraumart.VonBis, new DateTime(2021, 9, 6), new DateTime(2021, 9, 10));
+                z.Schloss!.Checked = true;
+                Pruefen(z.Gesperrt, "Schloss sperrt den Tages-Abstand nicht.");
+                z.DatumSetzen(new DateTime(2021, 9, 13));
+                Warten(200);
+                Pruefen(abw.SelbsttestTage == "5 Tage", $"Gesperrter Abstand: „{abw.SelbsttestTage}“ statt „5 Tage“.");
+                z.Schloss.Checked = false;
+                // zurück auf einen Tag: Schloss und Bis-Datum ausgeblendet
+                z.SelbsttestSetzen(Steuerelemente.Zeitraumart.Tag, new DateTime(2021, 8, 30), new DateTime(2021, 8, 30));
+                Warten(200);
+                Pruefen(abw.SelbsttestTage == "1 Tag" && !z.Schloss.Visible, $"Tagesmodus: „{abw.SelbsttestTage}“, Schloss sichtbar {z.Schloss.Visible}.");
+            }
+            finally
+            {
+                if (z.Schloss is { } s) s.Checked = schlossVorher;
+                z.ArtSetzen(artVorher, false);
+                AppZustand.DatumSetzen(datumVorher);
             }
         }, -1);
         Schritt("V45_Krypton_Muster", () =>
@@ -2118,8 +2333,12 @@ public sealed partial class HauptFenster
                 f.SelbsttestAuswahlZeigen("L");
                 Warten(150);
                 if (Steuerelemente.MehrfachAuswahl.Offen is null) throw new InvalidOperationException("Auswahlliste Lehrer öffnet nicht.");
-                if (Steuerelemente.MehrfachAuswahl.Offen.Parent?.Controls.OfType<FlowLayoutPanel>().FirstOrDefault()?.Controls.OfType<LinkLabel>().Select(l => l.Text).Take(2).SequenceEqual(new[] { "Alle", "Keine" }) != true)
-                    throw new InvalidOperationException("Auswahlliste ohne „Alle“/„Keine“.");
+                // Knöpfe wie im Dialog „Auswahl“ des Vorbilds (Bild 349), „Keine“ im Kontextmenü
+                var knoepfe = Steuerelemente.MehrfachAuswahl.Offen.Parent?.Controls.OfType<Panel>().FirstOrDefault()?.Controls.OfType<Button>().Select(b => b.Text).ToList() ?? new List<string>();
+                if (!knoepfe.SequenceEqual(new[] { "Alle", "Inverse", "Markierte", "Ok", "Abbrechen" }))
+                    throw new InvalidOperationException("Auswahlliste ohne „Alle“, „Inverse“, „Markierte“, „Ok“, „Abbrechen“: " + string.Join(", ", knoepfe));
+                if (Steuerelemente.MehrfachAuswahl.Offen.ContextMenuStrip?.Items.Cast<ToolStripItem>().Any(i => i.Text == "Keine") != true)
+                    throw new InvalidOperationException("Auswahlliste ohne „Keine“ im Kontextmenü.");
                 Steuerelemente.MehrfachAuswahl.SelbsttestAlleUebernehmen(true);
                 Warten(200);
                 nachher = AppZustand.D.Veranstaltungen.First(v => v.Id == va.Id);
@@ -3146,11 +3365,16 @@ public sealed partial class HauptFenster
             sp.WindowState = FormWindowState.Normal;
             sp.Bounds = new Rectangle(60, -90, 500, 400);
             if (sp.Top < 0) throw new InvalidOperationException($"Arbeitsfenster über dem oberen Rand: {sp.Bounds}");
+            // wie im Vorbild darf ein Fenster seitlich und unten hinausragen, seine Titelleiste bleibt aber erreichbar
             sp.Location = new Point(-40, -40);
-            if (sp.Top < 0 || sp.Left < 0) throw new InvalidOperationException($"Arbeitsfenster außerhalb des Arbeitsbereichs: {sp.Bounds}");
+            if (sp.Top != 0 || sp.Left != -40) throw new InvalidOperationException($"Arbeitsfenster links hinaus nicht wie im Vorbild: {sp.Bounds}");
             var mdi = MdiArbeitsbereich!.ClientSize;
+            sp.Location = new Point(mdi.Width - 200, mdi.Height - 150);
+            if (sp.Left != mdi.Width - 200 || sp.Top != mdi.Height - 150) throw new InvalidOperationException($"Arbeitsfenster darf nicht rechts/unten hinausragen: {sp.Bounds} bei {mdi}");
             sp.Location = new Point(mdi.Width + 200, mdi.Height + 200);
-            if (sp.Right > mdi.Width || sp.Bottom > mdi.Height) throw new InvalidOperationException($"Arbeitsfenster rechts/unten hinaus: {sp.Bounds} bei {mdi}");
+            if (sp.Left > mdi.Width - 80 || sp.Top > mdi.Height - Steuerelemente.FensterTitel.Hoehe) throw new InvalidOperationException($"Titelleiste nicht mehr erreichbar: {sp.Bounds} bei {mdi}");
+            sp.Location = new Point(-2000, 20);
+            if (sp.Right < 80) throw new InvalidOperationException($"Titelleiste links nicht mehr erreichbar: {sp.Bounds}");
             AlleSchliessen();
             var schl = $"sp:Klasse:{AppZustand.D.Klassen[0].Id}:0";
             LayoutOeffnen(new List<FensterPosition> { new() { Schluessel = schl, X = 30, Y = -120, B = 4000, H = 3000 } });
@@ -4897,6 +5121,8 @@ public sealed partial class HauptFenster
     private static int FensterExStil(IntPtr hWnd) => FensterExStilRoh(hWnd, -20);
     [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "PostMessageW")]
     private static extern bool R3BPostMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetScrollRange")]
+    private static extern bool R3DRollbereich(IntPtr hwnd, int bar, out int min, out int max);
 
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     private struct KombiInfo

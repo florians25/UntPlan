@@ -73,10 +73,12 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
     private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 129 };
     /// <summary>Vtr-Nr. als Zahlenfeld mit Auf-/Ab-Pfeilen wie im Vorbild: die Pfeile springen zur nächsten bzw. vorigen Vertretung, Enter zur eingegebenen.</summary>
-    private readonly VtrNrFeld _nr = new() { Width = 85, Minimum = 0, Maximum = int.MaxValue };
+    // Vorbild (Bild 308): Feld 72 × 18 mit dunkelgrauem Rand, Hoch/Runter-Knopf 17 × 18 daneben
+    private readonly VtrNrFeld _nr = new() { Minimum = 0, Maximum = int.MaxValue };
 
-    private sealed class VtrNrFeld : NumericUpDown
+    private sealed class VtrNrFeld : Steuerelemente.Drehfeld
     {
+        public VtrNrFeld() : base(Steuerelemente.DrehfeldStil.Abgesetzt) { }
         public Action<int>? Schritt;
         public override void UpButton() { if (Schritt is null) base.UpButton(); else Schritt(1); }
         public override void DownButton() { if (Schritt is null) base.DownButton(); else Schritt(-1); }
@@ -222,8 +224,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 5, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
         // wie in der Vorlage: „Vtr-Nr.“ links, rechts nur das Auswahlfeld der Ansicht (ohne Beschriftung)
         // Vorbild (Bild 308): „Vtr-Nr.“ 38 Pixel vom linken Fensterrand, das Feld 94 Pixel
-        links.Controls.Add(new Label { Text = "Vtr-Nr.", AutoSize = true, Padding = new Padding(0, 5, 0, 0), Margin = new Padding(30, 3, 3, 0) });
-        _nr.Margin = new Padding(14, 0, 3, 0);
+        links.Controls.Add(new Label { Text = "Vtr-Nr.", AutoSize = true, Padding = new Padding(0, 5, 0, 0), Margin = new Padding(30, 1, 3, 0) });
+        // Feld 6 Pixel unter der Fußleistenoberkante, Beschriftung 5 Pixel unter der Feldoberkante (Bild 308)
+        _nr.Margin = new Padding(13, 4, 3, 0);
         links.Controls.Add(_nr);
         links.Controls.Add(_status);
         var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = Padding.Empty, Margin = Padding.Empty, WrapContents = false, BackColor = Ui.Kopf };
@@ -239,8 +242,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): Arial 9, Überschrift und Zeilen 19 Pixel hoch (samt Linie)
         _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
         _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.TabellenSchrift);
-        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen
+        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen; die erste Zelle der aktuellen Zeile hell orange (Bild 308)
         _g.RowHeadersVisible = false;
+        Ui.ZeilenmarkeErsteSpalte(_g);
         _g.BorderStyle = BorderStyle.Fixed3D;
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = true;
@@ -2319,6 +2323,15 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>
     /// Selbsttest: Kopplungen stehen in EINER Zeile mit allen Klassen (keine zwei sichtbaren Zeilen mit demselben Kopplungsschlüssel).
     /// </summary>
+    /// <summary>Selbsttest (Vorbild 308): Zelle „Art“ der gewählten Vertretung aktuell, Fokus in der Liste.</summary>
+    internal void SelbsttestArtWaehlen()
+    {
+        if (_g.CurrentRow is not { } r || !_g.Columns.Contains("Art")) return;
+        ActiveControl = _g;
+        _g.Focus();
+        _g.CurrentCell = r.Cells["Art"];
+    }
+
     internal string SelbsttestKopplung()
     {
         var zeilen = _g.Rows.Cast<DataGridViewRow>().Where(r => r.Tag is Vertretung { Id: > 0 }).ToList();

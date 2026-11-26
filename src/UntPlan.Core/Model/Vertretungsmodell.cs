@@ -369,6 +369,10 @@ public sealed class Veranstaltung
     public string Schuelergruppe { get; set; } = "";
     /// <summary>Zusätzliche Stunden der Lehrer zählen positiv.</summary>
     public bool Zaehlen { get; set; }
+    /// <summary>Fach der Veranstaltung (Spalte „Fa.“): erscheint als Fach der Veranstaltungszeilen in der Vertretungsliste.</summary>
+    public int? FachId { get; set; }
+    /// <summary>„N.Druck. (N)“: die Zeilen der Veranstaltung erscheinen nicht im gedruckten Vertretungsplan.</summary>
+    public bool NichtDrucken { get; set; }
     public decimal? Wert { get; set; }
     /// <summary>
     /// Klassen, von denen nur ein Teil teilnimmt (Spalte „Kl-Teil“): der reguläre Unterricht dieser Klassen findet parallel statt.

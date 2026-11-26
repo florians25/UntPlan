@@ -69,16 +69,20 @@ public sealed class Reiterleiste : Control
     /// <summary>Gewählter Reiter: etwas heller als der Kopfbereich (nachgemessen).</summary>
     private static Color Gewaehlt => Ui.Vertretungsmodus ? Color.FromArgb(225, 243, 236) : Color.FromArgb(230, 242, 252);
 
+    /// <summary>Selbsttest: Schrift und Reiterrechtecke.</summary>
+    internal string SelbsttestMasse() => $"{Font.Name} {Font.SizeInPoints} ({DeviceDpi} dpi): " + string.Join(", ", Rechtecke().Zip(_texte, (r, t) => $"{t}@{r.X}+{r.Width}"));
+
     /// <summary>Rechtecke der Reiter (ohne die Vergrößerung des gewählten).</summary>
     private List<Rectangle> Rechtecke()
     {
         var res = new List<Rectangle>();
-        var x = 2;
+        // Vorbild (Bild 308, Absenzen): Reiter 10 Pixel breiter als ihr Text, der erste beginnt 4 Pixel nach dem Rand
+        var x = 4;
         var oben = 4;
         var unten = Height - 5;
         foreach (var t in _texte)
         {
-            var w = TextRenderer.MeasureText(t, Font).Width + 12;
+            var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 10;
             res.Add(new Rectangle(x, oben, w, unten - oben));
             x += w + 1;
         }

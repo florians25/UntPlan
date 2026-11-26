@@ -275,7 +275,8 @@ public sealed partial class Ribbon : Control
                         if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                         // große Knöpfe eng wie in der Vorlage (Bild 308 gemessen): Beschriftung + 2 Pixel, 2 Pixel Abstand (Text zu Text 6 bis 7 Pixel)
                         // eingedrückte Umschalter („Vertretungsplanung“) im Vorbild mit etwas mehr Rand: Beschriftung + 3 Pixel
-                        var w = e.Gedrueckt != null ? Math.Max(40, TextBreite(e.Text) + 3) : Math.Max(40, LayoutBreite(e.Text, 0.995) + 2);
+                        var w = VorbildBreite.TryGetValue(e.Text, out var vb) ? vb
+                            : e.Gedrueckt != null ? Math.Max(40, TextBreite(e.Text) + 3) : Math.Max(40, LayoutBreite(e.Text, 0.995) + 2);
                         e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
                         e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
                         ende = x + w;
@@ -285,7 +286,7 @@ public sealed partial class Ribbon : Control
                     {
                         // kleiner Knopf wie in der Vorlage: Symbol 3 Pixel eingerückt, Text 3 Pixel nach dem Symbol, Pfeil 5 Pixel nach dem Text
                         var tw = TextBreite(e.Text);
-                        var w = e.IstDatum ? 136 : KleinText + LayoutBreite(e.Text) + (HatMenue(e) ? 13 : 4);
+                        var w = e.IstDatum ? 136 : VorbildBreite.TryGetValue(e.Text, out var vk) ? vk : KleinText + LayoutBreite(e.Text) + (HatMenue(e) ? 13 : 4);
                         spaltenBreite = Math.Max(spaltenBreite, w);
                         e.Bounds = new Rectangle(x, oben + zeile * KleinHoehe, w, KleinHoehe);
                         e.PfeilBounds = HatMenue(e) && e.Klick != null ? Rectangle.FromLTRB(x + KleinText + tw + 2, e.Bounds.Y, e.Bounds.Right, e.Bounds.Bottom) : Rectangle.Empty;
@@ -298,13 +299,33 @@ public sealed partial class Ribbon : Control
             // Gruppe mindestens so breit wie ihre Beschriftung
             var textBreite = TextRenderer.MeasureText(gr.Text, Ui.SchriftKlein).Width + 6 + (StarterSichtbar(gr) ? 16 : 0);
             if (ende - start < textBreite) ende = start + textBreite;
-            var rechts = ende + (mitDatum ? 2 : GruppeRechts);
+            // eingedrückter Umschalter („Vertretungsplanung“) im Vorbild 4 Pixel vor dem Gruppentrenner
+            var rechts = ende + (mitDatum ? 2 : gr.Stufe < 2 && gr.Eintraege.Count > 0 && gr.Eintraege[^1] is { Gedrueckt: not null, GrossDargestellt: true } ? GruppeRechts - 1 : GruppeRechts);
             gr.Bounds = Rectangle.FromLTRB(trenner, TabHoehe + 1, rechts, TabHoehe + Inhalt - 1);
             gr.StarterBounds = StarterSichtbar(gr) ? new Rectangle(rechts - 15, gr.Bounds.Bottom - 17, 13, 13) : Rectangle.Empty;
             trenner = rechts;
         }
         return trenner;
     }
+
+    /// <summary>
+    /// Knopfbreiten wie im Vorbild (Bild 308 vermessen, 100 %): große Knöpfe so breit, dass Beschriftung und Pfeil auf denselben
+    /// Pixeln mittig stehen wie dort; kleine Knöpfe als Spaltenbreite (Symbol, Text, Pfeil). Damit liegen alle Gruppentrenner der
+    /// Registerkarte Vertretungsplanung auf den Pixeln des Vorbilds (98, 391, 523, 795, 902, 1040, 1160), unabhängig davon, wie breit
+    /// die Schrift auf dem jeweiligen System läuft. Nicht aufgeführte Beschriftungen werden aus der Textbreite berechnet.
+    /// </summary>
+    private static readonly Dictionary<string, int> VorbildBreite = new()
+    {
+        ["Absenzen"] = 52, ["Vertretungen"] = 72, ["Ausgabe"] = 46, ["Vertretungsstatistik"] = 105,
+        ["Planungsdialog"] = 82, ["Vormerkungen"] = 80, ["Pausenaufsichten"] = 94, ["Vertretungsplanung"] = 109,
+        ["Veranstaltungen"] = 120, ["Klassenplan"] = 95, ["Vertretungsformate"] = 126, ["Info-Stundenplan"] = 126,
+    };
+
+    /// <summary>
+    /// Mittig gesetzte Beschriftungen (große Knöpfe, Gruppennamen): GDI setzt die Schrift bei waagrechter Zentrierung im Mittel
+    /// 1,5 Pixel links der Mitte; das Vorbild zeichnet sie auf der Mitte (Bild 308).
+    /// </summary>
+    private const int MitteAusgleich = 2;
 
     /// <summary>Kleiner Knopf: Beginn des Texts (Symbol bei 3, 16 Pixel breit, 3 Pixel Abstand).</summary>
     private const int KleinText = 22;
@@ -382,7 +403,7 @@ public sealed partial class Ribbon : Control
             g.SmoothingMode = SmoothingMode.AntiAlias;
             // Vertretungsmodus wie in der Vorlage: nur die Gruppe „Stundenpläne“ trägt eine Beschriftung (Unterkante 8 Pixel über der Menübandunterkante)
             if (!Ui.Vertretungsmodus || gr.Text == "Stundenpläne")
-                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 19, gr.Bounds.Width - (gr.StarterBounds.IsEmpty ? 0 : 14), 15), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(90, 95, 105),
+                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X + MitteAusgleich, gr.Bounds.Bottom - 19, gr.Bounds.Width - (gr.StarterBounds.IsEmpty ? 0 : 14), 15), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(90, 95, 105),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
             if (!gr.StarterBounds.IsEmpty) StarterZeichnen(g, gr);
             foreach (var it in gr.Angezeigt)
@@ -419,7 +440,7 @@ public sealed partial class Ribbon : Control
                     // deaktiviert: offizielle graue FatCow-Variante statt Graufilter
                     g.DrawImage(aktiv ? img : Symbole.Grau(it.Symbol, 32) ?? img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 2, 32, 32);
                     // Beschriftung mittig, seitlich etwas Luft (die Knopfbreite rechnet mit der engeren Vorbildschrift, siehe LayoutBreite)
-                    var tr = new Rectangle(it.Bounds.X - 4, it.Bounds.Y + 36, it.Bounds.Width + 8, 30);
+                    var tr = new Rectangle(it.Bounds.X - 4 + MitteAusgleich, it.Bounds.Y + 36, it.Bounds.Width + 8, 30);
                     TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
                     if (HatMenue(it) || it.PfeilKalender) Pfeil(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Y + 55, farbe);
                 }
@@ -429,7 +450,8 @@ public sealed partial class Ribbon : Control
                     g.DrawImage(aktiv ? img : Symbole.Grau(it.Symbol, 16) ?? img, it.Bounds.X + 3, it.Bounds.Y + 3, 16, 16);
                     TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + KleinText, it.Bounds.Y, it.Bounds.Width - KleinText, it.Bounds.Height - 1), farbe,
                         TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
-                    if (HatMenue(it)) Pfeil(g, it.Bounds.X + KleinText + TextBreite(it.Text) + 8, it.Bounds.Y + 9, farbe);
+                    // Vorbild: Pfeil 6 Pixel nach dem Textende
+                    if (HatMenue(it)) Pfeil(g, it.Bounds.X + KleinText + TextBreite(it.Text) + 7, it.Bounds.Y + 9, farbe);
                 }
             }
         }
@@ -483,12 +505,24 @@ public sealed partial class Ribbon : Control
     }
 
     /// <summary>Schmaler Aufklapppfeil „˅“ wie in der Vorlage: 6 Pixel breit, 4 Pixel hoch, Spitze unten (x = Mitte, y = Oberkante).</summary>
-    private static void Pfeil(Graphics g, int x, int y, Color c)
+    /// <summary>
+    /// Pfeil „˅“ wie im Vorbild pixelweise (Bild 308): 6 Pixel breit und 4 hoch, Kern (72, 72, 72), weiche Kanten mit 30 % Deckung;
+    /// <paramref name="x"/> ist die rechte der beiden Mittelspalten, <paramref name="y"/> die oberste Zeile.
+    /// </summary>
+    internal static void Pfeil(Graphics g, int x, int y, Color c)
     {
         var alt = g.SmoothingMode;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        using var p = new Pen(Color.FromArgb(200, c), 1.3f);
-        g.DrawLines(p, new[] { new PointF(x - 3f, y + .5f), new PointF(x, y + 3.5f), new PointF(x + 3f, y + .5f) });
+        // ganze Pixel (mit Kantenglättung würde jedes 1-Pixel-Rechteck auf zwei Pixel verschmiert)
+        g.SmoothingMode = SmoothingMode.None;
+        var kern = c.ToArgb() == Color.Black.ToArgb() ? Color.FromArgb(72, 72, 72) : c;
+        using var voll = new SolidBrush(kern);
+        using var weich = new SolidBrush(Color.FromArgb(76, kern));
+        var l = x - 3;
+        void P(Brush b, int dx, int dy) => g.FillRectangle(b, l + dx, y + dy, 1, 1);
+        P(voll, 0, 0); P(weich, 1, 0); P(weich, 4, 0); P(voll, 5, 0);
+        P(weich, 0, 1); P(voll, 1, 1); P(weich, 2, 1); P(weich, 3, 1); P(voll, 4, 1); P(weich, 5, 1);
+        P(weich, 1, 2); P(voll, 2, 2); P(voll, 3, 2); P(weich, 4, 2);
+        P(weich, 2, 3); P(weich, 3, 3);
         g.SmoothingMode = alt;
     }
 

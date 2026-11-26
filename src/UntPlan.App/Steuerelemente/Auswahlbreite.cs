@@ -105,7 +105,9 @@ public static class Auswahlbreite
         {
             // in allen bearbeitbaren Tabellen (beide Modi): nicht bearbeitbare Spalten bzw. Zellen etwas dunkler, bearbeitbare hell
             if (standard && zeile.Cells[e.ColumnIndex].ReadOnly) e.CellStyle.BackColor = Ui.ZelleGesperrt;
-            if (Ui.Vertretungsmodus && g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+            // aktuelle Zelle hell orange, außer sie ist schon wie im Vorbild dunkler beige (Zeilenmarke in der ersten Spalte, Bild 308)
+            if (Ui.Vertretungsmodus && g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex && e.CellStyle.SelectionBackColor != Ui.ZelleAktuell)
+                e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
         }
         var h = Hover(g);
         if (h.X == e.ColumnIndex && h.Y == e.RowIndex)
@@ -172,6 +174,17 @@ public static class Auswahlbreite
                 }
                 cb.VisibleChanged += (_, _) => { if (cb.Visible) Vereinheitlichen(cb); };
                 cb.Enter += (_, _) => Vereinheitlichen(cb);
+                // wie im Vorbild: ein vom Programm gesetzter Text eines Eingabefelds bleibt ohne blaue Markierung, solange das Feld
+                // nicht bedient wird (Windows lässt den Text sonst auch in inaktiven Fenstern markiert)
+                if (cb.DropDownStyle == ComboBoxStyle.DropDown && cb.Parent is not DataGridView)
+                {
+                    void Entmarkieren() { if (!cb.IsDisposed && cb.IsHandleCreated && !cb.Focused && cb.SelectionLength > 0) cb.SelectionLength = 0; }
+                    cb.SelectedIndexChanged += (_, _) => { if (cb.IsHandleCreated && !cb.Focused) cb.BeginInvoke(Entmarkieren); };
+                    cb.TextChanged += (_, _) => { if (cb.IsHandleCreated && !cb.Focused) cb.BeginInvoke(Entmarkieren); };
+                    cb.Leave += (_, _) => { if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren); };
+                    if (cb.IsHandleCreated) cb.BeginInvoke(Entmarkieren);
+                    else cb.HandleCreated += (_, _) => cb.BeginInvoke(Entmarkieren);
+                }
                 // auch eigene, selbst gezeichnete Listen: mindestens so breit wie Kurz- und Langname und immer nach unten
                 cb.DropDown += (_, _) => { if (!ListenSuche.IstEingerichtet(cb)) { ListenSuche.BreiteSetzen(cb, langname: ListenSuche.Langname); ListenSuche.NachUnten(cb); } };
                 // kein versehentliches Umschalten mit dem Mausrad: nur in der geöffneten Liste blättert das Rad, sonst rollt die Umgebung
@@ -196,6 +209,13 @@ public static class Auswahlbreite
                 // Auswahlspalten wie im Vorbild ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
+                // Vorbild (Bilder 308, 350): die aktuelle Zelle einer Auswahlspalte zeigt im Vertretungsmodus den Aufklappknopf
+                g.CellPainting += (_, e) =>
+                {
+                    if (!Ui.Vertretungsmodus || e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || g.IsCurrentCellInEditMode || g.ReadOnly) return;
+                    if (g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex) return;
+                    if (g.Columns[e.ColumnIndex] is DataGridViewComboBoxColumn { ReadOnly: false } && !c.ReadOnly) MehrfachAuswahl.PfeilZeichnen(e);
+                };
                 // Kopieren nur als reiner Text (sichtbare Zellen, ohne HTML/CSV-Formate)
                 NurText.Tabelle(g);
                 // einheitliches Eingabeverhalten (Enter/Esc/F2/Entf/Strg+V/Strg+X, ungültige Eingaben) in allen Tabellen

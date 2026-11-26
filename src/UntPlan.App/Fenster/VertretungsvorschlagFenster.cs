@@ -46,13 +46,13 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
     // Reiter 22 hoch, Tabellenzeilen 17, Spalten Name 42 / Merker zur Stunde 110 / je Stunde 42, Vorziehungen-Kopf 40 hoch
     // Vorbild (gemessen): Bereich der Häkchen 40 Pixel hoch, Zeilen im Abstand von 20 Pixeln
     private readonly Panel _optionen = new() { Dock = DockStyle.Top, Height = 40 };
-    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(13, 4) };
-    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(229, 4) };
-    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(13, 24) };
-    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(229, 24), Visible = false };
+    private readonly CheckBox _block = new() { Text = "Stundenblock", AutoSize = true, Location = new Point(13, 2) };
+    private readonly CheckBox _disloz = new() { Text = "Dislozierungen ignorieren", AutoSize = true, Location = new Point(229, 2) };
+    private readonly CheckBox _dauer = new() { Text = "Dauervertretung", AutoSize = true, Location = new Point(13, 22) };
+    private readonly CheckBox _nahe = new() { Text = "Nur in der Nähe", AutoSize = true, Location = new Point(229, 22), Visible = false };
     // Reiter „Räume“ wie in der Vorlage: rechts neben Stundenblock bzw. Dauervertretung untereinander, „Auch besetzte Räume anzeigen“ vorbelegt
-    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(229, 4), Visible = false, Checked = true };
-    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(229, 24), Visible = false };
+    private readonly CheckBox _besetzt = new() { Text = "Auch besetzte Räume anzeigen", AutoSize = true, Location = new Point(229, 2), Visible = false, Checked = true };
+    private readonly CheckBox _zusatzRaum = new() { Text = "Zusätzlichen Raum zuordnen", AutoSize = true, Location = new Point(229, 22), Visible = false };
     private readonly Reiterleiste _reiter = new() { Dock = DockStyle.Top };
     private readonly Panel _inhalt = new() { Dock = DockStyle.Fill };
     private readonly DataGridView _vorschlag = new() { Dock = DockStyle.Fill, Name = "Vorschlag" };
@@ -271,7 +271,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
 
         // Leisten, Häkchen und Reiter wie im Original-Bildschirmfoto in Microsoft Sans Serif 8,25 (die Tabellen haben ihre eigene Schrift)
         // Vorbild (gemessen): Leisten, Reiter und Tabelle 9 Pixel innerhalb des 1-Pixel-Fensterrands, erste Leiste 2 Pixel unter der Werkzeugleiste
-        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 2, 9, 4), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
+        var flaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 2, 9, 9), BackColor = Ui.BlauSehrHell, Font = Ui.DialogSchrift };
         // Andockreihenfolge: zuletzt hinzugefügte Steuerelemente liegen außen
         flaeche.Controls.Add(_inhalt);
         flaeche.Controls.Add(_reiter);

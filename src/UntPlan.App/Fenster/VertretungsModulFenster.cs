@@ -16,7 +16,8 @@ public sealed class KalenderFenster : MdiFenster
     // Kopf wie im Handbuch-Bild (Kap. 4.4, 96 dpi): „Kalenderwoche“, Wochennummer ohne Rahmen mit Auf-/Ab-Pfeilen, Datumsfeld 90 breit
     // nachgemessen auf den Vorbild-Bildschirmfotos (100 %, Fensterrahmen 1 px, hier 3 px): „Kalenderwoche“ ab x 19, Wochennummer ab x 123,
     // Auf-/Ab-Pfeile ab x 148, Datumsfeld 89 × 24 ab x 169 / y 9 (jeweils ab Fensteraußenkante bzw. Oberkante des Inhalts)
-    private readonly NumericUpDown _kw = new() { Minimum = 1, Maximum = 53, BorderStyle = BorderStyle.None, Bounds = new Rectangle(119, 12, 43, 20) };
+    // Vorbild (Bild 308): Zahl ohne Rand auf dem Fensterhintergrund, weißer Hoch/Runter-Knopf 17 × 23 ab x 147 / y 9
+    private readonly Steuerelemente.Drehfeld _kw = new(Steuerelemente.DrehfeldStil.Frei) { Minimum = 1, Maximum = 53, Bounds = new Rectangle(119, 9, 45, 23) };
     private readonly DateTimePicker _datum = new() { Format = DateTimePickerFormat.Custom, CustomFormat = "dd.MM.yyyy", Bounds = new Rectangle(166, 9, 89, 24) };
     // Vorlage (Bild 308): Kopf und Tabelle in Microsoft Sans Serif 8,25 („Kalenderwoche“ 72 Pixel, „Datum“ 30 Pixel breit)
     private static Font TabellenSchrift => Ui.DialogSchrift;
@@ -39,6 +40,15 @@ public sealed class KalenderFenster : MdiFenster
     private readonly ToolTip _tipp = new();
     private bool _laedt;
 
+    /// <summary>Selbsttest (Vorbild 308): letzte Spalte des gewählten Tags aktuell (die Liste ist dann ganz nach rechts gerollt).</summary>
+    internal void SelbsttestLetzteSpalte()
+    {
+        if (_woche.Rows.Count == 0 || _woche.Columns.GetLastColumn(DataGridViewElementStates.Visible, DataGridViewElementStates.None) is not { } c) return;
+        var zeile = _woche.CurrentCell?.RowIndex ?? 0;
+        _woche.CurrentCell = _woche.Rows[Math.Max(0, zeile)].Cells[c.Index];
+        _woche.FirstDisplayedScrollingColumnIndex = c.Index;
+    }
+
     public KalenderFenster()
     {
         Text = "Kalender";
@@ -49,7 +59,6 @@ public sealed class KalenderFenster : MdiFenster
         // Vorbild: Tabelle beginnt 52 px unter der Titelleiste, links und rechts 9 px vom Fensterrand
         var kopf = new Panel { Dock = DockStyle.Top, Height = 52, Font = Ui.DialogSchrift, BackColor = Ui.Kopf };
         kopf.Controls.Add(new Label { Text = "Kalenderwoche", AutoSize = true, Location = new Point(14, 13) });
-        _kw.BackColor = BackColor;
         kopf.Controls.Add(_kw);
         kopf.Controls.Add(_datum);
         Ui.DatumsfeldHoehe(_datum);
@@ -108,7 +117,11 @@ public sealed class KalenderFenster : MdiFenster
             else if (e.ColumnIndex < 2 || !Kalender.IstUnterrichtstag(D, d)) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(229, 239, 235);
             e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor.IsEmpty ? Color.Black : e.CellStyle.ForeColor;
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
+            // Vorbild (Bild 308): die aktuelle Zelle (nicht Datum und Tag) dunkler beige
+            if (Ui.Vertretungsmodus && e.ColumnIndex >= 2 && _woche.CurrentCell is { } cc && cc.RowIndex == e.RowIndex && cc.ColumnIndex == e.ColumnIndex)
+                e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Ui.ZelleAktuell;
         };
+        _woche.CurrentCellChanged += (_, _) => _woche.Invalidate();
 
         // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Art | Elemente | Gültig bis | Tagestext […] | UntPlanWeb;
         // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)

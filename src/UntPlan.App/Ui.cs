@@ -145,6 +145,8 @@ public static partial class Ui
     public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
     /// <summary>Aktuelle Zelle einer Liste im Vertretungsmodus (Vorbild Bild 308: Spalte „Art“ der gewählten Vertretung).</summary>
     public static readonly Color ZelleAktuell = Color.FromArgb(227, 217, 177);
+    /// <summary>Übrige Zellen der aktuellen Zeile im Vertretungsmodus (Vorbild, Bilder 308 und 348).</summary>
+    public static readonly Color ZeileAktuellVorbild = Color.FromArgb(206, 226, 218);
     /// <summary>Aktuelle Zelle im Vertretungsvorschlag (Vorbild Bild 308/309: Name der gewählten Lehrkraft).</summary>
     public static readonly Color ZelleAktuellVorschlag = Color.FromArgb(247, 230, 192);
     /// <summary>Hintergrund einer Tabellenzelle mit ungültiger Eingabe (hellrot, dazu Fehlersymbol mit Tooltip).</summary>
@@ -360,6 +362,13 @@ public static partial class Ui
                     if (c.Parent is Panel p && Ungueltig(p.BackColor)) p.BackColor = farbe;
                 };
         };
+        // Überschrift der Spalte mit der aktuellen Zelle auch dann hervorheben, wenn ihr Stil inzwischen neu gesetzt wurde
+        // (Spalten neu aufgebaut, Formate angewendet)
+        g.CellPainting += (_, e) =>
+        {
+            if (e.RowIndex != -1 || e.ColumnIndex < 0 || e.CellStyle is null || g.CurrentCell?.ColumnIndex != e.ColumnIndex) return;
+            e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+        };
         g.CellPainting += (_, e) =>
         {
             // Überschrift ohne „…“: zu lange Texte werden wie im Vorbild einfach am Spaltenrand abgeschnitten
@@ -457,6 +466,10 @@ public static partial class Ui
             // Vorbild (Bild 308, Vertretungen und Kalender): die aktuelle Zelle selbst dunkler beige als die Zeilenmarke
             else if (Vertretungsmodus && erste != null && e.ColumnIndex == g.CurrentCell.ColumnIndex && e.ColumnIndex != erste.Index)
                 e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = ZelleAktuell;
+            // übrige Zellen der aktuellen Zeile wie im Vorbild (Bilder 308, 348) hell graugrün, sofern sie keine eigene Farbe haben
+            else if (Vertretungsmodus && (e.CellStyle.BackColor.IsEmpty || e.CellStyle.BackColor == g.DefaultCellStyle.BackColor
+                     || e.CellStyle.BackColor == g.RowsDefaultCellStyle.BackColor || e.CellStyle.BackColor == g.AlternatingRowsDefaultCellStyle.BackColor))
+                e.CellStyle.BackColor = ZeileAktuellVorbild;
         };
     }
 

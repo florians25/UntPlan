@@ -58,6 +58,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private Action? _planGroesse;
     /// <summary>Werkzeugleisten-Einträge, die auch im kleinen Stundenplan sichtbar bleiben.</summary>
     private readonly List<ToolStripItem> _kleinSichtbar = new();
+    /// <summary>Ursprüngliche Darstellung der Leistenknöpfe (im Überlauf mit Text).</summary>
+    private readonly Dictionary<ToolStripItem, ToolStripItemDisplayStyle> _darstellung = new();
 
     public static StundenplanFenster Neu(ElementTyp typ, int? id, bool gross, bool klein = false)
     {
@@ -162,25 +164,39 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _kleinSichtbar.Add(ts.Items[^1]);
         foreach (var (t, name, symbol) in new[] { (ElementTyp.Klasse, "Klasse", "klassen"), (ElementTyp.Lehrer, "Lehrer", "lehrer"), (ElementTyp.Raum, "Raum", "raeume"), (ElementTyp.Fach, "Fach", "faecher") })
             _typKnopf.DropDownItems.Add(name, Symbole.Get(symbol, 16), (_, _) => TypSetzen(t));
+        // Vorbild (Bild 312): Symbol 9 Pixel nach dem Hoch/Runter-Knopf, Pfeil 20 Pixel nach dem Symbolanfang
+        _typKnopf.AutoSize = false;
+        _typKnopf.Size = new Size(34, 22);
+        _typKnopf.Margin = new Padding(3, 1, 0, 2);
         ts.Items.Add(_typKnopf);
         _kleinSichtbar.Add(_typKnopf);
         // blaue Durchschaltknöpfe im Fenstertitel
         Titelleiste.Durchschalten = Blaettern;
         // Fensterverknüpfung (Vorbild-Kettensymbol): Plan folgt dem gewählten Element bzw. der gewählten Stunde anderer Fenster
         Verknuepft = AppZustand.Einstellungen.StundenplanSynchronisieren;
+        // eigener Befehl: im kleinen Plan (wie im Vorbild ohne Kette) im Überlauf » der Leiste
         _sync = Verknuepfung.Knopf(Verknuepft, v => Verknuepft = v);
+        _sync.Text = "Fenster verknüpfen";
         ts.Items.Add(_sync);
-        _kleinSichtbar.Add(_sync);
+        // Vorbild (Bild 312): Trennstrich nach der Planart
+        ts.Items.Add(new ToolStripSeparator());
+        _kleinSichtbar.Add(ts.Items[^1]);
         // Vorbild-Symbolleiste: Normalform anzeigen | Raum zuordnen / löschen, Unterr.-Std. fixieren (F7), Tauschvorschläge,
         // Änderungen rückgängig | Unterrichts-Farben anzeigen, Art fixieren, Ansicht fixiert | Seitenlayout, Einstellungen |
         // Alle Elemente im Unterricht; danach die eigenen Schaltflächen (klein, Lupe, Entplanen, Druck, HTML, Woche)
         ts.Items.Add(Knopf("Normalform anzeigen", "normalform", NormalformAnzeigen));
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(new ToolStripSeparator());
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(Knopf("Raum zuordnen / löschen", "raumzuordnen", RaumZuordnen));
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(Knopf("Unterr.-Std. fixieren (F7)", "fixieren", Fixieren));
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(Knopf("Tauschvorschläge", "tausch", TauschvorschlaegeZeigen));
         ts.Items.Add(Knopf("Änderungen rückgängig", "rueckgaengig", AenderungenRueckgaengig));
+        _kleinSichtbar.Add(ts.Items[^1]);
         ts.Items.Add(new ToolStripSeparator());
+        _kleinSichtbar.Add(ts.Items[^1]);
         _farbenKnopf = new ToolStripButton(Symbole.Get("farbe")) { ToolTipText = "Unterrichts-Farben anzeigen", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
         _farbenKnopf.Click += (_, _) => FarbenUmschalten(_farbenKnopf.Checked);
         ts.Items.Add(_farbenKnopf);
@@ -190,6 +206,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _ansichtKnopf = new ToolStripButton(Symbole.Get("schloss")) { ToolTipText = "Ansicht fixiert", CheckOnClick = true, DisplayStyle = ToolStripItemDisplayStyle.Image };
         _ansichtKnopf.Click += (_, _) => AnsichtFixierenSetzen(_ansichtKnopf.Checked);
         ts.Items.Add(_ansichtKnopf);
+        // kleiner Plan wie im Vorbild (Bilder 308, 312, 340 bis 344): Normalform | Raum, Fixieren, Rückgängig | Farben, Art, Ansicht,
+        // so viele wie in die Fensterbreite passen; alles Weitere im Überlauf »
+        _kleinSichtbar.AddRange(new ToolStripItem[] { _farbenKnopf, _artKnopf, _ansichtKnopf });
         ts.Items.Add(new ToolStripSeparator());
         var seitenlayout = new ToolStripSplitButton(Symbole.Get("vorschau")) { ToolTipText = "Seitenlayout\nEinstellungen für den Druck der aktuellen Ansicht.", DisplayStyle = ToolStripItemDisplayStyle.Image };
         seitenlayout.ButtonClick += (_, _) => Seitenlayout();
@@ -688,7 +707,11 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         foreach (ToolStripItem it in _leiste.Items)
         {
             it.Visible = true;
-            it.Overflow = _klein && !_kleinSichtbar.Contains(it) ? ToolStripItemOverflow.Always : ToolStripItemOverflow.AsNeeded;
+            if (!_darstellung.ContainsKey(it)) _darstellung[it] = it.DisplayStyle;
+            var ueberlauf = it.Name == SpaltenKnopfName || _klein && !_kleinSichtbar.Contains(it);
+            it.Overflow = ueberlauf ? ToolStripItemOverflow.Always : ToolStripItemOverflow.AsNeeded;
+            // im Überlauf mit Beschriftung (in der Leiste nur das Symbol)
+            it.DisplayStyle = ueberlauf && _darstellung[it] == ToolStripItemDisplayStyle.Image && !string.IsNullOrEmpty(it.Text) ? ToolStripItemDisplayStyle.ImageAndText : _darstellung[it];
         }
         _auswahl.Width = _klein ? 76 : 100; // Vorbild klein: Elementauswahl 76 px samt Pfeil
         // Vorlage: Durchschalter auch im kleinen Plan rechts nach dem (gekürzten) Titel vor den Fensterknöpfen

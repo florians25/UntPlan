@@ -19,6 +19,13 @@ public static class Erscheinungsbild
 {
     /// <summary>Rand der flachen Knöpfe (wie im Meldungsfenster, gemessen (171,171,171)).</summary>
     public static readonly Color KnopfRand = Color.FromArgb(171, 171, 171);
+    /// <summary>Rand der Dialogknöpfe: im Vertretungsmodus wie im Vorbild (Bilder 348, 349) hell in der Modusfarbe (175, 208, 195).</summary>
+    public static Color KnopfRandDialog => Ui.Vertretungsmodus ? Color.FromArgb(175, 208, 195) : KnopfRand;
+    /// <summary>
+    /// Tag eines Standardknopfs, der wie im Vorbild „Auswahl“ (Bild 349) weiß bleibt und nur einen 2 Pixel breiten Rand bekommt
+    /// (die Liste hat den Fokus; gefüllt erscheint der Standardknopf nur in Meldungen).
+    /// </summary>
+    public const string StandardWeiss = "StandardWeiss";
 
     private static readonly ConditionalWeakTable<Control, object> Gestaltet = new();
 
@@ -192,11 +199,12 @@ public static class Erscheinungsbild
         if (b.IsDisposed) return;
         var standard = b.FindForm() is { } f && ReferenceEquals(f.AcceptButton, b);
         // Standardknopf wie im Vorbild (Meldungsfenster): hell gefüllt in der Modusfarbe, 1 Pixel dunkler Rand
-        if (standard) Ui.StandardKnopf(b);
+        if (standard && b.Tag as string != StandardWeiss) Ui.StandardKnopf(b);
         else
         {
             if (b.BackColor == Ui.StandardKnopfFlaeche) b.BackColor = Color.White;
-            b.FlatAppearance.BorderColor = KnopfRand;
+            b.FlatAppearance.BorderColor = KnopfRandDialog;
+            b.FlatAppearance.BorderSize = standard ? 2 : 1;
         }
         b.FlatAppearance.MouseOverBackColor = Ui.Hover;
         b.FlatAppearance.MouseDownBackColor = Ui.BlauHell;
