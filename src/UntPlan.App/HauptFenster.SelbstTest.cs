@@ -91,6 +91,63 @@ public sealed partial class HauptFenster
         Close();
     }
 
+    /// <summary>
+    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (dreifach vervielfacht) und Kürzel im Aufbau des
+    /// Vorbilds, Klassen zweistellig mit Großbuchstaben („05A“), Lehrkräfte fünf Zeichen aus Nach- und Vorname („MülAn“), Räume mit
+    /// Gebäudebuchstabe („A101“). Alle Namen sind frei erfunden; die Nutzerdaten bleiben unberührt (nur in der Szene verwendet).
+    /// </summary>
+    internal static void VorbildDaten(Schuldatei x)
+    {
+        var lehrer0 = x.Lehrer.Count;
+        var raeume0 = x.Raeume.Count;
+        Demo.Vervielfachen(x, 3);
+        // weitere erfundene Namen für die Kopien der Lehrkräfte
+        string[] nach = { "Albers", "Bauer", "Conrad", "Dietz", "Ebert", "Franke", "Graf", "Haas", "Ilg", "Jansen", "Kaiser", "Lorenz", "Mertens", "Nagel",
+            "Otto", "Peters", "Quast", "Roth", "Seidel", "Thiel", "Ulrich", "Vogt", "Winter", "Xander", "Yilmaz", "Ziegler", "Arnold", "Brandt", "Busch", "Dorn",
+            "Engel", "Fuchs", "Gerber", "Hahn", "Jung", "Kraus", "Lindner", "Marx", "Nowak", "Pohl", "Rausch", "Sauer", "Ternes", "Voss" };
+        string[] vor = { "Anja", "Bernd", "Carla", "Dirk", "Eva", "Felix", "Greta", "Holger", "Ines", "Jonas", "Karin", "Lukas", "Maren", "Nils", "Olga",
+            "Paul", "Rita", "Sven", "Tanja", "Uwe", "Vera", "Willi" };
+        for (var i = lehrer0; i < x.Lehrer.Count; i++)
+        {
+            x.Lehrer[i].Langname = nach[(i - lehrer0) % nach.Length];
+            x.Lehrer[i].Vorname = vor[(i - lehrer0) % vor.Length];
+        }
+        var vergeben = new HashSet<string>();
+        foreach (var l in x.Lehrer)
+        {
+            static string Teil(string t, int n) => t.Length <= n ? t : t[..n];
+            var k = Teil(l.Langname, 3) + Teil(l.Vorname, 2);
+            var basis = k;
+            for (var n = 2; !vergeben.Add(k); n++) k = Teil(basis, 4) + n;
+            l.Kurzname = k;
+        }
+        // Klassen: Jahrgang zweistellig, Parallelklassen fortlaufend A, B, C … (über die Kopien hinweg); Oberstufe EF, Q1, Q2
+        var oberstufe = new[] { "EF", "Q1", "Q2" };
+        var zaehler = new Dictionary<string, int>();
+        var ob = 0;
+        foreach (var k in x.Klassen)
+        {
+            if (int.TryParse(k.Jahrgang, out var jg))
+            {
+                var n = zaehler[k.Jahrgang] = zaehler.GetValueOrDefault(k.Jahrgang) + 1;
+                k.Kurzname = $"{jg:00}{(char)('A' + n - 1)}";
+            }
+            else k.Kurzname = oberstufe[Math.Min(ob++, oberstufe.Length - 1)] + (ob > oberstufe.Length ? ob.ToString() : "");
+            k.Langname = "Klasse " + k.Kurzname;
+        }
+        // Räume: Klassenräume mit Gebäudebuchstabe je Kopie (A101, B101, C101), Fachräume fortlaufend nummeriert
+        var fach = new Dictionary<string, int>();
+        for (var i = 0; i < x.Raeume.Count; i++)
+        {
+            var r = x.Raeume[i];
+            var kopie = i / Math.Max(1, raeume0);
+            var basis = new string(r.Kurzname.TakeWhile(char.IsLetter).ToArray());
+            var ziffern = new string(r.Kurzname.SkipWhile(char.IsLetter).TakeWhile(char.IsDigit).ToArray());
+            if (basis == "R" && ziffern.Length >= 3) r.Kurzname = $"{(char)('A' + kopie)}{ziffern[..3]}";
+            else { var n = fach[basis] = fach.GetValueOrDefault(basis) + 1; r.Kurzname = $"{basis}{n}"; }
+        }
+    }
+
     internal void SelbstTest(string ordner)
     {
         Directory.CreateDirectory(ordner);
@@ -1490,6 +1547,10 @@ public sealed partial class HauptFenster
             try
             {
                 ModusFuerBild(true);
+                // Bildschirm des Vorbilds: 1920 × 1080 mit Taskleiste, das maximierte Fenster ist 1032 Pixel hoch (der Runner hat keine Taskleiste)
+                SelbsttestHoehe = 1032;
+                WindowState = FormWindowState.Normal;
+                MaximalgroesseSetzen();
                 WindowState = FormWindowState.Maximized;
                 Warten(400);
                 if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
@@ -1497,6 +1558,7 @@ public sealed partial class HauptFenster
                 Vertretung? entfall = null;
                 AppZustand.Doc.Aendern("Vorbild 308", AenderungsArt.Alles, x =>
                 {
+                    VorbildDaten(x);
                     var altVon = x.Einstellungen.SchuljahrVon;
                     x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
                     x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
@@ -1521,7 +1583,7 @@ public sealed partial class HauptFenster
                 AppZustand.Einstellungen.KalenderDetailOffen = false;
                 var dd = AppZustand.D;
                 var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, vorbildTag);
-                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "7a") ?? dd.Klassen.First();
+                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "07A") ?? dd.Klassen.First();
                 var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
                 var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
                 Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
@@ -1560,6 +1622,8 @@ public sealed partial class HauptFenster
                 // wie im Vorbild: in den Absenzen die Spalte „Lehrer“ der Eingabezeile aktuell
                 absenzen.SelbsttestWaehlen("E");
                 foreach (var m in MdiChildren.OfType<MdiFenster>()) m.AuswahlMarkierungenAufheben();
+                // Statuszeile wie im Vorbild: Grundtext (dort wurde die Spalte nicht zuletzt per Tastatur gewechselt)
+                _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
                 Warten(300);
                 foreach (var f in MdiChildren) foreach (var rl in R3cAlle(f).OfType<Steuerelemente.Reiterleiste>()) log.Add($"MASS  V51 Reiter {f.Text}: {rl.SelbsttestMasse()}");
                 log.Add("MASS  V51 Auswahlfelder: " + string.Join(" | ", MdiChildren.SelectMany(MdiFenster.AlleAuswahlfelder).Where(c => c.Visible)
@@ -1581,6 +1645,9 @@ public sealed partial class HauptFenster
             finally
             {
                 AlleSchliessen();
+                SelbsttestHoehe = null;
+                MaximalgroesseSetzen();
+                if (WindowState == FormWindowState.Maximized) { WindowState = FormWindowState.Normal; WindowState = FormWindowState.Maximized; }
                 MdiFenster.SelbsttestOhneKlemmen = false;
                 AppZustand.Einstellungen.KalenderDetailOffen = detailVorher;
                 if (assistentVorher) { _assistent.Visible = true; _assistentSplitter.Visible = true; }
@@ -1596,14 +1663,24 @@ public sealed partial class HauptFenster
             ModusFuerBild(true);
             var vorher = WindowState;
             var datumVorher = AppZustand.Datum;
+            var sicherung = Dokument.Klonen(AppZustand.D);
             WindowState = FormWindowState.Maximized;
             Warten(400);
             try
             {
-                // wie im Vorbild: ein Unterrichtstag ohne Veranstaltungen (leere Liste, nur die Eingabezeile)
-                var leer = Enumerable.Range(0, 400).Select(i => AppZustand.Datum.AddDays(-i))
-                    .FirstOrDefault(t => t.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !AppZustand.D.Veranstaltungen.Any(v => v.Von <= t && v.Bis >= t));
-                if (leer != default) AppZustand.DatumSetzen(leer);
+                // wie im Vorbild: Montag, 30.08.2021 (Schuljahr 2021/2022) ohne Veranstaltungen (leere Liste, nur die Eingabezeile),
+                // Daten im Aufbau des Vorbilds
+                var vorbildTag = new DateOnly(2021, 8, 30);
+                AppZustand.Doc.Aendern("Vorbild 348", AenderungsArt.Alles, x =>
+                {
+                    VorbildDaten(x);
+                    var altVon = x.Einstellungen.SchuljahrVon;
+                    x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
+                    x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
+                    foreach (var p in x.Perioden.Where(p => p.Von <= altVon)) p.Von = x.Einstellungen.SchuljahrVon;
+                    x.Veranstaltungen.RemoveAll(v => v.Von <= vorbildTag && v.Bis >= vorbildTag);
+                });
+                AppZustand.DatumSetzen(vorbildTag);
                 var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
                 va.WindowState = FormWindowState.Normal;
                 va.Bounds = new Rectangle(131, 45, 988, 416);
@@ -1697,6 +1774,8 @@ public sealed partial class HauptFenster
             finally
             {
                 Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
                 AppZustand.DatumSetzen(datumVorher);
                 WindowState = vorher;
             }

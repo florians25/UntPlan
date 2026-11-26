@@ -316,6 +316,10 @@ public static class MehrfachAuswahl
         Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, r - 4, t + 1);
         Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, l + 1, u - 1);
         Linie(Color.FromArgb(227, 227, 227), r - 3, t + 1, r - 3, u - 1);
+        // Eingabemarke im leeren Feld wie im Vorbild (Bild 351): 1 Pixel breit, 7 Pixel hoch, weich auslaufend
+        int[] marke = { 237, 166, 103, 74, 79, 135, 229 };
+        for (var i = 0; i < marke.Length; i++)
+            using (var m = new SolidBrush(Color.FromArgb(marke[i], marke[i], marke[i]))) g.FillRectangle(m, l + 3, t + 3 + i, 1, 1);
         var knopf = Rectangle.FromLTRB(r - 27, t + 2, r - 3, u);
         using (var f = new SolidBrush(Color.FromArgb(145, 205, 181))) g.FillRectangle(f, knopf);
         using (var p = new Pen(Color.FromArgb(175, 208, 195))) g.DrawRectangle(p, knopf.X, knopf.Y, knopf.Width - 1, knopf.Height - 1);

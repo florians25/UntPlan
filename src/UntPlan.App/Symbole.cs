@@ -89,11 +89,11 @@ public static class Symbole
         ["l_inhalt"] = "table_select",
         ["l_farbig"] = "palette",
         ["l_seitenlayout"] = "page_white_gear",
-        ["l_aktualisieren"] = "arrow_refresh",
+        ["l_aktualisieren"] = "update",
         ["l_kalender"] = "calendar_view_month",
 
         // Datei und Bearbeiten
-        ["neu"] = "page_white_add",
+        ["neu"] = "page_white_star",
         ["oeffnen"] = "folder",
         ["speichern"] = "diskette",
         ["drucken"] = "printer",
@@ -119,6 +119,7 @@ public static class Symbole
         ["anordnung"] = "application_cascade",
         ["nebeneinander"] = "application_tile_horizontal",
         ["schloss"] = "lock",
+        ["schloss_offen"] = "lock_open",
         ["verknuepft"] = "link",
         ["nicht_verknuepft"] = "link_break",
         ["farbe"] = "color_wheel",
