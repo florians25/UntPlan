@@ -225,7 +225,9 @@ public sealed class ElementRollup : Form
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         Size = new Size(320, 380);
         Location = new Point(Math.Max(0, lage.Left + 30), Math.Max(0, lage.Top + 30));
-        if (haupt != null) Show(haupt); else Show();
+        // nach dem Wechsel zum eigenen Fenster kann Visible noch gesetzt sein (Show mit Besitzer würde dann scheitern)
+        if (haupt != null) Owner = haupt;
+        if (!Visible) Show(); else Activate();
         AppZustand.Einstellungen.RollupAngedockt = "";
         AppZustand.Einstellungen.Speichern();
     }

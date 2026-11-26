@@ -1443,6 +1443,7 @@ public sealed partial class HauptFenster
                 Pruefen(ElementRollup.Kante == DockStyle.Left, "Eigenes Andocken des Rollups funktioniert nicht mehr.");
                 ElementRollup.KanteSetzen(DockStyle.None);
                 Warten(300);
+                Pruefen(Application.OpenForms.OfType<ElementRollup>().Any(f => f.TopLevel && f.Visible), "Rollup nach dem Lösen vom eigenen Rand nicht sichtbar.");
             }
             finally
             {
