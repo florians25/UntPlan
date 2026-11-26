@@ -76,15 +76,16 @@ public sealed class Reiterleiste : Control
     private List<Rectangle> Rechtecke()
     {
         var res = new List<Rectangle>();
-        // Vorbild (Bild 308, Absenzen): Reiter 10 Pixel breiter als ihr Text, der erste beginnt 4 Pixel nach dem Rand
-        var x = 4;
-        var oben = 4;
+        // Vorbild (Bild 308, Absenzen, pixelweise): Reiter 12 Pixel breiter als ihr Text und lückenlos aneinander, der erste
+        // beginnt 2 Pixel nach dem Rand (gewählt: am Rand), nicht gewählte Reiter 2 Pixel unter der Oberkante
+        var x = 2;
+        var oben = 2;
         var unten = Height - 5;
         foreach (var t in _texte)
         {
-            var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 10;
+            var w = TextRenderer.MeasureText(t, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width + 12;
             res.Add(new Rectangle(x, oben, w, unten - oben));
-            x += w + 1;
+            x += w;
         }
         return res;
     }
@@ -131,7 +132,18 @@ public sealed class Reiterleiste : Control
         g.DrawLine(hell, r.Left + 2, r.Top + 2, r.Right - 3, r.Top + 2);
         g.DrawLine(grau, r.Right - 2, r.Top + 2, r.Right - 2, r.Bottom - 1);
         g.DrawLine(dunkel, r.Right - 1, r.Top + 2, r.Right - 1, r.Bottom - 1);
-        var textR = Rectangle.FromLTRB(r.Left + 2, r.Top + 2, r.Right - 2, r.Bottom);
+        // abgeschrägte Ecken oben wie im Vorbild (Fensterfarbe 240)
+        using (var ecke = new SolidBrush(Color.FromArgb(240, 240, 240)))
+        {
+            g.FillRectangle(ecke, r.Left, r.Top + 1, 2, 1);
+            g.FillRectangle(ecke, r.Left, r.Top + 2, 1, 1);
+            g.FillRectangle(ecke, r.Right - 2, r.Top + 1, 2, 1);
+            g.FillRectangle(ecke, r.Right - 1, r.Top + 2, 1, 1);
+        }
+        g.FillRectangle(Brushes.White, r.Left + 1, r.Top + 2, 1, 1);
+        using (var d = new SolidBrush(dunkel.Color)) g.FillRectangle(d, r.Right - 2, r.Top + 2, 1, 1);
+        // gewählter Reiter: Text im Vorbild 1 Pixel höher als in der Mitte der Fläche
+        var textR = Rectangle.FromLTRB(r.Left + 2, r.Top + 2 - (gewaehlt ? 1 : 0), r.Right - 2, r.Bottom - (gewaehlt ? 1 : 0));
         TextRenderer.DrawText(g, text, Font, textR, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
         if (gewaehlt && Focused) ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(textR, -2, -3));
     }

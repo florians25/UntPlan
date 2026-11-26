@@ -440,18 +440,19 @@ public sealed partial class Ribbon : Control
                     // deaktiviert: offizielle graue FatCow-Variante statt Graufilter
                     g.DrawImage(aktiv ? img : Symbole.Grau(it.Symbol, 32) ?? img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 2, 32, 32);
                     // Beschriftung mittig, seitlich etwas Luft (die Knopfbreite rechnet mit der engeren Vorbildschrift, siehe LayoutBreite)
-                    var tr = new Rectangle(it.Bounds.X - 4 + MitteAusgleich, it.Bounds.Y + 36, it.Bounds.Width + 8, 30);
-                    TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                    // eingedrückter Knopf („Vertretungsplanung“): im Vorbild ohne den Ausgleich genau mittig
+                    var tr = new Rectangle(it.Bounds.X - 4 + (gedrueckt ? 0 : MitteAusgleich), it.Bounds.Y + 36, it.Bounds.Width + 8, 30);
+                    Laufweite.Zeichnen(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
                     if (HatMenue(it) || it.PfeilKalender) Pfeil(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Y + 55, farbe);
                 }
                 else
                 {
                     var img = Symbole.Get(it.Symbol, 16);
                     g.DrawImage(aktiv ? img : Symbole.Grau(it.Symbol, 16) ?? img, it.Bounds.X + 3, it.Bounds.Y + 3, 16, 16);
-                    TextRenderer.DrawText(g, it.Text, Font, new Rectangle(it.Bounds.X + KleinText, it.Bounds.Y, it.Bounds.Width - KleinText, it.Bounds.Height - 1), farbe,
+                    Laufweite.Zeichnen(g, it.Text, Font, new Rectangle(it.Bounds.X + KleinText, it.Bounds.Y, it.Bounds.Width - KleinText, it.Bounds.Height - 1), farbe,
                         TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding);
                     // Vorbild: Pfeil 6 Pixel nach dem Textende
-                    if (HatMenue(it)) Pfeil(g, it.Bounds.X + KleinText + TextBreite(it.Text) + 7, it.Bounds.Y + 9, farbe);
+                    if (HatMenue(it)) Pfeil(g, it.Bounds.X + KleinText + Laufweite.Breite(it.Text, Font) + 7, it.Bounds.Y + 9, farbe);
                 }
             }
         }

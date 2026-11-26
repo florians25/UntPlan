@@ -392,22 +392,7 @@ public static class SondereinsatzDialog
                 Uebertragen(zeile, name);
             });
         }
-        bool Mehrfach(int spalte) => spalte >= 0 && g.Columns[spalte].Name is "L" or "K";
-        g.CellPainting += (_, e) =>
-        {
-            if (e.RowIndex < 0 || !Mehrfach(e.ColumnIndex) || g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || g.IsCurrentCellInEditMode) return;
-            Steuerelemente.MehrfachAuswahl.PfeilZeichnen(e);
-        };
-        g.CellMouseClick += (_, e) =>
-        {
-            if (e.RowIndex < 0 || e.Button != MouseButtons.Left || !Mehrfach(e.ColumnIndex)) return;
-            if (Steuerelemente.MehrfachAuswahl.AufPfeil(g, e)) MehrfachZeigen(e.RowIndex, e.ColumnIndex);
-        };
-        g.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0 && Mehrfach(e.ColumnIndex)) MehrfachZeigen(e.RowIndex, e.ColumnIndex); };
-        g.KeyDown += (_, e) =>
-        {
-            if (e.Alt && e.KeyCode == Keys.Down && g.CurrentCell is { } c && Mehrfach(c.ColumnIndex)) { e.Handled = true; MehrfachZeigen(c.RowIndex, c.ColumnIndex); }
-        };
+        Steuerelemente.MehrfachAuswahl.Anbinden(g, z => z.OwningColumn.Name is "L" or "K", MehrfachZeigen);
         bKl.Click += (_, _) =>
         {
             var i = Zeile();
@@ -620,8 +605,9 @@ public static class SondereinsatzAuswahl
         g.RowHeadersVisible = false;
         // Spalten wie im Vorbild (Bild 349): Kurzname 58, Langname 64 Pixel (Lehrkräfte mit Klassen: Langname breiter)
         Ui.BreitenWieOriginal(g);
-        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 58;
-        g.Columns[g.Columns.Add("L", "Langname")].Width = lehrer ? 117 : 64;
+        // gemessen (Bild 349): Kurzname 59, Langname 63 Pixel zwischen den Gitterlinien
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 60;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = lehrer ? 117 : 63;
         var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
         string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
         if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 53;
@@ -635,6 +621,8 @@ public static class SondereinsatzAuswahl
         var vor = vorauswahl.ToHashSet();
         f.Shown += (_, _) =>
         {
+            // wie im Vorbild: aktuelle Zelle in der Spalte „Langname“
+            if (g.Rows.Count > 0) g.CurrentCell = g.Rows[0].Cells["L"];
             g.ClearSelection();
             foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
         };

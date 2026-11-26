@@ -91,6 +91,75 @@ public sealed partial class HauptFenster
         Close();
     }
 
+    /// <summary>
+    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (vierfach: Jahrgänge 5 bis 10 mit je vier Parallelklassen) und Kürzel im Aufbau des
+    /// Vorbilds, Klassen zweistellig mit Großbuchstaben („05A“), Lehrkräfte fünf Zeichen aus Nach- und Vorname („MülAn“), Räume mit
+    /// Gebäudebuchstabe („A101“). Alle Namen sind frei erfunden; die Nutzerdaten bleiben unberührt (nur in der Szene verwendet).
+    /// </summary>
+    internal static void VorbildDaten(Schuldatei x)
+    {
+        var klassen0 = x.Klassen.Count;
+        var lehrer0 = x.Lehrer.Count;
+        var raeume0 = x.Raeume.Count;
+        Demo.Vervielfachen(x, 4);
+        // weitere erfundene Namen für die Kopien der Lehrkräfte
+        string[] nach = { "Albers", "Bauer", "Conrad", "Dietz", "Ebert", "Franke", "Graf", "Haas", "Ilg", "Jansen", "Kaiser", "Lorenz", "Mertens", "Nagel",
+            "Otto", "Peters", "Quast", "Roth", "Seidel", "Thiel", "Ulrich", "Vogt", "Winter", "Xander", "Yilmaz", "Ziegler", "Arnold", "Brandt", "Busch", "Dorn",
+            "Engel", "Fuchs", "Gerber", "Hahn", "Jung", "Kraus", "Lindner", "Marx", "Nowak", "Pohl", "Rausch", "Sauer", "Ternes", "Voss" };
+        string[] vor = { "Anja", "Bernd", "Carla", "Dirk", "Eva", "Felix", "Greta", "Holger", "Ines", "Jonas", "Karin", "Lukas", "Maren", "Nils", "Olga",
+            "Paul", "Rita", "Sven", "Tanja", "Uwe", "Vera", "Willi" };
+        for (var i = lehrer0; i < x.Lehrer.Count; i++)
+        {
+            x.Lehrer[i].Langname = nach[(i - lehrer0) % nach.Length];
+            x.Lehrer[i].Vorname = vor[(i - lehrer0 + (i - lehrer0) / nach.Length) % vor.Length];
+        }
+        var vergeben = new HashSet<string>();
+        foreach (var l in x.Lehrer)
+        {
+            static string Teil(string t, int n) => t.Length <= n ? t : t[..n];
+            var k = Teil(l.Langname, 3) + Teil(l.Vorname, 2);
+            var basis = k;
+            for (var n = 2; !vergeben.Add(k); n++) k = Teil(basis, 4) + n;
+            l.Kurzname = k;
+        }
+        // Klassen: Jahrgang zweistellig, Parallelklassen fortlaufend A, B, C … (über die Kopien hinweg); Oberstufe EF, Q1, Q2
+        // Kopien 2 und 4 werden zu den Jahrgängen 8 bis 10, Kopien 3 und 4 liefern die Parallelklassen C und D
+        var oberstufe = new[] { "EF", "Q1", "Q2", "IK" };
+        var zaehler = new Dictionary<string, int>();
+        var ob = 0;
+        for (var i = 0; i < x.Klassen.Count; i++)
+        {
+            var k = x.Klassen[i];
+            var kopie = i / Math.Max(1, klassen0);
+            if (int.TryParse(k.Jahrgang, out var jg))
+            {
+                if (kopie % 2 == 1) { jg += 3; k.Jahrgang = jg.ToString(); }
+                var n = zaehler[k.Jahrgang] = zaehler.GetValueOrDefault(k.Jahrgang) + 1;
+                k.Kurzname = $"{jg:00}{(char)('A' + n - 1)}";
+            }
+            else k.Kurzname = oberstufe[Math.Min(ob++, oberstufe.Length - 1)];
+            k.Langname = "Klasse " + k.Kurzname;
+        }
+        // Räume: Klassenräume mit Gebäudebuchstabe je Kopie (A101, B101, C101), Fachräume fortlaufend nummeriert
+        var fach = new Dictionary<string, int>();
+        for (var i = 0; i < x.Raeume.Count; i++)
+        {
+            var r = x.Raeume[i];
+            var kopie = i / Math.Max(1, raeume0);
+            var basis = new string(r.Kurzname.TakeWhile(char.IsLetter).ToArray());
+            var ziffern = new string(r.Kurzname.SkipWhile(char.IsLetter).TakeWhile(char.IsDigit).ToArray());
+            if (basis == "R" && ziffern.Length >= 3) r.Kurzname = $"{(char)('A' + kopie)}{ziffern[..3]}";
+            else { var n = fach[basis] = fach.GetValueOrDefault(basis) + 1; r.Kurzname = $"{basis}{n}"; }
+        }
+        // Reihenfolge der Listen wie im Vorbild alphabetisch nach Kürzel (05A, 05B, 05C …)
+        var i0 = 0;
+        foreach (var k in x.Klassen.OrderBy(k => k.Kurzname, StringComparer.Ordinal)) k.Sortierung = i0++;
+        i0 = 0;
+        foreach (var l in x.Lehrer.OrderBy(l => l.Kurzname, StringComparer.Ordinal)) l.Sortierung = i0++;
+        i0 = 0;
+        foreach (var r in x.Raeume.OrderBy(r => r.Kurzname, StringComparer.Ordinal)) r.Sortierung = i0++;
+    }
+
     internal void SelbstTest(string ordner)
     {
         Directory.CreateDirectory(ordner);
@@ -1490,6 +1559,13 @@ public sealed partial class HauptFenster
             try
             {
                 ModusFuerBild(true);
+                // Bildschirm des Vorbilds: 1920 × 1080 mit Taskleiste, das maximierte Fenster ist 1032 Pixel hoch (der Runner hat keine Taskleiste)
+                SelbsttestHoehe = 1032;
+                // Vorbild-Bildschirmfoto 1919 Pixel breit: der Arbeitsbereich ist damit 1 Pixel schmaler als der Vorschlag reicht, daher
+                // zeigt er wie dort auch den waagrechten Rollbalken
+                SelbsttestBreite = 1919;
+                WindowState = FormWindowState.Normal;
+                MaximalgroesseSetzen();
                 WindowState = FormWindowState.Maximized;
                 Warten(400);
                 if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
@@ -1497,6 +1573,7 @@ public sealed partial class HauptFenster
                 Vertretung? entfall = null;
                 AppZustand.Doc.Aendern("Vorbild 308", AenderungsArt.Alles, x =>
                 {
+                    VorbildDaten(x);
                     var altVon = x.Einstellungen.SchuljahrVon;
                     x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
                     x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
@@ -1521,8 +1598,18 @@ public sealed partial class HauptFenster
                 AppZustand.Einstellungen.KalenderDetailOffen = false;
                 var dd = AppZustand.D;
                 var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, vorbildTag);
-                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "7a") ?? dd.Klassen.First();
-                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
+                // wie im Vorbild: Klassenplan voll in den Stunden 1 bis 6 und frei am Nachmittag, Lehrerplan möglichst voll
+                var unt = dd.Unterrichte.ToDictionary(u => u.Id);
+                var wochenplan = dd.AktivePeriode.Plan.Where(p => unt.ContainsKey(p.UnterrichtId)).ToList();
+                int KlassenWert(Klasse k)
+                {
+                    var stunden = wochenplan.Where(p => unt[p.UnterrichtId].Zeilen.Any(z => z.KlassenIds.Contains(k.Id))).Select(p => (p.Tag, p.Stunde)).Distinct().ToList();
+                    return stunden.Count(t => t.Stunde <= 6) - 2 * stunden.Count(t => t.Stunde > 6);
+                }
+                var klasse = dd.Klassen.Where(k => k.Kurzname.Length == 3 && char.IsDigit(k.Kurzname[0])).OrderByDescending(KlassenWert)
+                    .ThenBy(k => k.Kurzname, StringComparer.Ordinal).FirstOrDefault() ?? dd.Klassen.First();
+                int LehrerWoche(Lehrer l) => wochenplan.Where(p => unt[p.UnterrichtId].Zeilen.Any(z => z.LehrerId == l.Id)).Select(p => (p.Tag, p.Stunde)).Distinct().Count();
+                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(LehrerWoche).ThenByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
                 var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
                 Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
                 MdiFenster.SelbsttestOhneKlemmen = true;
@@ -1560,6 +1647,8 @@ public sealed partial class HauptFenster
                 // wie im Vorbild: in den Absenzen die Spalte „Lehrer“ der Eingabezeile aktuell
                 absenzen.SelbsttestWaehlen("E");
                 foreach (var m in MdiChildren.OfType<MdiFenster>()) m.AuswahlMarkierungenAufheben();
+                // Statuszeile wie im Vorbild: Grundtext (dort wurde die Spalte nicht zuletzt per Tastatur gewechselt)
+                _statusLinks.Text = "Mit F1 erhalten Sie Hilfe.";
                 Warten(300);
                 foreach (var f in MdiChildren) foreach (var rl in R3cAlle(f).OfType<Steuerelemente.Reiterleiste>()) log.Add($"MASS  V51 Reiter {f.Text}: {rl.SelbsttestMasse()}");
                 log.Add("MASS  V51 Auswahlfelder: " + string.Join(" | ", MdiChildren.SelectMany(MdiFenster.AlleAuswahlfelder).Where(c => c.Visible)
@@ -1581,6 +1670,10 @@ public sealed partial class HauptFenster
             finally
             {
                 AlleSchliessen();
+                SelbsttestHoehe = null;
+                SelbsttestBreite = null;
+                MaximalgroesseSetzen();
+                if (WindowState == FormWindowState.Maximized) { WindowState = FormWindowState.Normal; WindowState = FormWindowState.Maximized; }
                 MdiFenster.SelbsttestOhneKlemmen = false;
                 AppZustand.Einstellungen.KalenderDetailOffen = detailVorher;
                 if (assistentVorher) { _assistent.Visible = true; _assistentSplitter.Visible = true; }
@@ -1596,14 +1689,24 @@ public sealed partial class HauptFenster
             ModusFuerBild(true);
             var vorher = WindowState;
             var datumVorher = AppZustand.Datum;
+            var sicherung = Dokument.Klonen(AppZustand.D);
             WindowState = FormWindowState.Maximized;
             Warten(400);
             try
             {
-                // wie im Vorbild: ein Unterrichtstag ohne Veranstaltungen (leere Liste, nur die Eingabezeile)
-                var leer = Enumerable.Range(0, 400).Select(i => AppZustand.Datum.AddDays(-i))
-                    .FirstOrDefault(t => t.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !AppZustand.D.Veranstaltungen.Any(v => v.Von <= t && v.Bis >= t));
-                if (leer != default) AppZustand.DatumSetzen(leer);
+                // wie im Vorbild: Montag, 30.08.2021 (Schuljahr 2021/2022) ohne Veranstaltungen (leere Liste, nur die Eingabezeile),
+                // Daten im Aufbau des Vorbilds
+                var vorbildTag = new DateOnly(2021, 8, 30);
+                AppZustand.Doc.Aendern("Vorbild 348", AenderungsArt.Alles, x =>
+                {
+                    VorbildDaten(x);
+                    var altVon = x.Einstellungen.SchuljahrVon;
+                    x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
+                    x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
+                    foreach (var p in x.Perioden.Where(p => p.Von <= altVon)) p.Von = x.Einstellungen.SchuljahrVon;
+                    x.Veranstaltungen.RemoveAll(v => v.Von <= vorbildTag && v.Bis >= vorbildTag);
+                });
+                AppZustand.DatumSetzen(vorbildTag);
                 var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
                 va.WindowState = FormWindowState.Normal;
                 va.Bounds = new Rectangle(131, 45, 988, 416);
@@ -1652,13 +1755,12 @@ public sealed partial class HauptFenster
                                 f.Location = new Point(Math.Max(0, Left + 330), Top + 290);
                                 g.Focus();
                                 g.CurrentCell = g.Rows[g.Rows.Count - 1].Cells["L"];
-                                // Klick auf den Aufklappknopf der Zelle (wie mit der Maus)
-                                var zr = g.GetCellDisplayRectangle(g.CurrentCell.ColumnIndex, g.CurrentCell.RowIndex, false);
-                                var lp = (IntPtr)(((zr.Top + zr.Height / 2) << 16) | ((zr.Right - 8) & 0xFFFF));
-                                R3BPostMessage(g.Handle, 0x201, (IntPtr)1, lp);
-                                R3BPostMessage(g.Handle, 0x202, IntPtr.Zero, lp);
+                                // Liste der Zelle öffnen wie mit Alt+↓ (der gepostete Mausklick erreichte die Zelle im Runner nicht zuverlässig)
+                                f.Activate();
+                                SendKeys.Send("%{DOWN}");
                                 break;
                             case 1:
+                                log.Add($"MASS  V52 Sondereinsätze Lehrerliste offen: {Steuerelemente.MehrfachAuswahl.Offen is { Visible: true }}");
                                 Foto(Path.Combine(ordner, "V52d_Sondereinsaetze_Lehrer_F.png"));
                                 Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
                                 break;
@@ -1697,9 +1799,80 @@ public sealed partial class HauptFenster
             finally
             {
                 Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
                 AppZustand.DatumSetzen(datumVorher);
                 WindowState = vorher;
             }
+        }, -1);
+        Schritt("V56_Aufklapplisten_einheitlich", () =>
+        {
+            // eine Regel für alle Aufklapplisten (Steuerelemente.Aufklappliste): auch die Listen unter Tabellenzellen (Veranstaltungen,
+            // Unterricht, Sondereinsätze) öffnen mit Knopf, Alt+↓ und F4, Tippen markiert den besten Treffer, Tab/Enter übernehmen,
+            // Esc schließt ohne Änderung
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var fehler = new List<string>();
+            try
+            {
+                ModusFuerBild(false);
+                var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                va.WindowState = FormWindowState.Normal;
+                va.Bounds = new Rectangle(60, 40, 988, 416);
+                va.Activate();
+                va.SelbsttestNeueZeile();
+                Warten(300);
+                var g = Ui.Tabellen(va).First();
+                if (!Steuerelemente.MehrfachAuswahl.IstAngebunden(g)) fehler.Add("Veranstaltungen: Auswahlzellen nicht über den gemeinsamen Baustein");
+                // Alt+↓ öffnet
+                g.Focus();
+                Aufrufen(g, "OnKeyDown", new KeyEventArgs(Keys.Alt | Keys.Down));
+                Warten(300);
+                if (Steuerelemente.MehrfachAuswahl.Offen is not { Visible: true } liste) { fehler.Add("Alt+↓ öffnet die Klassenliste nicht"); }
+                else
+                {
+                    // Tippen: bester Treffer (Kurzname beginnt), danach Tab übernimmt
+                    var ziel = Stammdaten.Sortiert(AppZustand.D, ElementTyp.Klasse).Where(k => !k.Ignorieren).Skip(1).First().Kurzname;
+                    foreach (var z in ziel) Aufrufen(liste, "OnKeyPress", new KeyPressEventArgs(z));
+                    var markiert = liste.SelectedItems.Cast<Steuerelemente.MehrfachAuswahl.Eintrag>().Select(x => x.Kurz).ToList();
+                    if (!markiert.SequenceEqual(new[] { ziel })) fehler.Add($"Tippen „{ziel}“ markiert {string.Join(",", markiert)}");
+                    Aufrufen(liste, "OnKeyDown", new KeyEventArgs(Keys.Tab));
+                    Warten(300);
+                    if (Steuerelemente.MehrfachAuswahl.Offen != null) fehler.Add("Tab schließt die Liste nicht");
+                    var wert = g.Rows.Cast<DataGridViewRow>().Select(r => r.Cells["K"].Value?.ToString()).FirstOrDefault(v => v == ziel);
+                    if (wert != ziel) fehler.Add($"Tab übernimmt „{ziel}“ nicht in die Zelle");
+                }
+                // F4 öffnet, Esc schließt ohne Änderung
+                va.SelbsttestNeueZeile();
+                Warten(150);
+                Aufrufen(g, "OnKeyDown", new KeyEventArgs(Keys.F4));
+                Warten(300);
+                if (Steuerelemente.MehrfachAuswahl.Offen is not { Visible: true } l2) fehler.Add("F4 öffnet die Liste nicht");
+                else
+                {
+                    var zeilen = g.Rows.Count;
+                    Aufrufen(l2, "OnKeyPress", new KeyPressEventArgs('0'));
+                    Aufrufen(l2, "OnKeyDown", new KeyEventArgs(Keys.Escape));
+                    Warten(300);
+                    if (Steuerelemente.MehrfachAuswahl.Offen != null) fehler.Add("Esc schließt die Liste nicht");
+                    if (g.Rows.Count != zeilen) fehler.Add("Esc hat trotzdem einen Eintrag übernommen");
+                }
+                va.Close();
+                // Unterricht (Spalte Klassen) nutzt denselben Baustein
+                if (FensterOeffnen("u:Klasse") is { } uf)
+                {
+                    Warten(300);
+                    if (!Ui.Tabellen(uf).Any(Steuerelemente.MehrfachAuswahl.IstAngebunden)) fehler.Add("Unterricht: Klassenzellen nicht über den gemeinsamen Baustein");
+                    uf.Close();
+                }
+            }
+            finally
+            {
+                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+            if (fehler.Count > 0) throw new InvalidOperationException("Aufklapplisten uneinheitlich: " + string.Join("; ", fehler));
+            log.Add("INFO  V56 Aufklapplisten: Zellenlisten mit Alt+↓, F4, Tippen, Tab und Esc wie alle Auswahllisten");
         }, -1);
         Schritt("V53_Schriftprobe", () =>
         {
@@ -2836,11 +3009,18 @@ public sealed partial class HauptFenster
             Warten(400);
             log.Add($"INFO  V40 Systemrad: Index {vor} → {cb.SelectedIndex}, Aufbauten {f.Ladungen - l2}");
             if (cb.SelectedIndex != vor + 1 || f.Ladungen - l2 != 1) fehler.Add($"Systemrad: Index {vor} → {cb.SelectedIndex}, {f.Ladungen - l2} Aufbauten");
-            // andere Auswahllisten (Formatauswahl) bleiben beim Mausrad unverändert
+            // dasselbe Verhalten in jeder Auswahlliste (hier die Formatauswahl): je Rastung ein Eintrag, zurück mit der Gegenrichtung
             var fmt = f.FormatAuswahl;
             var fIndex = fmt.SelectedIndex;
-            Rad(fmt, -120);
-            if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl durch Mausrad verändert ({fIndex} → {fmt.SelectedIndex})");
+            // (nur Formate, nie Trenner oder Befehle wie „Neues Format…“)
+            var formate = fmt.Items.Cast<object>().Select((o, i) => (o, i)).Where(x => x.o is string).Select(x => x.i).ToList();
+            var fSchritt = formate.Any(i => i > fIndex) ? 1 : -1;
+            Rad(fmt, -120 * fSchritt);
+            var fErwartet = formate.Count > 1 ? (fSchritt > 0 ? formate.First(i => i > fIndex) : formate.Last(i => i < fIndex)) : fIndex;
+            if (fmt.SelectedIndex != fErwartet) fehler.Add($"Formatauswahl: Mausrad {fIndex} → {fmt.SelectedIndex} statt {fErwartet}");
+            if (fmt.SelectedItem is not string) fehler.Add("Formatauswahl: Mausrad wählt einen Befehl");
+            Rad(fmt, 120 * fSchritt);
+            if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl: Mausrad zurück {fmt.SelectedIndex} statt {fIndex}");
             log.Add($"INFO  V40 Elementauswahl {start} → {cb.SelectedIndex} ({cb.Text}), Planaufbauten {f.Ladungen - l0}");
             Vergleich("V40_Mausrad_Elementauswahl", f, new Size(272, 120));
             if (fehler.Count > 0) log.Add($"FEHLER V40: {string.Join("; ", fehler)}");
@@ -3965,7 +4145,7 @@ public sealed partial class HauptFenster
                 if (!Steuerelemente.ListenSuche.IstFrei(frei)) fehler.Add("freies Feld nicht als frei erkannt");
                 if (lehrerListen.Count > 1 && lehrerListen.Select(x => x.Breite).Distinct().Count() > 2)
                     log.Add("INFO  Lehrerlisten-Breiten: " + string.Join(", ", lehrerListen.Select(x => $"{x.Ort}={x.Breite}")));
-                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad ändert nichts
+                // Verhalten: Tippen springt, Enter übernimmt (wie ein Klick), Esc stellt her, ungültig bleibt beim alten Wert, Mausrad blättert
                 log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld Lehrer", lehrer, lehrerSortiert));
                 log.Add("INFO  " + AuswahlVerhaltenPruefen("Dialogfeld kurz", kurz, new List<string> { "Standard", "links", "rechts" }));
                 d.Close();
@@ -3991,9 +4171,11 @@ public sealed partial class HauptFenster
                         Warten(60);
                         if (zc.Text != vorher) fehler.Add($"Vertreterzelle: ungültige Eingabe übernommen („{zc.Text}“ statt „{vorher}“)");
                         if (Steuerelemente.ListenSuche.LetzterHinweis?.Contains("xq§") != true) fehler.Add("Vertreterzelle: kein Hinweis auf die ungültige Eingabe");
+                        // Mausrad über der zugeklappten Zellliste: wie überall ein Eintrag weiter
+                        var iVor = zc.SelectedIndex;
                         var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
                         Aufrufen(zc, "OnMouseWheel", rad);
-                        if (!rad.Handled || zc.Text != vorher) fehler.Add("Vertreterzelle: Mausrad ändert den Wert");
+                        if (!rad.Handled || zc.SelectedIndex != Math.Min(iVor + 1, zc.Items.Count - 1)) fehler.Add($"Vertreterzelle: Mausrad blättert nicht ({iVor} → {zc.SelectedIndex})");
                     }
                     g.CancelEdit();
                     g.EndEdit();
@@ -4928,7 +5110,7 @@ public sealed partial class HauptFenster
 
     /// <summary>
     /// R3-A: Bedienung einer Auswahlliste prüfen – Tippen springt zum Treffer, Enter übernimmt (wie ein Mausklick), Esc stellt den
-    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad ändert nichts.
+    /// alten Wert her, ungültige Eingabe bleibt beim alten Wert (mit Hinweis), Tab übernimmt, das Mausrad blättert die zugeklappte Liste.
     /// </summary>
     private static string AuswahlVerhaltenPruefen(string ort, ComboBox cb, List<string> werte)
     {
@@ -4976,10 +5158,22 @@ public sealed partial class HauptFenster
             Aufrufen(cb, "OnPreviewKeyDown", new PreviewKeyDownEventArgs(Keys.Tab));
             Warten(40);
             if (Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Tab übernimmt „{Wert()}“ statt „{kandidaten[1]}“");
-            // 5) Mausrad über der geschlossenen Liste
-            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120);
+            // 5) Mausrad über der zugeklappten Liste: eine Rastung nach unten = nächster Eintrag (wie ein Klick), nach oben zurück
+            var indexVorRad = cb.SelectedIndex;
+            var bestaetigtVorRad = bestaetigt;
+            // am Listenende zuerst nach oben (dann zurück nach unten)
+            var schritt = indexVorRad < cb.Items.Count - 1 ? 1 : -1;
+            var rad = new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, -120 * schritt);
             Aufrufen(cb, "OnMouseWheel", rad);
-            if (!rad.Handled || Wert() != kandidaten[1]) throw new InvalidOperationException($"{ort}: Mausrad ändert den Wert der geschlossenen Liste");
+            var erwartet = Math.Clamp(indexVorRad + schritt, 0, cb.Items.Count - 1);
+            if (!rad.Handled || cb.SelectedIndex != erwartet) throw new InvalidOperationException($"{ort}: Mausrad blättert nicht ({indexVorRad} → {cb.SelectedIndex} statt {erwartet})");
+            if (erwartet != indexVorRad && bestaetigt == bestaetigtVorRad) throw new InvalidOperationException($"{ort}: Mausrad meldet die Auswahl nicht wie ein Klick");
+            if (cb.DroppedDown) throw new InvalidOperationException($"{ort}: Mausrad öffnet die Liste");
+            Aufrufen(cb, "OnMouseWheel", new HandledMouseEventArgs(MouseButtons.None, 0, 5, 5, 120 * schritt));
+            if (cb.SelectedIndex != indexVorRad) throw new InvalidOperationException($"{ort}: Mausrad in Gegenrichtung führt nicht zurück ({cb.SelectedIndex} statt {indexVorRad})");
+            // außerhalb der Liste (nur Fokus): die Liste bleibt, wie sie ist
+            Aufrufen(cb, "OnMouseWheel", new HandledMouseEventArgs(MouseButtons.None, 0, -40, -40, -120));
+            if (cb.SelectedIndex != indexVorRad) throw new InvalidOperationException($"{ort}: Mausrad neben der Liste ändert den Wert");
             return $"{ort}: Tippen/Enter, Esc, ungültig, Tab und Mausrad wie überall";
         }
         finally

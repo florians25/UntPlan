@@ -57,9 +57,9 @@ public static class MehrfachAuswahl
             var x = (Eintrag)liste.Items[e.Index];
             var sel = (e.State & DrawItemState.Selected) != 0;
             // weiße Liste wie im Vorbild; gewählte Einträge in der hellen Auswahlfarbe, der aktuelle Eintrag mit dünnem Rahmen
-            using (var br = new SolidBrush(sel ? Ui.AuswahlVertretung : Color.White)) e.Graphics.FillRectangle(br, e.Bounds);
+            using (var br = new SolidBrush(sel ? Aufklappliste.AuswahlHintergrund : Color.White)) e.Graphics.FillRectangle(br, e.Bounds);
             if (x.Symbol is { } sym) e.Graphics.DrawImage(sym, new Rectangle(e.Bounds.X + 6, e.Bounds.Y + (e.Bounds.Height - 16) / 2, 16, 16));
-            var farbe = Color.Black;
+            var farbe = sel ? Aufklappliste.AuswahlText : Color.Black;
             Ui.ListenText(e.Graphics, x.Kurz, ListenSchrift, new Rectangle(e.Bounds.X + einzug, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
             Ui.ListenText(e.Graphics, x.Lang, ListenSchrift, new Rectangle(e.Bounds.X + einzug + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - einzug, e.Bounds.Height), farbe, vorbildBreite is null);
             if ((e.State & DrawItemState.Focus) != 0 && tastatur)
@@ -74,8 +74,8 @@ public static class MehrfachAuswahl
             var i = liste.IndexFromPoint(e.Location);
             if (i == tippZeile) return;
             tippZeile = i;
-            var text = i >= 0 && i < liste.Items.Count && liste.Items[i] is Eintrag en && TextRenderer.MeasureText(en.Lang, ListenSchrift).Width > liste.ClientSize.Width - einzug - breiteKurz
-                ? $"{en.Kurz}  {en.Lang}" : "";
+            var text = i >= 0 && i < liste.Items.Count && liste.Items[i] is Eintrag en
+                ? Aufklappliste.Tooltip(en.Kurz, en.Lang, ListenSchrift, liste.ClientSize.Width - einzug - breiteKurz) : "";
             tipp.SetToolTip(liste, text);
         };
         liste.Disposed += (_, _) => tipp.Dispose();
@@ -184,12 +184,37 @@ public static class MehrfachAuswahl
         _abbrechen = () => { uebernommen = true; dd.Close(); };
         Offen = liste;
         dd.Closed += (_, _) => { if (ReferenceEquals(Offen, liste)) { Offen = null; _uebernehmen = null; } };
+        // Tastatur wie in jeder Aufklappliste (Aufklappliste): Tippen markiert den besten Treffer (Kurzname, dann Langname),
+        // Enter, Tab und Alt+↑ übernehmen, Esc schließt ohne Änderung, ↑/↓ und Bild auf/ab blättern
+        var suchtext = "";
+        var letzteTaste = DateTime.MinValue;
+        void Tippen(char zeichen)
+        {
+            if (DateTime.Now - letzteTaste > Aufklappliste.TippPause) suchtext = "";
+            letzteTaste = DateTime.Now;
+            suchtext = zeichen == '\b' ? suchtext.Length > 0 ? suchtext[..^1] : "" : suchtext + zeichen;
+            if (suchtext.Length == 0) return;
+            var sichtbar = liste.Items.Cast<Eintrag>().ToList();
+            var i = Aufklappliste.Treffer(sichtbar.Select(x => x.Kurz).ToList(), sichtbar.Select(x => x.Lang).ToList(), suchtext);
+            if (i < 0) return;
+            liste.BeginUpdate();
+            // Einfachauswahl bzw. Mehrfachauswahl ohne Strg: der Treffer wird der gewählte Eintrag; mit Strg kommt er hinzu
+            if (!mehrfach || (Control.ModifierKeys & Keys.Control) == 0) liste.ClearSelected();
+            liste.SetSelected(i, true);
+            liste.EndUpdate();
+            liste.TopIndex = Math.Max(0, i - 3);
+        }
+        liste.KeyPress += (_, e) =>
+        {
+            if (e.KeyChar == '\b' || !char.IsControl(e.KeyChar)) { e.Handled = true; Tippen(e.KeyChar); }
+        };
+        liste.PreviewKeyDown += (_, e) => { if (e.KeyCode == Keys.Tab) e.IsInputKey = true; };
         liste.KeyDown += (_, e) =>
         {
             // Fokusrahmen erst bei Bedienung mit der Tastatur (das Vorbild öffnet die Liste ohne Rahmen)
             if (!tastatur) { tastatur = true; liste.Invalidate(); }
-            if (e.KeyCode == Keys.Enter) { e.Handled = true; Uebernehmen(); }
-            else if (e.KeyCode == Keys.Escape) { e.Handled = true; uebernommen = true; dd.Close(); }
+            if (e.KeyCode is Keys.Enter or Keys.Tab || e.KeyCode == Keys.Up && e.Alt || e.KeyCode == Keys.F4) { e.Handled = e.SuppressKeyPress = true; Uebernehmen(); }
+            else if (e.KeyCode == Keys.Escape) { e.Handled = e.SuppressKeyPress = true; uebernommen = true; dd.Close(); }
         };
         liste.MouseDoubleClick += (_, _) => Uebernehmen();
         // Einfachauswahl: ein Klick genügt; Mehrfachauswahl: ohne Strg/Umschalt ebenfalls sofort übernehmen
@@ -316,6 +341,10 @@ public static class MehrfachAuswahl
         Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, r - 4, t + 1);
         Linie(Color.FromArgb(105, 105, 105), l + 1, t + 1, l + 1, u - 1);
         Linie(Color.FromArgb(227, 227, 227), r - 3, t + 1, r - 3, u - 1);
+        // Eingabemarke im leeren Feld wie im Vorbild (Bild 351): 1 Pixel breit, 7 Pixel hoch, weich auslaufend
+        int[] marke = { 237, 166, 103, 74, 79, 135, 229 };
+        for (var i = 0; i < marke.Length; i++)
+            using (var m = new SolidBrush(Color.FromArgb(marke[i], marke[i], marke[i]))) g.FillRectangle(m, l + 3, t + 3 + i, 1, 1);
         var knopf = Rectangle.FromLTRB(r - 27, t + 2, r - 3, u);
         using (var f = new SolidBrush(Color.FromArgb(145, 205, 181))) g.FillRectangle(f, knopf);
         using (var p = new Pen(Color.FromArgb(175, 208, 195))) g.DrawRectangle(p, knopf.X, knopf.Y, knopf.Width - 1, knopf.Height - 1);
@@ -323,6 +352,39 @@ public static class MehrfachAuswahl
         var oy = knopf.Y + (knopf.Height - 4) / 2;
         for (var i = 0; i < 4; i++) g.FillRectangle(Brushes.Black, ox + i, oy + i, 8 - 2 * i, 1);
     }
+
+    /// <summary>
+    /// Zellen mit Aufklappliste an einer Tabelle anmelden (für alle Tabellen gleich): die aktuelle Zelle zeigt den Aufklappknopf,
+    /// Klick auf den Knopf, Alt+↓ und F4 öffnen die Liste, auf Wunsch auch ein Doppelklick. <paramref name="hatListe"/> entscheidet
+    /// je Zelle, ob sie eine Liste hat (schreibgeschützte Zellen nie); <paramref name="zeigen"/> öffnet sie (Zeile, Spalte).
+    /// </summary>
+    public static void Anbinden(DataGridView g, Func<DataGridViewCell, bool> hatListe, Action<int, int> zeigen, bool doppelklick = true)
+    {
+        bool Hat(int zeile, int spalte) => zeile >= 0 && spalte >= 0 && zeile < g.RowCount && spalte < g.ColumnCount && g[spalte, zeile] is { ReadOnly: false } z && hatListe(z);
+        g.CellPainting += (_, e) =>
+        {
+            if (e.Handled || g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex || g.IsCurrentCellInEditMode) return;
+            if (Hat(e.RowIndex, e.ColumnIndex)) PfeilZeichnen(e);
+        };
+        g.CellMouseClick += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left && Hat(e.RowIndex, e.ColumnIndex) && AufPfeil(g, e)) zeigen(e.RowIndex, e.ColumnIndex);
+        };
+        if (doppelklick) g.CellDoubleClick += (_, e) => { if (Hat(e.RowIndex, e.ColumnIndex)) zeigen(e.RowIndex, e.ColumnIndex); };
+        g.KeyDown += (_, e) =>
+        {
+            if (e.Handled || g.IsCurrentCellInEditMode || g.CurrentCell is not { } c || !(e.KeyCode == Keys.F4 || e.Alt && e.KeyCode == Keys.Down)) return;
+            if (!Hat(c.RowIndex, c.ColumnIndex)) return;
+            e.Handled = e.SuppressKeyPress = true;
+            zeigen(c.RowIndex, c.ColumnIndex);
+        };
+        Angebunden.AddOrUpdate(g, new object());
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGridView, object> Angebunden = new();
+
+    /// <summary>Hat die Tabelle Zellen mit Aufklappliste über <see cref="Anbinden"/> (Selbsttest)?</summary>
+    public static bool IstAngebunden(DataGridView g) => Angebunden.TryGetValue(g, out _);
 
     /// <summary>Liegt der Mauspunkt (Zellkoordinaten) auf dem Aufklappdreieck?</summary>
     public static bool AufPfeil(DataGridView g, DataGridViewCellMouseEventArgs e) => e.X >= g.Columns[e.ColumnIndex].Width - 19;

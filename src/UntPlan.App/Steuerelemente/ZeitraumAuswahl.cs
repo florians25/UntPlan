@@ -132,7 +132,7 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
         {
             _schloss = new CheckBox
             {
-                Appearance = Appearance.Button, Image = Symbole.Get("schloss", 16), Size = new Size(26, 24), Margin = new Padding(4, 0, 4, 0),
+                Appearance = Appearance.Button, Image = Symbole.Get("schloss_offen", 16), Size = new Size(26, 24), Margin = new Padding(4, 0, 4, 0),
                 FlatStyle = FlatStyle.Flat, BackColor = Color.White, Text = "", Visible = false,
             };
             _schloss.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
@@ -143,8 +143,11 @@ public sealed class ZeitraumAuswahl : FlowLayoutPanel
                 _abstand = tage;
                 _schloss.Checked = true;
             }
+            // wie im Vorbild: offenes Schloss, solange der Abstand nicht eingefroren ist
+            if (_schloss.Checked) _schloss.Image = Symbole.Get("schloss", 16);
             _schloss.CheckedChanged += (_, _) =>
             {
+                _schloss.Image = Symbole.Get(_schloss.Checked ? "schloss" : "schloss_offen", 16);
                 _abstand = Math.Max(0, (int)(_bis.Value.Date - _von.Value.Date).TotalDays);
                 if (_schloss.Checked) AppZustand.Einstellungen.Zeitraumarten[_schluessel + ".Schloss"] = _abstand.ToString();
                 else AppZustand.Einstellungen.Zeitraumarten.Remove(_schluessel + ".Schloss");

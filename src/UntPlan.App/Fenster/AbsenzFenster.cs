@@ -99,6 +99,8 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
             mi.Click += (_, _) => SortierungSetzen(art);
             sortieren.DropDownItems.Add(mi);
         }
+        // wie im Vorbild: Sortieren und Einstellungen ohne eigenen Aufklapppfeil neben dem Symbol (Klick öffnet das Menü)
+        sortieren.ShowDropDownArrow = false;
         ts.Items.Add(sortieren);
         ts.Items.Add(Knopf("Absenz kopieren (andere Elemente)", "kopieren", Kopieren));
         ts.Items.Add(new ToolStripSeparator());
@@ -118,6 +120,7 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
             Neuaufbau();
         };
         einst.DropDownItems.Add(_vaZeigen);
+        einst.ShowDropDownArrow = false;
         ts.Items.Add(einst);
         // Element-Rollup mit den Elementen des Reiters: mehrere markieren und in die Liste ziehen = je Element eine Absenz
         var rollup = Knopf("Element-Rollup", "rollup", () => ElementRollup.Zeigen(Typ));

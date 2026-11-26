@@ -286,6 +286,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _format.DrawMode = DrawMode.OwnerDrawFixed;
         _format.ItemHeight = 18;
         _format.DrawItem += FormatEintragZeichnen;
+        // das Mausrad blättert nur durch die Formate, nie in Trenner oder Befehle („Neues Format…“)
+        Steuerelemente.ListenSuche.NurWerte(_format, o => o is string);
         _format.DropDown += (_, _) => _format.DropDownWidth = Math.Max(_format.Width, FormatListenbreite());
 
         _plan.Format = FormatHolen();
