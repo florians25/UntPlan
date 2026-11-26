@@ -48,8 +48,17 @@ public sealed class LeistenRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderDropDownButtonBackground(ToolStripItemRenderEventArgs e) => OnRenderButtonBackground(e);
 
+    /// <summary>Eigene Farbe der Trennlinien (z. B. hellgrau wie rechts in der Registerleiste des Vorbilds), sonst halbtransparent weiß.</summary>
+    public Color? Trennfarbe { get; init; }
+
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
+        if (Trennfarbe is Color tf)
+        {
+            using var hp = new Pen(tf);
+            e.Graphics.DrawLine(hp, e.Item.Width / 2, 2, e.Item.Width / 2, e.Item.Height - 4);
+            return;
+        }
         using var p = new Pen(Color.FromArgb(90, Color.White));
         var x = e.Item.Width / 2;
         e.Graphics.DrawLine(p, x, 4, x, e.Item.Height - 4);

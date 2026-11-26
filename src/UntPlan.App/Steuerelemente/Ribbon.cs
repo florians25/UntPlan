@@ -91,7 +91,7 @@ public sealed class Ribbon : Control
     public ToolStrip Rechts { get; } = new()
     {
         GripStyle = ToolStripGripStyle.Hidden, Dock = DockStyle.None, AutoSize = true, Padding = new Padding(0),
-        ImageScalingSize = new Size(16, 16), CanOverflow = false, Renderer = new LeistenRenderer(),
+        ImageScalingSize = new Size(16, 16), CanOverflow = false, Renderer = new LeistenRenderer { Trennfarbe = Color.FromArgb(213, 213, 213) },
     };
     // Fläche unter der Registerleiste wie auf dem Original-Bildschirmfoto: 91 Pixel samt Trennlinie oben
     private const int Inhalt = 92;

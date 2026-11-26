@@ -87,8 +87,8 @@ public static partial class Ui
         var maxText = 460;
         var textBreite = Math.Min(maxText, einzeilig.Width + 8);
         // Vorbild: rechts neben der längsten Zeile 21 Pixel bis zum Rand
-        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 3, knopfSumme), 206, 900);
-        textBreite = breite - textLinks - 3;
+        var breite = Math.Clamp(Math.Max(textLinks + textBreite + 2, knopfSumme), 206, 900);
+        textBreite = breite - textLinks - 2;
         var groesse = TextRenderer.MeasureText(normal, Schrift, new Size(textBreite, 0), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
         var hoehe = Math.Clamp(groesse.Height + 4, 16, 440);
         // kurze Meldungen mittig in der Mindestfläche; längere wie im Vorbild 45 Pixel unter der Titelleiste und 27 über der Knopfleiste

@@ -186,7 +186,9 @@ public sealed partial class HauptFenster
             if (t.IsEmpty) throw new InvalidOperationException("Fenstertitel wird im Kopf nicht gezeichnet");
             var mitte = t.X + t.Width / 2;
             if (Math.Abs(mitte - _schnell.Width / 2) > _schnell.Width / 6) throw new InvalidOperationException($"Titel nicht mittig: {t} bei Breite {_schnell.Width}");
-            if (_ribbon.Rechts.Items.Count != 8) throw new InvalidOperationException("Fensteranordnungen 1–8 fehlen rechts in der Registerleiste");
+            // wie im Vorbild (Bild 308): Trennlinie, Fensterknöpfe 1 bis 3, Trennlinie, Knopf der Fensteranordnungen
+            if (_ribbon.Rechts.Items.OfType<ToolStripButton>().Count() != 4 || _ribbon.Rechts.Items.OfType<ToolStripSeparator>().Count() != 2)
+                throw new InvalidOperationException("Fensterknöpfe rechts in der Registerleiste nicht wie im Vorbild");
             if (!Text.StartsWith("UntPlan") || !Text.Contains("-  Stundenplan ")) throw new InvalidOperationException("Fenstertitel nicht wie im Vorbild: " + Text);
             using var bild = new Bitmap(_ribbon.Width, _ribbon.Height);
             _ribbon.DrawToBitmap(bild, new Rectangle(Point.Empty, bild.Size));

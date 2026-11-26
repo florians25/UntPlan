@@ -267,8 +267,8 @@ public static class Erscheinungsbild
                         }
             }
             var textFarbe = cb.Enabled ? cb.ForeColor : SystemColors.GrayText;
-            TextRenderer.DrawText(g, cb.Text, cb.Font, new Rectangle(14, 0, Math.Max(0, cb.ClientSize.Width - 14), cb.ClientSize.Height), textFarbe,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | (cb.UseMnemonic ? 0 : TextFormatFlags.NoPrefix));
+            TextRenderer.DrawText(g, cb.Text, cb.Font, new Rectangle(13, 0, Math.Max(0, cb.ClientSize.Width - 13), cb.ClientSize.Height), textFarbe,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding | (cb.UseMnemonic ? 0 : TextFormatFlags.NoPrefix));
         };
     }
 

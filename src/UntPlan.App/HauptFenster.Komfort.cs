@@ -95,7 +95,7 @@ public sealed partial class HauptFenster
         for (var n = 1; n <= 3; n++)
         {
             var nr = n;
-            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 20, Height = 20, Margin = new Padding(0, 1, 0, 1) };
+            var b = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Height = 20, Margin = new Padding(0, 1, 0, 1) };
             b.MouseUp += (_, e) =>
             {
                 if (e.Button == MouseButtons.Right) SchnellanordnungSpeichern(nr);
@@ -105,7 +105,7 @@ public sealed partial class HauptFenster
             _ribbon.Rechts.Items.Add(b);
         }
         _ribbon.Rechts.Items.Add(new ToolStripSeparator());
-        var menue = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 20, Height = 20, Margin = new Padding(0, 1, 0, 1),
+        var menue = new ToolStripButton { DisplayStyle = ToolStripItemDisplayStyle.Image, AutoSize = false, Width = 24, Height = 20, Margin = new Padding(0, 1, 0, 1),
             Image = Symbole.Get("anordnung", 16), ToolTipText = "Fensteranordnungen speichern, laden, löschen" };
         menue.Click += (_, _) => FensteranordnungMenue();
         _ribbon.Rechts.Items.Add(menue);
