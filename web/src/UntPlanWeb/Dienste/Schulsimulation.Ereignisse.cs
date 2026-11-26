@@ -10,6 +10,9 @@ public sealed partial class Schulsimulation
     // ------------------------------------------------------------------------------------------ Klassenbuch je Stunde
 
     /// <summary>Gehaltene Stunde einer Lehrkraft (wie „offene Stunden“: regulär bzw. geändert, z. B. Vertretung).</summary>
+    /// <summary>Anteil der Stunden mit einer Raumänderung durch die Lehrkraft (selten; Tests setzen ihn höher).</summary>
+    public static double Raumaenderungsanteil { get; set; } = 0.008;
+
     private static bool Gehalten(Karte k) => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert" && !k.LehrerAbwesend && !k.NurKopplung;
 
     private static bool Oberstufe(Stand s, string klasse) =>
@@ -20,8 +23,11 @@ public sealed partial class Schulsimulation
     private IEnumerable<Ereignis> Tagesereignisse(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d)
     {
         var lehrer = w.KlassenDerLehrkraft.Keys.Where(l => !w.Ausgenommen.Contains(l) && s.Lehrer.ContainsKey(l)).Order(StringComparer.Ordinal).ToList();
+        var vorab = e.Lehreraktionen && Klassenbucheinstellungen.Laden(_db).LehrstoffZukunft;
         foreach (var l in lehrer)
         {
+            // manche Lehrkräfte planen voraus: Lehrstoff schon am Abend davor
+            var planer = vorab && Zufall.Fuer(w.Seed, "planer", l).Chance(0.25);
             List<Karte> karten;
             try { karten = _plan.Karten(s, d, Elementtyp.Lehrer, l).Where(Gehalten).ToList(); }
             catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
@@ -43,7 +49,8 @@ public sealed partial class Schulsimulation
                 if (e.Klassenbuch || spaeter)
                 {
                     var wt = z.Wert();
-                    DateTime? zeit = wt switch
+                    var vorher = planer && !spaeter && e.Klassenbuch && z.Chance(0.5);
+                    DateTime? zeit = vorher ? Um(d.AddDays(-1), z.Zahl(17 * 60, 22 * 60)) : wt switch
                     {
                         < 0.55 => ende.AddMinutes(z.Zahl(0, 12)),
                         < 0.78 => Max(ende.AddMinutes(20), Um(d, z.Zahl(13 * 60 + 15, 17 * 60 + 45))),
@@ -60,6 +67,18 @@ public sealed partial class Schulsimulation
                 }
                 if (e.Klassenbuch && z.Chance(0.045))
                     yield return new($"vm|{basis}", ende.AddMinutes(z.Zahl(0, 25)), () => Vermerk(s, w, d, l, u, k.Von));
+                if (!e.Lehreraktionen) continue;
+                // Raumänderung: selten, ein bis zwei Tage bzw. wenige Stunden vorher
+                var za = Zufall.Fuer(w.Seed, "ra", basis);
+                if (za.Chance(Raumaenderungsanteil))
+                {
+                    var zeitRa = za.Chance(0.65) || beginn.Hour < 8 ? Um(d.AddDays(-za.Zahl(1, 2)), za.Zahl(15 * 60, 21 * 60)) : Um(d, za.Zahl(6 * 60 + 30, 7 * 60 + 25));
+                    yield return new($"ra|{basis}", zeitRa, () => Raumaendern(s, w, d, l, u, k.Von, za));
+                }
+                // Hinweis an die Klasse am Vortag (Material mitbringen, Treffpunkt)
+                var zh = Zufall.Fuer(w.Seed, "hw", basis);
+                if (zh.Chance(0.025))
+                    yield return new($"hw|{basis}", Um(d.AddDays(-1), zh.Zahl(15 * 60, 21 * 60)), () => Hinweis(s, d, l, u, k.Von, zh));
             }
         }
     }
@@ -119,7 +138,53 @@ public sealed partial class Schulsimulation
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
         var notiz = z.Chance(0.03) ? z.Wahl(Notizen) : "";
         var lehrform = z.Wahl(Lehrformen);
-        _kb.Speichern(b, s, d, von, u, thema, hausaufgabe, faellig, notiz, null, lehrform.Length > 0 ? lehrform : null, null, l);
+        // ein Hinweis an die Klasse vom Vortag bleibt (eigene Notiz und Hausaufgabe gehen vor)
+        var alt = _kb.Holen(d, Klassenbuchdienst.Schluessel(karte), u, l);
+        _kb.Speichern(b, s, d, von, u, thema, hausaufgabe.Length > 0 ? hausaufgabe : alt?.Hausaufgabe ?? "", hausaufgabe.Length > 0 ? faellig : alt?.Faellig is { } af ? DateOnly.Parse(af) : null,
+            notiz.Length > 0 ? notiz : alt?.Notiz ?? "", null, lehrform.Length > 0 ? lehrform : null, null, l);
+    }
+
+    /// <summary>Hinweis an die Klasse für die Stunde (für Schüler*innen sichtbar), bisherige Einträge der Stunde bleiben.</summary>
+    private void Hinweis(Stand s, DateOnly d, string l, int u, int von, Zufall z)
+    {
+        var karte = KarteJetzt(s, d, l, u, von);
+        var b = LehrerKonto(s, l);
+        var alt = _kb.Holen(d, Klassenbuchdienst.Schluessel(karte), u, l);
+        var text = z.Wahl(Hinweise.TryGetValue(karte.Fach, out var h) ? h : Hinweise[""]);
+        _kb.Speichern(b, s, d, von, u, alt?.Thema ?? "", alt?.Hausaufgabe ?? "", alt?.Faellig is { } f ? DateOnly.Parse(f) : null, alt?.Notiz ?? "", text, null, null, l);
+    }
+
+    /// <summary>
+    /// Raumänderung der Lehrkraft über den Weg der Stundendetails (Raum ersetzen bzw. hinzufügen), nur mit freien buchbaren Räumen:
+    /// Informatik bzw. Recherche in den Computerraum, Naturwissenschaften in den Fachraum, Sport in die andere Halle, sonst ein anderer Raum derselben Art
+    /// (Raum belegt, Technik defekt) bzw. ein zweiter Raum für Gruppenarbeit.
+    /// </summary>
+    private void Raumaendern(Stand s, Weltstand w, DateOnly d, string l, int u, int von, Zufall z)
+    {
+        if (w.Krank(l, d, von)) throw new InvalidOperationException("Die Lehrkraft ist abwesend.");
+        var karte = KarteJetzt(s, d, l, u, von);
+        var bisher = karte.Raeume.Select(r => r.K).Where(r => r.Length > 0 && r != "???").ToList();
+        if (bisher.Count == 0) throw new InvalidOperationException("Die Stunde hat keinen Raum.");
+        var frei = Rueckmeldungsdienst.Buchbar(s).Where(r => !bisher.Contains(r.Kurz, Ci) && _rm.RaumFrei(s, d, r.Kurz, karte.Von, karte.Bis, u)).ToList();
+        var art = s.Raeume.TryGetValue(bisher[0], out var alt) ? alt.Raumart : "";
+        bool Passt(WebRaum r, params string[] w) => w.Any(x => r.Raumart.Contains(x, StringComparison.OrdinalIgnoreCase) || r.Name.Contains(x, StringComparison.OrdinalIgnoreCase));
+        var fach = karte.Fach.ToUpperInvariant();
+        List<WebRaum> kandidaten = fach switch
+        {
+            "IF" => frei.Where(r => Passt(r, "EDV", "Computer", "Informatik")).ToList(),
+            "BI" => frei.Where(r => Passt(r, "Bio")).ToList(),
+            "CH" => frei.Where(r => Passt(r, "Chemie")).ToList(),
+            "PH" => frei.Where(r => Passt(r, "Physik")).ToList(),
+            "SP" => frei.Where(r => Passt(r, "Sport", "Turnhalle", "Halle")).ToList(),
+            _ => new(),
+        };
+        if (kandidaten.Count == 0 && fach is not "SP" && z.Chance(0.3)) kandidaten = frei.Where(r => Passt(r, "EDV", "Computer")).ToList();
+        if (kandidaten.Count == 0) kandidaten = frei.Where(r => art.Length > 0 && Ci.Equals(r.Raumart, art)).ToList();
+        if (kandidaten.Count == 0) throw new InvalidOperationException("Kein passender freier Raum.");
+        var neu = z.Wahl(kandidaten).Kurz;
+        var hinzufuegen = fach is not "SP" && Ci.Equals(s.Raeume[neu].Raumart, art) && z.Chance(0.3);
+        var raeume = hinzufuegen ? bisher.Append(neu).ToList() : bisher.Skip(1).Prepend(neu).ToList();
+        _rm.Raumaenderung(s, LehrerKonto(s, l), d, karte.Von, karte.Bis, u, raeume, bisher);
     }
 
     /// <summary>Lehrstoff: fachpassend, im Lauf des Schuljahres fortschreitend (je Unterricht und Woche ein Abschnitt).</summary>
@@ -356,21 +421,22 @@ public sealed partial class Schulsimulation
     }
 
     /// <summary>
-    /// Je Klasse und Fach (ohne die ausgenommenen Fächer) eine Prüfung im Halbjahr: an einem Tag mit Unterricht in diesem Fach, nicht in den ersten vier
+    /// Je Klasse und Prüfungsfach (Sek I bzw. Oberstufe laut Einstellungen) eine Prüfung im Halbjahr: an einem Tag mit Unterricht in diesem Fach, nicht in den ersten vier
     /// und den letzten zwei Wochen, höchstens eine je Tag und zwei je Woche. Eingetragen wird sie zwei bis fünf Wochen vorher (frühestens beim Start).
     /// </summary>
     public List<Pruefungsplan> Pruefungsplanung(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly hv, DateOnly hb, DateTime start)
     {
-        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{string.Join(",", e.OhnePruefung)}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}";
+        var (sekI, sekII) = Pruefungsfaecher(s, e);
+        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{string.Join(",", sekI.Order(StringComparer.Ordinal))}|{string.Join(",", sekII.Order(StringComparer.Ordinal))}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}";
         if (_pruefungsCache.TryGetValue(schluessel, out var fertig)) return fertig;
         if (_pruefungsCache.Count > 4) _pruefungsCache.Clear();
-        var ohne = e.OhnePruefung.ToHashSet(Ci);
         var res = new List<Pruefungsplan>();
         // frühestens eine Woche nach dem Start (vorher geplante Prüfungen stehen gleich nach dem Start im Kalender)
         var tage = w.Tagesliste.Where(d => d >= hv.AddDays(28) && d <= hb.AddDays(-14) && d >= DateOnly.FromDateTime(start).AddDays(7)).ToList();
         foreach (var kl in s.Paket.Elemente.Klassen.OrderBy(k => k.Kurz, StringComparer.Ordinal))
         {
             var z = Zufall.Fuer(w.Seed, "pr", hv, kl.Kurz);
+            var erlaubt = Oberstufe(s, kl.Kurz) ? sekII : sekI;
             // Kandidaten je Fach: Tage mit einer gehaltenen Stunde des Fachs bei einer nicht ausgenommenen Lehrkraft
             var kandidaten = new Dictionary<string, List<(DateOnly Tag, Karte Karte)>>(Ci);
             foreach (var d in tage)
@@ -378,7 +444,7 @@ public sealed partial class Schulsimulation
                 List<Karte> karten;
                 try { karten = _plan.Karten(s, d, Elementtyp.Klasse, kl.Kurz); }
                 catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
-                foreach (var k in karten.Where(k => k.Unterricht.HasValue && k.Status is "regulaer" && k.Fach.Length > 0 && !ohne.Contains(k.Fach) && !k.Bereitschaft
+                foreach (var k in karten.Where(k => k.Unterricht.HasValue && k.Status is "regulaer" && k.Fach.Length > 0 && erlaubt.Contains(k.Fach) && !k.Bereitschaft
                                                     && k.Lehrer.Count > 0 && !w.Ausgenommen.Contains(k.Lehrer[0].K)))
                 {
                     if (!kandidaten.TryGetValue(k.Fach, out var l)) kandidaten[k.Fach] = l = new();
@@ -415,7 +481,29 @@ public sealed partial class Schulsimulation
         var art = Oberstufe(s, p.Klasse) ? "Klausur" : "Klassenarbeit";
         var z = Zufall.Fuer(Laden().Seed, "prt", p.Klasse, p.Fach, p.Datum);
         var thema = Themen.TryGetValue(p.Fach, out var t) && (Oberstufe(s, p.Klasse) ? t.SekII : t.SekI) is { Length: > 0 } liste ? z.Wahl(liste) : fachName;
-        _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, p.Raeume, Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
+        _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
+    }
+
+    /// <summary>
+    /// Räume der Prüfung: meist der Raum der Stunde. Bei einem Teil der Prüfungen (Einstellung, in der Oberstufe häufiger, in der Sek I ein Drittel davon)
+    /// legt die Lehrkraft einen eigenen Prüfungsraum fest: einen freien buchbaren Raum derselben Art und mindestens gleicher Größe, in der Oberstufe
+    /// manchmal zwei (Abstand beim Schreiben). Nie Sporthallen, Computer- oder Fachräume.
+    /// </summary>
+    public List<string> Pruefungsraeume(Stand s, Simulationseinstellungen e, Pruefungsplan p, Zufall z)
+    {
+        var sekII = Oberstufe(s, p.Klasse);
+        var anteil = Math.Clamp(e.Klausurraumanteil, 0, 100) / 100.0 * (sekII ? 1.0 : 1.0 / 3);
+        if (anteil <= 0 || !z.Chance(anteil)) return p.Raeume;
+        var bisher = p.Raeume.Where(s.Raeume.ContainsKey).Select(r => s.Raeume[r]).ToList();
+        var art = bisher.FirstOrDefault()?.Raumart ?? "";
+        var groesse = bisher.Select(r => r.Kapazitaet).DefaultIfEmpty(0).Max();
+        static bool Ungeeignet(WebRaum r) => new[] { "Sport", "Halle", "EDV", "Computer", "Fachraum" }.Any(x => r.Raumart.Contains(x, StringComparison.OrdinalIgnoreCase));
+        var frei = Rueckmeldungsdienst.Buchbar(s).Where(r => !Ungeeignet(r) && !p.Raeume.Contains(r.Kurz, Ci) && (art.Length == 0 || Ci.Equals(r.Raumart, art)) && r.Kapazitaet >= groesse
+                                                              && _rm.RaumFrei(s, p.Datum, r.Kurz, p.Von, p.Bis)).OrderBy(r => r.Kurz, StringComparer.Ordinal).ToList();
+        if (frei.Count == 0) return p.Raeume;
+        var erster = z.Wahl(frei).Kurz;
+        var zweiter = sekII && frei.Count > 1 && z.Chance(0.25) ? frei.Where(r => r.Kurz != erster).ToList() is { Count: > 0 } rest ? z.Wahl(rest).Kurz : null : null;
+        return zweiter is null ? new() { erster } : new() { erster, zweiter };
     }
 
     // ------------------------------------------------------------------------------------------ Sprechtag

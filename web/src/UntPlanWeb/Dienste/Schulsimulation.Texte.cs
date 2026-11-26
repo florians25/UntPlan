@@ -147,6 +147,21 @@ public sealed partial class Schulsimulation
         ("Erzieherische Maßnahme", "{n} muss die versäumte Aufgabe in der Pause nacharbeiten.", true, 0.4),
     };
 
+    /// <summary>Hinweise an die Klasse für die nächste Stunde (je Fach, "" = allgemein).</summary>
+    public static readonly Dictionary<string, string[]> Hinweise = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [""] = new[] { "Bitte das Arbeitsheft mitbringen.", "Bitte die Mappe vollständig mitbringen, ich sammle sie ein.", "Bitte das Buch mitbringen." },
+        ["M"] = new[] { "Bitte Taschenrechner und Geodreieck mitbringen.", "Morgen kurzer Test zu den letzten Hausaufgaben." },
+        ["D"] = new[] { "Bitte die Lektüre mitbringen.", "Bitte bis morgen das nächste Kapitel der Lektüre lesen." },
+        ["E"] = new[] { "Bitte das Workbook mitbringen.", "Vocabulary test tomorrow." },
+        ["F"] = new[] { "Bitte das Wörterbuch mitbringen." },
+        ["EK"] = new[] { "Bitte den Atlas mitbringen." },
+        ["SP"] = new[] { "Bei gutem Wetter sind wir draußen, bitte passende Kleidung mitbringen.", "Bitte Hallenschuhe nicht vergessen." },
+        ["KU"] = new[] { "Bitte Farbkasten und Pinsel mitbringen." },
+        ["BI"] = new[] { "Wir mikroskopieren, bitte pünktlich im Biologieraum sein." },
+        ["IF"] = new[] { "Bitte die Zugangsdaten für die Rechner mitbringen." },
+    };
+
     public static readonly string[] Notizen = { "Arbeitsblätter für die nächste Stunde kopieren", "Test nächste Woche angekündigt", "Raum war nicht aufgeschlossen, 5 Minuten Verspätung", "Beamer defekt" };
 
     // ------------------------------------------------------------------------------------------ Krankmeldungen der Lehrkräfte

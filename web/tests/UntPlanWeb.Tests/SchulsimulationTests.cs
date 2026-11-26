@@ -22,6 +22,8 @@ public class SchulsimulationTests
         var admin = bd.NachLogin("admin")!;
         var sim = s.Dienst<Schulsimulation>();
         uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+        // fester Startwert, damit der Test immer denselben Ablauf sieht (sonst je Installation zufällig)
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
         var e = sim.Speichern(admin, new Simulationseinstellungen { Aktiv = true });
         pruefen?.Invoke(e);
         uhr.Fest = bis;
@@ -44,7 +46,8 @@ public class SchulsimulationTests
             r => (Datum: r.Text("datum"), Stunde: r.Zahl("stunde"), Lehrer: r.Text("lehrer"), Thema: r.Text("thema"), Geaendert: r.Text("geaendert"), Anwesenheit: r.TextOderNull("anwesenheit")));
         Assert.True(kb.Count(k => k.Thema.Length > 0) > 100, $"Lehrstoff: {kb.Count(k => k.Thema.Length > 0)}");
         Assert.DoesNotContain(kb, k => k.Lehrer == "MUE");
-        Assert.All(kb.Where(k => k.Thema.Length > 0), k => Assert.True(string.CompareOrdinal(k.Geaendert, k.Datum) >= 0));
+        // frühestens am Vorabend (vorausplanende Lehrkräfte), sonst nach der Stunde
+        Assert.All(kb.Where(k => k.Thema.Length > 0), k => Assert.True(string.CompareOrdinal(k.Geaendert, DateOnly.Parse(k.Datum).AddDays(-1).ToString("yyyy-MM-dd")) >= 0));
         // Einträge mit der Uhrzeit der Simulation (nach Stundenbeginn, nicht alle zur selben Zeit)
         Assert.True(kb.Select(k => k.Geaendert).Distinct().Count() > 50);
 
@@ -140,7 +143,8 @@ public class SchulsimulationTests
         var eingetragen = Liste(s, $"SELECT titel, klassen FROM rueckmeldungen WHERE typ = 'klausur' AND benutzer_id IN {Konten}", r => r.Text("titel") + r.Text("klassen"));
         Assert.NotEmpty(eingetragen);
         Assert.Equal(eingetragen.Count, eingetragen.Distinct().Count());
-        Assert.Contains(eingetragen, t => t.StartsWith("Klausur ") && t.Contains("EF"));
+        var ef = Liste(s, "SELECT schluessel, zeit, ergebnis FROM simulation_ereignisse WHERE schluessel LIKE 'pr|%|EF|%'", r => $"{r.Text("schluessel")} {r.Text("zeit")} {r.Text("ergebnis")}");
+        Assert.True(eingetragen.Any(t => t.StartsWith("Klausur ") && t.Contains("EF")), string.Join("\n", ef) + "\nPLAN " + string.Join(";", plan.Where(p => p.Klasse == "EF").Select(p => $"{p.Fach} {p.Datum} {p.Eintragen}")));
         Assert.Contains(eingetragen, t => t.StartsWith("Klassenarbeit "));
     }
 
@@ -223,6 +227,7 @@ public class SchulsimulationTests
         }));
         await Testserver.JsonAsync(await admin.PostAsJsonAsync($"/api/app/sprechtag/{id}/veroeffentlichen", new { }));
         var sim = s.Dienst<Schulsimulation>();
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
         sim.Speichern(s.Dienst<Benutzerdienst>().NachLogin("admin")!, new Simulationseinstellungen { Aktiv = true, Klassenbuch = false, Abwesenheiten = false, Pruefungen = false, Krankmeldungen = false });
         uhr.Fest = new DateTime(2026, 10, 20, 19, 0, 0);
         sim.Lauf();
@@ -232,5 +237,113 @@ public class SchulsimulationTests
         Assert.Contains(termine, t => t.Status == "bestaetigt" && t.ErstelltVon.StartsWith("sim~e."));
         // je Lehrkraft und Zeit höchstens ein Termin
         Assert.All(termine.Where(t => t.Aktiv).GroupBy(t => (t.Lehrer, t.Abschnitt, t.Beginn)), g => Assert.Single(g));
+    }
+
+    [Fact]
+    public async Task Pruefungsfaecher_getrennt_nach_Sek_I_und_Oberstufe_mit_Uebernahme_der_alten_Einstellung()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var (sekI, sekII) = Schulsimulation.Pruefungsfaecher(paket, new Simulationseinstellungen());
+        Assert.Equal(new[] { "D", "E", "F", "L", "M", "S" }, sekI.Order());
+        Assert.Contains("BI", sekII);
+        Assert.Contains("D", sekII);
+        Assert.DoesNotContain("SP", sekII);
+        Assert.DoesNotContain("KR", sekII);
+        Assert.DoesNotContain("BER", sekII);
+        // alte Einstellung „Fächer ohne Prüfungen“ (gespeichert vor den Prüfungsfächern) wird übernommen
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"aktiv":false,"ohnePruefung":["SP","F","CH"]}""");
+        var sim = s.Dienst<Schulsimulation>();
+        var (altI, altII) = Schulsimulation.Pruefungsfaecher(paket, sim.Laden());
+        Assert.DoesNotContain("F", altI);
+        Assert.DoesNotContain("CH", altII);
+        Assert.DoesNotContain("KR", altII);
+        Assert.Contains("M", altI);
+        // festgelegte Listen gelten; Planung nur in diesen Fächern, Sek I nur Klassenarbeiten, Oberstufe nur Klausuren
+        var admin = s.Dienst<Benutzerdienst>().NachLogin("admin")!;
+        s.Dienst<Uhr>().Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+        var e = sim.Speichern(admin, sim.Laden() with { Aktiv = true, PruefungSekI = new() { "M", "D" }, PruefungSekII = new() { "E", "BI" } });
+        var start = DateTime.Parse(e.Start);
+        var w = sim.Welt(paket, e, start, start.AddDays(5));
+        var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
+        var plan = sim.Pruefungsplanung(paket, e, w, hv, hb, start);
+        Assert.NotEmpty(plan);
+        Assert.All(plan.Where(p => p.Klasse is "EF" or "Q1" or "Q2"), p => Assert.Contains(p.Fach, new[] { "E", "BI" }));
+        Assert.All(plan.Where(p => p.Klasse is not ("EF" or "Q1" or "Q2")), p => Assert.Contains(p.Fach, new[] { "M", "D" }));
+        var status = System.Text.Json.JsonSerializer.SerializeToNode(sim.Status(), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+        Assert.Equal(new[] { "D", "M" }, status["einstellungen"]!["pruefungSekI"]!.AsArray().Select(x => x!.GetValue<string>()));
+    }
+
+    [Fact]
+    public async Task Lehrkraefte_aendern_gelegentlich_Raeume_nur_frei_und_im_Voraus()
+    {
+        var alt = Schulsimulation.Raumaenderungsanteil;
+        Schulsimulation.Raumaenderungsanteil = 0.25;
+        try
+        {
+            var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 16, 23, 30, 0));
+            await using var _ = s;
+            var paket = s.Dienst<Paketdienst>().Aktuell!;
+            var rm = Liste(s, $"SELECT von, stunde_von, stunde_bis, raeume, unterricht, erstellt, absender FROM rueckmeldungen WHERE typ = 'raumbuchung' AND benutzer_id IN {Konten}",
+                r => (Datum: r.Text("von"), Von: r.Zahl("stunde_von"), Bis: r.Zahl("stunde_bis"), Raeume: System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.Text("raeume"))!,
+                    Unterricht: r.Zahl("unterricht"), Erstellt: r.Text("erstellt"), Absender: r.Text("absender")));
+            Assert.True(rm.Count >= 3, $"Raumänderungen: {rm.Count}");
+            var zeiten = paket.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr, z => z.Beginn);
+            // vor Stundenbeginn eingetragen; kein Raum doppelt belegt
+            Assert.All(rm, x => Assert.True(string.CompareOrdinal(x.Erstellt.Replace('T', ' ')[..16], $"{x.Datum} {zeiten[x.Von]}") < 0, $"{x.Erstellt} {x.Datum} {x.Von}"));
+            foreach (var g in rm.GroupBy(x => x.Datum))
+                foreach (var raum in g.SelectMany(x => x.Raeume).Distinct())
+                {
+                    var belegt = g.Where(x => x.Raeume.Contains(raum)).ToList();
+                    for (var i = 0; i < belegt.Count; i++)
+                        for (var j = i + 1; j < belegt.Count; j++)
+                            Assert.False(belegt[i].Von <= belegt[j].Bis && belegt[j].Von <= belegt[i].Bis && belegt[i].Unterricht != belegt[j].Unterricht, $"{raum} doppelt am {g.Key}");
+                }
+            Assert.All(rm, x => Assert.NotEqual("MUE", x.Absender));
+            // Hinweise an die Klasse und Lehrstoff am Vorabend
+            Assert.True(Convert.ToInt32(s.Dienst<Db>().Wert($"SELECT COUNT(*) FROM klassenbuch WHERE notiz_schueler <> '' AND benutzer_id IN {Konten}")) > 0);
+            Assert.True(Convert.ToInt32(s.Dienst<Db>().Wert($"SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND substr(geaendert, 1, 10) < datum AND benutzer_id IN {Konten}")) > 0);
+            // Entfernen macht die Raumänderungen rückgängig
+            sim.Entfernen(admin);
+            Assert.Equal(0, Convert.ToInt32(s.Dienst<Db>().Wert("SELECT COUNT(*) FROM rueckmeldungen WHERE typ = 'raumbuchung'")));
+        }
+        finally { Schulsimulation.Raumaenderungsanteil = alt; }
+    }
+
+    [Fact]
+    public async Task Pruefungsraum_bei_einem_Teil_der_Klausuren_nur_frei_und_passend()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 12, 6, 30, 0));
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var rm = s.Dienst<Rueckmeldungsdienst>();
+        var e = sim.Laden();
+        Assert.Equal(30, e.Klausurraumanteil);
+        var start = DateTime.Parse(e.Start);
+        var w = sim.Welt(paket, e, start, start.AddDays(5));
+        var plan = Schulsimulation.Halbjahre(paket).SelectMany(h => sim.Pruefungsplanung(paket, e, w, h.Von, h.Bis, start)).ToList();
+        var ef = plan.Where(p => p.Klasse == "EF").ToList();
+        Assert.NotEmpty(ef);
+        // 0 %: immer der Raum der Stunde; 100 %: in der Oberstufe ein eigener freier Klassenraum mindestens gleicher Größe
+        Assert.All(ef, p => Assert.Equal(p.Raeume, sim.Pruefungsraeume(paket, e with { Klausurraumanteil = 0 }, p, new Zufall(1))));
+        var mit = ef.Select(p => (P: p, R: sim.Pruefungsraeume(paket, e with { Klausurraumanteil = 100 }, p, new Zufall((ulong)p.Datum.DayNumber)))).ToList();
+        Assert.Contains(mit, x => !x.R.SequenceEqual(x.P.Raeume));
+        foreach (var (p, r) in mit.Where(x => !x.R.SequenceEqual(x.P.Raeume)))
+            Assert.All(r, raum =>
+            {
+                Assert.DoesNotContain(raum, p.Raeume);
+                Assert.Equal("Klassenraum", paket.Raeume[raum].Raumart);
+                Assert.True(rm.RaumFrei(paket, p.Datum, raum, p.Von, p.Bis));
+            });
+        // Anteil realistisch: bei 30 % hat nur ein Teil der Oberstufenklausuren einen eigenen Raum
+        var beispiel = mit.First(x => !x.R.SequenceEqual(x.P.Raeume)).P;
+        var anteil = Enumerable.Range(0, 400).Count(i => !sim.Pruefungsraeume(paket, e, beispiel, new Zufall((ulong)i * 7919 + 3)).SequenceEqual(beispiel.Raeume)) / 400.0;
+        Assert.InRange(anteil, 0.15, 0.45);
+        // über die Administration einstellbar
+        var api = await s.AlsAsync("admin");
+        var neu = await Testserver.JsonAsync(await api.PutAsJsonAsync("/api/app/admin/simulation", new { aktiv = true, klausurraumanteil = 150, klassenbuch = true, abwesenheiten = true,
+            entschuldigungen = true, krankmeldungen = true, pruefungen = true, sprechtag = true, lehreraktionen = true, verteiler = "Vertretung" }));
+        Assert.Equal(100, neu["einstellungen"]!["klausurraumanteil"]!.GetValue<int>());
     }
 }
