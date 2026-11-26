@@ -92,15 +92,16 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>
-    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (doppelt, vier Parallelklassen je Jahrgang) und Kürzel im Aufbau des
+    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (vierfach: Jahrgänge 5 bis 10 mit je vier Parallelklassen) und Kürzel im Aufbau des
     /// Vorbilds, Klassen zweistellig mit Großbuchstaben („05A“), Lehrkräfte fünf Zeichen aus Nach- und Vorname („MülAn“), Räume mit
     /// Gebäudebuchstabe („A101“). Alle Namen sind frei erfunden; die Nutzerdaten bleiben unberührt (nur in der Szene verwendet).
     /// </summary>
     internal static void VorbildDaten(Schuldatei x)
     {
+        var klassen0 = x.Klassen.Count;
         var lehrer0 = x.Lehrer.Count;
         var raeume0 = x.Raeume.Count;
-        Demo.Vervielfachen(x, 2);
+        Demo.Vervielfachen(x, 4);
         // weitere erfundene Namen für die Kopien der Lehrkräfte
         string[] nach = { "Albers", "Bauer", "Conrad", "Dietz", "Ebert", "Franke", "Graf", "Haas", "Ilg", "Jansen", "Kaiser", "Lorenz", "Mertens", "Nagel",
             "Otto", "Peters", "Quast", "Roth", "Seidel", "Thiel", "Ulrich", "Vogt", "Winter", "Xander", "Yilmaz", "Ziegler", "Arnold", "Brandt", "Busch", "Dorn",
@@ -110,7 +111,7 @@ public sealed partial class HauptFenster
         for (var i = lehrer0; i < x.Lehrer.Count; i++)
         {
             x.Lehrer[i].Langname = nach[(i - lehrer0) % nach.Length];
-            x.Lehrer[i].Vorname = vor[(i - lehrer0) % vor.Length];
+            x.Lehrer[i].Vorname = vor[(i - lehrer0 + (i - lehrer0) / nach.Length) % vor.Length];
         }
         var vergeben = new HashSet<string>();
         foreach (var l in x.Lehrer)
@@ -122,17 +123,21 @@ public sealed partial class HauptFenster
             l.Kurzname = k;
         }
         // Klassen: Jahrgang zweistellig, Parallelklassen fortlaufend A, B, C … (über die Kopien hinweg); Oberstufe EF, Q1, Q2
-        var oberstufe = new[] { "EF", "Q1", "Q2" };
+        // Kopien 2 und 4 werden zu den Jahrgängen 8 bis 10, Kopien 3 und 4 liefern die Parallelklassen C und D
+        var oberstufe = new[] { "EF", "Q1", "Q2", "IK" };
         var zaehler = new Dictionary<string, int>();
         var ob = 0;
-        foreach (var k in x.Klassen)
+        for (var i = 0; i < x.Klassen.Count; i++)
         {
+            var k = x.Klassen[i];
+            var kopie = i / Math.Max(1, klassen0);
             if (int.TryParse(k.Jahrgang, out var jg))
             {
+                if (kopie % 2 == 1) { jg += 3; k.Jahrgang = jg.ToString(); }
                 var n = zaehler[k.Jahrgang] = zaehler.GetValueOrDefault(k.Jahrgang) + 1;
                 k.Kurzname = $"{jg:00}{(char)('A' + n - 1)}";
             }
-            else k.Kurzname = oberstufe[Math.Min(ob++, oberstufe.Length - 1)] + (ob > oberstufe.Length ? ob.ToString() : "");
+            else k.Kurzname = oberstufe[Math.Min(ob++, oberstufe.Length - 1)];
             k.Langname = "Klasse " + k.Kurzname;
         }
         // Räume: Klassenräume mit Gebäudebuchstabe je Kopie (A101, B101, C101), Fachräume fortlaufend nummeriert
