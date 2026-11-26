@@ -118,6 +118,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             // Fensterverknüpfung: andere Fenster (Stammdaten, Unterricht, Zeitwünsche, Pläne desselben Typs) folgen
             if (Verknuepft) AppZustand.Waehlen(_typ, _id, this);
         };
+        // Mausrad über der geschlossenen Elementauswahl blättert wie im Vorbild zum vorherigen/nächsten Element (je Rastung ein Plan)
+        Steuerelemente.ListenSuche.MausradBlaettern(_auswahl.ComboBox, Blaettern);
         // Hoch/Runter neben der Elementauswahl und Planart-Symbol mit Auswahl (Klasse, Lehrer, Raum) wie im Vorbild
         var dreh = new Steuerelemente.Drehknopf("Nächstes / vorheriges Element");
         dreh.Gedreht += r => Blaettern(r);
@@ -364,6 +366,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
                 planRahmen.AutoScroll = blaettern || quer;
                 if (!blaettern && !quer) planRahmen.AutoScrollPosition = Point.Empty;
             }
+            // entfällt eine Richtung, steht auch ihre Scrollposition wieder am Anfang (sonst bliebe der Plan versetzt)
+            if (planRahmen.AutoScroll && ((!blaettern && planRahmen.AutoScrollPosition.Y != 0) || (!quer && planRahmen.AutoScrollPosition.X != 0)))
+                planRahmen.AutoScrollPosition = new Point(quer ? -planRahmen.AutoScrollPosition.X : 0, blaettern ? -planRahmen.AutoScrollPosition.Y : 0);
             var breite = quer ? _plan.MindestBreite : innenB - (blaettern ? SystemInformation.VerticalScrollBarWidth : 0);
             var hoehe = blaettern ? noetig : innenH - (quer ? SystemInformation.HorizontalScrollBarHeight : 0);
             _plan.SetBounds(quer ? planRahmen.AutoScrollPosition.X : 0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(100, breite), Math.Max(60, hoehe));
@@ -1140,6 +1145,15 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         PoolAufbauen();
     }
 
+    /// <summary>Anzahl der Planaufbauten (Selbsttest: je Mausradrastung genau ein Aufbau).</summary>
+    internal int Ladungen { get; private set; }
+    /// <summary>Elementauswahl (Selbsttest).</summary>
+    internal ComboBox ElementAuswahl => _auswahl.ComboBox;
+    /// <summary>Formatauswahl unten (Selbsttest: Mausrad blättert hier nicht).</summary>
+    internal ComboBox FormatAuswahl => _format;
+    /// <summary>Planrahmen (Selbsttest: Bereich über dem stehenden Kopf).</summary>
+    internal Control PlanRahmenSteuerelement => _planRahmen;
+
     public void Neuaufbau(bool auswahlListe = true)
     {
         if (IsDisposed) return;
@@ -1151,6 +1165,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         }
         _auswahl.SelectedItem = _auswahl.Items.Cast<Eintrag>().FirstOrDefault(x => x.E.Id == _id);
         _laden = false;
+        Ladungen++;
         var el = Ix.Element(_typ, _id);
         var fmtName = _plan.Format.Name.Length > 0 ? _plan.Format.Name : FormatHolen().Name;
         // Vorbild: „05A - Class_05A Stundenplan (Kla1)“, ohne Langnamen „A206 - Stundenplan (Rau1)“

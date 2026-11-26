@@ -426,7 +426,8 @@ public sealed partial class PlanAnsicht : Control
     {
         using var _m = Core.Messung.Start("PlanAnsicht.EintraegeBerechnen");
         var tp = _tage[tag];
-        return tp.Stunde(stunde).Where(e => Typ switch
+        // Bereitschaften, in denen die Lehrkraft nun eine Stunde hat, werden ausgeblendet
+        return tp.SichtbareStunde(stunde).Where(e => Typ switch
         {
             // Kopplungszeile ohne eigene Klassen (z. B. zweite Lehrkraft) gehört zu den Klassen der ganzen Kopplung
             ElementTyp.Klasse => e.KlassenIds.Contains(ElementId) || (e.Regel?.KlassenIds.Contains(ElementId) ?? false) ||
@@ -644,10 +645,13 @@ public sealed partial class PlanAnsicht : Control
     /// <summary>
     /// Gescrollter Anteil des Plans (der Plan liegt in einem scrollenden Rahmen): Tageskopf und Stundenspalte bleiben beim Scrollen
     /// stehen – sie werden an der sichtbaren Ober- bzw. Linkskante noch einmal gezeichnet.
+    /// Maßgeblich ist die tatsächliche Lage des Plans im Rahmen (nicht die Scrollposition des Rahmens): nach einem Umbau (z. B. Fenster
+    /// schmaler, senkrechter Rollbalken entfällt) kann die Scrollposition noch versetzt sein, während der Plan wieder oben liegt – der Kopf
+    /// stünde dann tiefer und darüber blieben Reste der Spaltenlinien sichtbar.
     /// </summary>
     internal (int X, int Y) Fixversatz =>
-        KlassikStil && !Transponiert && Parent is ScrollableControl { AutoScroll: true } sc
-            ? (Math.Max(0, -sc.AutoScrollPosition.X), Math.Max(0, -sc.AutoScrollPosition.Y)) : (0, 0);
+        KlassikStil && !Transponiert && Parent is ScrollableControl { AutoScroll: true }
+            ? (Math.Max(0, -Left), Math.Max(0, -Top)) : (0, 0);
 
     /// <summary>Zusätzliche Textflags für Kopf und Pausen (beim festen Kopf: Beschneidung der Graphics auch für GDI-Text beachten).</summary>
     private TextFormatFlags _kopfFlags;
@@ -803,6 +807,7 @@ public sealed partial class PlanAnsicht : Control
         using var duenn = new Pen(klassik ? Color.Black : klein ? Color.FromArgb(200, 200, 200) : Color.FromArgb(210, 216, 226));
         GezeichneteLinien.Clear();
         GezeichneteFelder.Clear();
+        if (!druck) GezeichneteTagesfelder.Clear();
         if (Transponiert) TransponierteKoepfe(g, bounds, druck, linie);
         else if (klassik) KlassikKoepfe(g, bounds, druck, linie);
         else KoepfeZeichnen(g, bounds, druck, linie);
@@ -859,6 +864,7 @@ public sealed partial class PlanAnsicht : Control
                         var fr = SichtbarerTeil(fr0, druck);
                         EintragZeichnen(g, fr, f.Erster, datum!.Value, druck, f.Alle.Any(x => IstTagesAuswahl(datum.Value, x) || IstZusatz(datum.Value, x)));
                         if (klassik) g.DrawRectangle(linie, fr.X - 1, fr.Y - 1, fr.Width + 1, fr.Height + 1);
+                        if (!druck) GezeichneteTagesfelder.Add((t, f.Start, f.Laenge, f.Spur, f.Spuren, f.StapelIndex, f.StapelAnzahl, f.Erster.Unterricht?.Id ?? f.Erster.Vertretung?.UnterrichtId, f.Erster.Status, Rectangle.Round(fr)));
                         Relief(g, fr, Format.BesetzteStunden.Raeumlich);
                     }
             }
@@ -1089,6 +1095,8 @@ public sealed partial class PlanAnsicht : Control
 
     /// <summary>Gezeichnete Formatlinien (für den Selbsttest), z. B. „dick vor 5“.</summary>
     internal List<string> GezeichneteLinien { get; } = new();
+    /// <summary>Zuletzt gezeichnete Felder des tagesaktuellen Plans (Selbsttest: parallele Stunden nebeneinander, gleich breit, ohne Überlappung).</summary>
+    internal List<(int Tag, int Start, int Laenge, int Spur, int Spuren, int Stapel, int Stapelanzahl, int? UnterrichtId, TagesStatus Status, Rectangle Bereich)> GezeichneteTagesfelder { get; } = new();
 
     /// <summary>Räumliche Darstellung (Layout 1): erhaben = hell oben/links und dunkel unten/rechts, versenkt umgekehrt.</summary>
     private static void Relief(Graphics g, RectangleF r, Raeumlich art)

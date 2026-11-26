@@ -106,6 +106,7 @@ public sealed class Tagesplan
         var periode = d.PeriodeAm(datum);
         var unterrichte = (periode.Unterrichte ?? d.Unterrichte).ToDictionary(u => u.Id);
         var tp = new Tagesplan(datum, periode, Kalender.TagIndex(d, datum), unterrichte);
+        tp._bereitschaftsfaecher = d.Faecher.Where(f => f.Bereitschaft).Select(f => f.Id).ToHashSet();
         tp.Regel.AddRange(Regulaer(d, datum));
         var vertretungen = d.Vertretungen.Where(v => v.Datum == datum && v.Art != VertretungsArt.Pausenaufsicht).ToList();
         var zuRegel = new Dictionary<(int, int, int), List<Vertretung>>();
@@ -227,6 +228,27 @@ public sealed class Tagesplan
         }
         return _nachStunde.TryGetValue(stunde, out var liste) ? liste : Array.Empty<TagesEintrag>();
     }
+
+    private HashSet<int> _bereitschaftsfaecher = new();
+
+    /// <summary>Bereitschaftsstunde (Fach mit Kennzeichen Bereitschaft, auch nach der ursprünglichen Planung)?</summary>
+    public bool IstBereitschaft(TagesEintrag e) =>
+        (e.FachId is int f && _bereitschaftsfaecher.Contains(f)) || (e.Regel?.FachId is int rf && _bereitschaftsfaecher.Contains(rf));
+
+    /// <summary>
+    /// Bereitschaft ausblenden: Hat die Lehrkraft der Bereitschaft in dieser Stunde nun eine Unterrichtsstunde (z. B. als Vertretung
+    /// eingesetzt, verlegte Stunde, Sondereinsatz, Veranstaltung), steht im Plan nur diese Stunde; die Bereitschaft wird nicht gezeigt.
+    /// </summary>
+    public bool BereitschaftAusgeblendet(TagesEintrag e)
+    {
+        if (!IstBereitschaft(e)) return false;
+        var lehrer = e.Regel?.LehrerId is int rl ? new[] { rl } : e.LehrerIds.ToArray();
+        if (lehrer.Length == 0) return false;
+        return Stunde(e.Stunde).Any(x => !ReferenceEquals(x, e) && x.Findetstatt && !IstBereitschaft(x) && x.LehrerIds.Any(lehrer.Contains));
+    }
+
+    /// <summary>Einträge einer Stunde ohne ausgeblendete Bereitschaften (Anzeige in Plänen und Ausgaben).</summary>
+    public IEnumerable<TagesEintrag> SichtbareStunde(int stunde) => Stunde(stunde).Where(e => !BereitschaftAusgeblendet(e));
 
     /// <summary>Stunden, in denen der Lehrer tatsächlich unterrichtet (ohne Bereitschaft).</summary>
     public IEnumerable<TagesEintrag> VonLehrer(int lehrerId) => Eintraege.Where(e => e.Findetstatt && e.LehrerIds.Contains(lehrerId));

@@ -399,7 +399,7 @@ public sealed class UntPlanWebDialog : Dialog
     }
 
     /// <summary>Meldung nach erfolgreicher Übertragung (wie im Vorbild nach dem Export nach Webportal).</summary>
-    private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich.", "UntPlan - Frage");
+    private static void Erfolgsmeldung() => Ui.Info("Die Datenübertragung nach UntPlanWeb war erfolgreich.");
 
     private static string TeilName(string teil) => teil switch
     {
@@ -461,7 +461,7 @@ public sealed class UntPlanWebDialog : Dialog
         }
         if (Schuelergruppen.Inkonsistente(D).Count > 0)
         {
-            Ui.Warnung("Unterricht hat über mehrere Perioden hinweg unterschiedliche Schülergruppen.\nBitte prüfen Sie die Korrektheit der Schülergruppen in diesem Unterricht.", "UntPlan - Frage", this);
+            Ui.Warnung("Unterricht hat über mehrere Perioden hinweg unterschiedliche Schülergruppen.\nBitte prüfen Sie die Korrektheit der Schülergruppen in diesem Unterricht.", owner: this);
             SchuelergruppenDialog.Zeigen(this, false);
         }
     }

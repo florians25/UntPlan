@@ -113,7 +113,7 @@ public static class UntPlanWebExport
                 var vaStunden = tp.Eintraege.Where(e => e.Vertretung is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int })
                     .GroupBy(e => (Va: e.Vertretung!.VeranstaltungId!.Value, e.Stunde)).Where(g => g.Count() > 1)
                     .ToDictionary(g => g.Key, g => g.OrderBy(e => e.Vertretung!.Id).ToList());
-                foreach (var e in tp.Eintraege.Where(e => !nurAenderungen || e.Status != TagesStatus.Regulaer).OrderBy(e => e.Stunde))
+                foreach (var e in tp.Eintraege.Where(e => (!nurAenderungen || e.Status != TagesStatus.Regulaer) && !tp.BereitschaftAusgeblendet(e)).OrderBy(e => e.Stunde))
                 {
                     if (e.Vertretung is { Art: VertretungsArt.Veranstaltung, VeranstaltungId: int gva } && vaStunden.TryGetValue((gva, e.Stunde), out var gruppe))
                     {

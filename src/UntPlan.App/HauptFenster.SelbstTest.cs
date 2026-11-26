@@ -12,6 +12,9 @@ namespace UntPlan.App;
 /// </summary>
 public sealed partial class HauptFenster
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern void mouse_event(uint flags, int dx, int dy, int daten, UIntPtr extra);
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")] private static extern IntPtr GetClassLongPtr(IntPtr hwnd, int index);
+
     /// <summary>Schnelle Druckprobe (UntPlan.exe --druckprobe=Ordner): Beispielschule planen, Stundenplandrucke als Bilder speichern, beenden.</summary>
     internal void Druckprobe(string ordner)
     {
@@ -1910,6 +1913,256 @@ public sealed partial class HauptFenster
                 (periode.Unterrichte ?? x.Unterrichte).RemoveAll(u => u.Id == uid);
             });
             sp.Focus();
+        }, -1);
+        // Vorbild-Bilder 342–344: parallele Stunden als gleich breite Teilfelder nebeneinander, je mit eigenem Rahmen
+        Schritt("V39_Parallele_Bloecke", () =>
+        {
+            ModusFuerBild(true);
+            AppZustand.DatumSetzen(tag);
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var dd = Dokument.Klonen(AppZustand.D);
+            var per = dd.PeriodeAm(tag);
+            var regel = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, tag);
+            var n = Math.Min(8, dd.Zeitraster.StundenProTag);
+            var tagIdx = Kalender.TagIndex(dd, tag);
+            int Anzahl(int k, int s) => regel.Count(r => r.Stunde == s && r.KlassenIds.Contains(k));
+            var klasse = dd.Klassen.Select(k => k.Id).FirstOrDefault(k => !dd.Vertretungen.Any(v => v.Datum == tag && v.KlassenIds.Contains(k))
+                && Enumerable.Range(1, n).Count(s => Anzahl(k, s) == 1) >= 5
+                && Enumerable.Range(1, n - 1).Any(s => Anzahl(k, s) == 1 && Anzahl(k, s + 1) == 1));
+            if (klasse == 0) { log.Add("INFO  V39: keine geeignete Klasse"); return; }
+            var belegt = Enumerable.Range(1, n).Where(s => Anzahl(klasse, s) == 1).ToList();
+            var h2 = belegt.First(s => belegt.Contains(s + 1));
+            var h1 = belegt.First(s => s != h2 && s != h2 + 1);
+            var h4 = belegt.Last(s => s != h2 && s != h2 + 1 && s != h1);
+            bool Frei(int l, params int[] st) => !regel.Any(r => r.LehrerId == l && st.Contains(r.Stunde)) && !Core.Vertretungsplanung.Absenzen.LehrerAbwesend(dd, l, tag, st[0]);
+            var la = dd.Lehrer.First(l => Frei(l.Id, h1, h4)).Id;
+            var lb = dd.Lehrer.First(l => l.Id != la && Frei(l.Id, h2, h2 + 1)).Id;
+            var lc = dd.Lehrer.First(l => l.Id != la && l.Id != lb && Frei(l.Id, h2)).Id;
+            var faecher = dd.Faecher.Where(f => !f.Bereitschaft && f.Kurzname.Length is >= 1 and <= 2).Select(f => f.Id).ToList();
+            Unterricht Neu(int lehrer, int fach, params int[] stunden)
+            {
+                var u = new Unterricht { Id = dd.NeueId(), Wochenstunden = stunden.Length };
+                u.Zeilen.Add(new Kopplungszeile { LehrerId = lehrer, FachId = fach, KlassenIds = new() { klasse } });
+                (per.Unterrichte ?? dd.Unterrichte).Add(u);
+                foreach (var s in stunden) per.Plan.Add(new Planstunde { UnterrichtId = u.Id, Tag = tagIdx, Stunde = s, Raeume = new List<int?> { null } });
+                return u;
+            }
+            var ua = Neu(la, faecher[0], h1, h4);
+            var ub = Neu(lb, faecher[Math.Min(1, faecher.Count - 1)], h2, h2 + 1);
+            Vertretung V(Unterricht u, int s, int? vertreter) => new()
+            {
+                Id = dd.NeueId(), Datum = tag, Stunde = s, Art = VertretungsArt.Vertretung, Quelle = VertretungsQuelle.Manuell, UnterrichtId = u.Id, ZeilenIndex = 0,
+                LehrerId = u.Zeilen[0].LehrerId, VertreterId = vertreter, FachId = u.Zeilen[0].FachId, KlassenIds = new() { klasse },
+            };
+            var offen = V(ua, h1, null);
+            dd.Vertretungen.Add(offen);
+            dd.Vertretungen.Add(V(ub, h2, lc));
+            AppZustand.Setzen(new Dokument(dd), false);
+            try
+            {
+                AppZustand.VertretungWaehlen(AppZustand.D.Vertretungen.FirstOrDefault(v => v.Id == offen.Id));
+                foreach (var (name, klein, groesse) in new[] { ("V39_Parallel_klein", true, new Size(272, 567)), ("V39b_Parallel_gross", false, new Size(760, 560)) })
+                {
+                    var f = StundenplanFenster.Neu(ElementTyp.Klasse, klasse, false, klein);
+                    f.WindowState = FormWindowState.Normal;
+                    f.Bounds = new Rectangle(klein ? 100 : 380, 0, groesse.Width, groesse.Height);
+                    Warten(300);
+                    f.Plan.MarkierterUnterricht = ua.Id;
+                    f.Plan.TagesAuswaehlen(tag, h1, ua.Id, offen.Id);
+                    Warten(300);
+                    f.Plan.Refresh();
+                    Vergleich(name, f, groesse);
+                    // Geometrie: gleichzeitige Felder nebeneinander, gleich breit (±1), getrennt durch genau eine Rasterlinie, ohne Überlappung
+                    var felder = f.Plan.GezeichneteTagesfelder.Where(x => x.Tag == tagIdx).ToList();
+                    var fehler = new List<string>();
+                    foreach (var a in felder.Where(x => x.Spuren > 1))
+                        foreach (var b in felder.Where(x => x.Spuren > 1 && x.Spur == a.Spur + 1 && x.Start <= a.Start + a.Laenge - 1 && a.Start <= x.Start + x.Laenge - 1))
+                        {
+                            if (a.Bereich.IntersectsWith(b.Bereich)) fehler.Add($"Felder U{a.UnterrichtId}/U{b.UnterrichtId} überlappen");
+                            if (b.Bereich.X - a.Bereich.Right != 1) fehler.Add($"Abstand U{a.UnterrichtId}|U{b.UnterrichtId} {b.Bereich.X - a.Bereich.Right} statt 1 Pixel Linie");
+                            if (Math.Abs(a.Bereich.Width - b.Bereich.Width) > 1) fehler.Add($"Breiten {a.Bereich.Width}/{b.Bereich.Width}");
+                        }
+                    // Bildpunkte: Trennlinie schwarz über die ganze Feldhöhe, Auswahlrahmen innerhalb des linken Teilfelds
+                    var sel = felder.FirstOrDefault(x => x.UnterrichtId == ua.Id && x.Start == h1);
+                    var r = f.Plan.RectangleToScreen(f.Plan.ClientRectangle);
+                    using (var bmp = new Bitmap(r.Width, r.Height))
+                    {
+                        using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                        if (sel.Spuren > 1)
+                        {
+                            var b = sel.Bereich;
+                            var x = sel.Spur == 0 ? b.Right : b.X - 1;
+                            var schwarz = Enumerable.Range(b.Y, b.Height).Count(y => y < bmp.Height && x < bmp.Width && bmp.GetPixel(x, y).GetBrightness() < 0.2f);
+                            if (schwarz < b.Height - 1) fehler.Add($"Trennlinie nur {schwarz}/{b.Height} Pixel schwarz");
+                            var ecke = bmp.GetPixel(b.X + 1, b.Y + 1);
+                            log.Add($"MASS  {name}: Teilfeld {b}, Spur {sel.Spur}/{sel.Spuren}, Rahmenpixel {ecke.R},{ecke.G},{ecke.B}");
+                        }
+                        else fehler.Add($"gewählte Stunde {h1}. ohne parallele Spur ({sel.Spuren})");
+                    }
+                    log.Add($"MASS  {name}: {string.Join(" | ", felder.Where(x => x.Spuren > 1 || x.Stapelanzahl > 1).Select(x => $"U{x.UnterrichtId} {x.Start}+{x.Laenge} Spur {x.Spur}/{x.Spuren} Stapel {x.Stapel}/{x.Stapelanzahl} {x.Status} {x.Bereich}"))}");
+                    if (fehler.Count > 0) log.Add($"FEHLER {name}: {string.Join("; ", fehler.Distinct())}");
+                }
+                log.Add($"INFO  V39 Klasse {dd.Klassen.First(k => k.Id == klasse).Kurzname}: parallel {h1}. (offen, gewählt) und {h4}., Block {h2}.–{h2 + 1}. (vertreten/regulär)");
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.VertretungWaehlen(null);
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
+        // Mausrad über der geschlossenen Elementauswahl eines Plans: je Rastung genau ein Element weiter (und genau ein Planaufbau)
+        Schritt("V40_Mausrad_Elementauswahl", () =>
+        {
+            ModusFuerBild(true);
+            var f = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            f.WindowState = FormWindowState.Normal;
+            f.Bounds = new Rectangle(100, 0, 272, 567);
+            Warten(400);
+            var cb = f.ElementAuswahl;
+            var fehler = new List<string>();
+            void Rad(Control c, int delta)
+            {
+                var p = c.PointToScreen(new Point(c.Width / 2, c.Height / 2));
+                SendMessage(c.Handle, 0x020A, (IntPtr)(delta << 16), (IntPtr)((p.Y << 16) | (p.X & 0xFFFF)));
+                Warten(150);
+            }
+            var start = cb.SelectedIndex;
+            var l0 = f.Ladungen;
+            for (var i = 0; i < 3; i++) Rad(cb, -120);
+            if (cb.SelectedIndex != start + 3) fehler.Add($"3 Rastungen nach unten: Index {start} → {cb.SelectedIndex} statt {start + 3}");
+            if (f.Ladungen - l0 != 3) fehler.Add($"3 Rastungen: {f.Ladungen - l0} Planaufbauten statt 3");
+            Rad(cb, 120);
+            if (cb.SelectedIndex != start + 2) fehler.Add($"1 Rastung nach oben: Index {cb.SelectedIndex} statt {start + 2}");
+            // feines Rad (halbe Rastungen): erst zwei halbe ergeben einen Schritt
+            var l1 = f.Ladungen;
+            Rad(cb, 60);
+            var nachHalb = cb.SelectedIndex;
+            Rad(cb, 60);
+            if (nachHalb != start + 2 || cb.SelectedIndex != start + 1 || f.Ladungen - l1 != 1) fehler.Add($"halbe Rastungen: {nachHalb}/{cb.SelectedIndex}, {f.Ladungen - l1} Aufbauten");
+            if (cb.DroppedDown) fehler.Add("Liste wurde geöffnet");
+            // echtes Mausrad (Eingabe des Systems) über der Auswahl
+            var l2 = f.Ladungen;
+            var vor = cb.SelectedIndex;
+            Cursor.Position = cb.PointToScreen(new Point(cb.Width / 2, cb.Height / 2));
+            Warten(100);
+            mouse_event(0x0800, 0, 0, -120, UIntPtr.Zero);
+            Warten(400);
+            log.Add($"INFO  V40 Systemrad: Index {vor} → {cb.SelectedIndex}, Aufbauten {f.Ladungen - l2}");
+            if (cb.SelectedIndex != vor + 1 || f.Ladungen - l2 != 1) fehler.Add($"Systemrad: Index {vor} → {cb.SelectedIndex}, {f.Ladungen - l2} Aufbauten");
+            // andere Auswahllisten (Formatauswahl) bleiben beim Mausrad unverändert
+            var fmt = f.FormatAuswahl;
+            var fIndex = fmt.SelectedIndex;
+            Rad(fmt, -120);
+            if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl durch Mausrad verändert ({fIndex} → {fmt.SelectedIndex})");
+            log.Add($"INFO  V40 Elementauswahl {start} → {cb.SelectedIndex} ({cb.Text}), Planaufbauten {f.Ladungen - l0}");
+            Vergleich("V40_Mausrad_Elementauswahl", f, new Size(272, 120));
+            if (fehler.Count > 0) log.Add($"FEHLER V40: {string.Join("; ", fehler)}");
+        }, -1);
+        // Meldung wie Bild 345 (Information nach der Übertragung): Titel passend zur Art, kein doppelter Schatten, × wie in den Arbeitsfenstern
+        Schritt("V41_Meldung_Information", () =>
+        {
+            ModusFuerBild(true);
+            var m = Ui.MeldungsFenster("Die Datenübertragung nach UntPlanWeb war erfolgreich.", "UntPlan - Frage", MeldungsArt.Info, new[] { "OK" }, 0, false, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            m.StartPosition = FormStartPosition.Manual;
+            m.Location = new Point(300, 200);
+            m.Show(this);
+            m.Activate();
+            Warten(700);
+            m.Refresh();
+            if (m.Text != "UntPlan - Hinweis") log.Add($"FEHLER V41: Titel der Information „{m.Text}“");
+            var stil = GetClassLongPtr(m.Handle, -26).ToInt64();
+            if ((stil & 0x20000) != 0) log.Add("FEHLER V41: Meldung mit zusätzlichem Klassenschatten (doppelter Schatten rechts unten)");
+            var r = new Rectangle(m.Left - 16, m.Top - 16, m.Width + 32, m.Height + 32);
+            using (var bmp = new Bitmap(r.Width, r.Height))
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                bmp.Save(Path.Combine(ordner, "V41_Meldung_Information_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+                // Schatten rechts und unten gleich stark wie links/oben (kein harter Klassenschatten)
+                int Hell(int x, int y) { var c = bmp.GetPixel(x, y); return (c.R + c.G + c.B) / 3; }
+                log.Add($"MASS  V41: Rand außen links {Hell(12, r.Height / 2)}, rechts {Hell(r.Width - 13, r.Height / 2)}, oben {Hell(r.Width / 2, 12)}, unten {Hell(r.Width / 2, r.Height - 13)}");
+            }
+            m.Close();
+        }, -1);
+        // Bereitschaft ausblenden, wenn die Lehrkraft in dieser Stunde nun eine Stunde hat (z. B. als Vertretung eingesetzt)
+        Schritt("V42_Bereitschaft_ausgeblendet", () =>
+        {
+            ModusFuerBild(true);
+            AppZustand.DatumSetzen(tag);
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var dd = Dokument.Klonen(AppZustand.D);
+            var regel = Core.Vertretungsplanung.Tagesplan.Regulaer(dd, tag);
+            var ber = regel.FirstOrDefault(r => r.LehrerId.HasValue && Core.Vertretungsplanung.Vertretungen.IstBereitschaftsfach(dd, r.FachId)
+                && regel.Any(x => x.Stunde == r.Stunde && x.LehrerId.HasValue && x.LehrerId != r.LehrerId && x.Unterricht.Zeilen.Count == 1 && x.KlassenIds.Count > 0
+                    && !Core.Vertretungsplanung.Vertretungen.IstBereitschaftsfach(dd, x.FachId)));
+            if (ber is null) { log.Add("INFO  V42: keine Bereitschaft gefunden"); return; }
+            var andere = regel.First(x => x.Stunde == ber.Stunde && x.LehrerId.HasValue && x.LehrerId != ber.LehrerId && x.Unterricht.Zeilen.Count == 1 && x.KlassenIds.Count > 0
+                && !Core.Vertretungsplanung.Vertretungen.IstBereitschaftsfach(dd, x.FachId));
+            AppZustand.Setzen(new Dokument(dd), false);
+            try
+            {
+                int Bereitschaften(StundenplanFenster f) { f.Plan.Refresh(); return f.Plan.GezeichneteTagesfelder.Count(x => x.UnterrichtId == ber.Unterricht.Id && x.Start <= ber.Stunde && x.Start + x.Laenge > ber.Stunde); }
+                var f = StundenplanFenster.Neu(ElementTyp.Lehrer, ber.LehrerId!.Value, false, true);
+                f.WindowState = FormWindowState.Normal;
+                f.Bounds = new Rectangle(100, 0, 272, 567);
+                Warten(400);
+                var vorher = Bereitschaften(f);
+                AppZustand.Doc.Aendern("Bereitschaft als Vertretung (Selbsttest)", AenderungsArt.Vertretung, x => x.Vertretungen.Add(new Vertretung
+                {
+                    Id = x.NeueId(), Datum = tag, Stunde = ber.Stunde, Art = VertretungsArt.Vertretung, Quelle = VertretungsQuelle.Manuell, UnterrichtId = andere.Unterricht.Id,
+                    ZeilenIndex = 0, LehrerId = andere.LehrerId, VertreterId = ber.LehrerId, FachId = andere.FachId, KlassenIds = andere.KlassenIds.ToList(),
+                }));
+                Warten(400);
+                var nachher = Bereitschaften(f);
+                Vergleich("V42_Bereitschaft_ausgeblendet", f, new Size(272, 567));
+                log.Add($"INFO  V42 {dd.Lehrer.First(l => l.Id == ber.LehrerId).Kurzname} {ber.Stunde}. Stunde: Bereitschaft vorher {vorher}, nach der Vertretung {nachher}");
+                if (vorher == 0 || nachher != 0) log.Add($"FEHLER V42: Bereitschaft vorher {vorher}, nachher {nachher} (erwartet sichtbar, dann ausgeblendet)");
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+            }
+        }, -1);
+        // stehender Kopf: über dem Tageskopf keine Reste (Spaltenlinien) nach Scrollen und schmalerem Fenster
+        Schritt("V43_Kopf_ohne_Reste", () =>
+        {
+            ModusFuerBild(true);
+            var fehler = new List<string>();
+            foreach (var klein in new[] { true, false })
+            {
+                var f = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, klein);
+                f.WindowState = FormWindowState.Normal;
+                f.Bounds = new Rectangle(100, 0, klein ? 272 : 700, klein ? 567 : 520);
+                Warten(300);
+                var rahmen = f.PlanRahmenSteuerelement;
+                void Pruefen(string schritt)
+                {
+                    Warten(250);
+                    f.Refresh();
+                    var p = f.Plan;
+                    var (dx, dy) = p.Fixversatz;
+                    if (dy != Math.Max(0, -p.Top) || dx != Math.Max(0, -p.Left)) fehler.Add($"{(klein ? "klein" : "groß")} {schritt}: Kopf bei {dx}/{dy}, Plan bei {p.Left}/{p.Top}");
+                    var r = rahmen.RectangleToScreen(rahmen.ClientRectangle);
+                    var breite = Math.Min(r.Width, p.Right) - 2;
+                    if (breite < 10 || p.Top > 0) return;
+                    using var bmp = new Bitmap(breite, 3);
+                    using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, bmp.Size);
+                    // oberste Zeile: durchgehende schwarze Rahmenlinie des Plans (keine hellen Lücken mit Spaltenlinien darüber)
+                    var hell = Enumerable.Range(0, breite).Count(x => bmp.GetPixel(x, 0).GetBrightness() > 0.3f);
+                    if (hell > 2) fehler.Add($"{(klein ? "klein" : "groß")} {schritt}: über dem Kopf {hell} helle Bildpunkte statt Rahmenlinie");
+                }
+                Pruefen("Start");
+                f.SelbsttestScrollen(0, 80); Pruefen("senkrecht gescrollt");
+                f.SelbsttestScrollen(90, 80); Pruefen("quer gescrollt");
+                f.Bounds = new Rectangle(100, 0, klein ? 180 : 260, klein ? 567 : 520); Pruefen("schmaler");
+                f.SelbsttestScrollen(200, 0); Pruefen("schmal gescrollt");
+                f.Bounds = new Rectangle(100, 0, klein ? 272 : 700, klein ? 300 : 900); Pruefen("niedriger/höher");
+                f.SelbsttestScrollen(0, 0); Pruefen("zurück");
+                if (!klein) Vergleich("V43_Kopf_ohne_Reste", f, new Size(700, 300));
+                f.Close();
+            }
+            if (fehler.Count > 0) log.Add($"FEHLER V43: {string.Join("; ", fehler)}");
         }, -1);
         Schritt("V16_Einzelstunden", () =>
         {
