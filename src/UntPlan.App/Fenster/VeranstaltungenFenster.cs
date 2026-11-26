@@ -293,7 +293,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         else
         {
             var typ = name switch { "L" => ElementTyp.Lehrer, "R" => ElementTyp.Raum, _ => ElementTyp.Klasse };
-            eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
+            // wie im Vorbild (Bilder 351, 352): Symbol, Kurzname und Langname (bei Lehrkräften der Nachname)
+            eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x.Langname, MehrfachAuswahl.Symbol(typ))).ToList();
         }
         var aktuell = (_g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', '\n', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
         // gespeicherte Veranstaltung: Auswahl aus den Ids (die Zelle zeigt ggf. „Alle Lehrkräfte“ bzw. „Alle Klassen außer …“)

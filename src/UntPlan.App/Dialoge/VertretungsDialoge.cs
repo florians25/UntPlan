@@ -360,7 +360,7 @@ public static class SondereinsatzDialog
             var name = g.Columns[spalte].Name;
             var typ = name == "L" ? ElementTyp.Lehrer : ElementTyp.Klasse;
             var eintraege = Stammdaten.Sortiert(d, typ).Where(x => !x.Ignorieren)
-                .Select(x => new Steuerelemente.MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
+                .Select(x => new Steuerelemente.MehrfachAuswahl.Eintrag(x.Kurzname, x.Langname, Steuerelemente.MehrfachAuswahl.Symbol(typ))).ToList();
             var aktuell = (g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
             Steuerelemente.MehrfachAuswahl.Zeigen(g, zeile, spalte, eintraege, aktuell, true, gewaehlt =>
             {

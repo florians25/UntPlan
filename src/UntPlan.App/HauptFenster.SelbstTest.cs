@@ -1518,6 +1518,7 @@ public sealed partial class HauptFenster
                 var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
                 var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
                 Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
+                MdiFenster.SelbsttestOhneKlemmen = true;
                 // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
                 Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
                 Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
@@ -1552,11 +1553,103 @@ public sealed partial class HauptFenster
             finally
             {
                 AlleSchliessen();
+                MdiFenster.SelbsttestOhneKlemmen = false;
                 AppZustand.Einstellungen.KalenderDetailOffen = detailVorher;
                 if (assistentVorher) { _assistent.Visible = true; _assistentSplitter.Visible = true; }
                 AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
                 AppZustand.DatumSetzen(datumVorher);
                 WindowState = vorherZustand;
+            }
+        }, -1);
+        Schritt("V52_Aufklapplisten", () =>
+        {
+            // Vorbild-Bilder 348 bis 352: Veranstaltungen mit Aufklappknopf in der aktuellen Zelle und den Aufklapplisten Lehrer und Klasse,
+            // Sondereinsätze mit offener Lehrerliste und der Dialog „Auswahl“ (Klassen)
+            ModusFuerBild(true);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            try
+            {
+                var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                va.WindowState = FormWindowState.Normal;
+                va.Bounds = new Rectangle(131, 45, 988, 416);
+                va.Activate();
+                va.SelbsttestNeueZeile();
+                Warten(500);
+                Foto(Path.Combine(ordner, "V52a_Veranstaltungen_F.png"));
+                foreach (var (spalte, bild) in new[] { ("L", "V52b_Liste_Lehrer_F.png"), ("K", "V52c_Liste_Klasse_F.png") })
+                {
+                    va.SelbsttestAuswahlZeigen(spalte);
+                    Warten(500);
+                    Pruefen(Steuerelemente.MehrfachAuswahl.Offen is { Visible: true }, $"Aufklappliste der Spalte {spalte} nicht offen.");
+                    var l = Steuerelemente.MehrfachAuswahl.Offen!;
+                    log.Add($"MASS  V52 Liste {spalte}: {l.RectangleToScreen(l.ClientRectangle)}, Zeile {l.ItemHeight}, Schrift {l.Font.Name} {l.Font.SizeInPoints}");
+                    Pruefen(l.ItemHeight == 16, "Zeilenhöhe der Aufklappliste nicht 16 Pixel wie im Vorbild.");
+                    Foto(Path.Combine(ordner, bild));
+                    Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                    Warten(200);
+                }
+                va.Close();
+                // Sondereinsätze (modal): Lehrerliste in der leeren Zeile öffnen, danach „Klassen“ (Dialog „Auswahl“)
+                var stufe = 0;
+                var fehler = "";
+                var t = new System.Windows.Forms.Timer { Interval = 600 };
+                t.Tick += (_, _) =>
+                {
+                    var f = Application.OpenForms.Cast<Form>().LastOrDefault(x => x.Visible && x.Text == "Sondereinsätze");
+                    if (f is null) { if (++stufe > 20) t.Stop(); return; }
+                    try
+                    {
+                        var g = Ui.Tabellen(f).First();
+                        switch (stufe++)
+                        {
+                            case 0:
+                                f.Location = new Point(Math.Max(0, Left + 330), Top + 290);
+                                g.Focus();
+                                g.CurrentCell = g.Rows[g.Rows.Count - 1].Cells["L"];
+                                R3BPostMessage(g.Handle, 0x104, (IntPtr)0x28, (IntPtr)(1 << 29));
+                                break;
+                            case 1:
+                                Foto(Path.Combine(ordner, "V52d_Sondereinsaetze_Lehrer_F.png"));
+                                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                                break;
+                            case 2:
+                                var t2 = new System.Windows.Forms.Timer { Interval = 700 };
+                                t2.Tick += (_, _) =>
+                                {
+                                    t2.Stop();
+                                    var a = Application.OpenForms.Cast<Form>().LastOrDefault(x => x.Visible && x.Text == "Auswahl");
+                                    if (a is null) { fehler = "Dialog „Auswahl“ nicht geöffnet."; return; }
+                                    a.Location = new Point(f.Left + 293, f.Top - 70);
+                                    Warten(300);
+                                    Foto(Path.Combine(ordner, "V52e_Auswahl_F.png"));
+                                    a.DialogResult = DialogResult.Cancel;
+                                    a.Close();
+                                };
+                                t2.Start();
+                                f.Controls.OfType<Button>().First(b => b.Text == "Klassen").PerformClick();
+                                t2.Dispose();
+                                break;
+                            default:
+                                t.Stop();
+                                f.DialogResult = DialogResult.Cancel;
+                                f.Close();
+                                break;
+                        }
+                    }
+                    catch (Exception ex) { fehler = ex.Message; t.Stop(); f.Close(); }
+                };
+                t.Start();
+                SondereinsatzDialog.Neu(this, AppZustand.Datum, 1, Array.Empty<int>(), Array.Empty<int>());
+                t.Stop();
+                t.Dispose();
+                Pruefen(fehler.Length == 0, "Sondereinsätze: " + fehler);
+            }
+            finally
+            {
+                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                WindowState = vorher;
             }
         }, -1);
         Schritt("V45_Krypton_Muster", () =>

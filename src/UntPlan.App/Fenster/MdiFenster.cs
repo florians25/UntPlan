@@ -132,10 +132,13 @@ public class MdiFenster : Form
     /// Jede Lageänderung (Ziehen an der Titelleiste, Größenänderung, Anordnen, gespeicherte Fensteranordnung, Bounds aus dem
     /// Programm): Das Fenster bleibt vollständig im MDI-Arbeitsbereich – die Titelleiste rutscht nie unter das Menüband.
     /// </summary>
+    /// <summary>Selbsttest (Nachbau eines Vorbild-Bildschirmfotos): Fenster dürfen wie dort über den Arbeitsbereich hinausragen.</summary>
+    internal static bool SelbsttestOhneKlemmen { get; set; }
+
     private void LageKlemmen(IntPtr lParam)
     {
         const uint SWP_NOSIZE = 1, SWP_NOMOVE = 2;
-        if (!IsMdiChild || !IsHandleCreated) return;
+        if (!IsMdiChild || !IsHandleCreated || SelbsttestOhneKlemmen) return;
         try
         {
             if (IsIconic(Handle) || IsZoomed(Handle) || WindowState != FormWindowState.Normal) return;
@@ -159,7 +162,7 @@ public class MdiFenster : Form
     /// <summary>Fenster (z. B. nach Verkleinern des Hauptfensters) wieder vollständig in den MDI-Arbeitsbereich holen.</summary>
     internal void InArbeitsbereichKlemmen()
     {
-        if (!IsMdiChild || WindowState != FormWindowState.Normal || IsDisposed) return;
+        if (!IsMdiChild || WindowState != FormWindowState.Normal || IsDisposed || SelbsttestOhneKlemmen) return;
         var bereich = MdiBereich;
         if (!Fensterlage.BereichGueltig(new Rectangle(Point.Empty, bereich))) return;
         var r = Fensterlage.MdiFenster(Bounds, bereich, true);

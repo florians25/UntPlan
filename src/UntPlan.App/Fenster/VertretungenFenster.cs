@@ -71,7 +71,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     /// <summary>Beschriftung über der Elementauswahl („Klasse(n)“ bzw. „Vertreter“).</summary>
     private readonly Label _elementGruppe = new() { AutoSize = true, Margin = new Padding(0, 0, 0, 5) };
     private readonly Steuerelemente.ZeitraumAuswahl _zeitraum;
-    private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 150 };
+    private readonly ComboBox _ansicht = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 129 };
     /// <summary>Vtr-Nr. als Zahlenfeld mit Auf-/Ab-Pfeilen wie im Vorbild: die Pfeile springen zur nächsten bzw. vorigen Vertretung, Enter zur eingegebenen.</summary>
     private readonly VtrNrFeld _nr = new() { Width = 85, Minimum = 0, Maximum = int.MaxValue };
 

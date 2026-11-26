@@ -99,7 +99,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private int KleineBreite() => _plan.BenoetigteBreite + LupeRand + 2 * (1 + Einzug + 2);
 
     /// <summary>Vorbild (Bild 308, Plan „Bon“): rechts neben dem Plan bleiben im Rahmen 16 Pixel frei (Platz für den Rollbalken).</summary>
-    private const int LupeRand = 16;
+    private const int LupeRand = 17;
 
     /// <summary>Höhe des Lupenbereichs: Vorbild klein (Bild 341) 3 Pixel Teiler, 2 Pixel Rahmen, Lupe mit Rollbalken (zusammen 124 Pixel).</summary>
     private int LupeHoehe => _klein ? (AppZustand.Vertretungsmodus ? 124 : 80) : 74;
@@ -513,7 +513,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     /// <summary>Formatauswahl in der Fußzeile rechts ausrichten (im kleinen Plan über fast die ganze Breite).</summary>
     private void FussAnordnen()
     {
-        _fuss.Wunschbreite = _klein ? 150 : 190;
+        _fuss.Wunschbreite = _klein ? 130 : 190;
         _fuss.Anordnen();
     }
 
