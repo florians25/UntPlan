@@ -16,8 +16,18 @@ public sealed record Simulationseinstellungen
     public long Seed { get; init; }
     /// <summary>Lehrkräfte (Kürzel), für die keine Automatik läuft (z. B. die Schulleitung, die selbst einträgt). null = Konten der Schulleitung bzw. Administration.</summary>
     public List<string>? Ausgenommen { get; init; }
-    /// <summary>Fächer (Kürzel) ohne Klassenarbeiten bzw. Klausuren.</summary>
+    /// <summary>
+    /// Frühere Einstellung „Fächer ohne Prüfungen“: gilt nur noch, solange keine Prüfungsfächer festgelegt sind (Vorbelegung der Listen unten).
+    /// </summary>
     public List<string> OhnePruefung { get; init; } = Schulsimulation.StandardOhnePruefung.ToList();
+    /// <summary>Fächer (Kürzel) mit Klassenarbeiten in der Sekundarstufe I. null = Deutsch, Mathematik, Englisch und zweite Fremdsprache.</summary>
+    public List<string>? PruefungSekI { get; init; }
+    /// <summary>Fächer (Kürzel) mit Klausuren in der Oberstufe (EF, Q1, Q2). null = alle Fächer außer den Ausnahmen (Sport, Religion, Kunst, Musik …).</summary>
+    public List<string>? PruefungSekII { get; init; }
+    /// <summary>Weitere Aktionen der Lehrkräfte: Raumänderungen, Lehrstoff vorab, Hinweise an die Klasse.</summary>
+    public bool Lehreraktionen { get; init; } = true;
+    /// <summary>Anteil der Prüfungen (Prozent), für die die Lehrkraft einen eigenen Prüfungsraum festlegt (Oberstufe; in der Sek I seltener).</summary>
+    public int Klausurraumanteil { get; init; } = 30;
     public bool Klassenbuch { get; init; } = true;
     public bool Abwesenheiten { get; init; } = true;
     public bool Entschuldigungen { get; init; } = true;
@@ -57,6 +67,18 @@ public sealed partial class Schulsimulation : BackgroundService
     /// <summary>Höchstens so weit wird nach einer Pause nachgeholt.</summary>
     public static readonly TimeSpan Nachholen = TimeSpan.FromDays(14);
     public static readonly string[] StandardOhnePruefung = { "SP", "KR", "ER", "PPL", "KU", "MU", "FÖ", "BER", "KL", "SU", "NW", "GL" };
+    /// <summary>Vorbelegung der Klassenarbeitsfächer in der Sekundarstufe I: Deutsch, Mathematik, Englisch und zweite Fremdsprache.</summary>
+    public static readonly string[] StandardSekI = { "D", "M", "E", "F", "L", "S" };
+
+    /// <summary>Wirksame Prüfungsfächer (Sek I, Sek II): festgelegte Listen bzw. die Vorbelegung aus den Fächern des Pakets (frühere Ausnahmen berücksichtigt).</summary>
+    public static (HashSet<string> SekI, HashSet<string> SekII) Pruefungsfaecher(Stand? s, Simulationseinstellungen e)
+    {
+        var faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => f.Kurz).Where(k => k.Length > 0).ToList();
+        var ohne = (e.OhnePruefung ?? new()).Concat(StandardOhnePruefung).ToHashSet(Ci);
+        var sekI = e.PruefungSekI ?? faecher.Where(f => StandardSekI.Contains(f, Ci) && !(e.OhnePruefung ?? new()).Contains(f, Ci)).ToList();
+        var sekII = e.PruefungSekII ?? faecher.Where(f => !ohne.Contains(f)).ToList();
+        return (sekI.ToHashSet(Ci), sekII.ToHashSet(Ci));
+    }
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture, De = new("de-DE");
     private static readonly StringComparer Ci = StringComparer.OrdinalIgnoreCase;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -123,7 +145,10 @@ public sealed partial class Schulsimulation : BackgroundService
             {
                 Verteiler = verteiler,
                 Ausgenommen = neu.Ausgenommen?.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList() ?? alt.Ausgenommen ?? Ausgenommen(alt),
-                OhnePruefung = (neu.OhnePruefung ?? new()).Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList(),
+                OhnePruefung = neu.OhnePruefung is null ? alt.OhnePruefung : neu.OhnePruefung.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList(),
+                Klausurraumanteil = Math.Clamp(neu.Klausurraumanteil, 0, 100),
+                PruefungSekI = Liste(neu.PruefungSekI) ?? alt.PruefungSekI,
+                PruefungSekII = Liste(neu.PruefungSekII) ?? alt.PruefungSekII,
                 Start = alt.Start, Seed = alt.Seed,
             };
             if (e.Aktiv && (!alt.Aktiv || alt.Start.Length == 0))
@@ -138,6 +163,8 @@ public sealed partial class Schulsimulation : BackgroundService
             return e;
         }
     }
+
+    private static List<string>? Liste(List<string>? l) => l?.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList();
 
     /// <summary>Verteilerliste der Krankmeldungen anlegen (Schulleitung und Administration), falls es noch keine Liste dieses Namens gibt.</summary>
     private void VerteilerAnlegen(Benutzer ich, string name)
@@ -161,7 +188,12 @@ public sealed partial class Schulsimulation : BackgroundService
         const string Konten = "(SELECT id FROM benutzer WHERE login LIKE 'sim~%')";
         return new
         {
-            einstellungen = e with { Ausgenommen = Ausgenommen(e) },
+            einstellungen = e with
+            {
+                Ausgenommen = Ausgenommen(e),
+                PruefungSekI = Pruefungsfaecher(s, e).SekI.Order(StringComparer.Ordinal).ToList(),
+                PruefungSekII = Pruefungsfaecher(s, e).SekII.Order(StringComparer.Ordinal).ToList(),
+            },
             stand = _einstellungen.Lesen(StandSchluessel) ?? "",
             lehrer = (s?.Paket.Elemente.Lehrer ?? new()).Where(l => l.Kurz is not ("---" or "???" or "+++")).Select(l => new { l.Kurz, name = $"{l.Vorname} {l.Name}".Trim() }),
             faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name }),
@@ -174,6 +206,7 @@ public sealed partial class Schulsimulation : BackgroundService
                 krankmeldungen = Zahl($"SELECT COUNT(*) FROM mitteilungen WHERE absender_id IN {Konten} AND betreff NOT LIKE 'Sprechtag%'"),
                 pruefungen = Zahl($"SELECT COUNT(*) FROM rueckmeldungen WHERE typ = 'klausur' AND benutzer_id IN {Konten}"),
                 sprechtag = Zahl($"SELECT COUNT(*) FROM st_termine WHERE benutzer_id IN {Konten} OR erstellt_von LIKE 'sim~%'"),
+                raumaenderungen = Zahl($"SELECT COUNT(*) FROM rueckmeldungen WHERE typ = 'raumbuchung' AND benutzer_id IN {Konten}"),
                 entschuldigt = Zahl($"SELECT COUNT(*) FROM fehlzeit_entschuldigungen WHERE benutzer_id IN {Konten}"),
             },
         };
@@ -274,7 +307,7 @@ public sealed partial class Schulsimulation : BackgroundService
         for (var d = DateOnly.FromDateTime(von).AddDays(-4); d <= DateOnly.FromDateTime(bis).AddDays(2); d = d.AddDays(1))
         {
             if (d < DateOnly.FromDateTime(start) || !w.Schultag(d)) continue;
-            if (e.Klassenbuch || e.Abwesenheiten) res.AddRange(TagesereignisseGemerkt(s, e, w, d));
+            if (e.Klassenbuch || e.Abwesenheiten || e.Lehreraktionen) res.AddRange(TagesereignisseGemerkt(s, e, w, d));
         }
         if (e.Krankmeldungen) res.AddRange(w.Ausfaelle.SelectMany(a => Meldungen(s, e, w, a)));
         if (e.Entschuldigungen && e.Abwesenheiten) res.AddRange(w.Schuelerausfaelle.Select(a => Entschuldigung(s, e, w, a)).OfType<Ereignis>());
@@ -288,7 +321,7 @@ public sealed partial class Schulsimulation : BackgroundService
     /// <summary>Ereignisse eines Schultages, einige Minuten zwischengespeichert (jede Minute läuft die Simulation; Pläne ändern sich selten).</summary>
     private List<Ereignis> TagesereignisseGemerkt(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d)
     {
-        var k = $"{d:yyyy-MM-dd}|{s.Empfangen}|{w.Seed}|{e.Start}|{e.Klassenbuch}|{e.Abwesenheiten}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}";
+        var k = $"{d:yyyy-MM-dd}|{s.Empfangen}|{w.Seed}|{e.Start}|{e.Klassenbuch}|{e.Abwesenheiten}|{e.Lehreraktionen}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}";
         if (_tageCache.TryGetValue(k, out var c) && DateTime.UtcNow - c.Erzeugt < TimeSpan.FromMinutes(10)) return c.Liste;
         if (_tageCache.Count > 64) _tageCache.Clear();
         var liste = Tagesereignisse(s, e, w, d).ToList();
@@ -484,7 +517,7 @@ public sealed partial class Schulsimulation : BackgroundService
 }
 
 /// <summary>Fester Zufall (SplitMix64) aus einem Startwert und den Teilen des Ereignisses: gleiche Eingabe, gleiche Folge.</summary>
-internal sealed class Zufall
+public sealed class Zufall
 {
     private ulong _s;
 

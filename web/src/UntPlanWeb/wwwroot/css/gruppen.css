@@ -98,3 +98,5 @@
 .sim-chip b { font-weight: 500; }
 .sim-chip span { color: #67747e; }
 .sim-chip:has(input:checked) { border-color: var(--u-akzent); background: #eef6f8; }
+.sim-unter { font-size: .9rem; font-weight: 500; color: #67747e; margin: 12px 0 6px; }
+.sim-anteil { display: flex; align-items: center; gap: 12px; max-width: 360px; } .sim-anteil input { flex: 1; accent-color: var(--u-akzent); } .sim-anteil output { min-width: 3.5em; font-weight: 500; }
