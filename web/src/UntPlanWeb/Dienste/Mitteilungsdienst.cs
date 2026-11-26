@@ -325,6 +325,8 @@ public sealed class Mitteilungsdienst
         SendenOderAntwortenPruefen(ich, antwortAuf);
         var antwort = Antwortempfaenger(ich, antwortAuf, true);
         var alle = _benutzer.Alle().Where(b => !b.Gesperrt).ToList();
+        // Antwort an eine simulierte Lehrkraft (Schulsimulation, z. B. Rückfrage zur Krankmeldung): das Konto steht in keiner Liste
+        alle.AddRange(antwort.Select(_benutzer.Holen).Where(b => b is { Simuliert: true }).Select(b => b!));
         var res = new HashSet<int>();
         // eigene Listen in ihre Mitglieder auflösen (nicht verschachtelt)
         var liste = new List<string>();
@@ -411,6 +413,18 @@ public sealed class Mitteilungsdienst
         var ids = konten.Where(k => k != absender.Id && _benutzer.Holen(k) is { Gesperrt: false }).ToHashSet();
         if (ids.Count == 0) throw new ArgumentException("Keine Empfänger.");
         return Zustellen(absender, ids, betreff, text, false, false, null, "");
+    }
+
+    /// <summary>
+    /// Schulsimulation: Mitteilung eines simulierten Kontos (z. B. Krankmeldung an die Verteilerliste „Vertretung“) an die aufgelösten Konten,
+    /// mit dem Empfängertext der Liste. Die Zeit stammt aus der Uhr (im Simulationsablauf die Zeit des Ereignisses).
+    /// </summary>
+    public int Simulationszustellung(Benutzer absender, IEnumerable<int> konten, string betreff, string text, string empfaengerText)
+    {
+        Pruefen(betreff, text);
+        var ids = konten.Where(k => k != absender.Id).ToHashSet();
+        if (ids.Count == 0) throw new ArgumentException("Keine Empfänger.");
+        return Zustellen(absender, ids, betreff, text, false, false, null, empfaengerText);
     }
 
     private int Zustellen(Benutzer ich, HashSet<int> ids, string betreff, string text, bool wichtig, bool lesebestaetigung, int? antwortAuf, string empfaengerText,

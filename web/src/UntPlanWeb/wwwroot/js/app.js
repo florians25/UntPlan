@@ -472,6 +472,7 @@ function menue() {
       { nav: 'admin-ansicht', href: '#/admin/ansicht', text: 'Ansichtseinstellungen', icon: 'ansicht' },
       { nav: 'admin-monitore', href: '#/admin/monitore', text: 'Monitoransichten', icon: 'monitor' },
       { nav: 'admin-protokoll', href: '#/admin/protokoll', text: 'Protokoll', icon: 'protokoll' },
+      { nav: 'admin-simulation', href: '#/admin/simulation', text: 'Schulbetrieb simulieren', icon: 'synchron' },
     ] });
   } else {
     // Rechte-Modell: einzelne Administrationsbereiche auch ohne Administration (Nachrichten zum Tag, Import, Benutzerverwaltung)

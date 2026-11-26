@@ -70,6 +70,8 @@ public sealed record Benutzer(int Id, string Login, string Anzeigename, string R
     public string? LehrerKuerzel => Kollegium && Element.Length > 0 ? Element : null;
     /// <summary>Schüler- bzw. Elternkonto (eigene Seiten: Abwesenheiten, Fehlzeiten, Hausaufgaben des Kindes).</summary>
     public bool Familie => Rolle is Rollen.Schueler or Rollen.Eltern;
+    /// <summary>Konto der Schulsimulation (gesperrt, ohne Anmeldung): erscheint in keiner Benutzer- oder Empfängerliste.</summary>
+    public bool Simuliert => Login.StartsWith(Schulsimulation.KontoPraefix, StringComparison.Ordinal);
     /// <summary>Zugeordnete Schüler*innen (Schülerverwaltung): bei Schüler*innen die eigene Person, bei Erziehungsberechtigten die Kinder.</summary>
     public List<int> SchuelerIds { get; init; } = new();
     /// <summary>Klassen des Kontos: Klassen der zugeordneten Schüler*innen, sonst (Klassenkonto) die eingetragene Klasse.</summary>
@@ -143,7 +145,8 @@ public sealed class Benutzerdienst
 
     public List<Benutzer> Alle()
     {
-        var liste = _db.Liste($"SELECT {Spalten} FROM benutzer ORDER BY rolle, login COLLATE NOCASE", Lesen);
+        // Konten der Schulsimulation gehören zu keiner Liste (Benutzerverwaltung, Empfänger, Erinnerungen); Holen findet sie weiterhin
+        var liste = _db.Liste($"SELECT {Spalten} FROM benutzer ORDER BY rolle, login COLLATE NOCASE", Lesen).Where(b => !b.Simuliert).ToList();
         var zuordnung = _db.Liste("SELECT benutzer_id, schueler_id FROM benutzer_schueler", r => (B: r.Zahl("benutzer_id"), S: r.Zahl("schueler_id"))).ToLookup(x => x.B, x => x.S);
         var schueler = _pakete?.Aktuell?.Schueler;
         liste = Rechtedienst.Laden(_db, liste);

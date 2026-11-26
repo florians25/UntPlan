@@ -87,3 +87,14 @@
 .wt-schalter:hover input:checked { background: var(--u-akzent-dunkel); }
 .wt-schalter input:checked::after { left: 2px; transform: translateX(16px); }
 .wt-schalter input:focus-visible { outline: 2px solid var(--u-akzent); outline-offset: 2px; }
+/* Administration → Schulbetrieb simulieren */
+.sim-schalter input:checked { background: var(--u-akzent); }
+.wt-status.sim-aus .wt-symbol { background: #eef1f3; color: #67747e; }
+.sim-modul { cursor: pointer; }
+.sim-modul input { flex: none; }
+.sim-auswahl { display: flex; flex-wrap: wrap; gap: 6px; }
+.sim-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border: 1px solid #dfe3e7; border-radius: 999px; cursor: pointer; font-size: .9rem; background: #fff; }
+.sim-chip input { margin: 0; accent-color: var(--u-akzent); }
+.sim-chip b { font-weight: 500; }
+.sim-chip span { color: #67747e; }
+.sim-chip:has(input:checked) { border-color: var(--u-akzent); background: #eef6f8; }
