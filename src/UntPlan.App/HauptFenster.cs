@@ -464,6 +464,20 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Web-Portal", "web", () => new PortalDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Modulübersicht", "modul", () => ModuleDialog.Zeigen(this), true));
 
+        // Dialogstarter in den Gruppenecken (Office-Menüband): öffnen den Einstellungsdialog der Gruppe. Im Vertretungsmodus wie im Vorbild
+        // (Bild 308) ohne Dialogstarter.
+        void Starter(RibbonSeite seite, string gruppe, Action aktion, string hinweis)
+        {
+            var gr = seite.Gruppen.First(x => x.Text == gruppe);
+            gr.DialogStarter = aktion;
+            gr.DialogStarterHinweis = hinweis;
+        }
+        Starter(start, "Planungswerkzeuge", () => new GewichtungDialog().ShowDialog(this), "Gewichtung der Planungsziele einstellen.");
+        Starter(start, "Schule", () => new EinstellungenDialog().ShowDialog(this), "Einstellungen der Schule (Schuljahr, Schulname, Allgemeines).");
+        Starter(eingabe, "Zeit", () => new ZeitrasterDialog().ShowDialog(this), "Zeitraster der Schule bearbeiten.");
+        Starter(planung, "Werkzeuge", () => new GewichtungDialog().ShowDialog(this), "Gewichtung der Planungsziele einstellen.");
+        Starter(plaene, "Ausgabe", () => BerichtseinstellungenDialog.Zeigen(this), "Kopf- und Fußzeile aller Ausdrucke, Drucknamen.");
+
         VertretungsSeiteAufbauen();
     }
 

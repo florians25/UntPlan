@@ -1177,6 +1177,103 @@ public sealed partial class HauptFenster
             m.Close();
             d.Close();
         }, -1);
+        void KopfFoto(string datei)
+        {
+            Refresh();
+            _ribbon.Refresh();
+            var r = RectangleToScreen(new Rectangle(0, 0, Math.Min(ClientSize.Width, 1300), _schnell.Height + _ribbon.Height));
+            using var bmp = new Bitmap(r.Width, r.Height);
+            using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+            bmp.Save(Path.Combine(ordner, datei), System.Drawing.Imaging.ImageFormat.Png);
+        }
+        Schritt("V46_KeyTips", () =>
+        {
+            // Alt allein blendet die Zugriffstasten der Registerkarten ein, die Taste einer Registerkarte die ihrer Befehle; ein Befehl wird
+            // über seine Taste ausgeführt; Esc geht stufenweise zurück; F10 wirkt wie Alt
+            ModusFuerBild(true);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            var filter = new KeyTipFilter(this);
+            Message Nachricht(int msg, Keys k, long lp = 0) => Message.Create(Handle, msg, (IntPtr)(int)k, (IntPtr)lp);
+            bool Senden(int msg, Keys k, long lp = 0) { var m = Nachricht(msg, k, lp); return filter.PreFilterMessage(ref m); }
+            const int WM_KEYDOWN = 0x100, WM_SYSKEYDOWN = 0x104, WM_SYSKEYUP = 0x105;
+            // Alt mit weiterer Taste (z. B. Alt+Tab) zeigt keine Zugriffstasten
+            Senden(WM_SYSKEYDOWN, Keys.Menu); Senden(WM_SYSKEYDOWN, Keys.Tab); Senden(WM_SYSKEYUP, Keys.Menu);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Alt+weitere Taste hat die Zugriffstasten eingeblendet.");
+            Senden(WM_SYSKEYDOWN, Keys.Menu);
+            Pruefen(Senden(WM_SYSKEYUP, Keys.Menu) && _ribbon.KeyTipStufe == 1, "Alt allein blendet die Zugriffstasten nicht ein.");
+            var register = _ribbon.KeyTipZiele();
+            Pruefen(register.Select(z => z.Taste).Distinct().Count() == register.Count && register.All(z => z.Taste.Length > 0), "Zugriffstasten der Registerkarten nicht eindeutig.");
+            KopfFoto("V46_KeyTips_Register_F.png");
+            var vp = register.First(z => z.Name == "Vertretungsplanung");
+            foreach (var ch in vp.Taste) Senden(WM_KEYDOWN, ch is >= '0' and <= '9' ? Keys.D0 + (ch - '0') : Keys.A + (ch - 'A'));
+            Pruefen(_ribbon.KeyTipStufe == 2 && _ribbon.Seiten[_ribbon.AktiveSeite].Text == "Vertretungsplanung", "Taste der Registerkarte wählt sie nicht.");
+            var befehle = _ribbon.KeyTipZiele();
+            Pruefen(befehle.Select(z => z.Taste).Distinct().Count() == befehle.Count && befehle.All(z => z.Taste.Length > 0), "Zugriffstasten der Befehle nicht eindeutig.");
+            // keine Taste ist Anfang einer anderen (sonst wäre die längere nicht erreichbar)
+            Pruefen(!befehle.Any(a => befehle.Any(b => b != a && b.Taste.StartsWith(a.Taste, StringComparison.Ordinal))), "Zugriffstaste ist Anfang einer anderen.");
+            KopfFoto("V46_KeyTips_Befehle_F.png");
+            log.Add($"INFO  V46: Registerkarten {string.Join(" ", register.Select(z => z.Name + "=" + z.Taste))}; Befehle {string.Join(" ", befehle.Select(z => z.Name + "=" + z.Taste))}");
+            Senden(WM_KEYDOWN, Keys.Escape);
+            Pruefen(_ribbon.KeyTipStufe == 1, "Esc geht nicht zur Registerkartenstufe zurück.");
+            Senden(WM_KEYDOWN, Keys.Escape);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Esc beendet die Zugriffstasten nicht.");
+            // F10, Registerkarte, Befehl „Vertretungen“ öffnet das Fenster
+            AlleSchliessen();
+            Pruefen(Senden(WM_SYSKEYDOWN, Keys.F10) && _ribbon.KeyTipStufe == 1, "F10 blendet die Zugriffstasten nicht ein.");
+            foreach (var ch in vp.Taste) Senden(WM_KEYDOWN, Keys.A + (ch - 'A'));
+            var vertr = _ribbon.KeyTipZiele().First(z => z.Name == "Vertretungen");
+            foreach (var ch in vertr.Taste) Senden(WM_KEYDOWN, ch is >= '0' and <= '9' ? Keys.D0 + (ch - '0') : Keys.A + (ch - 'A'));
+            Warten(500);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Zugriffstasten bleiben nach dem Befehl stehen.");
+            Pruefen(MdiChildren.OfType<VertretungenFenster>().Any(), "Zugriffstaste „Vertretungen“ öffnet das Fenster nicht.");
+            // Mausklick beendet die Anzeige
+            _ribbon.KeyTipsStarten();
+            var klick = Message.Create(_ribbon.Handle, 0x201, IntPtr.Zero, IntPtr.Zero);
+            filter.PreFilterMessage(ref klick);
+            Pruefen(_ribbon.KeyTipStufe == 0, "Mausklick beendet die Zugriffstasten nicht.");
+            // Trennlinien der Gruppen wie im Vorbild (Bild 308 gemessen: 98, 391, 523, 795, 902, 1040, 1160)
+            _ribbon.LayoutStand();
+            var trenner = _ribbon.Seiten[_ribbon.AktiveSeite].Gruppen.Select(x => _ribbon.Left + x.Bounds.Right).ToList();
+            int[] vorbild = { 98, 391, 523, 795, 902, 1040, 1160 };
+            log.Add($"MASS  V46 Gruppentrenner: {string.Join(", ", trenner)} (Vorbild {string.Join(", ", vorbild)}; Abweichung {string.Join(", ", trenner.Zip(vorbild, (a, b) => (a - b).ToString("+0;-0;0")))})");
+            WindowState = vorher;
+        }, -1);
+        Schritt("V47_Dialogstarter", () =>
+        {
+            // Dialogstarter in der Gruppenecke öffnet den Einstellungsdialog (Stundenplanmodus); im Vertretungsmodus wie im Vorbild keiner
+            ModusFuerBild(false);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            _ribbon.AktiveSeite = 0;
+            _ribbon.LayoutStand();
+            _ribbon.Invalidate();
+            Warten(400);
+            var gr = _ribbon.Seiten[0].Gruppen.First(x => x.Text == "Schule");
+            Pruefen(!gr.StarterBounds.IsEmpty && gr.Bounds.Contains(gr.StarterBounds), "Dialogstarter der Gruppe „Schule“ fehlt oder liegt außerhalb.");
+            KopfFoto("V47_Dialogstarter_F.png");
+            var gefunden = false;
+            var t = new System.Windows.Forms.Timer { Interval = 700 };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                var d = Application.OpenForms.OfType<EinstellungenDialog>().FirstOrDefault();
+                gefunden = d != null;
+                d?.Close();
+            };
+            t.Start();
+            var mitte = new Point(gr.StarterBounds.X + 5, gr.StarterBounds.Y + 5);
+            _ribbon.GetType().GetMethod("OnMouseDown", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .Invoke(_ribbon, new object[] { new MouseEventArgs(MouseButtons.Left, 1, mitte.X, mitte.Y, 0) });
+            t.Dispose();
+            Pruefen(gefunden, "Dialogstarter öffnet die Einstellungen nicht.");
+            ModusFuerBild(true);
+            _ribbon.AktiveSeite = _ribbon.Seiten.FindIndex(x => x.Text == "Vertretungsplanung");
+            _ribbon.LayoutStand();
+            Pruefen(_ribbon.Seiten[_ribbon.AktiveSeite].Gruppen.All(x => x.StarterBounds.IsEmpty), "Im Menüband Vertretungsplanung erscheint ein Dialogstarter (Vorbild: keiner).");
+            WindowState = vorher;
+        }, -1);
         Schritt("V45_Krypton_Muster", () =>
         {
             // Entscheidungsgrundlage Bibliothek oder Eigenbau: Menüband und Tabelle als Krypton-Steuerelemente neben dem Vorbild.

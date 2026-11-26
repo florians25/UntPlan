@@ -144,6 +144,10 @@ public partial class HauptFenster
         var filter = new KantenFilter(this);
         Application.AddMessageFilter(filter);
         FormClosed += (_, _) => Application.RemoveMessageFilter(filter);
+        var tasten = new KeyTipFilter(this);
+        Application.AddMessageFilter(tasten);
+        FormClosed += (_, _) => Application.RemoveMessageFilter(tasten);
+        Deactivate += (_, _) => _ribbon.KeyTipsBeenden();
     }
 
     /// <summary>Kante des Fensters unter dem Mauszeiger (Bildschirmkoordinaten) als Trefferwert für WM_NCLBUTTONDOWN, sonst null.</summary>

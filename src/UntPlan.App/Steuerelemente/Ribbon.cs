@@ -29,6 +29,8 @@ public sealed class RibbonEintrag
     internal bool KleinDargestellt;
     internal bool GrossDargestellt => Gross && !KleinDargestellt;
     internal List<RibbonEintrag?>? AktuellesMenue => MenueErzeugen?.Invoke() ?? Menue;
+    /// <summary>Feste Zugriffstaste (KeyTip, Alt); leer = automatisch aus der Beschriftung.</summary>
+    public string KeyTip { get; init; } = "";
 }
 
 public sealed class RibbonGruppe
@@ -36,6 +38,11 @@ public sealed class RibbonGruppe
     public string Text { get; init; } = "";
     public List<RibbonEintrag> Eintraege { get; } = new();
     internal Rectangle Bounds;
+    /// <summary>Dialogstarter in der rechten unteren Gruppenecke (öffnet den passenden Einstellungsdialog); null = keiner.</summary>
+    public Action? DialogStarter { get; set; }
+    /// <summary>Hinweis zum Dialogstarter (Kurzinfo).</summary>
+    public string DialogStarterHinweis { get; set; } = "";
+    internal Rectangle StarterBounds;
     /// <summary>
     /// Verkleinerungsstufe bei zu schmalem Fenster (wie im Vorbild): 0 = normal, 1 = große Knöpfe klein (drei je Spalte),
     /// 2 = zusammengeklappt zu einem Knopf mit dem Gruppennamen, der alle Einträge als Menü zeigt.
@@ -65,10 +72,12 @@ public sealed class RibbonSeite
     public Func<bool>? Sichtbar { get; init; }
     public bool IstSichtbar => Sichtbar?.Invoke() ?? true;
     internal Rectangle TabBounds;
+    /// <summary>Feste Zugriffstaste der Registerkarte (KeyTip); leer = automatisch.</summary>
+    public string KeyTip { get; init; } = "";
 }
 
 /// <summary>Menüband im Stil klassischer Office-/Windows-Anwendungen.</summary>
-public sealed class Ribbon : Control
+public sealed partial class Ribbon : Control
 {
     /// <summary>
     /// Registerleiste wie in der Vorlage, in der Modusfarbe und durchgehend mit der Titelzeile darüber: 27 Pixel, die
@@ -261,8 +270,8 @@ public sealed class Ribbon : Control
                     if (e.GrossDargestellt)
                     {
                         if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
-                        // große Knöpfe eng wie in der Vorlage (Bild 308 gemessen): Beschriftung + 3 Pixel, 2 Pixel Abstand (Text zu Text 6 bis 7 Pixel)
-                        var w = Math.Max(40, TextBreite(e.Text) + 3);
+                        // große Knöpfe eng wie in der Vorlage (Bild 308 gemessen): Beschriftung + 2 Pixel, 2 Pixel Abstand (Text zu Text 6 bis 7 Pixel)
+                        var w = Math.Max(40, LayoutBreite(e.Text) + 2);
                         e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
                         e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
                         ende = x + w;
@@ -272,7 +281,7 @@ public sealed class Ribbon : Control
                     {
                         // kleiner Knopf wie in der Vorlage: Symbol 3 Pixel eingerückt, Text 3 Pixel nach dem Symbol, Pfeil 5 Pixel nach dem Text
                         var tw = TextBreite(e.Text);
-                        var w = e.IstDatum ? 136 : KleinText + tw + (HatMenue(e) ? 14 : 4);
+                        var w = e.IstDatum ? 136 : KleinText + LayoutBreite(e.Text) + (HatMenue(e) ? 13 : 4);
                         spaltenBreite = Math.Max(spaltenBreite, w);
                         e.Bounds = new Rectangle(x, oben + zeile * KleinHoehe, w, KleinHoehe);
                         e.PfeilBounds = HatMenue(e) && e.Klick != null ? Rectangle.FromLTRB(x + KleinText + tw + 2, e.Bounds.Y, e.Bounds.Right, e.Bounds.Bottom) : Rectangle.Empty;
@@ -283,10 +292,11 @@ public sealed class Ribbon : Control
                 }
             }
             // Gruppe mindestens so breit wie ihre Beschriftung
-            var textBreite = TextRenderer.MeasureText(gr.Text, Ui.SchriftKlein).Width + 6;
+            var textBreite = TextRenderer.MeasureText(gr.Text, Ui.SchriftKlein).Width + 6 + (StarterSichtbar(gr) ? 16 : 0);
             if (ende - start < textBreite) ende = start + textBreite;
-            var rechts = ende + (mitDatum ? 3 : GruppeRechts);
+            var rechts = ende + (mitDatum ? 2 : GruppeRechts);
             gr.Bounds = Rectangle.FromLTRB(trenner, TabHoehe + 1, rechts, TabHoehe + Inhalt - 1);
+            gr.StarterBounds = StarterSichtbar(gr) ? new Rectangle(rechts - 15, gr.Bounds.Bottom - 17, 13, 13) : Rectangle.Empty;
             trenner = rechts;
         }
         return trenner;
@@ -295,7 +305,13 @@ public sealed class Ribbon : Control
     /// <summary>Kleiner Knopf: Beginn des Texts (Symbol bei 3, 16 Pixel breit, 3 Pixel Abstand).</summary>
     private const int KleinText = 22;
 
-    private int TextBreite(string text) => TextRenderer.MeasureText(text, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+    internal int TextBreite(string text) => TextRenderer.MeasureText(text, Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+
+    /// <summary>
+    /// Breite einer Beschriftung für die Anordnung: Die Schrift läuft hier je Wort 1 bis 2 Pixel breiter als im Vorbild (Bild 308);
+    /// ohne Ausgleich wandern die Gruppentrenner um bis zu 16 Pixel nach rechts. Gezeichnet wird ungekürzt.
+    /// </summary>
+    private int LayoutBreite(string text) => (int)Math.Round(TextBreite(text) * 0.99);
 
     private static bool HatMenue(RibbonEintrag e) => e.Menue != null || e.MenueErzeugen != null;
 
@@ -362,8 +378,9 @@ public sealed class Ribbon : Control
             g.SmoothingMode = SmoothingMode.AntiAlias;
             // Vertretungsmodus wie in der Vorlage: nur die Gruppe „Stundenpläne“ trägt eine Beschriftung (Unterkante 8 Pixel über der Menübandunterkante)
             if (!Ui.Vertretungsmodus || gr.Text == "Stundenpläne")
-                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 19, gr.Bounds.Width, 15), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(90, 95, 105),
+                TextRenderer.DrawText(g, gr.Text, Ui.SchriftKlein, new Rectangle(gr.Bounds.X, gr.Bounds.Bottom - 19, gr.Bounds.Width - (gr.StarterBounds.IsEmpty ? 0 : 14), 15), Ui.Vertretungsmodus ? Color.Black : Color.FromArgb(90, 95, 105),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            if (!gr.StarterBounds.IsEmpty) StarterZeichnen(g, gr);
             foreach (var it in gr.Angezeigt)
             {
                 var aktiv = it.Aktiviert?.Invoke() ?? true;
@@ -397,7 +414,8 @@ public sealed class Ribbon : Control
                     var img = Symbole.Get(it.Symbol, 32);
                     // deaktiviert: offizielle graue FatCow-Variante statt Graufilter
                     g.DrawImage(aktiv ? img : Symbole.Grau(it.Symbol, 32) ?? img, it.Bounds.X + (it.Bounds.Width - 32) / 2, it.Bounds.Y + 2, 32, 32);
-                    var tr = new Rectangle(it.Bounds.X, it.Bounds.Y + 36, it.Bounds.Width, 30);
+                    // Beschriftung mittig, seitlich etwas Luft (die Knopfbreite rechnet mit der engeren Vorbildschrift, siehe LayoutBreite)
+                    var tr = new Rectangle(it.Bounds.X - 4, it.Bounds.Y + 36, it.Bounds.Width + 8, 30);
                     TextRenderer.DrawText(g, it.Text, Font, tr, farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
                     if (HatMenue(it) || it.PfeilKalender) Pfeil(g, it.Bounds.X + it.Bounds.Width / 2, it.Bounds.Y + 55, farbe);
                 }
@@ -411,6 +429,7 @@ public sealed class Ribbon : Control
                 }
             }
         }
+        KeyTipsZeichnen(g);
     }
 
     /// <summary>Eckenradius eingedrückter Knöpfe (z. B. „Vertretungsplanung“).</summary>
@@ -474,6 +493,14 @@ public sealed class Ribbon : Control
     protected override void OnMouseMove(MouseEventArgs e)
     {
         var h = Sichtbare().FirstOrDefault(x => x.Bounds.Contains(e.Location));
+        var starter = AktiveGruppen().FirstOrDefault(x => x.StarterBounds.Contains(e.Location));
+        if (starter != _hoverStarter)
+        {
+            _hoverStarter = starter;
+            if (starter != null) _tip.Setzen(this, starter.Text, string.IsNullOrEmpty(starter.DialogStarterHinweis) ? "Dialog mit den Einstellungen zu „" + starter.Text + "“ öffnen." : starter.DialogStarterHinweis);
+            else if (h is null) _tip.Setzen(this, "");
+            Invalidate();
+        }
         var t = Seiten.FirstOrDefault(s => s.IstSichtbar && s.TabBounds.Contains(e.Location));
         var d = _dateiBounds.Contains(e.Location);
         if (h != _hover || t != _hoverTab || d != _hoverDatei)
@@ -481,11 +508,11 @@ public sealed class Ribbon : Control
             _hover = h;
             _hoverTab = t;
             _hoverDatei = d;
-            if (h is null) _tip.Setzen(this, "");
+            if (h is null) { if (starter is null) _tip.Setzen(this, ""); }
             else _tip.Setzen(this, h.Text, h.Hinweis, string.IsNullOrEmpty(h.Symbol) ? null : Symbole.Get(h.Symbol, 16));
             Invalidate();
         }
-        Cursor = h != null || t != null || d ? Cursors.Hand : Cursors.Default;
+        Cursor = h != null || t != null || d || starter != null ? Cursors.Hand : Cursors.Default;
     }
 
     protected override void OnMouseLeave(EventArgs e)
@@ -493,12 +520,19 @@ public sealed class Ribbon : Control
         _hover = null;
         _hoverTab = null;
         _hoverDatei = false;
+        _hoverStarter = null;
         Invalidate();
     }
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
+        KeyTipsBeenden();
         if (e.Button != MouseButtons.Left) return;
+        if (AktiveGruppen().FirstOrDefault(x => x.StarterBounds.Contains(e.Location)) is { DialogStarter: { } starter })
+        {
+            starter();
+            return;
+        }
         if (_dateiBounds.Contains(e.Location))
         {
             MenueZeigen(DateiMenue, new Point(_dateiBounds.X, _dateiBounds.Bottom));
