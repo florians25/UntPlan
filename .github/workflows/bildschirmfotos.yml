@@ -57,6 +57,21 @@ jobs:
             Start-Sleep -Seconds 3
             [void][Skalierung]::SystemParametersInfo(0x009E, 0, $info, 1)
             Write-Output "Skalierung nachher: aktuell $($info[2])"
+            if ($info[2] -eq 0) {
+              # Ersatzweg: Skalierung je Bildschirm in der Registrierung, wirksam nach einem Moduswechsel der Anzeige
+              $schluessel = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\ScaleFactors'
+              $ids = if (Test-Path $schluessel) { Get-ChildItem $schluessel | ForEach-Object { $_.PSChildName } } else { @() }
+              Write-Output "Bildschirme: $($ids -join ', ')"
+              foreach ($id in $ids) {
+                $k = "HKCU:\Control Panel\Desktop\PerMonitorSettings\$id"
+                New-Item -Path $k -Force | Out-Null
+                Set-ItemProperty -Path $k -Name DpiValue -Value $rel -Type DWord
+              }
+              try { Set-DisplayResolution -Width 1600 -Height 900 -Force -ErrorAction Stop; Start-Sleep -Seconds 2; Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop } catch { Write-Output "Moduswechsel: $_" }
+              Start-Sleep -Seconds 3
+              [void][Skalierung]::SystemParametersInfo(0x009E, 0, $info, 1)
+              Write-Output "Skalierung nach Registrierung: min $($info[0]) max $($info[1]) aktuell $($info[2])"
+            }
           }
           $env:UNTPLAN_SCHRITTE = if ('${{ github.event.inputs.schritte }}') { '${{ github.event.inputs.schritte }}' } else { '^(16_Vertretungsmodus|V[0-9])' }
           $p = Start-Process -FilePath artifacts/UntPlan/UntPlan.exe -ArgumentList "--selbsttest=$PWD/artifacts/fotos" -PassThru

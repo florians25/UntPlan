@@ -590,10 +590,11 @@ public sealed partial class PlanAnsicht : Control
         if (KlassikStil)
         {
             // Vorbild: Feld füllt die Zelle bis an die Rasterlinien, parallele Stunden durch eine Linie getrennt
-            var x0 = (int)(r.X + Math.Round(f.Spur * r.Width / f.Spuren));
-            var x1 = (int)(r.X + Math.Round((f.Spur + 1) * r.Width / f.Spuren));
-            var y0 = (int)(r.Y + Math.Round(f.StapelIndex * hoehe / f.StapelAnzahl));
-            var y1 = (int)(r.Y + Math.Round((f.StapelIndex + 1) * hoehe / f.StapelAnzahl));
+            // Teilung wie im Vorbild (Bild 344): bei ungerader Breite ist das linke bzw. obere Teilfeld das größere
+            var x0 = (int)(r.X + Math.Round(f.Spur * r.Width / f.Spuren, MidpointRounding.AwayFromZero));
+            var x1 = (int)(r.X + Math.Round((f.Spur + 1) * r.Width / f.Spuren, MidpointRounding.AwayFromZero));
+            var y0 = (int)(r.Y + Math.Round(f.StapelIndex * hoehe / f.StapelAnzahl, MidpointRounding.AwayFromZero));
+            var y1 = (int)(r.Y + Math.Round((f.StapelIndex + 1) * hoehe / f.StapelAnzahl, MidpointRounding.AwayFromZero));
             return new RectangleF(x0 + 1, y0 + 1, x1 - x0 - 1, y1 - y0 - 1);
         }
         var breite = (r.Width - 1) / f.Spuren;
@@ -650,7 +651,7 @@ public sealed partial class PlanAnsicht : Control
     /// stünde dann tiefer und darüber blieben Reste der Spaltenlinien sichtbar.
     /// </summary>
     internal (int X, int Y) Fixversatz =>
-        KlassikStil && !Transponiert && Parent is ScrollableControl { AutoScroll: true }
+        KlassikStil && !Transponiert && Parent is ScrollableControl
             ? (Math.Max(0, -Left), Math.Max(0, -Top)) : (0, 0);
 
     /// <summary>Zusätzliche Textflags für Kopf und Pausen (beim festen Kopf: Beschneidung der Graphics auch für GDI-Text beachten).</summary>
@@ -1559,6 +1560,18 @@ public sealed partial class PlanAnsicht : Control
     /// <summary>Kleiner Stundenplan: nur das Fachkürzel (mit Präfixen), zentriert; Entfall durchgestrichen, Änderungen rot.</summary>
     private void KleinZeichnen(Graphics g, RectangleF r, string text, Color farbe, bool durchgestrichen = false)
     {
+        if (KlassikStil)
+        {
+            // Vorbild (Bilder 343/344): Schrift bleibt gleich groß – passt der Text nicht (schmales Teilfeld paralleler Stunden,
+            // z. B. „?E?“), steht er linksbündig und wird rechts abgeschnitten („?E“), sonst mittig
+            var gr = Math.Max(6f, Math.Min(Format.Schriftgroesse, r.Height / 1.45f));
+            var fk = Schriftcache.Holen(gr, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
+            const TextFormatFlags basis = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+            var bereich = Rectangle.Round(r);
+            var breit = TextRenderer.MeasureText(g, text, fk, Size.Empty, basis).Width > bereich.Width;
+            TextRenderer.DrawText(g, text, fk, bereich, farbe, basis | (breit ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter));
+            return;
+        }
         var groesse = Math.Max(6f, Math.Min(Format.Schriftgroesse + (KlassikStil ? 0 : 1), Math.Min(r.Height / 1.45f, r.Width / Math.Max(2.2f, text.Length * 0.62f))));
         var f = Schriftcache.Holen(groesse, durchgestrichen ? FontStyle.Strikeout : FontStyle.Regular);
         TextRenderer.DrawText(g, text, f, Rectangle.Round(r), farbe, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine);
