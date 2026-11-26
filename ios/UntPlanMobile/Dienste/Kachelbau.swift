@@ -1193,8 +1193,10 @@ enum Kachelbau {
     static let spurMindestBreiteWoche: CGFloat = 40
     static let spurMindestBreiteTag: CGFloat = 40
     /// Breite der Zählerkarte am rechten Rand und der dafür freigehaltene Platz (Karte + Luft) – wie im Original.
+    /// Die Zählerkarte ist eine eigene Spur: die sichtbaren Karten liegen nur in `Spaltenbreite − zaehlerPlatz`, nie
+    /// darunter. Luft zwischen Karte und Streifen wie zwischen zwei Spuren im Original (Vorlage 28af4b02, 3 px/pt: 7 px = 2,33 pt).
     static let zaehlerBreite: CGFloat = 12
-    static let zaehlerPlatz: CGFloat = 14
+    static let zaehlerPlatz: CGFloat = zaehlerBreite + 2.33
 
     /// Spurverteilung genau wie `spuren()` in plangitter.js (Web) – reine Funktion, leicht prüfbar:
     /// 1. Einträge nach Beginn sortieren, bei gleichem Beginn die längeren zuerst, sonst Reihenfolge der Daten (stabil).

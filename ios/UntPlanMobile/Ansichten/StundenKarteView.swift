@@ -86,7 +86,11 @@ struct KachelView: View {
             }
             inhalt(a)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Nie breiter als die Spur (minWidth 0): ohne Untergrenze nimmt der Rahmen die Breite des Inhalts an – eine Zeile
+        // mit fester Breite (z. B. das Label „Online“ neben dem Info-Zeichen) machte die Karte breiter als ihre Spur, sie
+        // wurde mittig über die Spur hinaus gezeichnet und lag rechts unter der Zählerkarte (Info-Zeichen und Rand verdeckt).
+        // Zu breiter Inhalt wird jetzt am rechten Kartenrand abgeschnitten; Rand und Zeichen liegen darüber.
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: a.radius, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: a.radius, style: .continuous))
         // Die ganze Fläche ist antippbar – auch bei durchsichtigen Karten (vergangen, abgegeben, Bereitschaft)
@@ -198,7 +202,7 @@ struct KachelView: View {
                 .padding(.leading, Self.textLinks)
                 .padding(.top, Self.textOben)
                 .padding(.trailing, 3)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -348,7 +352,7 @@ struct KachelView: View {
         }
         .padding(.leading, 4)
         .padding(.trailing, mitFeld ? 2.33 : 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
         .background(a.hintergrund, in: RoundedRectangle(cornerRadius: klein ? 3 : 3.33, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: klein ? 3 : 3.33, style: .continuous))
         .contentShape(Rectangle())
@@ -493,6 +497,11 @@ struct KachelzeileView: View {
     static let vorLabel: CGFloat = 2.6
     static let nachLabel: CGFloat = 1.7
 
+    /// Das Label „Online“ (behält in einer Zeile Vorrang vor den übrigen Teilen).
+    private func istOnline(_ t: Kachelteil) -> Bool {
+        t.stil == .plakette && t.text == "Online"
+    }
+
     /// Erscheint der Teil als Label (grüne Fläche)? Auf entfallenen Karten gibt es keine Labels.
     private func istLabel(_ t: Kachelteil) -> Bool {
         !aussehen.durchgestrichen && (t.stil == .plakette || t.stil == .offen)
@@ -540,7 +549,8 @@ struct KachelzeileView: View {
                         }
                     }
                 }
-                .layoutPriority(Double(anzahl - eintrag.offset))
+                // „Online“ behält vor allen anderen Teilen seine volle Breite (andere Teile kürzen zuerst)
+                .layoutPriority(istOnline(eintrag.element) ? Double(anzahl + 1) : Double(anzahl - eintrag.offset))
             }
         }
         .lineLimit(1)
@@ -562,8 +572,10 @@ struct KachelzeileView: View {
                 Text(t.text)
                     .truncationMode(.tail)
             case .plakette:
-                // „Online“ immer ausgeschrieben (nie „On…“)
-                Plakettenwert(text: t.text, kuerzbar: kuerzbar && t.text != "Online", zeilenHoehe: zeilenHoehe)
+                // „Online“ ausgeschrieben, solange es in die Zeile passt (andere Teile kürzen zuerst, siehe teileReihe); nur auf
+                // einer zu schmalen Karte (z. B. neben der Zählerkarte und dem Info-Zeichen) endet es mit „…“ – nie über den
+                // Kartenrand oder unter das Info-Zeichen
+                Plakettenwert(text: t.text, kuerzbar: kuerzbar, zeilenHoehe: zeilenHoehe)
             case .weg:
                 // Wegfallender Wert (z. B. vertretene Lehrkraft): durchgestrichen, ohne grüne Fläche
                 Text(t.text)
@@ -825,8 +837,9 @@ struct ZaehlstreifenView: View {
     /// Vorlage 178/179 (2,289 px/pt): Streifen 12 pt breit, Ecken ≈ 1,5 pt, Fläche in der Farbe der verdeckten Stunde –
     /// Entfall #df0046, Vertretung #00916d (Rahmenfarbe der grünen Karte), Prüfung #9f532c, jeweils mit weißer Zahl;
     /// sonst wie eine Karte (weiß bzw. vergangen #f3f5f7) mit grauer Zahl (#3f525e); Zahl 11 pt mittig; Kartenschatten.
-    /// Ecken der Zählerkarte und der Ferienspalte (gleicher Wert): auf Wunsch etwas runder als die gemessenen ≈ 1,5–2 pt
-    static let eckenRadius: CGFloat = 3
+    /// Ecken der Zählerkarte: wie die Stundenkarten daneben (4 pt kontinuierlich, `Kachelaussehen.radius`), damit Streifen
+    /// und Karte oben und unten gleich enden
+    static let eckenRadius: CGFloat = 4
 
     var body: some View {
         let farben = farbe
