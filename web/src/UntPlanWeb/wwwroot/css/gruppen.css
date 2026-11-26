@@ -100,3 +100,8 @@
 .sim-chip:has(input:checked) { border-color: var(--u-akzent); background: #eef6f8; }
 .sim-unter { font-size: .9rem; font-weight: 500; color: #67747e; margin: 12px 0 6px; }
 .sim-anteil { display: flex; align-items: center; gap: 12px; max-width: 360px; } .sim-anteil input { flex: 1; accent-color: var(--u-akzent); } .sim-anteil output { min-width: 3.5em; font-weight: 500; }
+.sim-feld { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: #67747e; }
+.sim-fortschritt { margin-top: 12px; }
+.sim-fortschritt small { color: #67747e; }
+.sim-balken { height: 8px; border-radius: 4px; background: #eef1f3; overflow: hidden; margin-bottom: 6px; max-width: 480px; }
+.sim-balken span { display: block; height: 100%; background: var(--u-akzent); transition: width .4s; }
