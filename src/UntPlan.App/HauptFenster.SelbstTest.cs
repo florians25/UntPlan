@@ -3012,9 +3012,13 @@ public sealed partial class HauptFenster
             // dasselbe Verhalten in jeder Auswahlliste (hier die Formatauswahl): je Rastung ein Eintrag, zurück mit der Gegenrichtung
             var fmt = f.FormatAuswahl;
             var fIndex = fmt.SelectedIndex;
-            var fSchritt = fIndex < fmt.Items.Count - 1 ? 1 : -1;
+            // (nur Formate, nie Trenner oder Befehle wie „Neues Format…“)
+            var formate = fmt.Items.Cast<object>().Select((o, i) => (o, i)).Where(x => x.o is string).Select(x => x.i).ToList();
+            var fSchritt = formate.Any(i => i > fIndex) ? 1 : -1;
             Rad(fmt, -120 * fSchritt);
-            if (fmt.Items.Count > 1 && fmt.SelectedIndex != fIndex + fSchritt) fehler.Add($"Formatauswahl: Mausrad blättert nicht ({fIndex} → {fmt.SelectedIndex})");
+            var fErwartet = formate.Count > 1 ? (fSchritt > 0 ? formate.First(i => i > fIndex) : formate.Last(i => i < fIndex)) : fIndex;
+            if (fmt.SelectedIndex != fErwartet) fehler.Add($"Formatauswahl: Mausrad {fIndex} → {fmt.SelectedIndex} statt {fErwartet}");
+            if (fmt.SelectedItem is not string) fehler.Add("Formatauswahl: Mausrad wählt einen Befehl");
             Rad(fmt, 120 * fSchritt);
             if (fmt.SelectedIndex != fIndex) fehler.Add($"Formatauswahl: Mausrad zurück {fmt.SelectedIndex} statt {fIndex}");
             log.Add($"INFO  V40 Elementauswahl {start} → {cb.SelectedIndex} ({cb.Text}), Planaufbauten {f.Ladungen - l0}");

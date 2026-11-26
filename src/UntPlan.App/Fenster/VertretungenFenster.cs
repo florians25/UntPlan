@@ -388,6 +388,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         };
         _element.SelectedIndexChanged += (_, _) => { if (_laedt) return; _behalten.Leeren(); Neuaufbau(true); };
         var ansichtName = new Label { Dock = DockStyle.Top, Height = 19, Padding = new Padding(13, 0, 0, 0), BackColor = Ui.Kopf, Text = AnsichtName };
+        // das Mausrad blättert nur durch die Ansichten, nie in die Befehle am Ende der Liste
+        Steuerelemente.ListenSuche.NurWerte(_ansicht, o => o is not AnsichtBefehl);
         _ansicht.SelectedIndexChanged += (_, _) =>
         {
             if (_laedtAnsicht) return;

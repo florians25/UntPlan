@@ -537,7 +537,15 @@ public static class ListenSuche
     public static void Blaettern(ComboBox cb, int richtung)
     {
         if (cb.IsDisposed || !cb.Enabled || cb.Items.Count == 0) return;
-        var i = Aufklappliste.Blaettern(cb.SelectedIndex, cb.Items.Count, richtung);
+        Waehlbare.TryGetValue(cb, out var waehlbar);
+        var i = cb.SelectedIndex;
+        // Trenner und Befehle (z. B. „Neues Format…“) überspringen: das Rad wählt nur Werte
+        do
+        {
+            var n = Aufklappliste.Blaettern(i, cb.Items.Count, richtung);
+            if (n == i) { i = cb.SelectedIndex; break; }
+            i = n;
+        } while (waehlbar is not null && !waehlbar(cb.Items[i]));
         if (i < 0 || i == cb.SelectedIndex) return;
         cb.SelectedIndex = i;
         if (Zustaende.TryGetValue(cb, out var z)) VorherMerken(cb, z);
@@ -547,6 +555,14 @@ public static class ListenSuche
             catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is not null) { System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex.InnerException).Throw(); }
         }
     }
+
+    private static readonly ConditionalWeakTable<ComboBox, Func<object, bool>> Waehlbare = new();
+
+    /// <summary>
+    /// Nur diese Einträge sind Werte, die das Mausrad bzw. Blättern wählt (Listen mit Trennern oder Befehlen am Ende, z. B.
+    /// „Format speichern“); ohne Angabe sind alle Einträge Werte.
+    /// </summary>
+    public static void NurWerte(ComboBox cb, Func<object, bool> istWert) => Waehlbare.AddOrUpdate(cb, istWert);
 
     private static void Mausrad(object? sender, MouseEventArgs e)
     {
