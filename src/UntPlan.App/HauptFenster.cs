@@ -375,7 +375,7 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Import/Export", "import", null, menue: ImportExportMenue()));
         g.Eintraege.Add(E("BAL-Import", "import", BalImportieren, hinweis: "Stundenplan aus einer WILLI2-BAL-Datei übernehmen"));
 
-        var planung = _ribbon.Seite("Planung", () => !AppZustand.Vertretungsmodus);
+        var planung = _ribbon.Seite("Planung");
         g = Gruppe(planung, "Manuelles Planen");
         g.Eintraege.Add(E("Planen", "planen", () => StundenplanFenster.Neu(ElementTyp.Klasse, null, false), true, hinweis: "Stundenplan öffnen und Stunden per Drag & Drop verplanen"));
         g.Eintraege.Add(E("Tauschvorschläge", "tausch", () => StundenplanFenster.AktivesOderNeu()?.TauschvorschlaegeZeigen(), true));
@@ -436,15 +436,14 @@ public sealed partial class HauptFenster : Form
         g.Eintraege.Add(E("Info-Stundenplan (HTML)", "html", InfoStundenplan, true));
         g.Eintraege.Add(E("iCalendar", "kalender", ICalExport, true));
 
-        var kurs = _ribbon.Seite("Kursplanung", () => !AppZustand.Vertretungsmodus);
+        var kurs = _ribbon.Seite("Kursplanung");
         g = Gruppe(kurs, "Kursplanung");
         g.Eintraege.Add(E("Kurse & Bänder", "kurs", () => Oeffnen<KursplanungFenster>("kurs", () => new KursplanungFenster()), true));
         g.Eintraege.Add(E("Schüler", "schueler", () => Oeffnen<StammdatenFenster>("st:Schueler", () => new StammdatenFenster(ElementTyp.Schueler)), true));
         g.Eintraege.Add(E("Schüler importieren", "import", ImportSchueler, true));
 
-        VertretungsSeiteAufbauen();
-
-        var module = _ribbon.Seite("Module", () => !AppZustand.Vertretungsmodus);
+        // Reiter wie im Vorbild (Bild 308): auch im Vertretungsmodus Planung, Kursplanung und Module, „Vertretungsplanung“ ganz rechts
+        var module = _ribbon.Seite("Module");
         g = Gruppe(module, "Unterrichtsplanung und Wertrechnung");
         g.Eintraege.Add(E("Lehrer Soll/Ist", "wertrechnung", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(0)), true));
         g.Eintraege.Add(E("Unterrichts-Matrix", "uebersicht", () => Oeffnen<WertrechnungFenster>("wert", () => new WertrechnungFenster(1)), true));
@@ -464,6 +463,8 @@ public sealed partial class HauptFenster : Form
         }));
         g.Eintraege.Add(E("Web-Portal", "web", () => new PortalDialog().ShowDialog(this), true));
         g.Eintraege.Add(E("Modulübersicht", "modul", () => ModuleDialog.Zeigen(this), true));
+
+        VertretungsSeiteAufbauen();
     }
 
     private static RibbonGruppe Gruppe(RibbonSeite s, string text)

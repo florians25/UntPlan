@@ -225,9 +225,22 @@ public static class Erscheinungsbild
                 case TabPage p: Karte(p); break;
                 case DataGridView g when g.BorderStyle == BorderStyle.Fixed3D: KlassischVertieft.Anmelden(g); break;
                 case GroupBox gb when gb.FlatStyle == FlatStyle.Standard: Gruppenrahmen(gb); break;
+                case CheckBox cb when cb.Appearance == Appearance.Normal && cb.FlatStyle == FlatStyle.Standard: Kontrollkaestchen(cb); break;
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Kontrollkästchen wie im Vorbild (gemessen, „Offene Vertretungen“): flaches Quadrat 11 × 11 Pixel, Rand (171,171,171), weiß
+    /// gefüllt – statt des größeren, abgerundeten Windows-Kästchens.
+    /// </summary>
+    private static void Kontrollkaestchen(CheckBox cb)
+    {
+        if (Gestaltet.TryGetValue(cb, out _) || InEigenemFenster(cb)) return;
+        Gestaltet.Add(cb, new object());
+        cb.FlatStyle = FlatStyle.Flat;
+        cb.FlatAppearance.BorderColor = Color.FromArgb(171, 171, 171);
     }
 
     /// <summary>

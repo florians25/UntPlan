@@ -261,8 +261,8 @@ public sealed class Ribbon : Control
                     if (e.GrossDargestellt)
                     {
                         if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
-                        // große Knöpfe eng wie in der Vorlage: Beschriftung + 4 Pixel, 2 Pixel Abstand (Text zu Text 6 Pixel)
-                        var w = Math.Max(40, TextBreite(e.Text) + 4);
+                        // große Knöpfe eng wie in der Vorlage (Bild 308 gemessen): Beschriftung + 3 Pixel, 2 Pixel Abstand (Text zu Text 6 bis 7 Pixel)
+                        var w = Math.Max(40, TextBreite(e.Text) + 3);
                         e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
                         e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
                         ende = x + w;

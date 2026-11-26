@@ -118,6 +118,10 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             // Fensterverknüpfung: andere Fenster (Stammdaten, Unterricht, Zeitwünsche, Pläne desselben Typs) folgen
             if (Verknuepft) AppZustand.Waehlen(_typ, _id, this);
         };
+        // Elementauswahl wie im Vorbild (Bild 312, gemessen): klassisches Auswahlfeld mit vertieftem Rahmen und eigenem Knopf,
+        // Schrift Microsoft Sans Serif 8,25 – nicht das flache, höhere Windows-11-Feld
+        _auswahl.Font = Ui.DialogSchrift;
+        Ui.KlassischeDarstellung(_auswahl.ComboBox);
         // Mausrad über der geschlossenen Elementauswahl blättert wie im Vorbild zum vorherigen/nächsten Element (je Rastung ein Plan)
         Steuerelemente.ListenSuche.MausradBlaettern(_auswahl.ComboBox, Blaettern);
         // Hoch/Runter neben der Elementauswahl und Planart-Symbol mit Auswahl (Klasse, Lehrer, Raum) wie im Vorbild

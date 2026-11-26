@@ -917,7 +917,8 @@ public sealed partial class HauptFenster
         }, -1);
         Schritt("V7_Kalender", () =>
         {
-            // Kalender in der Größe des Originals (Bild 308: 497 × 297 Pixel samt Rahmen)
+            // Kalender in der Größe des Originals (Bild 308: 497 × 297 Pixel samt Rahmen), Detailbereich eingeklappt wie dort
+            AppZustand.Einstellungen.KalenderDetailOffen = false;
             var f = FensterOeffnen("kal")!;
             f.WindowState = FormWindowState.Normal;
             f.Bounds = new Rectangle(0, 0, 497, 297);
@@ -2137,6 +2138,23 @@ public sealed partial class HauptFenster
                 log.Add($"MASS  V41: Rand außen links {Hell(12, r.Height / 2)}, rechts {Hell(r.Width - 13, r.Height / 2)}, oben {Hell(r.Width / 2, 12)}, unten {Hell(r.Width / 2, r.Height - 13)}");
             }
             m.Close();
+            // dieselbe Frage wie im Vorbild-Bild 326 (Text, Knöpfe), für den Bildpunktvergleich
+            var q = Ui.MeldungsFenster("Verlegung rückgängig?\n\nSeiKa\n1.9. / 1 -> 1.9. / 7\n\nJa = Verlegung/Tausch wird rückgängig gemacht\nNein = Stunde wird auf Entfall gesetzt",
+                "UntPlan - Frage", MeldungsArt.Frage, new[] { "Ja", "Nein" }, 0, true, null, new System.Runtime.CompilerServices.StrongBox<int?>());
+            q.StartPosition = FormStartPosition.Manual;
+            q.Location = new Point(300, 200);
+            q.Show(this);
+            q.Activate();
+            Warten(700);
+            q.Refresh();
+            var rq = new Rectangle(q.Left - 88, q.Top - 40, 496, 361);
+            using (var bmp = new Bitmap(rq.Width, rq.Height))
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(rq.Location, Point.Empty, rq.Size);
+                bmp.Save(Path.Combine(ordner, "V41b_Meldung_Frage_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            log.Add($"MASS  V41b: Größe {q.Width} × {q.Height} (Vorbild 341 × 258)");
+            q.Close();
         }, -1);
         // Bereitschaft ausblenden, wenn die Lehrkraft in dieser Stunde nun eine Stunde hat (z. B. als Vertretung eingesetzt)
         Schritt("V42_Bereitschaft_ausgeblendet", () =>
