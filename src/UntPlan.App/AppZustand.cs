@@ -286,8 +286,13 @@ public sealed partial class Benutzereinstellungen
     public bool RollupDoppelklick { get; set; } = true;
     /// <summary>Anpassen | Element-Rollup: „Elemente aktualisieren“ (Rollup folgt dem aktiven Fenster).</summary>
     public bool RollupAktualisieren { get; set; } = true;
-    /// <summary>Andockkante des Element-Rollups (leer = frei schwebend; „Links“, „Rechts“, „Oben“, „Unten“).</summary>
+    /// <summary>
+    /// Andockart des Element-Rollups (leer = frei schwebendes Fenster; Kante „Left“, „Right“, „Top“, „Bottom“ = eigenes Andocken;
+    /// „Leiste:Right“ usw. = Andockleiste, „Leiste:Schwebend“ = schwebendes Fenster der Andockleiste). Gilt auch nach einem Neustart.
+    /// </summary>
     public string RollupAngedockt { get; set; } = "";
+    /// <summary>Zuletzt genutzte Lage des schwebenden Element-Rollups („x,y,Breite,Höhe“, leer = mittig über dem Hauptfenster).</summary>
+    public string RollupSchwebend { get; set; } = "";
     /// <summary>Anpassen | Eingabe: „Autovervollständigen“.</summary>
     public bool Autovervollstaendigen { get; set; } = true;
     /// <summary>Anpassen | Eingabe: „Tooltips mit Spaltenbeschreibungen einblenden“.</summary>

@@ -1,6 +1,7 @@
 using Krypton.Docking;
 using Krypton.Navigator;
 using Krypton.Toolkit;
+using Krypton.Workspace;
 using UntPlan.App.Steuerelemente;
 
 namespace UntPlan.App.Fenster;
@@ -43,11 +44,87 @@ public static class Andockleiste
             e.CloseRequest = DockingCloseRequest.None;
             if (Seiten.TryGetValue(e.UniqueName, out var s)) haupt.BeginInvoke(() => Loesen(e.UniqueName));
         };
+        // eigene Farben nur für die Steuerelemente der Andockleiste (Titel wie die Arbeitsfenster statt Kryptons Grau/Gelb)
+        _manager.DockspaceAdding += (_, e) => Gestalten(e.DockspaceControl);
+        _manager.DockspaceCellAdding += (_, e) => Gestalten(e.CellControl, kopf: true);
+        _manager.DockspaceSeparatorAdding += (_, e) => Gestalten(e.SeparatorControl);
+        _manager.FloatspaceAdding += (_, e) => Gestalten(e.FloatspaceControl);
+        // schwebend: nur die Titelleiste des Fensters, kein zweiter Kopf in der Zelle
+        _manager.FloatspaceCellAdding += (_, e) => Gestalten(e.CellControl, kopf: false);
+        _manager.AutoHiddenGroupAdding += (_, e) => Gestalten(e.AutoHiddenGroupControl);
+        _manager.FloatingWindowAdding += (_, e) => Schwebefenster(e.FloatingWindow);
         haupt.FormClosed += (_, _) => { _manager?.Dispose(); _manager = null; _haupt = null; Seiten.Clear(); };
         return _manager;
     }
 
     private static bool _ordnet;
+
+    /// <summary>Titel einer Zelle (angedockt) bzw. des schwebenden Fensters wie die Titelleiste der Arbeitsfenster.</summary>
+    private static void Gestalten(Control c, bool kopf = true)
+    {
+        switch (c)
+        {
+            case KryptonNavigator n:
+                var hg = n.StateCommon.HeaderGroup;
+                hg.HeaderPrimary.Back.Color1 = hg.HeaderPrimary.Back.Color2 = Ui.Titel;
+                hg.HeaderPrimary.Border.Color1 = hg.HeaderPrimary.Border.Color2 = Ui.Titel;
+                hg.HeaderPrimary.Content.ShortText.Color1 = hg.HeaderPrimary.Content.ShortText.Color2 = Color.White;
+                hg.HeaderPrimary.Content.ShortText.Font = Ui.Schrift;
+                hg.Border.Color1 = hg.Border.Color2 = Ui.Rasterlinie;
+                hg.Back.Color1 = hg.Back.Color2 = Ui.Leiste;
+                n.StateCommon.Page.Color1 = n.StateCommon.Page.Color2 = Ui.Leiste;
+                if (!kopf) n.Header.HeaderVisiblePrimary = false;
+                break;
+            case KryptonSeparator s:
+                s.StateCommon.Separator.Back.Color1 = s.StateCommon.Separator.Back.Color2 = Ui.MdiHintergrund;
+                break;
+        }
+        if (c is KryptonWorkspace w) w.StateCommon.Back.Color1 = w.StateCommon.Back.Color2 = Ui.MdiHintergrund;
+    }
+
+    /// <summary>Schwebendes Fenster: Titel „Element-Rollup“ in der Modusfarbe, Lage wie zuletzt bzw. mittig über dem Hauptfenster.</summary>
+    private static void Schwebefenster(KryptonFloatingWindow f)
+    {
+        f.Text = Seiten.Count == 1 ? Seiten.Values.First().Seite.Text : "Element-Rollup";
+        var h = f.StateCommon.Header;
+        h.Back.Color1 = h.Back.Color2 = Ui.Titel;
+        h.Border.Color1 = h.Border.Color2 = Ui.Titel;
+        h.Content.ShortText.Color1 = h.Content.ShortText.Color2 = Color.White;
+        h.Content.ShortText.Font = Ui.Schrift;
+        f.StateCommon.Border.Color1 = f.StateCommon.Border.Color2 = Ui.Titel;
+        f.StateCommon.Back.Color1 = f.StateCommon.Back.Color2 = Ui.Leiste;
+        f.StartPosition = FormStartPosition.Manual;
+        void Platzieren()
+        {
+            if (f.IsDisposed || _haupt is null) return;
+            f.Bounds = SchwebeLage(_haupt, f.Size);
+        }
+        f.Load += (_, _) => Platzieren();
+        f.Shown += (_, _) => { Platzieren(); f.BeginInvoke(Platzieren); };
+        f.ResizeEnd += (_, _) => LageMerken(f);
+        f.Move += (_, _) => { if (f.Visible && Control.MouseButtons == MouseButtons.Left) LageMerken(f); };
+    }
+
+    private static void LageMerken(Form f)
+    {
+        if (f.WindowState != FormWindowState.Normal) return;
+        AppZustand.Einstellungen.RollupSchwebend = $"{f.Left},{f.Top},{f.Width},{f.Height}";
+    }
+
+    /// <summary>Lage des schwebenden Fensters: zuletzt gemerkt (sofern auf einem Bildschirm sichtbar), sonst mittig über dem Hauptfenster.</summary>
+    internal static Rectangle SchwebeLage(Form haupt, Size groesse)
+    {
+        var teile = AppZustand.Einstellungen.RollupSchwebend.Split(',');
+        if (teile.Length == 4 && teile.All(t => int.TryParse(t, out _)))
+        {
+            var z = teile.Select(int.Parse).ToArray();
+            var r = new Rectangle(z[0], z[1], Math.Max(200, z[2]), Math.Max(150, z[3]));
+            if (Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(new Rectangle(r.X, r.Y, r.Width, 30)))) return r;
+        }
+        var g = new Size(Math.Max(groesse.Width, 320), Math.Max(groesse.Height, 380));
+        var m = haupt.RectangleToScreen(haupt.ClientRectangle);
+        return new Rectangle(m.Left + (m.Width - g.Width) / 2, m.Top + (m.Height - g.Height) / 2, g.Width, g.Height);
+    }
 
     private static bool IstKrypton(Control? c) => c?.GetType().Namespace?.StartsWith("Krypton", StringComparison.Ordinal) == true;
 
@@ -112,6 +189,8 @@ public static class Andockleiste
     {
         if (_manager is null || !Seiten.ContainsKey(name)) return;
         _manager.MakeFloatingRequest(name);
+        AppZustand.Einstellungen.RollupAngedockt = "Leiste:Schwebend";
+        AppZustand.Einstellungen.Speichern();
     }
 
     /// <summary>Seite entfernen; das Werkzeugfenster erscheint wieder als klassisches Fenster.</summary>
@@ -120,6 +199,11 @@ public static class Andockleiste
         if (!Seiten.Remove(name, out var s)) return;
         foreach (Control c in s.Seite.Controls.Cast<Control>().ToList()) s.Seite.Controls.Remove(c);
         _manager?.RemovePage(s.Seite, true);
-        if (wiederherstellen) s.Zurueck();
+        if (wiederherstellen)
+        {
+            AppZustand.Einstellungen.RollupAngedockt = "";
+            AppZustand.Einstellungen.Speichern();
+            s.Zurueck();
+        }
     }
 }

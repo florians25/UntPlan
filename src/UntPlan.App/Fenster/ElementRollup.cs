@@ -52,9 +52,26 @@ public sealed class ElementRollup : Form
         if (_instanz is null || _instanz.IsDisposed)
         {
             _instanz = new ElementRollup();
-            if (Enum.TryParse<DockStyle>(AppZustand.Einstellungen.RollupAngedockt, out var kante) && kante is DockStyle.Left or DockStyle.Right or DockStyle.Top or DockStyle.Bottom)
+            var art = AppZustand.Einstellungen.RollupAngedockt;
+            // Andockleiste (Krypton) wie beim letzten Mal, auch nach einem Neustart
+            if (art.StartsWith("Leiste:", StringComparison.Ordinal))
+            {
+                var rest = art["Leiste:".Length..];
+                if (rest == "Schwebend")
+                {
+                    _instanz.AndockleisteSetzen(DockStyle.Right);
+                    Andockleiste.Schweben(AndockName);
+                }
+                else _instanz.AndockleisteSetzen(Enum.TryParse<DockStyle>(rest, out var k) && k is DockStyle.Left or DockStyle.Bottom or DockStyle.Top ? k : DockStyle.Right);
+            }
+            else if (Enum.TryParse<DockStyle>(art, out var kante) && kante is DockStyle.Left or DockStyle.Right or DockStyle.Top or DockStyle.Bottom)
                 _instanz.Andocken(kante);
-            else _instanz.Show(AppZustand.Haupt);
+            else
+            {
+                // frei schwebend: zuletzt genutzte Lage bzw. mittig über dem Hauptfenster
+                _instanz.Bounds = Andockleiste.SchwebeLage(AppZustand.Haupt, _instanz.Size);
+                _instanz.Show(AppZustand.Haupt);
+            }
         }
         if (typ is ElementTyp t && Array.FindIndex(Typen, x => x.Typ == t) is var i and >= 0) _instanz.TypWaehlen(i);
         if (_instanz.TopLevel) _instanz.Activate();
@@ -117,6 +134,7 @@ public sealed class ElementRollup : Form
         Move += (_, _) => { if (TopLevel && Visible && MouseButtons == MouseButtons.Left) (_hilfe ??= new Andockhilfe()).Zeigen(Cursor.Position); };
         ResizeEnd += (_, _) =>
         {
+            if (TopLevel && WindowState == FormWindowState.Normal) AppZustand.Einstellungen.RollupSchwebend = $"{Left},{Top},{Width},{Height}";
             if (_hilfe is null) return;
             var kante = _hilfe.Treffer(Cursor.Position);
             _hilfe.Verbergen();
@@ -225,6 +243,7 @@ public sealed class ElementRollup : Form
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         Size = new Size(320, 380);
         Location = new Point(Math.Max(0, lage.Left + 30), Math.Max(0, lage.Top + 30));
+        if (haupt != null && AppZustand.Einstellungen.RollupSchwebend.Length > 0) Bounds = Andockleiste.SchwebeLage(haupt, Size);
         // nach dem Wechsel zum eigenen Fenster kann Visible noch gesetzt sein (Show mit Besitzer würde dann scheitern)
         if (haupt != null) Owner = haupt;
         if (!Visible) Show(); else Activate();
@@ -402,6 +421,8 @@ public sealed class ElementRollup : Form
             FormBorderStyle = FormBorderStyle.None;
         }
         var rand = kante switch { DockStyle.Left => Krypton.Docking.DockingEdge.Left, DockStyle.Bottom => Krypton.Docking.DockingEdge.Bottom, DockStyle.Top => Krypton.Docking.DockingEdge.Top, _ => Krypton.Docking.DockingEdge.Right };
+        AppZustand.Einstellungen.RollupAngedockt = "Leiste:" + kante;
+        AppZustand.Einstellungen.Speichern();
         Andockleiste.Andocken(haupt, AndockName, "Element-Rollup", this, rand, kante is DockStyle.Left or DockStyle.Right ? 260 : 200, () =>
         {
             if (IsDisposed) return;
@@ -411,7 +432,7 @@ public sealed class ElementRollup : Form
             TopLevel = true;
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Size = new Size(320, 380);
-            Location = new Point(Math.Max(0, haupt.Right - 380), haupt.Top + 160);
+            Bounds = Andockleiste.SchwebeLage(haupt, Size);
             // nach dem Wechsel zu einem eigenen Fenster kann Visible noch gesetzt sein: dann nur Besitzer setzen und zeigen
             Owner = haupt;
             if (!Visible) Show(); else Activate();

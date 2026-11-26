@@ -1426,11 +1426,30 @@ public sealed partial class HauptFenster
                 Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
                 var seite = Andockleiste.Seite("ElementRollup")!;
                 log.Add($"MASS  V50: angedockt {seite.RectangleToScreen(seite.ClientRectangle)}, Arbeitsbereich {mdi.Bounds} (vorher {mdiVorher})");
+                Pruefen(AppZustand.Einstellungen.RollupAngedockt == "Leiste:Right", "Andockart nicht gemerkt: " + AppZustand.Einstellungen.RollupAngedockt);
                 Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
+                // Kopf der angedockten Zelle in der Titelfarbe der Arbeitsfenster (nicht Kryptons Grau bzw. Gelb)
+                using (var bild = new Bitmap(seite.Parent!.Width, 30))
+                {
+                    var oben = seite.Parent.RectangleToScreen(new Rectangle(0, 0, seite.Parent.Width, 30));
+                    using (var g = Graphics.FromImage(bild)) g.CopyFromScreen(oben.Location, Point.Empty, oben.Size);
+                    var titel = Ui.Titel;
+                    var treffer = Enumerable.Range(0, 30).Count(y => bild.GetPixel(Math.Min(bild.Width - 1, 60), y) is var c && Math.Abs(c.R - titel.R) + Math.Abs(c.G - titel.G) + Math.Abs(c.B - titel.B) <= 6);
+                    Pruefen(treffer >= 12, $"Kopf der Andockleiste nicht in der Titelfarbe ({treffer} Pixel, Mitte {bild.GetPixel(Math.Min(bild.Width - 1, 60), 10)}).");
+                }
+                AppZustand.Einstellungen.RollupSchwebend = "";
                 Andockleiste.Schweben("ElementRollup");
                 Warten(700);
                 lage = Andockleiste.Lage("ElementRollup");
                 Pruefen(lage.Contains("Floating"), "Rollup schwebt nicht: " + lage);
+                Pruefen(AppZustand.Einstellungen.RollupAngedockt == "Leiste:Schwebend", "Schweben nicht gemerkt: " + AppZustand.Einstellungen.RollupAngedockt);
+                var schwebend = Application.OpenForms.OfType<Krypton.Docking.KryptonFloatingWindow>().FirstOrDefault(f => f.Visible);
+                Pruefen(schwebend != null, "Schwebendes Fenster der Andockleiste fehlt.");
+                var mitte = new Point(schwebend!.Left + schwebend.Width / 2, schwebend.Top + schwebend.Height / 2);
+                var hauptMitte = new Point(Left + Width / 2, Top + Height / 2);
+                log.Add($"MASS  V50b: schwebend {schwebend.Bounds} „{schwebend.Text}“, Mitte Hauptfenster {hauptMitte}");
+                Pruefen(Math.Abs(mitte.X - hauptMitte.X) <= 60 && Math.Abs(mitte.Y - hauptMitte.Y) <= 60, $"Schwebendes Rollup nicht mittig über dem Hauptfenster: {schwebend.Bounds}.");
+                Pruefen(schwebend.Text == "Element-Rollup", "Titel des schwebenden Fensters: " + schwebend.Text);
                 Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Schweben nicht wieder voll: {mdi.Bounds}.");
                 Foto(Path.Combine(ordner, "V50b_Andockleiste_schwebend_F.png"));
                 ElementRollup.AndockleisteKante(DockStyle.None);
@@ -1453,6 +1472,75 @@ public sealed partial class HauptFenster
                 foreach (var r in Application.OpenForms.OfType<ElementRollup>().ToList()) r.Close();
                 AppZustand.Einstellungen.RollupAngedockt = "";
                 WindowState = vorher;
+            }
+        }, -1);
+        Schritt("V51_Vorbild308", () =>
+        {
+            // Gesamtbild wie Bild 308 des Vorbilds (1:1 vermessen): Montag, 30.08.2021 (Schuljahr 2021/2022), eine Entfallstunde in der
+            // 1. Stunde, Kalender und Absenzen links, Vertretungen aktiv in der Mitte, drei kleine Pläne (Klasse, Lehrkraft, Raum) darunter,
+            // Vertretungsvorschlag rechts; Fensterlagen in Pixeln des Arbeitsbereichs wie im Vorbild
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var datumVorher = AppZustand.Datum;
+            var vorherZustand = WindowState;
+            var detailVorher = AppZustand.Einstellungen.KalenderDetailOffen;
+            var assistentVorher = _assistent.Visible;
+            try
+            {
+                ModusFuerBild(true);
+                WindowState = FormWindowState.Maximized;
+                Warten(400);
+                if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
+                var vorbildTag = new DateOnly(2021, 8, 30);
+                Vertretung? entfall = null;
+                AppZustand.Doc.Aendern("Vorbild 308", AenderungsArt.Alles, x =>
+                {
+                    var altVon = x.Einstellungen.SchuljahrVon;
+                    x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
+                    x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
+                    foreach (var p in x.Perioden.Where(p => p.Von <= altVon)) p.Von = x.Einstellungen.SchuljahrVon;
+                    Nrw.FerienEintragen(x);
+                    var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(x, vorbildTag);
+                    // wie im Vorbild: Entfall der 1. Stunde einer höheren Klasse (dort 10A), ohne Absenz
+                    var e1 = x.Klassen.AsEnumerable().Reverse().SelectMany(k => tp.VonKlasse(k.Id))
+                        .First(e => e.Stunde == 1 && e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { } && e.KlassenIds.Count == 1 && e.LehrerIds.Count == 1);
+                    Core.Vertretungsplanung.Vertretungen.Entfallen(x, e1.Unterricht!.Id, null, vorbildTag, 1);
+                });
+                AppZustand.DatumSetzen(vorbildTag);
+                entfall = AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == vorbildTag) ?? throw new InvalidOperationException("Vorbild 308: keine Entfallstunde entstanden");
+                AppZustand.VertretungWaehlen(entfall);
+                AppZustand.Einstellungen.KalenderDetailOffen = false;
+                var dd = AppZustand.D;
+                var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, vorbildTag);
+                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "7a") ?? dd.Klassen.First();
+                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
+                var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
+                Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
+                // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
+                Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
+                Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
+                Lage(StundenplanFenster.Neu(ElementTyp.Klasse, klasse.Id, false, true), new Rectangle(500, 408, 309, 440));
+                Lage(StundenplanFenster.Neu(ElementTyp.Lehrer, lehrer.Id, false, true), new Rectangle(807, 408, 289, 440));
+                Lage(StundenplanFenster.Neu(ElementTyp.Raum, raum.Id, false, true), new Rectangle(1094, 408, 363, 440));
+                Lage(FensterOeffnen("vorschlag")!, new Rectangle(1455, 7, 444, 769));
+                var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(500, 8, 950, 400));
+                vertr.Activate();
+                Warten(500);
+                AppZustand.VertretungWaehlen(entfall);
+                Steuerelemente.Auswahlbreite.AlleErfassen();
+                Warten(900);
+                var mdi = Controls.OfType<MdiClient>().First();
+                log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
+                foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
+                Foto(Path.Combine(ordner, "V51_Vorbild308_F.png"));
+            }
+            finally
+            {
+                AlleSchliessen();
+                AppZustand.Einstellungen.KalenderDetailOffen = detailVorher;
+                if (assistentVorher) { _assistent.Visible = true; _assistentSplitter.Visible = true; }
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+                AppZustand.DatumSetzen(datumVorher);
+                WindowState = vorherZustand;
             }
         }, -1);
         Schritt("V45_Krypton_Muster", () =>
