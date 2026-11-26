@@ -1711,15 +1711,19 @@ public sealed partial class HauptFenster
             using var schrift875 = new Font("Segoe UI", 8.75f);
             using var schrift115 = new Font("Segoe UI", 11.5f, GraphicsUnit.Pixel);
             const int zeile = 24, spalte = 150;
-            using var probe = new Form { FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual, Location = new Point(60, 180),
-                Size = new Size(spalte * worte.Length + 20, zeile * arten.Length + 20), BackColor = Ui.Menueband, ShowInTaskbar = false, TopMost = true };
+            // so viele Wörter je Zeile, wie auf den Bildschirm passen (der Build-Runner hat einen kleineren Bildschirm als 1920 Pixel)
+            var proZeile = Math.Clamp((Screen.PrimaryScreen!.WorkingArea.Width - 100) / spalte, 1, worte.Length);
+            var bloecke = (worte.Length + proZeile - 1) / proZeile;
+            Rectangle Zelle(int a, int w) => new(10 + w % proZeile * spalte, 10 + (a * bloecke + w / proZeile) * zeile, spalte - 10, zeile);
+            using var probe = new Form { FormBorderStyle = FormBorderStyle.None, StartPosition = FormStartPosition.Manual, Location = new Point(60, 60),
+                Size = new Size(spalte * proZeile + 20, zeile * arten.Length * bloecke + 20), BackColor = Ui.Menueband, ShowInTaskbar = false, TopMost = true };
             probe.Paint += (_, e) =>
             {
                 var g = e.Graphics;
                 for (var a = 0; a < arten.Length; a++)
                     for (var w = 0; w < worte.Length; w++)
                     {
-                        var r = new Rectangle(10 + w * spalte, 10 + a * zeile, spalte - 10, zeile);
+                        var r = Zelle(a, w);
                         if (a == 0 || a == 3) { TextRenderer.DrawText(g, worte[w], a == 0 ? schrift : schrift875, r, Color.Black, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top | TextFormatFlags.NoPrefix); continue; }
                         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
                         using var sf = new StringFormat(a is 2 or 6 ? StringFormat.GenericTypographic : StringFormat.GenericDefault) { Alignment = StringAlignment.Center };
@@ -1740,10 +1744,11 @@ public sealed partial class HauptFenster
                 var teile = new List<string>();
                 for (var w = 0; w < worte.Length; w++)
                 {
-                    var x0 = 10 + w * spalte;
+                    var z = Zelle(a, w);
+                    var x0 = z.X;
                     int? l = null, rr = null;
-                    for (var x = x0; x < x0 + spalte - 10; x++)
-                        for (var y = 10 + a * zeile; y < 10 + (a + 1) * zeile; y++)
+                    for (var x = x0; x < Math.Min(z.Right, bmp.Width); x++)
+                        for (var y = z.Y; y < Math.Min(z.Bottom, bmp.Height); y++)
                         {
                             var c = bmp.GetPixel(x, y);
                             if ((c.R + c.G + c.B) / 3 < 110) { l ??= x; rr = x; break; }
