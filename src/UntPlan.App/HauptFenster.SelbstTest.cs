@@ -1557,8 +1557,11 @@ public sealed partial class HauptFenster
                 Warten(900);
                 var mdi = Controls.OfType<MdiClient>().First();
                 kalender.SelbsttestLetzteSpalte();
+                // wie im Vorbild: in den Absenzen die Spalte „Lehrer“ der Eingabezeile aktuell
+                absenzen.SelbsttestWaehlen("E");
                 foreach (var m in MdiChildren.OfType<MdiFenster>()) m.AuswahlMarkierungenAufheben();
                 Warten(300);
+                foreach (var f in MdiChildren) foreach (var rl in R3cAlle(f).OfType<Steuerelemente.Reiterleiste>()) log.Add($"MASS  V51 Reiter {f.Text}: {rl.SelbsttestMasse()}");
                 log.Add("MASS  V51 Auswahlfelder: " + string.Join(" | ", MdiChildren.SelectMany(MdiFenster.AlleAuswahlfelder).Where(c => c.Visible)
                     .Select(c => $"{c.Text}:{c.DropDownStyle}/{c.SelectionLength}/{(c.Focused ? "F" : "-")}")) + $"; Vertretungen Fokus {vertr.ContainsFocus}, aktiv {Form.ActiveForm?.Text}, Kind {ActiveMdiChild?.Text}");
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");

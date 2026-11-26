@@ -69,6 +69,9 @@ public sealed class Reiterleiste : Control
     /// <summary>Gewählter Reiter: etwas heller als der Kopfbereich (nachgemessen).</summary>
     private static Color Gewaehlt => Ui.Vertretungsmodus ? Color.FromArgb(225, 243, 236) : Color.FromArgb(230, 242, 252);
 
+    /// <summary>Selbsttest: Schrift und Reiterrechtecke.</summary>
+    internal string SelbsttestMasse() => $"{Font.Name} {Font.SizeInPoints} ({DeviceDpi} dpi): " + string.Join(", ", Rechtecke().Zip(_texte, (r, t) => $"{t}@{r.X}+{r.Width}"));
+
     /// <summary>Rechtecke der Reiter (ohne die Vergrößerung des gewählten).</summary>
     private List<Rectangle> Rechtecke()
     {

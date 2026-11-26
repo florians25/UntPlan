@@ -242,8 +242,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         // wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): Arial 9, Überschrift und Zeilen 19 Pixel hoch (samt Linie)
         _g.Font = _g.DefaultCellStyle.Font = _g.ColumnHeadersDefaultCellStyle.Font = Ui.TabellenSchrift;
         _g.RowTemplate.Height = _g.ColumnHeadersHeight = Ui.ZeilenHoehe(Ui.TabellenSchrift);
-        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen
+        // wie im Vorbild: keine Zeilenköpfe, vertiefter Rahmen; die erste Zelle der aktuellen Zeile hell orange (Bild 308)
         _g.RowHeadersVisible = false;
+        Ui.ZeilenmarkeErsteSpalte(_g);
         _g.BorderStyle = BorderStyle.Fixed3D;
         _g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _g.MultiSelect = true;

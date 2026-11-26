@@ -105,7 +105,9 @@ public static class Auswahlbreite
         {
             // in allen bearbeitbaren Tabellen (beide Modi): nicht bearbeitbare Spalten bzw. Zellen etwas dunkler, bearbeitbare hell
             if (standard && zeile.Cells[e.ColumnIndex].ReadOnly) e.CellStyle.BackColor = Ui.ZelleGesperrt;
-            if (Ui.Vertretungsmodus && g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+            // aktuelle Zelle hell orange, außer sie ist schon wie im Vorbild dunkler beige (Zeilenmarke in der ersten Spalte, Bild 308)
+            if (Ui.Vertretungsmodus && g.CurrentCell is { } c && c.RowIndex == e.RowIndex && c.ColumnIndex == e.ColumnIndex && e.CellStyle.SelectionBackColor != Ui.ZelleAktuell)
+                e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
         }
         var h = Hover(g);
         if (h.X == e.ColumnIndex && h.Y == e.RowIndex)
