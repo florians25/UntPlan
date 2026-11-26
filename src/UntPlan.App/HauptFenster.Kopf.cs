@@ -232,6 +232,8 @@ public partial class HauptFenster
 
     /// <summary>Selbsttest: Höhe des maximierten Fensters wie auf dem Vorbild-Bildschirm (1080 Pixel minus Taskleiste), sonst null.</summary>
     internal int? SelbsttestHoehe;
+    /// <summary>Selbsttest: Breite des maximierten Fensters wie auf dem Vorbild-Bildschirmfoto (1919 Pixel), sonst null.</summary>
+    internal int? SelbsttestBreite;
 
     /// <summary>Maximiert nur bis zur Taskleiste (ohne Systemrahmen würde das Fenster sonst den ganzen Bildschirm füllen).</summary>
     private void MaximalgroesseSetzen()
@@ -239,7 +241,7 @@ public partial class HauptFenster
         var s = IsHandleCreated ? Screen.FromHandle(Handle) : Screen.PrimaryScreen;
         if (s is null) return;
         var a = s.WorkingArea;
-        var neu = new Rectangle(a.X - s.Bounds.X, a.Y - s.Bounds.Y, a.Width, SelbsttestHoehe is int h ? Math.Min(h, a.Height) : a.Height);
+        var neu = new Rectangle(a.X - s.Bounds.X, a.Y - s.Bounds.Y, SelbsttestBreite is int w ? Math.Min(w, a.Width) : a.Width, SelbsttestHoehe is int h ? Math.Min(h, a.Height) : a.Height);
         if (MaximizedBounds != neu) MaximizedBounds = neu;
     }
 

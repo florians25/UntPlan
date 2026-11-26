@@ -620,8 +620,9 @@ public static class SondereinsatzAuswahl
         g.RowHeadersVisible = false;
         // Spalten wie im Vorbild (Bild 349): Kurzname 58, Langname 64 Pixel (Lehrkräfte mit Klassen: Langname breiter)
         Ui.BreitenWieOriginal(g);
-        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 58;
-        g.Columns[g.Columns.Add("L", "Langname")].Width = lehrer ? 117 : 64;
+        // gemessen (Bild 349): Kurzname 59, Langname 63 Pixel zwischen den Gitterlinien
+        g.Columns[g.Columns.Add("N", "Kurzname")].Width = 60;
+        g.Columns[g.Columns.Add("L", "Langname")].Width = lehrer ? 117 : 63;
         var klassenAlle = klassen.Count > 0 ? klassen : d.Klassen.Select(k => k.Id).ToList();
         string KlassenVon(Element e) => string.Join(", ", Stammdaten.Sortiert(d.Klassen).Where(k => k.KlassenlehrerIds.Contains(e.Id)).Select(k => k.Kurzname));
         if (lehrer) g.Columns[g.Columns.Add("K", "Klasse(n)")].Width = 53;
@@ -635,6 +636,8 @@ public static class SondereinsatzAuswahl
         var vor = vorauswahl.ToHashSet();
         f.Shown += (_, _) =>
         {
+            // wie im Vorbild: aktuelle Zelle in der Spalte „Langname“
+            if (g.Rows.Count > 0) g.CurrentCell = g.Rows[0].Cells["L"];
             g.ClearSelection();
             foreach (DataGridViewRow r in g.Rows) r.Selected = vor.Contains(((Element)r.Tag!).Id);
         };

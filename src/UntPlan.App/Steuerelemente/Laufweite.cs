@@ -15,6 +15,12 @@ internal static class Laufweite
         ["Vertretungsformate"] = 3, ["Info-Stundenplan"] = 1,
     };
 
+    /// <summary>Waagrechter Versatz mittiger Beschriftungen in Pixeln (gemessen: Lage der Tinte im Vorbild minus hier).</summary>
+    private static readonly Dictionary<string, int> Versatz = new()
+    {
+        ["Vertretungsstatistik"] = -1, ["Planungsdialog"] = 1, ["Pausenaufsichten"] = -1,
+    };
+
     private const TextFormatFlags Einzeln = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.NoClipping;
 
     /// <summary>Abzug für eine Beschriftung (0 = unverändert).</summary>
@@ -42,16 +48,18 @@ internal static class Laufweite
     internal static void Zeichnen(Graphics g, string text, Font schrift, Rectangle r, Color farbe, TextFormatFlags flags)
     {
         var k = AbzugFuer(text);
+        var mittig = (flags & TextFormatFlags.HorizontalCenter) != 0;
+        if (mittig && Versatz.TryGetValue(text, out var v)) r.Offset(v, 0);
         var voll = TextRenderer.MeasureText(g, text, schrift, Size.Empty, Einzeln);
         if (k == 0 || text.Length < 2 || voll.Width - k > r.Width)
         {
             TextRenderer.DrawText(g, text, schrift, r, farbe, flags);
             return;
         }
-        var breite = voll.Width - k;
         // Innenabstand wie TextRenderer ohne NoPadding: links und rechts gleich, bei mittiger Ausrichtung ohne Wirkung
-        var innen = (flags & TextFormatFlags.NoPadding) != 0 || (flags & TextFormatFlags.HorizontalCenter) != 0 ? 0 : (int)Math.Ceiling(schrift.Height / 6.0);
-        var x = (flags & TextFormatFlags.HorizontalCenter) != 0 ? r.X + (r.Width - breite) / 2 : r.X + innen;
+        var innen = (flags & TextFormatFlags.NoPadding) != 0 || mittig ? 0 : (int)Math.Ceiling(schrift.Height / 6.0);
+        // mittig: Anfang wie bei voller Breite, um die Hälfte des Abzugs (abgerundet) nach rechts (gemessen am Vorbild)
+        var x = mittig ? r.X + (r.Width - voll.Width) / 2 + k / 2 : r.X + innen;
         var y = (flags & TextFormatFlags.VerticalCenter) != 0 ? r.Y + (r.Height - voll.Height) / 2 : r.Y;
         var stellen = Stellen(text.Length, k);
         var weg = 0;

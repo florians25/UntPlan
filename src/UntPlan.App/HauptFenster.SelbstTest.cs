@@ -92,7 +92,7 @@ public sealed partial class HauptFenster
     }
 
     /// <summary>
-    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (dreifach vervielfacht) und Kürzel im Aufbau des
+    /// Selbsttestszene wie im Vorbild (Bilder 308, 348 bis 352): größere Schule (doppelt, vier Parallelklassen je Jahrgang) und Kürzel im Aufbau des
     /// Vorbilds, Klassen zweistellig mit Großbuchstaben („05A“), Lehrkräfte fünf Zeichen aus Nach- und Vorname („MülAn“), Räume mit
     /// Gebäudebuchstabe („A101“). Alle Namen sind frei erfunden; die Nutzerdaten bleiben unberührt (nur in der Szene verwendet).
     /// </summary>
@@ -100,7 +100,7 @@ public sealed partial class HauptFenster
     {
         var lehrer0 = x.Lehrer.Count;
         var raeume0 = x.Raeume.Count;
-        Demo.Vervielfachen(x, 3);
+        Demo.Vervielfachen(x, 2);
         // weitere erfundene Namen für die Kopien der Lehrkräfte
         string[] nach = { "Albers", "Bauer", "Conrad", "Dietz", "Ebert", "Franke", "Graf", "Haas", "Ilg", "Jansen", "Kaiser", "Lorenz", "Mertens", "Nagel",
             "Otto", "Peters", "Quast", "Roth", "Seidel", "Thiel", "Ulrich", "Vogt", "Winter", "Xander", "Yilmaz", "Ziegler", "Arnold", "Brandt", "Busch", "Dorn",
@@ -146,6 +146,13 @@ public sealed partial class HauptFenster
             if (basis == "R" && ziffern.Length >= 3) r.Kurzname = $"{(char)('A' + kopie)}{ziffern[..3]}";
             else { var n = fach[basis] = fach.GetValueOrDefault(basis) + 1; r.Kurzname = $"{basis}{n}"; }
         }
+        // Reihenfolge der Listen wie im Vorbild alphabetisch nach Kürzel (05A, 05B, 05C …)
+        var i0 = 0;
+        foreach (var k in x.Klassen.OrderBy(k => k.Kurzname, StringComparer.Ordinal)) k.Sortierung = i0++;
+        i0 = 0;
+        foreach (var l in x.Lehrer.OrderBy(l => l.Kurzname, StringComparer.Ordinal)) l.Sortierung = i0++;
+        i0 = 0;
+        foreach (var r in x.Raeume.OrderBy(r => r.Kurzname, StringComparer.Ordinal)) r.Sortierung = i0++;
     }
 
     internal void SelbstTest(string ordner)
@@ -1549,6 +1556,9 @@ public sealed partial class HauptFenster
                 ModusFuerBild(true);
                 // Bildschirm des Vorbilds: 1920 × 1080 mit Taskleiste, das maximierte Fenster ist 1032 Pixel hoch (der Runner hat keine Taskleiste)
                 SelbsttestHoehe = 1032;
+                // Vorbild-Bildschirmfoto 1919 Pixel breit: der Arbeitsbereich ist damit 1 Pixel schmaler als der Vorschlag reicht, daher
+                // zeigt er wie dort auch den waagrechten Rollbalken
+                SelbsttestBreite = 1919;
                 WindowState = FormWindowState.Normal;
                 MaximalgroesseSetzen();
                 WindowState = FormWindowState.Maximized;
@@ -1646,6 +1656,7 @@ public sealed partial class HauptFenster
             {
                 AlleSchliessen();
                 SelbsttestHoehe = null;
+                SelbsttestBreite = null;
                 MaximalgroesseSetzen();
                 if (WindowState == FormWindowState.Maximized) { WindowState = FormWindowState.Normal; WindowState = FormWindowState.Maximized; }
                 MdiFenster.SelbsttestOhneKlemmen = false;
