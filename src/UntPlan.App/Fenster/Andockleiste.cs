@@ -65,15 +65,14 @@ public static class Andockleiste
         switch (c)
         {
             case KryptonNavigator n:
+                // Kopfstile der Andockzellen (aktiv/inaktiv) über eine eigene Palette nur dieser Zelle, zusätzlich direkt am Steuerelement
+                n.LocalCustomPalette = Palette();
                 var hg = n.StateCommon.HeaderGroup;
-                hg.HeaderPrimary.Back.Color1 = hg.HeaderPrimary.Back.Color2 = Ui.Titel;
-                hg.HeaderPrimary.Border.Color1 = hg.HeaderPrimary.Border.Color2 = Ui.Titel;
-                hg.HeaderPrimary.Content.ShortText.Color1 = hg.HeaderPrimary.Content.ShortText.Color2 = Color.White;
-                hg.HeaderPrimary.Content.ShortText.Font = Ui.Schrift;
                 hg.Border.Color1 = hg.Border.Color2 = Ui.Rasterlinie;
                 hg.Back.Color1 = hg.Back.Color2 = Ui.Leiste;
                 n.StateCommon.Page.Color1 = n.StateCommon.Page.Color2 = Ui.Leiste;
                 if (!kopf) n.Header.HeaderVisiblePrimary = false;
+                n.Invalidate(true);
                 break;
             case KryptonSeparator s:
                 s.StateCommon.Separator.Back.Color1 = s.StateCommon.Separator.Back.Color2 = Ui.MdiHintergrund;
@@ -82,8 +81,38 @@ public static class Andockleiste
         if (c is KryptonWorkspace w) w.StateCommon.Back.Color1 = w.StateCommon.Back.Color2 = Ui.MdiHintergrund;
     }
 
+    private static KryptonCustomPaletteBase? _palette;
+    private static bool _paletteVertretung;
+
+    /// <summary>Palette der Andockleiste: Kopf aktiv bzw. inaktiv wie die Titelleisten der Arbeitsfenster (Modusfarben).</summary>
+    private static KryptonCustomPaletteBase Palette()
+    {
+        if (_palette != null && _paletteVertretung == Ui.Vertretungsmodus) return _palette;
+        _palette ??= new KryptonCustomPaletteBase();
+        _paletteVertretung = Ui.Vertretungsmodus;
+        foreach (var (h, aktiv) in new[] { (_palette.HeaderStyles.HeaderDockActive, true), (_palette.HeaderStyles.HeaderDockInactive, false) })
+        {
+            var farbe = FensterTitel.Farbe(aktiv);
+            var c = h.StateCommon;
+            c.Back.Color1 = c.Back.Color2 = farbe;
+            c.Border.Color1 = c.Border.Color2 = farbe;
+            c.Content.ShortText.Color1 = c.Content.ShortText.Color2 = Ui.Textfarbe(farbe);
+            c.Content.ShortText.Font = Ui.Schrift;
+        }
+        return _palette;
+    }
+
+    /// <summary>Alle Zellen und schwebenden Fenster der Andockleiste (erneut) in den eigenen Farben gestalten.</summary>
+    private static void AlleGestalten()
+    {
+        if (_manager is null) return;
+        foreach (var z in _manager.CellsDocked) Gestalten(z, kopf: true);
+        foreach (var z in _manager.CellsFloating) Gestalten(z, kopf: false);
+        foreach (var f in Application.OpenForms.OfType<KryptonFloatingWindow>().ToList()) Schwebefenster(f, nurFarben: true);
+    }
+
     /// <summary>Schwebendes Fenster: Titel „Element-Rollup“ in der Modusfarbe, Lage wie zuletzt bzw. mittig über dem Hauptfenster.</summary>
-    private static void Schwebefenster(KryptonFloatingWindow f)
+    private static void Schwebefenster(KryptonFloatingWindow f, bool nurFarben = false)
     {
         f.Text = Seiten.Count == 1 ? Seiten.Values.First().Seite.Text : "Element-Rollup";
         var h = f.StateCommon.Header;
@@ -93,6 +122,8 @@ public static class Andockleiste
         h.Content.ShortText.Font = Ui.Schrift;
         f.StateCommon.Border.Color1 = f.StateCommon.Border.Color2 = Ui.Titel;
         f.StateCommon.Back.Color1 = f.StateCommon.Back.Color2 = Ui.Leiste;
+        f.Invalidate(true);
+        if (nurFarben) return;
         f.StartPosition = FormStartPosition.Manual;
         void Platzieren()
         {
@@ -175,6 +206,7 @@ public static class Andockleiste
         Seiten[name] = (seite, zurueck);
         m.AddDockspace(Pfad, rand, new[] { seite });
         Einordnen(haupt);
+        AlleGestalten();
         // Breite bzw. Höhe der Leiste wie das schwebende Werkzeugfenster
         if (m.FindDockingEdgeDocked(name) is { } kante)
             foreach (var ds in kante.OfType<KryptonDockingDockspace>())
@@ -189,6 +221,7 @@ public static class Andockleiste
     {
         if (_manager is null || !Seiten.ContainsKey(name)) return;
         _manager.MakeFloatingRequest(name);
+        AlleGestalten();
         AppZustand.Einstellungen.RollupAngedockt = "Leiste:Schwebend";
         AppZustand.Einstellungen.Speichern();
     }

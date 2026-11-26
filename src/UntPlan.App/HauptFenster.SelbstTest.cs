@@ -1429,12 +1429,15 @@ public sealed partial class HauptFenster
                 Pruefen(AppZustand.Einstellungen.RollupAngedockt == "Leiste:Right", "Andockart nicht gemerkt: " + AppZustand.Einstellungen.RollupAngedockt);
                 Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
                 // Kopf der angedockten Zelle in der Titelfarbe der Arbeitsfenster (nicht Kryptons Grau bzw. Gelb)
-                using (var bild = new Bitmap(seite.Parent!.Width, 30))
+                Control zelle = seite;
+                while (zelle.Parent != null && zelle is not Krypton.Navigator.KryptonNavigator) zelle = zelle.Parent;
+                using (var bild = new Bitmap(zelle.Width, 30))
                 {
-                    var oben = seite.Parent.RectangleToScreen(new Rectangle(0, 0, seite.Parent.Width, 30));
+                    var oben = zelle.RectangleToScreen(new Rectangle(0, 0, zelle.Width, 30));
                     using (var g = Graphics.FromImage(bild)) g.CopyFromScreen(oben.Location, Point.Empty, oben.Size);
-                    var titel = Ui.Titel;
-                    var treffer = Enumerable.Range(0, 30).Count(y => bild.GetPixel(Math.Min(bild.Width - 1, 60), y) is var c && Math.Abs(c.R - titel.R) + Math.Abs(c.G - titel.G) + Math.Abs(c.B - titel.B) <= 6);
+                    bool Titelfarbe(Color c) => new[] { Steuerelemente.FensterTitel.Farbe(true), Steuerelemente.FensterTitel.Farbe(false) }
+                        .Any(t => Math.Abs(c.R - t.R) + Math.Abs(c.G - t.G) + Math.Abs(c.B - t.B) <= 6);
+                    var treffer = Enumerable.Range(0, 30).Count(y => Titelfarbe(bild.GetPixel(Math.Min(bild.Width - 1, 60), y)));
                     Pruefen(treffer >= 12, $"Kopf der Andockleiste nicht in der Titelfarbe ({treffer} Pixel, Mitte {bild.GetPixel(Math.Min(bild.Width - 1, 60), 10)}).");
                 }
                 AppZustand.Einstellungen.RollupSchwebend = "";
@@ -1518,9 +1521,15 @@ public sealed partial class HauptFenster
                 // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
                 Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
                 Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
-                Lage(StundenplanFenster.Neu(ElementTyp.Klasse, klasse.Id, false, true), new Rectangle(500, 408, 309, 440));
-                Lage(StundenplanFenster.Neu(ElementTyp.Lehrer, lehrer.Id, false, true), new Rectangle(807, 408, 289, 440));
-                Lage(StundenplanFenster.Neu(ElementTyp.Raum, raum.Id, false, true), new Rectangle(1094, 408, 363, 440));
+                // die drei Pläne zeigen wie im Vorbild eigene Elemente (sie folgen der gewählten Entfallstunde nicht)
+                // gemessen: Klassenplan 309 breit ab 500/408, Lehrerplan 287 ab 807/406, Raumplan 362 ab 1094/403 (die beiden ersten reichen unter
+                // den Arbeitsbereich, daher Rollbalken wie im Vorbild)
+                foreach (var (typ, id, x, y, w, h) in new[] { (ElementTyp.Klasse, klasse.Id, 500, 408, 309, 590), (ElementTyp.Lehrer, lehrer.Id, 807, 406, 287, 590), (ElementTyp.Raum, raum.Id, 1094, 403, 362, 560) })
+                {
+                    var plan = StundenplanFenster.Neu(typ, id, false, true);
+                    plan.Verknuepft = false;
+                    Lage(plan, new Rectangle(x, y, w, h));
+                }
                 Lage(FensterOeffnen("vorschlag")!, new Rectangle(1455, 7, 444, 769));
                 var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(500, 8, 950, 400));
                 vertr.Activate();
@@ -1532,6 +1541,13 @@ public sealed partial class HauptFenster
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
                 foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
                 Foto(Path.Combine(ordner, "V51_Vorbild308_F.png"));
+                // Messwerte zur Abstimmung auf das Vorbild: Registerkarten (Lage, Textbreite GDI) und Gruppen des Menübands
+                var tabSchrift = new Font("Segoe UI", 9f);
+                log.Add("MASS  V51 Register: " + string.Join(" | ", _ribbon.Seiten.Where(x => x.IstSichtbar).Select(x =>
+                    $"{x.Text} {x.TabBounds.X}+{x.TabBounds.Width} t{TextRenderer.MeasureText(x.Text, tabSchrift, Size.Empty, TextFormatFlags.NoPadding).Width}")));
+                if (_ribbon.Seiten.ElementAtOrDefault(_ribbon.AktiveSeite) is { } aktiveSeite)
+                    log.Add("MASS  V51 Gruppen: " + string.Join(" | ", aktiveSeite.Gruppen.Select(gr => $"{gr.Text} {gr.Bounds.X}-{gr.Bounds.Right}: " +
+                        string.Join(",", gr.Eintraege.Select(e => $"{e.Text}@{e.Bounds.X}+{e.Bounds.Width}")))));
             }
             finally
             {

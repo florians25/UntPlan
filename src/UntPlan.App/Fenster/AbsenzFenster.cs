@@ -157,7 +157,7 @@ public sealed class AbwesenheitenFenster : MdiFenster, IElementEintrag
         // ab St. 67 | Bis TT.MM. 43 | bis St. 67 | Grund 67 | Text 67 | Anrechnung 67 | Entfalltage 65 | Absenztage 72 – zu lange
         // Überschriften werden abgeschnitten („Von TT“), rechts davon bleibt die Fläche frei (keine Spalte füllt das Fenster)
         Ui.BreitenWieOriginal(_g);
-        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 43, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
+        _g.Columns.Add(new DataGridViewTextBoxColumn { Name = "Nr", HeaderText = "AbsNr.", Width = 44, ReadOnly = true, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });
         _g.Columns.Add(Steuerelemente.SuchKombi.Spalte("E", "Lehrer", 80, Array.Empty<string>()));
         foreach (var (n, k, b) in new[] { ("V", "Von TT.MM.", 43), ("SV", "ab St.", 67), ("B", "Bis TT.MM.", 43), ("SB", "bis St.", 67) })
             _g.Columns.Add(n is "V" or "B" ? Steuerelemente.DatumSpalte.Neu(n, k, b) : new DataGridViewTextBoxColumn { Name = n, HeaderText = k, Width = b, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleRight } });

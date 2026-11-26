@@ -143,6 +143,10 @@ public static partial class Ui
     public static Color ZelleGesperrt => Vertretungsmodus ? Color.FromArgb(229, 239, 235) : Color.FromArgb(228, 238, 248);
     /// <summary>Aktuelle Zelle im Vertretungsmodus (helles Orange wie im Vorbild).</summary>
     public static readonly Color ZelleAktivVertretung = Color.FromArgb(255, 234, 198);
+    /// <summary>Aktuelle Zelle einer Liste im Vertretungsmodus (Vorbild Bild 308: Spalte „Art“ der gewählten Vertretung).</summary>
+    public static readonly Color ZelleAktuell = Color.FromArgb(227, 217, 177);
+    /// <summary>Aktuelle Zelle im Vertretungsvorschlag (Vorbild Bild 308/309: Name der gewählten Lehrkraft).</summary>
+    public static readonly Color ZelleAktuellVorschlag = Color.FromArgb(247, 230, 192);
     /// <summary>Hintergrund einer Tabellenzelle mit ungültiger Eingabe (hellrot, dazu Fehlersymbol mit Tooltip).</summary>
     public static readonly Color FehlerHintergrund = Color.FromArgb(255, 205, 205);
     /// <summary>Fläche aller Dialoge (wie Meldungsfenster und Arbeitsfenster: Listenfarbe des Modus statt Windows-Grau).</summary>
@@ -450,6 +454,9 @@ public static partial class Ui
             var erste = g.Columns.GetFirstColumn(DataGridViewElementStates.Visible);
             if (erste != null && e.ColumnIndex == erste.Index && g.CurrentCell.ColumnIndex != erste.Index)
                 e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Vertretungsmodus ? ZelleAktivVertretung : Erste;
+            // Vorbild (Bild 308, Vertretungen und Kalender): die aktuelle Zelle selbst dunkler beige als die Zeilenmarke
+            else if (Vertretungsmodus && erste != null && e.ColumnIndex == g.CurrentCell.ColumnIndex && e.ColumnIndex != erste.Index)
+                e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = ZelleAktuell;
         };
     }
 
@@ -487,8 +494,9 @@ public static partial class Ui
     {
         g.BackgroundColor = Listenhintergrund;
         g.GridColor = Rasterlinie;
-        g.DefaultCellStyle.BackColor = Zelle;
-        g.AlternatingRowsDefaultCellStyle.BackColor = ZelleWechsel;
+        // Zeilenwechsel wie im Vorbild (Bild 308, Kalender und Vertretungsvorschlag): erste Datenzeile getönt, zweite weiß, dritte getönt …
+        g.DefaultCellStyle.BackColor = ZelleWechsel;
+        g.AlternatingRowsDefaultCellStyle.BackColor = Zelle;
         g.RowHeadersDefaultCellStyle.SelectionBackColor = ZeileAktiv;
         g.ColumnHeadersDefaultCellStyle.BackColor = Kopf;
         g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Kopf;

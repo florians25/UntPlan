@@ -221,7 +221,9 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var unten = new Steuerelemente.Fussleiste { BackColor = Ui.Kopf };
         var links = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(4, 5, 0, 0), WrapContents = false, BackColor = Ui.Kopf };
         // wie in der Vorlage: „Vtr-Nr.“ links, rechts nur das Auswahlfeld der Ansicht (ohne Beschriftung)
-        links.Controls.Add(new Label { Text = "Vtr-Nr.", AutoSize = true, Padding = new Padding(0, 5, 0, 0) });
+        // Vorbild (Bild 308): „Vtr-Nr.“ 38 Pixel vom linken Fensterrand, das Feld 94 Pixel
+        links.Controls.Add(new Label { Text = "Vtr-Nr.", AutoSize = true, Padding = new Padding(0, 5, 0, 0), Margin = new Padding(30, 3, 3, 0) });
+        _nr.Margin = new Padding(14, 0, 3, 0);
         links.Controls.Add(_nr);
         links.Controls.Add(_status);
         var rechts = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = Padding.Empty, Margin = Padding.Empty, WrapContents = false, BackColor = Ui.Kopf };
@@ -229,7 +231,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         rechts.Controls.Add(_ansicht);
         unten.Controls.Add(links);
         unten.Rechts = rechts;
-        links.Padding = new Padding(4, 5, 0, 0);
+        links.Padding = new Padding(4, 2, 0, 0);
         unten.Resize += (_, _) => links.Width = Math.Max(0, rechts.Left - 4);
         links.Dock = DockStyle.Left;
 
@@ -264,6 +266,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
         var reihenfolge = Reihenfolge(AnsichtName);
         for (var i = 0; i < reihenfolge.Count; i++) _g.Columns[reihenfolge[i]]!.DisplayIndex = i;
         _g.Columns["Nr"]!.Frozen = true;
+        // Vorbild: Vertretungsnummer rechtsbündig
+        _g.Columns["Nr"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         // Breiten wie im Original-Bildschirmfoto (Klasse - Standard, 100 %): 43 bzw. 67 Pixel, auch „Text“ (rechts bleibt die Fläche frei);
         // zu lange Überschriften werden am Spaltenrand abgeschnitten („Klasse(“, „Vertrete“)
         Ui.BreitenWieOriginal(_g);
@@ -421,7 +425,8 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
 
         // wie im Vorbild: Name der Ansicht („Klasse - Standard“) über der Tabelle (Label oben beim Auswahlfeld angelegt)
         // Vorlage: Tabelle 9 Pixel vom linken und rechten Fensterrand eingerückt (Fensterfläche ringsum)
-        var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 6), BackColor = Ui.Kopf };
+        // Vorbild (Bild 308): Tabellenrahmen endet direkt über der 36 Pixel hohen Fußleiste
+        var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 0), BackColor = Ui.Kopf };
         tabellenFlaeche.Controls.Add(_g);
         Controls.Add(tabellenFlaeche);
         Controls.Add(ansichtName);
@@ -487,7 +492,7 @@ public sealed class VertretungenFenster : MdiFenster, IDruckbar
     internal static readonly (string Name, string Kopf, string Feld, int Breite, bool Lesbar, bool Standard, bool Lang)[] Spalten =
     {
         // Reihenfolge und Bezeichnungen wie im Dialog „Felder der Ansicht“ des Vorbilds (Handbuch Vertretungsplanung, Kap. 7.1)
-        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 43, true, true, false), ("Art", "Art", "Art der Vertretung", 67, true, true, false),
+        ("Nr", "Vtr-Nr.", "Vertretungsnummer", 44, true, true, false), ("Art", "Art", "Art der Vertretung", 67, true, true, false),
         ("Datum", "Datum", "Datum (TT.MM.)", 44, true, false, false), ("Tag", "Tag", "Tag", 30, true, false, false),
         ("Std", "Stunde", "Std.", 43, true, true, false), ("Zeit", "Zeit", "Beginn- und Endzeit", 76, true, false, false),
         ("Fach", "(Fach)", "statt Fach:", 43, true, true, true), ("NFach", "Fach", "Fach", 43, false, true, true),

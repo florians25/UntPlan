@@ -19,7 +19,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     private readonly bool _gross;
     private readonly PlanAnsicht _plan = new() { Dock = DockStyle.Fill };
     private readonly FlowLayoutPanel _pool = new() { Dock = DockStyle.Right, Width = 150, AutoScroll = true, BackColor = Color.FromArgb(244, 246, 250), AllowDrop = true, Padding = new Padding(4) };
-    private readonly DataGridView _lupe = new() { Dock = DockStyle.Bottom, Height = 74 };
+    private readonly DataGridView _lupe = new() { Dock = DockStyle.Fill };
+    /// <summary>Bereich der Stundenplanlupe unter dem Plan (im Vertretungsmodus mit Teilerleiste und vertieftem Rahmen wie im Vorbild).</summary>
+    private readonly Panel _lupeRahmen = new() { Dock = DockStyle.Bottom, Height = 74 };
     private readonly Label _detail = new() { Dock = DockStyle.Top, Height = 54, Padding = new Padding(6, 3, 0, 0), BackColor = Color.FromArgb(248, 249, 252) };
     /// <summary>Informationsteil wie im Vorbild: Gruppe „DatumsBereich“ mit Zeitraum und Schulwochen.</summary>
     private readonly GroupBox _datumsBereich = new() { Text = "DatumsBereich", Left = 190, Top = 0, Width = 190, Height = 50 };
@@ -88,13 +90,39 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     internal (Point Position, bool Eingerastet) SelbsttestScrollStand => (new Point(-_planRahmen.AutoScrollPosition.X, -_planRahmen.AutoScrollPosition.Y), _planRahmen.Eingerastet);
 
     /// <summary>Abstand des Planrahmens zum Fensterrahmen im Vertretungsmodus (Vorbild 9 px bei 1 px Fensterrahmen, hier 3 px Rahmen).</summary>
-    private const int Einzug = 7;
+    private const int Einzug = 9;
 
     /// <summary>
     /// Breite des kleinen Plans samt Fensterrahmen, Einzug und 3D-Rahmen, sodass die festen Zellen genau hineinpassen
     /// (bei 5 Tagen 247 + 2·(3 + 7 + 2) = 271 Pixel).
     /// </summary>
-    private int KleineBreite() => _plan.BenoetigteBreite + 2 * (3 + Einzug + 2);
+    private int KleineBreite() => _plan.BenoetigteBreite + LupeRand + 2 * (1 + Einzug + 2);
+
+    /// <summary>Vorbild (Bild 308, Plan „Bon“): rechts neben dem Plan bleiben im Rahmen 16 Pixel frei (Platz für den Rollbalken).</summary>
+    private const int LupeRand = 16;
+
+    /// <summary>Höhe des Lupenbereichs: Vorbild klein (Bild 341) 3 Pixel Teiler, 2 Pixel Rahmen, Lupe mit Rollbalken (zusammen 124 Pixel).</summary>
+    private int LupeHoehe => _klein ? (AppZustand.Vertretungsmodus ? 124 : 80) : 74;
+
+    /// <summary>
+    /// Vertiefter Rahmen wie im Vorbild um Plan und Lupe: außen oben/links (160,160,160), innen (240,240,240), unten/rechts innen
+    /// (240,240,240) und außen weiß (nicht der Windows-Rahmen mit dunkelgrauer Innenkante).
+    /// </summary>
+    internal static void VorbildRahmen(Graphics g, Rectangle r, bool unten = true)
+    {
+        using var dunkel = new Pen(Color.FromArgb(160, 160, 160));
+        using var hell = new Pen(Color.FromArgb(240, 240, 240));
+        using var weiss = new Pen(Color.White);
+        g.DrawLine(dunkel, r.Left, r.Top, r.Right - 1, r.Top);
+        g.DrawLine(dunkel, r.Left, r.Top, r.Left, r.Bottom - 1);
+        g.DrawLine(hell, r.Left + 1, r.Top + 1, r.Right - 2, r.Top + 1);
+        g.DrawLine(hell, r.Left + 1, r.Top + 1, r.Left + 1, r.Bottom - 2);
+        g.DrawLine(hell, r.Right - 2, r.Top + 1, r.Right - 2, r.Bottom - 2);
+        g.DrawLine(weiss, r.Right - 1, r.Top, r.Right - 1, r.Bottom - 1);
+        if (!unten) return;
+        g.DrawLine(hell, r.Left + 1, r.Bottom - 2, r.Right - 2, r.Bottom - 2);
+        g.DrawLine(weiss, r.Left, r.Bottom - 1, r.Right - 1, r.Bottom - 1);
+    }
 
     public StundenplanFenster(ElementTyp typ, int id, bool gross, bool klein = false)
     {
@@ -348,8 +376,11 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         {
             // Vertretungsmodus wie auf den Vorbild-Bildschirmfotos: Plan in einem vertieften Rahmen (3D, 2 px), links und rechts
             // 9 px vom Fensterrand (hier 7 px plus 2 px breiterer Fensterrahmen), der Plan beginnt direkt am Rahmen
-            mitte.Padding = AppZustand.Vertretungsmodus ? new Padding(Einzug, 0, Einzug, 0) : Padding.Empty;
-            planRahmen.BorderStyle = AppZustand.Vertretungsmodus ? BorderStyle.Fixed3D : BorderStyle.None;
+            // Rahmen selbst gezeichnet (siehe VorbildRahmen), 2 Pixel um den Planbereich
+            mitte.Padding = AppZustand.Vertretungsmodus ? new Padding(Einzug + 2, 2, Einzug + 2, 2) : Padding.Empty;
+            planRahmen.BorderStyle = BorderStyle.None;
+            LupeRahmenAnwenden();
+            mitte.Invalidate();
             mitte.BackColor = planRahmen.BackColor;
             var rahmen = planRahmen.BorderStyle == BorderStyle.Fixed3D ? 4 : 0;
             var innenB = planRahmen.Width - rahmen;
@@ -381,13 +412,27 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
             _plan.SetBounds(quer ? planRahmen.AutoScrollPosition.X : 0, blaettern ? planRahmen.AutoScrollPosition.Y : 0, Math.Max(100, breite), Math.Max(60, hoehe));
         }
         planRahmen.Resize += (_, _) => PlanGroesse();
+        mitte.Paint += (_, e) =>
+        {
+            if (!AppZustand.Vertretungsmodus) return;
+            VorbildRahmen(e.Graphics, Rectangle.Inflate(planRahmen.Bounds, 2, 2));
+        };
+        _lupeRahmen.Paint += (_, e) =>
+        {
+            if (!AppZustand.Vertretungsmodus) return;
+            // Teilerleiste (3 Pixel) über dem Lupenrahmen wie im Vorbild, nur so breit wie der Planrahmen
+            var b = _lupeRahmen.ClientSize.Width - 2 * Einzug;
+            using (var t = new SolidBrush(Color.FromArgb(240, 240, 240))) e.Graphics.FillRectangle(t, Einzug, 0, b, 3);
+            VorbildRahmen(e.Graphics, new Rectangle(Einzug, 3, b, _lupeRahmen.ClientSize.Height - 3 + 2), unten: false);
+        };
         _planGroesse = PlanGroesse;
         mitte.Controls.Add(planRahmen);
         mitte.Controls.Add(_pool);
         Controls.Add(mitte);
         ZiehenEinrichten(mitte);
         Controls.Add(_reiter);
-        Controls.Add(_lupe);
+        _lupeRahmen.Controls.Add(_lupe);
+        Controls.Add(_lupeRahmen);
         Controls.Add(_fuss);
         Controls.Add(_detail);
         Controls.Add(_zeitZeile);
@@ -436,6 +481,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _pool.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(244, 246, 250) : Color.FromArgb(232, 244, 255);
         _detail.BackColor = AppZustand.Vertretungsmodus ? Color.FromArgb(248, 249, 252) : PlanFlaeche;
         _detail.Visible = !_klein && !AppZustand.Vertretungsmodus;
+        LupeRahmenAnwenden();
         _laden = true;
         _wochenansicht.Checked = AppZustand.Vertretungsmodus || _wochenansicht.Checked && !AppZustand.Vertretungsmodus;
         _wochenansicht.Enabled = true;
@@ -630,7 +676,7 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
     }
 
     /// <summary>Passende Fensterhöhe des kleinen Plans (Plan ohne Blättern, Werkzeugleiste, Titel, ggf. Lupe).</summary>
-    private int KleineHoehe() => _plan.BenoetigteHoehe + FensterTitel.Hoehe + 2 * 3 + 25 + _zeitZeile.Height + _fuss.Height + (_lupeSichtbar ? (_klein ? 80 : _lupe.Height) : 0) + 6;
+    private int KleineHoehe() => _plan.BenoetigteHoehe + FensterTitel.Hoehe + 2 * 3 + 25 + _zeitZeile.Height + _fuss.Height + (_lupeSichtbar ? LupeHoehe : 0) + 2 + 2;
 
     /// <summary>Sichtbarkeit der Bereiche: Der kleine Plan zeigt nur Werkzeugleiste (Element, Blättern, Verknüpfung) und Plan, optional die Lupe.</summary>
     private void KleinAnwenden()
@@ -654,9 +700,21 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _pool.Visible = !_klein;
         if (_klein) _reiter.Visible = false;
         else _reiter.Visible = _alleElemente.Checked;
-        _lupe.Height = _klein ? 80 : 74;
+        _lupeRahmen.Height = LupeHoehe;
         LupeUmschalten(_klein ? _plan.Format.StundenplanlupeAnzeigen : true);
         _planGroesse?.Invoke();
+    }
+
+    /// <summary>Lupenbereich je Modus: im Vertretungsmodus Teilerleiste, Vorbildrahmen und Lupe mit vertieftem Windows-Rahmen.</summary>
+    private void LupeRahmenAnwenden()
+    {
+        var vm = AppZustand.Vertretungsmodus;
+        var pad = vm ? new Padding(Einzug + 2, 5, Einzug + 2, 0) : Padding.Empty;
+        if (_lupeRahmen.Padding != pad) _lupeRahmen.Padding = pad;
+        _lupeRahmen.BackColor = vm ? Ui.Kopf : PlanFlaeche;
+        _lupe.BorderStyle = vm ? BorderStyle.Fixed3D : BorderStyle.None;
+        if (_lupeRahmen.Height != LupeHoehe) _lupeRahmen.Height = LupeHoehe;
+        _lupeRahmen.Invalidate();
     }
 
     private void LupeUmschalten(bool sichtbar)
@@ -667,9 +725,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         // eigener Zustand: Visible meldet vor dem Anzeigen des Fensters immer false
         if (_lupeSichtbar == sichtbar) return;
         _lupeSichtbar = sichtbar;
-        _lupe.Visible = sichtbar;
-        _lupe.Height = _klein ? 80 : 74;
-        if (_klein && WindowState == FormWindowState.Normal) Height = Math.Max(200, Height + (sichtbar ? _lupe.Height : -_lupe.Height));
+        _lupeRahmen.Visible = sichtbar;
+        _lupeRahmen.Height = LupeHoehe;
+        if (_klein && WindowState == FormWindowState.Normal) Height = Math.Max(200, Height + (sichtbar ? _lupeRahmen.Height : -_lupeRahmen.Height));
         _planGroesse?.Invoke();
     }
 
