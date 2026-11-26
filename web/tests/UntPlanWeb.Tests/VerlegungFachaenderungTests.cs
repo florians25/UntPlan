@@ -125,6 +125,11 @@ public class VerlegungFachaenderungTests
             // erscheint dort nicht mehr – siehe AusRaumGenommen)
             var bisher = await Karten("raum", "D004");
             Assert.DoesNotContain(bisher, k => k["von"]!.GetValue<int>() <= 2 && Marker(k).Contains("verlegungVon"));
+            // die neue Stunde (GID, im neuen Raum) steht nicht im bisherigen Raum – auch nicht bei offener Vertretung („???“); dort bleibt
+            // nur die ursprüngliche Stunde als Entfall
+            Assert.DoesNotContain(bisher, k => k["fach"]!.GetValue<string>() == "GID");
+            Assert.Equal(new[] { "entfall" }, bisher.Where(k => k["von"]!.GetValue<int>() <= 2).Select(k => k["status"]!.GetValue<string>()).ToArray());
+            Entfall(bisher);
             Ziel(bisher);
         }
         else

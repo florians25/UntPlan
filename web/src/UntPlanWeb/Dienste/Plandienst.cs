@@ -595,6 +595,13 @@ public sealed class Plandienst
                 continue;
             }
             if (typ == Elementtyp.Lehrer && k.Status == "abwesend" && k.LehrerAbwesend && !k.Bereitschaft) k = MitKollegen(k, r);
+            // Fachänderung mit Raumwechsel im Plan des bisherigen Raums: die ursprüngliche Stunde entfällt hier (rot, bisheriges Fach) – die
+            // neue Stunde mit dem neuen Fach findet im neuen Raum statt und gehört nicht in diesen Plan (offen wie nicht offen)
+            if (typ == Elementtyp.Raum && k.Status == "abwesend" && !k.Bereitschaft && Fachwechsel(s, k with { Status = "geaendert" }, typ, kurz) is { } raumEntfall)
+            {
+                einzel.Add(raumEntfall);
+                continue;
+            }
             if (r.Status == "vorgemerkt") vorgemerkt.Add((r, k));
             else
             {
@@ -1573,7 +1580,10 @@ public sealed class Plandienst
             // (Raumplan: nur bei echter Raumänderung – fehlen die Räume der Stunde und bleibt der Raum laut Vertretung gleich, findet die
             // vertretene Stunde weiter hier statt und erscheint wie im Klassenplan als Änderung)
             var raumBleibt = !raumWeg && r.Raeume.Count == 0 && (v.NeuerRaum.Length == 0 || RaumListe(v.NeuerRaum).Contains(kurz, Ci));
-            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && ((status is "geaendert" && !raumBleibt) || buchung))
+            // offene Vertretung (Lehrkraft „???“) in einem anderen, schon feststehenden Raum: wie eine geänderte Stunde aus diesem Raum
+            // genommen – nicht bei offener Raumvertretung („???“, die Stunde hat noch keinen neuen Raum) bzw. unverändertem Raum
+            var offenVerlegt = status == "offen" && neueR.Count > 0 && !neueR.Contains("???") && !neueR.Contains(kurz, Ci);
+            if (typ == Elementtyp.Raum && RaumListe(v.Raum).Contains(kurz, Ci) && !Enthaelt(r.Raeume, kurz) && ((status is "geaendert" && !raumBleibt) || (offenVerlegt && !raumBleibt) || buchung))
                 status = "abwesend";
         }
         // Bereitschaft fällt weg: kein Entfall, sondern Abwesenheit der eingeteilten Lehrkraft (Kürzel durchgestrichen)
