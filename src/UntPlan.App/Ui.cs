@@ -584,6 +584,23 @@ public static partial class Ui
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int wert, int groesse);
 
     /// <summary>Titelleiste eines Hauptfensters/Dialogs in der Modusfarbe (Windows 11; ältere Versionen ignorieren dies).</summary>
+    /// <summary>
+    /// Titelleiste eines gewöhnlichen Dialogs wie im Vorbild (Bilder 348, 349: Sondereinsätze, Auswahl): helle Windows-Titelleiste
+    /// (237,245,249) mit schwarzer Schrift; Meldungsfenster behalten die Titelleiste in der Modusfarbe.
+    /// </summary>
+    public static void DialogTitelleiste(Form f)
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || !f.IsHandleCreated) return;
+        try
+        {
+            var farbe = 237 | (245 << 8) | (249 << 16);
+            var text = 0x000000;
+            DwmSetWindowAttribute(f.Handle, 35, ref farbe, 4);
+            DwmSetWindowAttribute(f.Handle, 36, ref text, 4);
+        }
+        catch { /* nicht unterstützt */ }
+    }
+
     public static void TitelleisteFaerben(Form f, bool dunkel = true)
     {
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) || !f.IsHandleCreated) return;

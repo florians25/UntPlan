@@ -1608,7 +1608,11 @@ public sealed partial class HauptFenster
                                 f.Location = new Point(Math.Max(0, Left + 330), Top + 290);
                                 g.Focus();
                                 g.CurrentCell = g.Rows[g.Rows.Count - 1].Cells["L"];
-                                R3BPostMessage(g.Handle, 0x104, (IntPtr)0x28, (IntPtr)(1 << 29));
+                                // Klick auf den Aufklappknopf der Zelle (wie mit der Maus)
+                                var zr = g.GetCellDisplayRectangle(g.CurrentCell.ColumnIndex, g.CurrentCell.RowIndex, false);
+                                var lp = (IntPtr)(((zr.Top + zr.Height / 2) << 16) | ((zr.Right - 8) & 0xFFFF));
+                                R3BPostMessage(g.Handle, 0x201, (IntPtr)1, lp);
+                                R3BPostMessage(g.Handle, 0x202, IntPtr.Zero, lp);
                                 break;
                             case 1:
                                 Foto(Path.Combine(ordner, "V52d_Sondereinsaetze_Lehrer_F.png"));
