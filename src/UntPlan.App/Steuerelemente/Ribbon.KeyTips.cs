@@ -189,7 +189,7 @@ public sealed partial class Ribbon
             var w = Math.Max(15, groesse.Width + 7);
             const int h = 16;
             var a = z.Anker;
-            var r = KeyTipStufe == 1 ? new Rectangle(a.X + (a.Width - w) / 2, a.Bottom - h + 4, w, h)
+            var r = KeyTipStufe == 1 ? new Rectangle(a.X + (a.Width - w) / 2, a.Bottom - h / 2 - 1, w, h)
                 : z.Mittig ? new Rectangle(a.X + (a.Width - w) / 2, a.Bottom - h + 2, w, h)
                 : new Rectangle(a.X + 7, a.Y + 8, w, h);
             r.Y = Math.Min(r.Y, Height - h - 1);

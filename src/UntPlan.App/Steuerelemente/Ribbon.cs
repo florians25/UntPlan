@@ -271,7 +271,8 @@ public sealed partial class Ribbon : Control
                     {
                         if (zeile > 0) { x += spaltenBreite + 4; zeile = 0; spaltenBreite = 0; }
                         // große Knöpfe eng wie in der Vorlage (Bild 308 gemessen): Beschriftung + 2 Pixel, 2 Pixel Abstand (Text zu Text 6 bis 7 Pixel)
-                        var w = Math.Max(40, LayoutBreite(e.Text) + 2);
+                        // eingedrückte Umschalter („Vertretungsplanung“) im Vorbild mit etwas mehr Rand: Beschriftung + 3 Pixel
+                        var w = e.Gedrueckt != null ? Math.Max(40, TextBreite(e.Text) + 3) : Math.Max(40, LayoutBreite(e.Text, 0.995) + 2);
                         e.Bounds = new Rectangle(x, oben, w, GrossHoehe);
                         e.PfeilBounds = HatMenue(e) || e.PfeilKalender ? new Rectangle(x, oben + 52, w, 14) : Rectangle.Empty;
                         ende = x + w;
@@ -311,7 +312,7 @@ public sealed partial class Ribbon : Control
     /// Breite einer Beschriftung für die Anordnung: Die Schrift läuft hier je Wort 1 bis 2 Pixel breiter als im Vorbild (Bild 308);
     /// ohne Ausgleich wandern die Gruppentrenner um bis zu 16 Pixel nach rechts. Gezeichnet wird ungekürzt.
     /// </summary>
-    private int LayoutBreite(string text) => (int)Math.Round(TextBreite(text) * 0.99);
+    private int LayoutBreite(string text, double faktor = 0.99) => (int)Math.Round(TextBreite(text) * faktor);
 
     private static bool HatMenue(RibbonEintrag e) => e.Menue != null || e.MenueErzeugen != null;
 
