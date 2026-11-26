@@ -1313,10 +1313,15 @@ public sealed partial class HauptFenster
             Warten(300);
             f.Refresh();
             var r1 = f.RectangleToScreen(f.ClientRectangle);
-            using (var bmp = new Bitmap(r1.Width, r1.Height))
+            using (var foto = new Bitmap(r1.Width, r1.Height))
             {
-                using (var gg = Graphics.FromImage(bmp)) gg.CopyFromScreen(r1.Location, Point.Empty, r1.Size);
-                bmp.Save(Path.Combine(ordner, "V48_Kopfgruppen_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+                using (var gg = Graphics.FromImage(foto)) gg.CopyFromScreen(r1.Location, Point.Empty, r1.Size);
+                foto.Save(Path.Combine(ordner, "V48_Kopfgruppen_F.png"), System.Drawing.Imaging.ImageFormat.Png);
+            }
+            // Prüfung am selbst gezeichneten Bild (unabhängig von der Bildschirmskalierung)
+            using (var bmp = new Bitmap(g.Width, g.Height))
+            {
+                g.DrawToBitmap(bmp, new Rectangle(0, 0, g.Width, g.Height));
                 // Gruppentitel „Schritt 2“ sichtbar: dunkle Schriftpixel in der oberen Kopfhälfte über der Gruppe
                 var b2 = Steuerelemente.KopfGruppen.Bereich(g, new Steuerelemente.KopfGruppen.Gruppe("Schritt 2", "Name2", "Tag2", "Merker2"));
                 var dunkel = 0;
@@ -1351,10 +1356,17 @@ public sealed partial class HauptFenster
                 g.CopyFromScreen(r.Location, Point.Empty, r.Size);
                 return bmp;
             }
+            // Prüfungen am selbst gezeichneten Bild (unabhängig von der Bildschirmskalierung)
+            Bitmap Gezeichnet(Control c)
+            {
+                var bmp = new Bitmap(c.Width, c.Height);
+                c.DrawToBitmap(bmp, new Rectangle(0, 0, c.Width, c.Height));
+                return bmp;
+            }
             using (var b = Ausschnitt(plan)) b.Clone(new Rectangle(0, 0, Math.Min(b.Width, 430), Math.Min(b.Height, 120)), b.PixelFormat).Save(Path.Combine(ordner, "V49_Leiste_kleiner_Plan_F.png"));
             if (leiste.OverflowButton.HasDropDownItems)
             {
-                using var b = Ausschnitt(leiste);
+                using var b = Gezeichnet(leiste);
                 var ob = leiste.OverflowButton.Bounds;
                 var dunkel = 0;
                 for (var x = ob.X; x < Math.Min(ob.Right, b.Width); x++)
@@ -1371,9 +1383,9 @@ public sealed partial class HauptFenster
             var war = farbig.Checked;
             farbig.Checked = true;
             Warten(400);
-            using (var b = Ausschnitt(vl))
+            using (var foto = Ausschnitt(vl)) foto.Save(Path.Combine(ordner, "V49_Leiste_Vertretungen_F.png"));
+            using (var b = Gezeichnet(vl))
             {
-                b.Save(Path.Combine(ordner, "V49_Leiste_Vertretungen_F.png"));
                 var fb = farbig.Bounds;
                 var c = b.GetPixel(fb.X + 2, fb.Y + 3);
                 Pruefen(Math.Abs(c.R - 104) + Math.Abs(c.G - 174) + Math.Abs(c.B - 146) < 12, $"Eingedrückter Umschalter nicht in der Vorbildfarbe (104,174,146): {c}.");
