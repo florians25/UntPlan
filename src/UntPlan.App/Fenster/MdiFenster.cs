@@ -459,15 +459,96 @@ public class MdiFenster : Form
                 // Vorbild (gemessen): 5 × 3 Pixel in (119,119,119) mit weichen Kanten, Mitte 14 Pixel vor dem Fensterrand
                 var m = new Point(l.Einziehen ? l.Width - 14 - it.Bounds.X : it.Width / 2, it.Height - 9);
                 var grund = it.Selected || it.Pressed ? Ui.Hover : e.ToolStrip.BackColor;
-                float[,] maske = { { .55f, 1, 1, 1, .55f }, { 0, .74f, 1, .74f, 0 }, { 0, .07f, .69f, .07f, 0 } };
-                for (var y = 0; y < 3; y++)
-                    for (var x = 0; x < 5; x++)
+                Maske(e.Graphics, Dreieck, m.X - 2, m.Y, grund);
+                // Vorbild (Bild 312): liegen Befehle im Überlauf, steht darüber „»“ (8 × 5 Pixel, 4 Pixel unter der Leistenoberkante)
+                if (it is ToolStripOverflowButton { HasDropDownItems: true }) Maske(e.Graphics, Doppelpfeil, m.X - 4, 4, grund);
+            }
+
+            /// <summary>Aufklapppfeil (5 × 3 Pixel, weiche Kanten) wie im Vorbild, gemessen in Bild 308.</summary>
+            private static readonly float[,] Dreieck = { { .55f, 1, 1, 1, .55f }, { 0, .74f, 1, .74f, 0 }, { 0, .07f, .69f, .07f, 0 } };
+
+            /// <summary>„»“ des Überlaufknopfs (8 × 5 Pixel), gemessen in Bild 312.</summary>
+            private static readonly float[,] Doppelpfeil =
+            {
+                { .92f, .45f, 0, 0, .99f, .38f, 0, 0 },
+                { .15f, .76f, .6f, 0, .21f, .83f, .53f, 0 },
+                { 0, 0, .85f, .76f, .13f, .12f, .89f, .69f },
+                { .15f, .77f, .6f, 0, .22f, .83f, .54f, 0 },
+                { .92f, .45f, 0, 0, .99f, .38f, 0, 0 },
+            };
+
+            /// <summary>Deckungsmaske in Grau (119,119,119) über den Grund zeichnen.</summary>
+            private static void Maske(Graphics g, float[,] maske, int x0, int y0, Color grund)
+            {
+                for (var y = 0; y < maske.GetLength(0); y++)
+                    for (var x = 0; x < maske.GetLength(1); x++)
                     {
                         var a = maske[y, x];
                         if (a <= 0) continue;
                         using var p = new SolidBrush(Color.FromArgb((int)(grund.R + (119 - grund.R) * a), (int)(grund.G + (119 - grund.G) * a), (int)(grund.B + (119 - grund.B) * a)));
-                        e.Graphics.FillRectangle(p, m.X - 2 + x, m.Y + y, 1, 1);
+                        g.FillRectangle(p, x0 + x, y0 + y, 1, 1);
                     }
+            }
+
+            /// <summary>Umschalter eingedrückt wie im Vorbild (Bild 308): Fläche 20 × 20 Pixel in kräftiger Modusfarbe, ohne Rand.</summary>
+            public static Color Eingedrueckt => Ui.Vertretungsmodus ? Color.FromArgb(104, 174, 146) : Color.FromArgb(120, 172, 220);
+
+            /// <summary>Fläche hinter einem Knopf: eingedrückt, gedrückt oder beim Überfahren (Modusfarben), sonst nichts.</summary>
+            private static void KnopfGrund(ToolStripItemRenderEventArgs e, bool eingedrueckt)
+            {
+                if (e.ToolStrip is not Fensterleiste) return;
+                var it = e.Item;
+                if (!it.Enabled || (!eingedrueckt && !it.Selected && !it.Pressed)) return;
+                var w = it.DisplayStyle == ToolStripItemDisplayStyle.Image && it is not ToolStripDropDownButton ? Math.Min(20, it.Width) : it.Width - 2;
+                var r = new Rectangle((it.Width - w) / 2, 0, w, Math.Min(20, it.Height));
+                var g = e.Graphics;
+                if (eingedrueckt)
+                {
+                    using var b = new SolidBrush(it.Selected ? Ui.HoverRand : Eingedrueckt);
+                    g.FillRectangle(b, r);
+                    return;
+                }
+                using (var b = new SolidBrush(it.Pressed ? Ui.MenuebandGedrueckt : Ui.Hover)) g.FillRectangle(b, r);
+                using var p = new Pen(Ui.HoverRand);
+                g.DrawRectangle(p, r.X, r.Y, r.Width - 1, r.Height - 1);
+            }
+
+            protected override void OnRenderButtonBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste) { base.OnRenderButtonBackground(e); return; }
+                KnopfGrund(e, e.Item is ToolStripButton { Checked: true });
+            }
+
+            protected override void OnRenderDropDownButtonBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste) { base.OnRenderDropDownButtonBackground(e); return; }
+                KnopfGrund(e, false);
+            }
+
+            protected override void OnRenderSplitButtonBackground(ToolStripItemRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste || e.Item is not ToolStripSplitButton sb) { base.OnRenderSplitButtonBackground(e); return; }
+                KnopfGrund(e, false);
+                DrawArrow(new ToolStripArrowRenderEventArgs(e.Graphics, sb, sb.DropDownButtonBounds, Color.Black, ArrowDirection.Down));
+            }
+
+            /// <summary>Aufklapppfeile der Leiste wie im Vorbild: kleines graues Dreieck statt des schwarzen Systempfeils.</summary>
+            protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+            {
+                if (e.Item?.Owner is not Fensterleiste leiste || e.Direction != ArrowDirection.Down) { base.OnRenderArrow(e); return; }
+                var r = e.ArrowRectangle;
+                var grund = e.Item.Selected || e.Item.Pressed ? Ui.Hover : leiste.BackColor;
+                Maske(e.Graphics, Dreieck, r.X + (r.Width - 5) / 2, r.Y + (r.Height - 3) / 2, grund);
+            }
+
+            /// <summary>Trennstriche wie im Vorbild: 1 Pixel hellgrau (213,213,213), 1 Pixel unter der Oberkante bis 3 Pixel über der Unterkante.</summary>
+            protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+            {
+                if (e.ToolStrip is not Fensterleiste || !e.Vertical) { base.OnRenderSeparator(e); return; }
+                var by = e.Item.Bounds.Y;
+                using var p = new Pen(Color.FromArgb(213, 213, 213));
+                var x = e.Item.Width / 2;
+                e.Graphics.DrawLine(p, x, Math.Max(0, 1 - by), x, Math.Min(e.Item.Height - 1, e.ToolStrip.Height - 4 - by));
             }
         }
     }

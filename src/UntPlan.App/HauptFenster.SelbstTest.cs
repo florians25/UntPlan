@@ -1328,6 +1328,62 @@ public sealed partial class HauptFenster
             log.Add($"MASS  V48: 1000 Zeilen in {uhr.ElapsedMilliseconds} ms gefüllt, Kopf {kopf} Pixel (Zeile {g.RowTemplate.Height}), doppelt gepuffert {Ui.IstDoppeltGepuffert(g)}");
             f.Close();
         }, -1);
+        Schritt("V49_Leisten", () =>
+        {
+            // Werkzeugleisten wie im Vorbild: kleiner Plan 25 Pixel hoch mit 18 Pixel hoher Elementauswahl (Bild 312), Trennstriche
+            // hellgrau, eingedrückte Umschalter als grüne Fläche, graue Aufklappdreiecke, „»“ über dem Dreieck bei Überlauf
+            ModusFuerBild(true);
+            var plan = StundenplanFenster.Neu(ElementTyp.Klasse, AppZustand.D.Klassen.First().Id, false, true);
+            plan.WindowState = FormWindowState.Normal;
+            plan.Location = new Point(0, 0);
+            Warten(600);
+            var leiste = plan.Controls.OfType<ToolStrip>().First(t => t.Items.OfType<ToolStripComboBox>().Any());
+            var auswahl = leiste.Items.OfType<ToolStripComboBox>().First().ComboBox;
+            log.Add($"MASS  V49 kleiner Plan: Leiste {leiste.Height} Pixel (Vorbild {leiste.LogicalToDeviceUnits(25)}), Elementauswahl {auswahl.Height} (Vorbild {auswahl.LogicalToDeviceUnits(18)}), Überlauf {leiste.OverflowButton.HasDropDownItems}");
+            Pruefen(leiste.Height == leiste.LogicalToDeviceUnits(25), $"Leiste des kleinen Plans {leiste.Height} statt {leiste.LogicalToDeviceUnits(25)} Pixel hoch.");
+            Pruefen(Math.Abs(auswahl.Height - auswahl.LogicalToDeviceUnits(18)) <= 1, $"Elementauswahl {auswahl.Height} statt {auswahl.LogicalToDeviceUnits(18)} Pixel hoch.");
+            Bitmap Ausschnitt(Control c)
+            {
+                c.Refresh();
+                var r = c.RectangleToScreen(c.ClientRectangle);
+                var bmp = new Bitmap(r.Width, r.Height);
+                using var g = Graphics.FromImage(bmp);
+                g.CopyFromScreen(r.Location, Point.Empty, r.Size);
+                return bmp;
+            }
+            using (var b = Ausschnitt(plan)) b.Clone(new Rectangle(0, 0, Math.Min(b.Width, 430), Math.Min(b.Height, 120)), b.PixelFormat).Save(Path.Combine(ordner, "V49_Leiste_kleiner_Plan_F.png"));
+            if (leiste.OverflowButton.HasDropDownItems)
+            {
+                using var b = Ausschnitt(leiste);
+                var ob = leiste.OverflowButton.Bounds;
+                var dunkel = 0;
+                for (var x = ob.X; x < Math.Min(ob.Right, b.Width); x++)
+                    for (var y = 2; y < 11; y++)
+                        if (b.GetPixel(x, y).R < 170) dunkel++;
+                Pruefen(dunkel >= 6, "Überlaufknopf ohne „»“ trotz verborgener Befehle.");
+            }
+            // Vertretungen: Umschalter „Zu zählende farbig“ eingedrückt, Trennstriche hellgrau
+            var vertr = FensterOeffnen("vertr")!;
+            vertr.WindowState = FormWindowState.Normal;
+            vertr.Bounds = new Rectangle(0, 0, 1000, 400);
+            var vl = vertr.Controls.OfType<ToolStrip>().First(t => t.Items.Count > 10);
+            var farbig = vl.Items.OfType<ToolStripButton>().First(i => i.Text == "Zu zählende farbig");
+            var war = farbig.Checked;
+            farbig.Checked = true;
+            Warten(400);
+            using (var b = Ausschnitt(vl))
+            {
+                b.Save(Path.Combine(ordner, "V49_Leiste_Vertretungen_F.png"));
+                var fb = farbig.Bounds;
+                var c = b.GetPixel(fb.X + 2, fb.Y + 3);
+                Pruefen(Math.Abs(c.R - 104) + Math.Abs(c.G - 174) + Math.Abs(c.B - 146) < 12, $"Eingedrückter Umschalter nicht in der Vorbildfarbe (104,174,146): {c}.");
+                var sep = vl.Items.OfType<ToolStripSeparator>().First(x => x.Visible && x.Bounds.Width > 0).Bounds;
+                var sc = b.GetPixel(sep.X + sep.Width / 2, vl.Height / 2);
+                Pruefen(sc.R == 213 && sc.G == 213 && sc.B == 213, $"Trennstrich nicht hellgrau (213,213,213): {sc}.");
+                log.Add($"MASS  V49 Vertretungen: Leiste {vl.Height} Pixel (Vorbild 25), Umschalter {c}, Trennstrich {sc}");
+            }
+            farbig.Checked = war;
+        }, -1);
         Schritt("V45_Krypton_Muster", () =>
         {
             // Entscheidungsgrundlage Bibliothek oder Eigenbau: Menüband und Tabelle als Krypton-Steuerelemente neben dem Vorbild.

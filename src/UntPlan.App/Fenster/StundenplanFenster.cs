@@ -123,6 +123,8 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         _auswahl.Font = Ui.DialogSchrift;
         _auswahl.FlatStyle = FlatStyle.Standard;
         Ui.KlassischeDarstellung(_auswahl.ComboBox);
+        // Vorbild (Bild 312, gemessen): Elementauswahl 18 Pixel hoch, Werkzeugleiste 25 Pixel
+        Steuerelemente.ListenSuche.FeldHoehe(_auswahl.ComboBox, 18);
         // Mausrad über der geschlossenen Elementauswahl blättert wie im Vorbild zum vorherigen/nächsten Element (je Rastung ein Plan)
         Steuerelemente.ListenSuche.MausradBlaettern(_auswahl.ComboBox, Blaettern);
         // Hoch/Runter neben der Elementauswahl und Planart-Symbol mit Auswahl (Klasse, Lehrer, Raum) wie im Vorbild
@@ -390,6 +392,9 @@ public sealed partial class StundenplanFenster : MdiFenster, IDruckbar
         Controls.Add(_detail);
         Controls.Add(_zeitZeile);
         Controls.Add(ts);
+        // kompakt wie im Vorbild (Bild 312, gemessen): Werkzeugleiste 25 Pixel hoch, Einträge senkrecht mittig
+        ts.AutoSize = false;
+        ts.Height = ts.LogicalToDeviceUnits(25);
         KleinAnwenden();
         if (klein) Size = new Size(KleineBreite(), KleineHoehe());
         ModusAnwenden();

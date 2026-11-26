@@ -690,6 +690,30 @@ public static class ListenSuche
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
 
+    private static readonly ConditionalWeakTable<ComboBox, StrongBox<int>> FeldHoehen = new();
+
+    /// <summary>
+    /// Kompaktes Auswahlfeld wie im Vorbild (Elementauswahl der Stundenpläne, Bild 312: 18 Pixel hoch): nur das Eingabefeld wird
+    /// niedriger, die Einträge der Liste behalten ihre Höhe. Bleibt erhalten, wenn die Suche das Feld später auf eigene Darstellung umstellt.
+    /// </summary>
+    public static void FeldHoehe(ComboBox cb, int logisch)
+    {
+        FeldHoehen.AddOrUpdate(cb, new StrongBox<int>(logisch));
+        void Anwenden()
+        {
+            if (cb.IsDisposed || !cb.IsHandleCreated || !FeldHoehen.TryGetValue(cb, out var h)) return;
+            var soll = cb.LogicalToDeviceUnits(h.Value);
+            if (cb.Height == soll) return;
+            // Feldhöhe = Höhe des Auswahlfelds (CB_SETITEMHEIGHT mit -1) + 6 Pixel Rahmen
+            try { SendMessage(cb.Handle, 0x0153 /* CB_SETITEMHEIGHT */, (IntPtr)(-1), (IntPtr)Math.Max(8, soll - 6)); }
+            catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { }
+        }
+        cb.HandleCreated += (_, _) => cb.BeginInvoke(Anwenden);
+        cb.SizeChanged += (_, _) => { if (cb.IsHandleCreated) cb.BeginInvoke(Anwenden); };
+        cb.FontChanged += (_, _) => { if (cb.IsHandleCreated) cb.BeginInvoke(Anwenden); };
+        if (cb.IsHandleCreated) cb.BeginInvoke(Anwenden);
+    }
+
     /// <summary>Treffer in der offenen Liste markieren, ohne den getippten Text oder die Auswahl zu ändern.</summary>
     private static void ListeMarkieren(ComboBox cb, int index)
     {
