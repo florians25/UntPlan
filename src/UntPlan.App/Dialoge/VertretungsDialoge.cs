@@ -585,7 +585,9 @@ public static class SondereinsatzAuswahl
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.MinimumSize = new Size(290, 300);
         f.Ok.Text = "Ok";
-        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
+        // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
+        f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
         var g = new DataGridView { Left = 0, Top = 0, Width = 275, Height = 278, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -669,7 +671,9 @@ public static class SondereinsatzAuswahl
         f.FormBorderStyle = FormBorderStyle.Sizable;
         f.MinimumSize = new Size(296, 300);
         f.Ok.Text = "Ok";
-        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
+        // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
+        f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
         f.Ok.Location = new Point(65, 318);
         f.Abbrechen.Location = new Point(147, 318);
         f.Controls.Add(new Label { Text = "Für welche Klasse soll die Klassenkonferenz angelegt werden?", Left = 3, Top = 13, Width = 272, Height = 34 });
@@ -740,7 +744,9 @@ public static class KlausurDialog
         f.MaximizeBox = true;
         f.MinimumSize = new Size(560, 330);
         f.Ok.Text = "Ok";
-        f.Ok.Size = f.Abbrechen.Size = new Size(74, 23);
+        f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
+        // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
+        f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
         f.Ok.Location = new Point(452, 329);
         f.Abbrechen.Location = new Point(533, 329);
         var name = new TextBox { Text = k.Name, Left = 11, Top = 12, Width = 271 };
