@@ -600,14 +600,17 @@ public sealed class Plandienst
             {
                 // Fachänderung wie in der Vorlage: die neue Stunde ist eine zusätzliche Unterrichtsstunde (Badge, Lehrkräfte als „+“,
                 // nur von Hand eingegebener Vertretungstext), daneben die ursprüngliche Stunde als Entfall
-                var alt = Fachwechsel(s, k, typ, kurz);
-                if (alt is not null) k = k with { Zusaetzlich = true, Lehrer = ZusatzLehrer(k.Lehrer.Where(w => w.K.Length > 0).Select(w => new Wert(w.K))), Text = ZusatzText(k.Text, k.Art) };
+                // Die neue Stunde ist in jedem Plan eine Zusatzstunde (Klassen-, Lehrer-, Raumplan und Tagesansichten) – auch dort, wo die
+                // ursprüngliche Stunde nicht stand (z. B. Raumplan des neuen Raums): nur die Entfallkarte hängt vom Element ab
+                var fachwechsel = IstFachwechsel(k);
+                var alt = fachwechsel ? Fachwechsel(s, k, typ, kurz) : null;
+                if (fachwechsel) k = k with { Zusaetzlich = true, Lehrer = ZusatzLehrer(k.Lehrer.Where(w => w.K.Length > 0).Select(w => new Wert(w.K))), Text = ZusatzText(k.Text, k.Art) };
                 // Ursprung einer Verlegung mit neuem Fach (in UntPlan im freien Platz das Fach geändert): verlegt ist die ursprüngliche
                 // Stunde (sie liegt am Ziel), die neue Stunde ist eine Zusatzstunde – Symbole „+“ und Änderung statt des Verlegungssymbols
-                if (alt is not null && k.Verlegung == "von")
+                if (fachwechsel && k.Verlegung == "von")
                     k = k with { VerlegungsZeile = false, VerlegungsSeite = null, VerlegungVon = null, VerlegungNach = null };
                 // Fach und Schülergruppe gehören zu einem anderen Unterricht der Klasse: zusätzliche Stunde dieses Unterrichts
-                if (alt is not null && r.Schuelergruppe.Length > 0 && UnterrichtZuGruppe(s, k.Fach, r.Schuelergruppe, k.Klassen.Select(w => w.K), k.Unterricht) is int anderer)
+                if (fachwechsel && r.Schuelergruppe.Length > 0 && UnterrichtZuGruppe(s, k.Fach, r.Schuelergruppe, k.Klassen.Select(w => w.K), k.Unterricht) is int anderer)
                     k = k with { Unterricht = anderer };
                 einzel.Add(k);
                 if (alt is not null) einzel.Add(alt);
@@ -1213,6 +1216,9 @@ public sealed class Plandienst
         return res.Where(w => !(w.Neu && w.K.Length > 0 && string.IsNullOrEmpty(w.Alt))).Concat(res.Where(w => w.Neu && w.K.Length > 0 && string.IsNullOrEmpty(w.Alt))).ToList();
     }
 
+    /// <summary>Vertretung mit anderem Fach (die Stunde findet mit neuem Fach statt): in jedem Plan eine neue, zusätzliche Stunde.</summary>
+    internal static bool IstFachwechsel(Karte k) => k.Status is "geaendert" or "offen" && !string.IsNullOrEmpty(k.FachAlt) && !Ci.Equals(k.FachAlt, k.Fach);
+
     /// <summary>
     /// Fachwechsel wie im Original: Eine Vertretung mit anderem Fach ist immer ein neuer, paralleler Block (grün, neues Fach mit dessen
     /// Fachfarbe, das bisherige Fach in <see cref="Karte.FachAlt"/> für die Details); daneben erscheint die ursprüngliche Stunde als Entfall
@@ -1221,7 +1227,7 @@ public sealed class Plandienst
     /// </summary>
     internal static Karte? Fachwechsel(Stand s, Karte k, string typ, string kurz)
     {
-        if (k.Status is not ("geaendert" or "offen") || string.IsNullOrEmpty(k.FachAlt) || Ci.Equals(k.FachAlt, k.Fach)) return null;
+        if (!IstFachwechsel(k)) return null;
         static List<Wert> Urspruenglich(IEnumerable<Wert> l) => l.Select(w => w.Alt is { Length: > 0 } a ? a : w.K).Where(x => x.Length > 0).Distinct(Ci).Select(x => new Wert(x)).ToList();
         var lehrer = Urspruenglich(k.Lehrer);
         var raeume = Urspruenglich(k.Raeume);
