@@ -84,8 +84,6 @@ public sealed class KalenderFenster : MdiFenster
         _woche.RowTemplate.Height = Ui.ZeilenHoehe();
         _woche.ColumnHeadersHeight = Ui.ZeilenHoehe();
         _woche.RowHeadersVisible = false;
-        // Vorbild (Bild 308): aktuelle Zelle dunkler beige, die erste Zelle der Zeile hell orange
-        Ui.ZeilenmarkeErsteSpalte(_woche);
         // Spalten wie im Vorbild (Kalender der Vertretungsplanung): Datum | Tag | Abw.Le. | Vertr. | Offen | PA-Vertr. | Offen (PA) | Abw.Kl. |
         // Freis. | Bl.Räume | Raum-V. | Offen (R) | Tagestexte | Koll. Le. | Koll. Rä. – die Zahlen zählen dieselben Zeilen wie die
         // Vertretungsliste (Kalenderkennzahlen), der Tooltip der Überschrift nennt die Bedeutung
@@ -119,7 +117,11 @@ public sealed class KalenderFenster : MdiFenster
             else if (e.ColumnIndex < 2 || !Kalender.IstUnterrichtstag(D, d)) e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Color.FromArgb(229, 239, 235);
             e.CellStyle.SelectionForeColor = e.CellStyle.ForeColor.IsEmpty ? Color.Black : e.CellStyle.ForeColor;
             if (e.ColumnIndex >= 2 && e.Value is int n && n > 0 && _woche.Columns[e.ColumnIndex].Name is "O" or "PO" or "RO" or "KL" or "KR") e.CellStyle.ForeColor = Color.Firebrick;
+            // Vorbild (Bild 308): die aktuelle Zelle (nicht Datum und Tag) dunkler beige
+            if (Ui.Vertretungsmodus && e.ColumnIndex >= 2 && _woche.CurrentCell is { } cc && cc.RowIndex == e.RowIndex && cc.ColumnIndex == e.ColumnIndex)
+                e.CellStyle.BackColor = e.CellStyle.SelectionBackColor = Ui.ZelleAktuell;
         };
+        _woche.CurrentCellChanged += (_, _) => _woche.Invalidate();
 
         // Tagestexte direkt in der Tabelle (unten immer eine leere Zeile) wie im Vorbild: Art | Elemente | Gültig bis | Tagestext […] | UntPlanWeb;
         // „…“ in der Textzelle öffnet den Dialog für formatierte Tagestexte (Fett, Kursiv, Unterstrichen, Farbe)

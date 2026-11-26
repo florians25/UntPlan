@@ -209,6 +209,13 @@ public static class Auswahlbreite
                 // Auswahlspalten wie im Vorbild ohne Pfeil/Hover-Hervorhebung – die Liste erscheint erst beim Bearbeiten
                 foreach (var spalte in g.Columns.OfType<DataGridViewComboBoxColumn>()) OhneHover(spalte);
                 g.ColumnAdded += (_, e) => { if (e.Column is DataGridViewComboBoxColumn cc) OhneHover(cc); };
+                // Vorbild (Bilder 308, 350): die aktuelle Zelle einer Auswahlspalte zeigt im Vertretungsmodus den Aufklappknopf
+                g.CellPainting += (_, e) =>
+                {
+                    if (!Ui.Vertretungsmodus || e.Handled || e.RowIndex < 0 || e.ColumnIndex < 0 || g.IsCurrentCellInEditMode || g.ReadOnly) return;
+                    if (g.CurrentCell is not { } c || c.RowIndex != e.RowIndex || c.ColumnIndex != e.ColumnIndex) return;
+                    if (g.Columns[e.ColumnIndex] is DataGridViewComboBoxColumn { ReadOnly: false } && !c.ReadOnly) MehrfachAuswahl.PfeilZeichnen(e);
+                };
                 // Kopieren nur als reiner Text (sichtbare Zellen, ohne HTML/CSV-Formate)
                 NurText.Tabelle(g);
                 // einheitliches Eingabeverhalten (Enter/Esc/F2/Entf/Strg+V/Strg+X, ungültige Eingaben) in allen Tabellen
