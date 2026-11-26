@@ -9,11 +9,11 @@ namespace UntPlan.App.Steuerelemente;
 public sealed class Fussleiste : Panel
 {
     /// <summary>Höhe der Leiste (Auswahl mit Abstand oben und unten).</summary>
-    public const int Hoehe = 34;
+    public const int Hoehe = 36;
     /// <summary>Breite des freien Bereichs für den Größengriff rechts.</summary>
     public const int GriffBreite = 18;
     /// <summary>Abstand der Auswahl zum unteren Rand.</summary>
-    public const int AbstandUnten = 6;
+    public const int AbstandUnten = 7;
 
     private Control? _rechts;
     private static readonly Font LesbareSchrift = new("Segoe UI", 9.5f);

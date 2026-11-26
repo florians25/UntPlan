@@ -33,12 +33,17 @@ public class Dialog : Form
     {
         base.OnLoad(e);
         Ui.SucheAktivieren(this);
+        // Tabellen in Dialogen wie im Vorbild (Bilder 348, 349: Sondereinsätze, Auswahl) mit blauen Rasterlinien
+        foreach (var g in Ui.Tabellen(this)) g.GridColor = DialogRaster;
     }
+
+    /// <summary>Rasterlinien der Tabellen in Dialogen (Vorbild: 111,172,255).</summary>
+    public static readonly Color DialogRaster = Color.FromArgb(111, 172, 255);
 
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        Ui.TitelleisteFaerben(this, false);
+        Ui.DialogTitelleiste(this);
     }
 }
 

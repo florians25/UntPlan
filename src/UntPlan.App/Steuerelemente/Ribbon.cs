@@ -180,17 +180,20 @@ public sealed partial class Ribbon : Control
 
     private void Layout2(Graphics g)
     {
-        var x = 4;
-        _dateiBounds = new Rectangle(x, TabHoehe - KartenHoehe, (int)g.MeasureString("Datei", TabSchrift).Width + 22, KartenHoehe);
-        x = _dateiBounds.Right + 2;
+        // Registerkarten wie im Vorbild (Bild 308 vermessen): „Datei“ mittig bei 29, jede Karte Textbreite (GDI) + 31 Pixel,
+        // Kartenmitten im Abstand halbe Textbreiten + 29,3 Pixel („Start“ mittig bei 89, „Vertretungsplanung“ 560 bis 694)
+        static int Breite(Graphics g, string t) => TextRenderer.MeasureText(g, t, TabSchrift, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix).Width;
+        _dateiBounds = new Rectangle(5, TabHoehe - KartenHoehe, 50, KartenHoehe);
         if (!(Seiten.ElementAtOrDefault(AktiveSeite)?.IstSichtbar ?? false))
             AktiveSeite = Math.Max(0, Seiten.FindIndex(x => x.IstSichtbar));
+        double? xd = null;
         foreach (var s in Seiten)
         {
             if (!s.IstSichtbar) { s.TabBounds = Rectangle.Empty; continue; }
-            var w = (int)g.MeasureString(s.Text, TabSchrift).Width + 24;
-            s.TabBounds = new Rectangle(x, TabHoehe - KartenHoehe, w, KartenHoehe);
-            x += w + 1;
+            var w = Breite(g, s.Text) + 31;
+            xd ??= 89.5 - w / 2.0;
+            s.TabBounds = new Rectangle((int)Math.Round(xd.Value), TabHoehe - KartenHoehe, w, KartenHoehe);
+            xd += w - 1.7;
         }
         var seite = Seiten.ElementAtOrDefault(AktiveSeite);
         if (seite is null) return;

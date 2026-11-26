@@ -68,6 +68,10 @@ public static class Symbole
         ["statistik"] = "chart_bar",
         // Menüband „Vertretungsplanung“ wie im Vorbild (Bild 308)
         ["vertretungsmodus"] = "user_go",
+        // Aufklapplisten der Tabellenzellen wie im Vorbild (Bilder 348, 351, 352): Lehrkraft, Klasse, Raum
+        ["liste_lehrer"] = "user_student",
+        ["liste_klasse"] = "group",
+        ["liste_raum"] = "door",
         ["planungsdialog"] = "group_gear",
         ["vertretungsformate"] = "document_copies",
         ["infostundenplan"] = "building",

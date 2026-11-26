@@ -1,3 +1,5 @@
+using UntPlan.Core.Model;
+
 namespace UntPlan.App.Steuerelemente;
 
 /// <summary>
@@ -7,34 +9,56 @@ namespace UntPlan.App.Steuerelemente;
 /// </summary>
 public static class MehrfachAuswahl
 {
-    public sealed record Eintrag(string Kurz, string Lang);
+    public sealed record Eintrag(string Kurz, string Lang, Image? Symbol = null);
+
+    /// <summary>Symbol der Einträge einer Elementart wie im Vorbild (Lehrkraft mit Doktorhut, Klasse als Gruppe, Raum als Tür).</summary>
+    public static Image? Symbol(ElementTyp typ) => typ switch
+    {
+        ElementTyp.Lehrer => Symbole.Get("liste_lehrer", 16),
+        ElementTyp.Klasse => Symbole.Get("liste_klasse", 16),
+        ElementTyp.Raum => Symbole.Get("liste_raum", 16),
+        _ => null,
+    };
+
+    /// <summary>Schrift der Aufklappliste wie im Vorbild (Bilder 348, 351, 352: Segoe UI 8,25, Zeilen 16 Pixel).</summary>
+    private static readonly Font ListenSchrift = new("Segoe UI", 8.25f);
+    private const int ZeilenHoehe = 16;
+    /// <summary>Vorbild: bis zu 21 Einträge sichtbar.</summary>
+    private const int SichtbareZeilen = 21;
 
     /// <summary>Liste unter der Zelle zeigen; <paramref name="fertig"/> erhält die gewählten Kurznamen (in Listenreihenfolge).</summary>
     public static void Zeigen(DataGridView g, int zeile, int spalte, IReadOnlyList<Eintrag> eintraege, IEnumerable<string> gewaehlt, bool mehrfach, Action<List<string>> fertig)
     {
         var liste = new ListBox
         {
-            SelectionMode = mehrfach ? SelectionMode.MultiExtended : SelectionMode.One, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 17,
-            BorderStyle = BorderStyle.None, Font = Ui.ListenSchrift, IntegralHeight = false,
+            SelectionMode = mehrfach ? SelectionMode.MultiExtended : SelectionMode.One, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = ZeilenHoehe,
+            BorderStyle = BorderStyle.None, Font = ListenSchrift, IntegralHeight = false, BackColor = Color.White,
         };
         foreach (var e in eintraege) liste.Items.Add(e);
         var vorher = gewaehlt.Select(x => x.Trim()).Where(x => x.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < eintraege.Count; i++)
             if (vorher.Contains(eintraege[i].Kurz)) liste.SetSelected(i, true);
-        var breiteKurz = Math.Max(48, eintraege.Select(e => TextRenderer.MeasureText(e.Kurz, Ui.ListenSchrift).Width).DefaultIfEmpty(40).Max() + 10);
-        var breiteLang = eintraege.Select(e => TextRenderer.MeasureText(e.Lang, Ui.ListenSchrift).Width).DefaultIfEmpty(60).Max() + 12;
+        // Vorbild: Symbol 6 Pixel vom Rand, Kurzname 24 Pixel nach dem Symbolanfang, Langname 48 Pixel nach dem Kurznamen
+        var mitSymbol = eintraege.Any(e => e.Symbol != null);
+        var einzug = mitSymbol ? 30 : 4;
+        var breiteKurz = Math.Max(48, eintraege.Select(e => TextRenderer.MeasureText(e.Kurz, ListenSchrift).Width).DefaultIfEmpty(40).Max() + 8);
+        var breiteLang = eintraege.Select(e => TextRenderer.MeasureText(e.Lang, ListenSchrift).Width).DefaultIfEmpty(60).Max() + 12;
         liste.DrawItem += (_, e) =>
         {
             if (e.Index < 0) return;
             var x = (Eintrag)liste.Items[e.Index];
             var sel = (e.State & DrawItemState.Selected) != 0;
-            using (var br = new SolidBrush(sel ? Color.FromArgb(0, 90, 220) : e.Index % 2 == 0 ? Color.White : Color.FromArgb(246, 250, 246))) e.Graphics.FillRectangle(br, e.Bounds);
-            var farbe = sel ? Color.White : Color.Black;
-            Ui.ListenText(e.Graphics, x.Kurz, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
-            Ui.ListenText(e.Graphics, x.Lang, Ui.ListenSchrift, new Rectangle(e.Bounds.X + 4 + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - 4, e.Bounds.Height), farbe);
+            // weiße Liste wie im Vorbild; gewählte Einträge in der hellen Auswahlfarbe, der aktuelle Eintrag mit dünnem Rahmen
+            using (var br = new SolidBrush(sel ? Ui.AuswahlVertretung : Color.White)) e.Graphics.FillRectangle(br, e.Bounds);
+            if (x.Symbol is { } sym) e.Graphics.DrawImage(sym, new Rectangle(e.Bounds.X + 6, e.Bounds.Y + (e.Bounds.Height - 16) / 2, 16, 16));
+            var farbe = Color.Black;
+            Ui.ListenText(e.Graphics, x.Kurz, ListenSchrift, new Rectangle(e.Bounds.X + einzug, e.Bounds.Y, breiteKurz, e.Bounds.Height), farbe, false);
+            Ui.ListenText(e.Graphics, x.Lang, ListenSchrift, new Rectangle(e.Bounds.X + einzug + breiteKurz, e.Bounds.Y, e.Bounds.Width - breiteKurz - einzug, e.Bounds.Height), farbe);
+            if ((e.State & DrawItemState.Focus) != 0)
+                using (var p = new Pen(Color.FromArgb(120, 120, 120))) e.Graphics.DrawRectangle(p, e.Bounds.X, e.Bounds.Y, e.Bounds.Width - 1, e.Bounds.Height - 1);
         };
-        var breite = Math.Min(420, Math.Max(Math.Max(g.Columns[spalte].Width, mehrfach ? 230 : 0), breiteKurz + breiteLang + 24));
-        var hoehe = Math.Min(18 * 17 + 4, Math.Max(3, eintraege.Count) * 17 + 4);
+        var breite = Math.Min(420, Math.Max(Math.Max(g.Columns[spalte].Width, mehrfach ? 230 : 0), einzug + breiteKurz + breiteLang + SystemInformation.VerticalScrollBarWidth + 2));
+        var hoehe = Math.Min(SichtbareZeilen * ZeilenHoehe + 2, Math.Max(3, eintraege.Count) * ZeilenHoehe + 2);
         // Mehrfachauswahl: oben „Alle“, „Keine“, „Umkehren“ und „Übernehmen“ (schnell alle Klassen/Lehrkräfte/Räume wählen)
         Control inhalt = liste;
         if (mehrfach)
@@ -67,6 +91,7 @@ public static class MehrfachAuswahl
         host.Size = new Size(breite, hoehe);
         var dd = new ToolStripDropDown { Padding = Padding.Empty, AutoClose = true, DropShadowEnabled = true };
         dd.Items.Add(host);
+        _offenesFenster = dd;
         var uebernommen = false;
         void Uebernehmen()
         {
@@ -101,6 +126,16 @@ public static class MehrfachAuswahl
     }
 
     private const int LeistenHoehe = 22;
+    private static ToolStripDropDown? _offenesFenster;
+
+    /// <summary>Selbsttest: geöffnete Liste ohne Übernahme schließen.</summary>
+    internal static void SelbsttestSchliessen()
+    {
+        _uebernehmen = null;
+        Offen = null;
+        if (_offenesFenster is { IsDisposed: false } d) d.Close(ToolStripDropDownCloseReason.CloseCalled);
+        _offenesFenster = null;
+    }
     private static Action? _uebernehmen;
 
     /// <summary>Geöffnete Auswahlliste (Selbsttest), null wenn keine offen ist.</summary>
@@ -122,19 +157,38 @@ public static class MehrfachAuswahl
         liste.EndUpdate();
     }
 
-    /// <summary>Kleines Aufklappdreieck rechts in einer Zelle zeichnen (aktuelle Zelle).</summary>
+    /// <summary>
+    /// Aufklappknopf rechts in der aktuellen Zelle wie im Vorbild (Bild 350 vermessen): 17 Pixel breit, 1 Pixel unter und über den
+    /// Rasterlinien, fast weiß mit hellgrauem Rand (unten etwas dunkler), darin ein dünner grauer Winkel 8 × 4 Pixel.
+    /// </summary>
     public static void PfeilZeichnen(DataGridViewCellPaintingEventArgs e)
     {
         if (e.Graphics is null) return;
         e.Paint(e.CellBounds, DataGridViewPaintParts.All);
         var b = e.CellBounds;
-        var r = new Rectangle(b.Right - 15, b.Top + 2, 13, b.Height - 5);
-        ControlPaint.DrawBorder(e.Graphics, r, Color.FromArgb(170, 170, 170), ButtonBorderStyle.Solid);
-        var m = new Point(r.Left + r.Width / 2, r.Top + r.Height / 2 + 1);
-        e.Graphics.FillPolygon(Brushes.Black, new[] { new Point(m.X - 3, m.Y - 2), new Point(m.X + 4, m.Y - 2), new Point(m.X, m.Y + 2) });
+        var r = new Rectangle(b.Right - 19, b.Top + 1, 17, b.Height - 3);
+        var g = e.Graphics;
+        using (var f = new SolidBrush(Color.FromArgb(253, 253, 253))) g.FillRectangle(f, r);
+        using (var rand = new Pen(Color.FromArgb(210, 210, 210)))
+        {
+            g.DrawLine(rand, r.Left + 1, r.Top, r.Right - 2, r.Top);
+            g.DrawLine(rand, r.Left, r.Top + 1, r.Left, r.Bottom - 2);
+            g.DrawLine(rand, r.Right - 1, r.Top + 1, r.Right - 1, r.Bottom - 2);
+        }
+        using (var unten = new Pen(Color.FromArgb(188, 188, 188))) g.DrawLine(unten, r.Left + 1, r.Bottom - 1, r.Right - 2, r.Bottom - 1);
+        using var dunkel = new SolidBrush(Color.FromArgb(110, 110, 110));
+        using var weich = new SolidBrush(Color.FromArgb(204, 204, 204));
+        var x0 = r.Left + 4;
+        var y0 = r.Top + (r.Height - 4) / 2;
+        for (var k = 0; k < 4; k++)
+        {
+            g.FillRectangle(dunkel, x0 + k, y0 + k, 1, 1);
+            g.FillRectangle(dunkel, x0 + 7 - k, y0 + k, 1, 1);
+            if (k < 3) { g.FillRectangle(weich, x0 + k + 1, y0 + k, 1, 1); g.FillRectangle(weich, x0 + 6 - k, y0 + k, 1, 1); }
+        }
         e.Handled = true;
     }
 
     /// <summary>Liegt der Mauspunkt (Zellkoordinaten) auf dem Aufklappdreieck?</summary>
-    public static bool AufPfeil(DataGridView g, DataGridViewCellMouseEventArgs e) => e.X >= g.Columns[e.ColumnIndex].Width - 16;
+    public static bool AufPfeil(DataGridView g, DataGridViewCellMouseEventArgs e) => e.X >= g.Columns[e.ColumnIndex].Width - 19;
 }

@@ -1426,11 +1426,33 @@ public sealed partial class HauptFenster
                 Pruefen(ReferenceEquals(ToolStripManager.Renderer, zeichner), "Krypton hat den globalen Zeichner der Menüs ersetzt.");
                 var seite = Andockleiste.Seite("ElementRollup")!;
                 log.Add($"MASS  V50: angedockt {seite.RectangleToScreen(seite.ClientRectangle)}, Arbeitsbereich {mdi.Bounds} (vorher {mdiVorher})");
+                Pruefen(AppZustand.Einstellungen.RollupAngedockt == "Leiste:Right", "Andockart nicht gemerkt: " + AppZustand.Einstellungen.RollupAngedockt);
                 Foto(Path.Combine(ordner, "V50_Andockleiste_F.png"));
+                // Kopf der angedockten Zelle in der Titelfarbe der Arbeitsfenster (nicht Kryptons Grau bzw. Gelb)
+                Control zelle = seite;
+                while (zelle.Parent != null && zelle is not Krypton.Navigator.KryptonNavigator) zelle = zelle.Parent;
+                using (var bild = new Bitmap(zelle.Width, 30))
+                {
+                    var oben = zelle.RectangleToScreen(new Rectangle(0, 0, zelle.Width, 30));
+                    using (var g = Graphics.FromImage(bild)) g.CopyFromScreen(oben.Location, Point.Empty, oben.Size);
+                    bool Titelfarbe(Color c) => new[] { Steuerelemente.FensterTitel.Farbe(true), Steuerelemente.FensterTitel.Farbe(false) }
+                        .Any(t => Math.Abs(c.R - t.R) + Math.Abs(c.G - t.G) + Math.Abs(c.B - t.B) <= 6);
+                    var treffer = Enumerable.Range(0, 30).Count(y => Titelfarbe(bild.GetPixel(Math.Min(bild.Width - 1, 60), y)));
+                    Pruefen(treffer >= 12, $"Kopf der Andockleiste nicht in der Titelfarbe ({treffer} Pixel, Mitte {bild.GetPixel(Math.Min(bild.Width - 1, 60), 10)}).");
+                }
+                AppZustand.Einstellungen.RollupSchwebend = "";
                 Andockleiste.Schweben("ElementRollup");
                 Warten(700);
                 lage = Andockleiste.Lage("ElementRollup");
                 Pruefen(lage.Contains("Floating"), "Rollup schwebt nicht: " + lage);
+                Pruefen(AppZustand.Einstellungen.RollupAngedockt == "Leiste:Schwebend", "Schweben nicht gemerkt: " + AppZustand.Einstellungen.RollupAngedockt);
+                var schwebend = Application.OpenForms.OfType<Krypton.Docking.KryptonFloatingWindow>().FirstOrDefault(f => f.Visible);
+                Pruefen(schwebend != null, "Schwebendes Fenster der Andockleiste fehlt.");
+                var mitte = new Point(schwebend!.Left + schwebend.Width / 2, schwebend.Top + schwebend.Height / 2);
+                var hauptMitte = new Point(Left + Width / 2, Top + Height / 2);
+                log.Add($"MASS  V50b: schwebend {schwebend.Bounds} „{schwebend.Text}“, Mitte Hauptfenster {hauptMitte}");
+                Pruefen(Math.Abs(mitte.X - hauptMitte.X) <= 60 && Math.Abs(mitte.Y - hauptMitte.Y) <= 60, $"Schwebendes Rollup nicht mittig über dem Hauptfenster: {schwebend.Bounds}.");
+                Pruefen(schwebend.Text == "Element-Rollup", "Titel des schwebenden Fensters: " + schwebend.Text);
                 Pruefen(mdi.Bounds == mdiVorher, $"Arbeitsbereich nach dem Schweben nicht wieder voll: {mdi.Bounds}.");
                 Foto(Path.Combine(ordner, "V50b_Andockleiste_schwebend_F.png"));
                 ElementRollup.AndockleisteKante(DockStyle.None);
@@ -1452,6 +1474,185 @@ public sealed partial class HauptFenster
                 if (ElementRollup.Kante != DockStyle.None) ElementRollup.KanteSetzen(DockStyle.None);
                 foreach (var r in Application.OpenForms.OfType<ElementRollup>().ToList()) r.Close();
                 AppZustand.Einstellungen.RollupAngedockt = "";
+                WindowState = vorher;
+            }
+        }, -1);
+        Schritt("V51_Vorbild308", () =>
+        {
+            // Gesamtbild wie Bild 308 des Vorbilds (1:1 vermessen): Montag, 30.08.2021 (Schuljahr 2021/2022), eine Entfallstunde in der
+            // 1. Stunde, Kalender und Absenzen links, Vertretungen aktiv in der Mitte, drei kleine Pläne (Klasse, Lehrkraft, Raum) darunter,
+            // Vertretungsvorschlag rechts; Fensterlagen in Pixeln des Arbeitsbereichs wie im Vorbild
+            var sicherung = Dokument.Klonen(AppZustand.D);
+            var datumVorher = AppZustand.Datum;
+            var vorherZustand = WindowState;
+            var detailVorher = AppZustand.Einstellungen.KalenderDetailOffen;
+            var assistentVorher = _assistent.Visible;
+            try
+            {
+                ModusFuerBild(true);
+                WindowState = FormWindowState.Maximized;
+                Warten(400);
+                if (_assistent.Visible) { _assistent.Visible = false; _assistentSplitter.Visible = false; }
+                var vorbildTag = new DateOnly(2021, 8, 30);
+                Vertretung? entfall = null;
+                AppZustand.Doc.Aendern("Vorbild 308", AenderungsArt.Alles, x =>
+                {
+                    var altVon = x.Einstellungen.SchuljahrVon;
+                    x.Einstellungen.SchuljahrVon = new DateOnly(2021, 8, 18);
+                    x.Einstellungen.SchuljahrBis = new DateOnly(2022, 6, 24);
+                    foreach (var p in x.Perioden.Where(p => p.Von <= altVon)) p.Von = x.Einstellungen.SchuljahrVon;
+                    Nrw.FerienEintragen(x);
+                    var tp = Core.Vertretungsplanung.Tagesplan.Berechnen(x, vorbildTag);
+                    // wie im Vorbild: Entfall der 1. Stunde einer höheren Klasse (dort 10A), ohne Absenz
+                    var e1 = x.Klassen.AsEnumerable().Reverse().SelectMany(k => tp.VonKlasse(k.Id))
+                        .First(e => e.Stunde == 1 && e.Status == Core.Vertretungsplanung.TagesStatus.Regulaer && e.Unterricht is { } && e.KlassenIds.Count == 1 && e.LehrerIds.Count == 1);
+                    Core.Vertretungsplanung.Vertretungen.Entfallen(x, e1.Unterricht!.Id, null, vorbildTag, 1);
+                });
+                AppZustand.DatumSetzen(vorbildTag);
+                entfall = AppZustand.D.Vertretungen.FirstOrDefault(v => v.Datum == vorbildTag) ?? throw new InvalidOperationException("Vorbild 308: keine Entfallstunde entstanden");
+                AppZustand.VertretungWaehlen(entfall);
+                AppZustand.Einstellungen.KalenderDetailOffen = false;
+                var dd = AppZustand.D;
+                var tp2 = Core.Vertretungsplanung.Tagesplan.Berechnen(dd, vorbildTag);
+                var klasse = dd.Klassen.FirstOrDefault(k => k.Kurzname == "7a") ?? dd.Klassen.First();
+                var lehrer = dd.Lehrer.Where(l => l.Id != entfall.LehrerId).OrderByDescending(l => tp2.VonLehrer(l.Id).Count()).First();
+                var raum = dd.Raeume.OrderByDescending(r => tp2.Eintraege.Count(e => e.Findetstatt && e.RaumIds.Contains(r.Id))).First();
+                Form Lage(Form f, Rectangle r) { f.WindowState = FormWindowState.Normal; f.Bounds = r; return f; }
+                MdiFenster.SelbsttestOhneKlemmen = true;
+                // Vorbild (Bildschirmpixel minus Ursprung des Arbeitsbereichs 2/155)
+                Lage(FensterOeffnen("kal")!, new Rectangle(0, 8, 500, 300));
+                Lage(FensterOeffnen("abw")!, new Rectangle(0, 308, 500, 400));
+                // die drei Pläne zeigen wie im Vorbild eigene Elemente (sie folgen der gewählten Entfallstunde nicht)
+                // gemessen: Klassenplan 309 breit ab 500/408, Lehrerplan 287 ab 807/406, Raumplan 362 ab 1094/403 (die beiden ersten reichen unter
+                // den Arbeitsbereich, daher Rollbalken wie im Vorbild)
+                foreach (var (typ, id, x, y, w, h) in new[] { (ElementTyp.Klasse, klasse.Id, 500, 408, 309, 590), (ElementTyp.Lehrer, lehrer.Id, 807, 406, 287, 590), (ElementTyp.Raum, raum.Id, 1094, 403, 362, 560) })
+                {
+                    var plan = StundenplanFenster.Neu(typ, id, false, true);
+                    plan.Verknuepft = false;
+                    Lage(plan, new Rectangle(x, y, w, h));
+                }
+                Lage(FensterOeffnen("vorschlag")!, new Rectangle(1455, 7, 444, 769));
+                var vertr = Lage(FensterOeffnen("vertr")!, new Rectangle(500, 8, 950, 400));
+                vertr.Activate();
+                Warten(500);
+                AppZustand.VertretungWaehlen(entfall);
+                Steuerelemente.Auswahlbreite.AlleErfassen();
+                Warten(900);
+                var mdi = Controls.OfType<MdiClient>().First();
+                log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
+                foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
+                Foto(Path.Combine(ordner, "V51_Vorbild308_F.png"));
+                // Messwerte zur Abstimmung auf das Vorbild: Registerkarten (Lage, Textbreite GDI) und Gruppen des Menübands
+                var tabSchrift = new Font("Segoe UI", 9f);
+                log.Add("MASS  V51 Register: " + string.Join(" | ", _ribbon.Seiten.Where(x => x.IstSichtbar).Select(x =>
+                    $"{x.Text} {x.TabBounds.X}+{x.TabBounds.Width} t{TextRenderer.MeasureText(x.Text, tabSchrift, Size.Empty, TextFormatFlags.NoPadding).Width}")));
+                if (_ribbon.Seiten.ElementAtOrDefault(_ribbon.AktiveSeite) is { } aktiveSeite)
+                    log.Add("MASS  V51 Gruppen: " + string.Join(" | ", aktiveSeite.Gruppen.Select(gr => $"{gr.Text} {gr.Bounds.X}-{gr.Bounds.Right}: " +
+                        string.Join(",", gr.Eintraege.Select(e => $"{e.Text}@{e.Bounds.X}+{e.Bounds.Width}")))));
+            }
+            finally
+            {
+                AlleSchliessen();
+                MdiFenster.SelbsttestOhneKlemmen = false;
+                AppZustand.Einstellungen.KalenderDetailOffen = detailVorher;
+                if (assistentVorher) { _assistent.Visible = true; _assistentSplitter.Visible = true; }
+                AppZustand.Setzen(new Dokument(Dokument.Klonen(sicherung)), false);
+                AppZustand.DatumSetzen(datumVorher);
+                WindowState = vorherZustand;
+            }
+        }, -1);
+        Schritt("V52_Aufklapplisten", () =>
+        {
+            // Vorbild-Bilder 348 bis 352: Veranstaltungen mit Aufklappknopf in der aktuellen Zelle und den Aufklapplisten Lehrer und Klasse,
+            // Sondereinsätze mit offener Lehrerliste und der Dialog „Auswahl“ (Klassen)
+            ModusFuerBild(true);
+            var vorher = WindowState;
+            WindowState = FormWindowState.Maximized;
+            Warten(400);
+            try
+            {
+                var va = (VeranstaltungenFenster)FensterOeffnen("veranst")!;
+                va.WindowState = FormWindowState.Normal;
+                va.Bounds = new Rectangle(131, 45, 988, 416);
+                va.Activate();
+                va.SelbsttestNeueZeile();
+                Warten(500);
+                Foto(Path.Combine(ordner, "V52a_Veranstaltungen_F.png"));
+                foreach (var (spalte, bild) in new[] { ("L", "V52b_Liste_Lehrer_F.png"), ("K", "V52c_Liste_Klasse_F.png") })
+                {
+                    va.SelbsttestAuswahlZeigen(spalte);
+                    Warten(500);
+                    Pruefen(Steuerelemente.MehrfachAuswahl.Offen is { Visible: true }, $"Aufklappliste der Spalte {spalte} nicht offen.");
+                    var l = Steuerelemente.MehrfachAuswahl.Offen!;
+                    log.Add($"MASS  V52 Liste {spalte}: {l.RectangleToScreen(l.ClientRectangle)}, Zeile {l.ItemHeight}, Schrift {l.Font.Name} {l.Font.SizeInPoints}");
+                    Pruefen(l.ItemHeight == 16, "Zeilenhöhe der Aufklappliste nicht 16 Pixel wie im Vorbild.");
+                    Foto(Path.Combine(ordner, bild));
+                    Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                    Warten(200);
+                }
+                va.Close();
+                // Sondereinsätze (modal): Lehrerliste in der leeren Zeile öffnen, danach „Klassen“ (Dialog „Auswahl“)
+                var stufe = 0;
+                var fehler = "";
+                var t = new System.Windows.Forms.Timer { Interval = 600 };
+                t.Tick += (_, _) =>
+                {
+                    var f = Application.OpenForms.Cast<Form>().LastOrDefault(x => x.Visible && x.Text == "Sondereinsätze");
+                    if (f is null) { if (++stufe > 20) t.Stop(); return; }
+                    try
+                    {
+                        var g = Ui.Tabellen(f).First();
+                        switch (stufe++)
+                        {
+                            case 0:
+                                f.Location = new Point(Math.Max(0, Left + 330), Top + 290);
+                                g.Focus();
+                                g.CurrentCell = g.Rows[g.Rows.Count - 1].Cells["L"];
+                                // Klick auf den Aufklappknopf der Zelle (wie mit der Maus)
+                                var zr = g.GetCellDisplayRectangle(g.CurrentCell.ColumnIndex, g.CurrentCell.RowIndex, false);
+                                var lp = (IntPtr)(((zr.Top + zr.Height / 2) << 16) | ((zr.Right - 8) & 0xFFFF));
+                                R3BPostMessage(g.Handle, 0x201, (IntPtr)1, lp);
+                                R3BPostMessage(g.Handle, 0x202, IntPtr.Zero, lp);
+                                break;
+                            case 1:
+                                Foto(Path.Combine(ordner, "V52d_Sondereinsaetze_Lehrer_F.png"));
+                                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
+                                break;
+                            case 2:
+                                var t2 = new System.Windows.Forms.Timer { Interval = 700 };
+                                t2.Tick += (_, _) =>
+                                {
+                                    t2.Stop();
+                                    var a = Application.OpenForms.Cast<Form>().LastOrDefault(x => x.Visible && x.Text == "Auswahl");
+                                    if (a is null) { fehler = "Dialog „Auswahl“ nicht geöffnet."; return; }
+                                    a.Location = new Point(f.Left + 293, f.Top - 70);
+                                    Warten(300);
+                                    Foto(Path.Combine(ordner, "V52e_Auswahl_F.png"));
+                                    a.DialogResult = DialogResult.Cancel;
+                                    a.Close();
+                                };
+                                t2.Start();
+                                f.Controls.OfType<Button>().First(b => b.Text == "Klassen").PerformClick();
+                                t2.Dispose();
+                                break;
+                            default:
+                                t.Stop();
+                                f.DialogResult = DialogResult.Cancel;
+                                f.Close();
+                                break;
+                        }
+                    }
+                    catch (Exception ex) { fehler = ex.Message; t.Stop(); f.Close(); }
+                };
+                t.Start();
+                SondereinsatzDialog.Neu(this, AppZustand.Datum, 1, Array.Empty<int>(), Array.Empty<int>());
+                t.Stop();
+                t.Dispose();
+                Pruefen(fehler.Length == 0, "Sondereinsätze: " + fehler);
+            }
+            finally
+            {
+                Steuerelemente.MehrfachAuswahl.SelbsttestSchliessen();
                 WindowState = vorher;
             }
         }, -1);

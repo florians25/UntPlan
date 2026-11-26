@@ -123,7 +123,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         {
             // Breiten der vorderen Spalten wie im Original-Bildschirmfoto (100 %): Name 75 | Stundenplan 160 | Merker zur Stunde 82 |
             // Vertr. 40 | Entfall 40 | Zähler – zu lange Überschriften werden abgeschnitten („Merker zur Stu“)
-            ("Name", "Name", 75), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 82), ("Vertr", "Vertr.", 40),
+            ("Name", "Name", 76), ("S1", "Stundenplan", StandardPlanBreite), ("Merker", "Merker zur Stunde", 82), ("Vertr", "Vertr.", 40),
             ("Entf", "Entfall", 40), ("Zaehler", "Zähler", 52), ("ZW", "Zeitwünsche zum Element", 150), ("Jahr", "Jahres-Zähler", 52), ("Kennz", "Kennzeichen", 42),
             ("RegB", "reg. Ber.", 46), ("DepB", "Dep. Ber.", 46), ("Dep", "Dep.", 58), ("Fach", "Fach", 46), ("Klasse", "Klasse", 60), ("StdTag", "Unt./Tag", 50),
             ("Woche", "Woche", 46), ("Monat", "Monat", 46), ("Vorwoche", "Vorwoche", 80), ("Statistik", "Statistik", 52), ("Sperr", "Sperrvermerk", 70),
@@ -404,7 +404,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.CurrentCellChanged += (_, _) => g.Invalidate(new Rectangle(0, 0, g.Width, g.ColumnHeadersHeight));
         g.AllowUserToResizeColumns = true;
         g.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
-        g.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+        g.DefaultCellStyle.SelectionBackColor = Ui.ZelleAktuellVorschlag;
         g.DefaultCellStyle.SelectionForeColor = Color.Black;
         g.ShowCellToolTips = true;
         g.CellPainting += ZelleZeichnen;
@@ -417,7 +417,7 @@ public sealed class VertretungsvorschlagFenster : MdiFenster
         g.CellFormatting += (_, e) =>
         {
             // Vorbild: nur die aktuelle Zelle ist orange hinterlegt (auch nach einem Moduswechsel der Tabellenfarben)
-            if (e.CellStyle != null) e.CellStyle.SelectionBackColor = Ui.ZelleAktivVertretung;
+            if (e.CellStyle != null) e.CellStyle.SelectionBackColor = Ui.ZelleAktuellVorschlag;
         };
     }
 

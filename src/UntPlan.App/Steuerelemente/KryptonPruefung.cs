@@ -17,7 +17,7 @@ public static class KryptonPruefung
     {
         if (_manager != null) return;
         var eigener = ToolStripManager.Renderer;
-        _manager = new KryptonManager { GlobalApplyToolstrips = false };
+        _manager = new KryptonManager { GlobalApplyToolstrips = false, ShowAdministratorSuffix = false };
         // falls Krypton beim Laden dennoch umgestellt hat: eigene Darstellung zurück
         if (!ReferenceEquals(ToolStripManager.Renderer, eigener)) ToolStripManager.Renderer = eigener;
     }

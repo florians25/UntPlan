@@ -7,7 +7,7 @@ using UntPlan.Core.Vertretungsplanung;
 namespace UntPlan.App.Fenster;
 
 /// <summary>
-/// Veranst. / Lehrer: Exkursionen, Klassenfahrten, Schulveranstaltungen. Spalten wie im Vorbild (VA-Nr., Klasse, Kl-Teil, Lehrer, Raum,
+/// Veranst. / Veranstaltungen: Exkursionen, Klassenfahrten, Schulveranstaltungen. Spalten wie im Vorbild (VA-Nr., Klasse, Kl-Teil, Lehrer, Raum,
 /// Von, ab St., Bis, bis St., Grund, Text, zählen, Schülergruppe). Mehrere Klassen/Lehrer mit Komma oder in der Auswahlliste mit
 /// Strg-Klick, Elemente aus dem Element-Rollup per Drag &amp; Drop, Strg+C / Strg+V kopiert eine Veranstaltung auf das eingestellte Datum.
 /// Ist eine Lehrkraft wegen einer Absenz entfernt worden, steht im Feld „Lehrer“ rot „???“, bis eine Ersatzlehrkraft eingetragen ist.
@@ -48,7 +48,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
 
     public VeranstaltungenFenster()
     {
-        Text = "Veranst. / Lehrer";
+        // Titel wie im Vorbild (Bilder 350 bis 352)
+        Text = "Veranst. / Veranstaltungen";
         HilfeThema = "Vertretungsplanung";
         Size = new Size(980, 330);
         Positionieren();
@@ -156,12 +157,17 @@ public sealed class VeranstaltungenFenster : MdiFenster
         _zeitraum.Location = new Point(6, 18);
         kopf.Controls.Add(gruppe);
         // Fußleiste wie im Bild: 28 hoch, „VA-Nr.“ bei x = 31, Zahlenfeld 72 breit bei x = 79
-        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 28, Padding = new Padding(28, 2, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
-        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 45, Height = 22 });
+        // Vorbild (Bild 350): Fußleiste 36 Pixel, „VA-Nr.“ 38 Pixel vom Fensterrand, Zahlenfeld bei 86
+        var unten = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 36, Padding = new Padding(24, 6, 0, 0), BackColor = Ui.Kopf, WrapContents = false };
+        unten.Controls.Add(new Label { Text = "VA-Nr.", AutoSize = false, Padding = new Padding(0, 4, 0, 0), Margin = new Padding(3, 0, 0, 0), Width = 51, Height = 22 });
         unten.Controls.Add(_nr);
         _nr.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Springen((int)_nr.Value); } };
         _g.SelectionChanged += (_, _) => { if (!_laedt && !_nr.Focused && _g.CurrentRow?.Tag is Veranstaltung v) _nr.Value = Math.Min(_nr.Maximum, v.Id); };
-        Controls.Add(_g);
+        // Tabelle wie im Vorbild 9 Pixel vom Fensterrand im vertieften Rahmen (wie die Vertretungsliste)
+        _g.BorderStyle = BorderStyle.Fixed3D;
+        var tabellenFlaeche = new Panel { Dock = DockStyle.Fill, Padding = new Padding(9, 0, 9, 0), BackColor = Ui.Kopf };
+        tabellenFlaeche.Controls.Add(_g);
+        Controls.Add(tabellenFlaeche);
         Controls.Add(kopf);
         Controls.Add(unten);
         Controls.Add(ts);
@@ -293,7 +299,8 @@ public sealed class VeranstaltungenFenster : MdiFenster
         else
         {
             var typ = name switch { "L" => ElementTyp.Lehrer, "R" => ElementTyp.Raum, _ => ElementTyp.Klasse };
-            eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x is Lehrer l ? l.VollerName : x.Langname)).ToList();
+            // wie im Vorbild (Bilder 351, 352): Symbol, Kurzname und Langname (bei Lehrkräften der Nachname)
+            eintraege = Stammdaten.Sortiert(D, typ).Where(x => !x.Ignorieren).Select(x => new MehrfachAuswahl.Eintrag(x.Kurzname, x.Langname, MehrfachAuswahl.Symbol(typ))).ToList();
         }
         var aktuell = (_g.Rows[zeile].Cells[spalte].Value?.ToString() ?? "").Split(new[] { ',', '\n', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries);
         // gespeicherte Veranstaltung: Auswahl aus den Ids (die Zelle zeigt ggf. „Alle Lehrkräfte“ bzw. „Alle Klassen außer …“)
