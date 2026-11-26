@@ -549,6 +549,9 @@ public sealed partial class Klassenbuchdienst
         if (!b.Kollegium) throw new UnauthorizedAccessException("Nur das Kollegium kann Vermerke eintragen.");
         Einstellungen().EingabePruefen(b, d, _uhr.Heute);
         if (!s.Klassen.ContainsKey(klasse)) throw new ArgumentException($"Unbekannte Klasse {klasse}.");
+        // Lehrkräfte nur in Klassen, die sie unterrichten bzw. an diesem Tag vertreten; Klassenleitung, Schulleitung und Administration in allen ihren Klassen
+        if (!b.IstAdmin && !DarfKlasseImUnterricht(b, s, s.Klassen[klasse].Kurz, d))
+            throw new UnauthorizedAccessException($"Klassenbucheinträge für die Klasse {s.Klassen[klasse].Kurz} können nur Lehrkräfte anlegen, die dort unterrichten bzw. vertreten.");
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Bitte einen Text eingeben.");
         if (schuelerId is int sid && !s.Schueler.Any(x => x.Id == sid && Ci.Equals(x.Klasse, klasse))) throw new ArgumentException("Schüler gehört nicht zur Klasse.");
         var a = VermerkArten.FirstOrDefault(x => Ci.Equals(x, art)) ?? "Vermerk";

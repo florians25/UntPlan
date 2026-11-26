@@ -503,7 +503,8 @@ public sealed partial class Schulsimulation
         foreach (var kl in s.Paket.Elemente.Klassen.OrderBy(k => k.Kurz, StringComparer.Ordinal))
         {
             var z = Zufall.Fuer(w.Seed, "pr", hv, kl.Kurz);
-            var erlaubt = Oberstufe(s, kl.Kurz) ? sekII : sekI;
+            // Sek II und Berufskolleg: Liste der Oberstufe; Sek I (Klassen 5 bis 10): eigene Liste
+            var erlaubt = Stufe(s, kl.Kurz) is "sek2" or "bk" ? sekII : sekI;
             // Kandidaten je Fach: Tage mit einer gehaltenen Stunde des Fachs bei einer nicht ausgenommenen Lehrkraft
             var kandidaten = new Dictionary<string, List<(DateOnly Tag, Karte Karte)>>(Ci);
             foreach (var d in tage)

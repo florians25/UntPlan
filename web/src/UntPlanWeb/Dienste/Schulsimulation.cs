@@ -22,7 +22,7 @@ public sealed record Simulationseinstellungen
     public List<string> OhnePruefung { get; init; } = Schulsimulation.StandardOhnePruefung.ToList();
     /// <summary>Fächer (Kürzel) mit Klassenarbeiten in der Sekundarstufe I. null = Deutsch, Mathematik, Englisch und zweite Fremdsprache.</summary>
     public List<string>? PruefungSekI { get; init; }
-    /// <summary>Fächer (Kürzel) mit Klausuren in der Oberstufe (EF, Q1, Q2). null = alle Fächer außer den Ausnahmen (Sport, Religion, Kunst, Musik …).</summary>
+    /// <summary>Fächer (Kürzel) mit Prüfungen in der Oberstufe (EF, Q1, Q2) und in den Bildungsgängen des Berufskollegs. null = alle Unterrichtsfächer außer den Ausnahmen (Sport, Religion, Kunst, Musik …).</summary>
     public List<string>? PruefungSekII { get; init; }
     /// <summary>Weitere Aktionen der Lehrkräfte: Raumänderungen, Lehrstoff vorab, Hinweise an die Klasse.</summary>
     public bool Lehreraktionen { get; init; } = true;
@@ -76,7 +76,10 @@ public sealed partial class Schulsimulation : BackgroundService
         var faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => f.Kurz).Where(k => k.Length > 0).ToList();
         var ohne = (e.OhnePruefung ?? new()).Concat(StandardOhnePruefung).ToHashSet(Ci);
         var sekI = e.PruefungSekI ?? faecher.Where(f => StandardSekI.Contains(f, Ci) && !(e.OhnePruefung ?? new()).Contains(f, Ci)).ToList();
-        var sekII = e.PruefungSekII ?? faecher.Where(f => !ohne.Contains(f)).ToList();
+        // Sek II und Berufskolleg: alle Unterrichtsfächer außer Sport, Religion, Klassenleitung, Förderung und ähnlichen (auch allgemeine und berufliche Fächer des Berufskollegs)
+        var ohneGruppe = new HashSet<string> { "sport", "religion", "klassenleitung", "koerper", "foerder", "musik", "kunst", "berufsorientierung" };
+        string? Name(string k) => s?.Faecher.TryGetValue(k, out var f) == true ? f.Name : null;
+        var sekII = e.PruefungSekII ?? faecher.Where(f => !ohne.Contains(f) && Zuordnung(f, Name(f)) is { } g && !ohneGruppe.Contains(g.Id)).ToList();
         return (sekI.ToHashSet(Ci), sekII.ToHashSet(Ci));
     }
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture, De = new("de-DE");

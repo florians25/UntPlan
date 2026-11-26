@@ -73,6 +73,9 @@ public class SchulsimulationTests
         var sl = s.Dienst<Benutzerdienst>().NachLogin("schulleitung")!;
         Assert.Equal(meldungen.Count, s.Dienst<Mitteilungsdienst>().Posteingang(sl.Id).Count);
 
+        // Klassenbucheinträge nur in Klassen, die die Lehrkraft unterrichtet bzw. vertritt
+        var vermerke = Liste(s, $"SELECT klasse, lehrer FROM vermerke WHERE benutzer_id IN {Konten}", r => (Klasse: r.Text("klasse"), Lehrer: r.Text("lehrer")));
+        Assert.NotEmpty(vermerke);
         // Status der Seite: Zahlen und Ausnahmen
         var status = System.Text.Json.JsonSerializer.SerializeToNode(sim.Status(), new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
         Assert.True(status["zahlen"]!["lehrstoff"]!.GetValue<int>() > 100);
@@ -518,5 +521,70 @@ public class SchulsimulationTests
         sim.Entfernen(admin);
         Assert.Equal(0, Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE benutzer_id IN {Konten}"));
         Assert.Equal(1, Zahl("SELECT COUNT(*) FROM klassenbuch WHERE thema = 'Eigener Eintrag der Schulleitung'"));
+    }
+
+    [Fact]
+    public async Task Berufskolleg_nutzt_die_Liste_Sek_II_mit_den_Faechern_der_Schule()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var paket = Testserver.Beispielpaket();
+        var faecher = paket["elemente"]!["faecher"]!.AsArray();
+        var id = 9000;
+        foreach (var (k, n) in new[] { ("DEU", "Deutsch"), ("POL", "Politik"), ("SPA", "Spanisch"), ("FEN", "Fachliches Englisch"), ("PHY", "Physik"), ("AWE", "Anwendungsentwicklung"),
+                     ("ET", "Elektrotechnik"), ("SPO", "Sport"), ("REL", "Religion"), ("BEREI", "Vertretungsbereitschaft"), ("SPRE", "SPRECHSTUNDE"), ("KL-ST", "Klassenleiter-Stunde") })
+            faecher.Add(new System.Text.Json.Nodes.JsonObject { ["id"] = id++, ["kurz"] = k, ["name"] = n, ["farbe"] = "" });
+        paket["elemente"]!["klassen"]!.AsArray().Add(new System.Text.Json.Nodes.JsonObject { ["id"] = id++, ["kurz"] = "ITA21", ["name"] = "IT-Assistenten", ["jahrgang"] = "", ["klassenleitung"] = new System.Text.Json.Nodes.JsonArray(), ["stammraum"] = "", ["farbe"] = "" });
+        paket["revision"] = 2;
+        Assert.True((await s.PaketSendenAsync(paket)).IsSuccessStatusCode);
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        Assert.Equal("bk", Schulsimulation.Stufe(stand, "ITA21"));
+        Assert.Equal("sek1o", Schulsimulation.Stufe(stand, "7a"));
+        var (sekI, sekII) = Schulsimulation.Pruefungsfaecher(stand, new Simulationseinstellungen());
+        Assert.All(new[] { "DEU", "POL", "SPA", "FEN", "PHY", "AWE", "ET", "D", "M" }, f => Assert.Contains(f, sekII));
+        Assert.All(new[] { "SPO", "REL", "BEREI", "SPRE", "KL-ST", "SP", "KR", "BER" }, f => Assert.DoesNotContain(f, sekII));
+        Assert.DoesNotContain("AWE", sekI);
+        // gespeicherte Listen bleiben gültig
+        var (eI, eII) = Schulsimulation.Pruefungsfaecher(stand, new Simulationseinstellungen { PruefungSekII = new() { "DEU" }, PruefungSekI = new() { "M" } });
+        Assert.Equal(new[] { "DEU" }, eII);
+        Assert.Equal(new[] { "M" }, eI);
+    }
+
+    [Fact]
+    public async Task Klassenbucheintraege_nur_in_eigenen_bzw_vertretenen_Klassen()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        // BRA unterrichtet 7a, aber nicht 6a
+        Assert.True(Klassenbuchdienst.UnterrichtetKlasse(stand, "BRA", "7a"));
+        Assert.False(Klassenbuchdienst.UnterrichtetKlasse(stand, "BRA", "6a"));
+        var bra = await s.AlsAsync("bra", "lehrer", "BRA");
+        Assert.True((await bra.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "7a", art = "Vermerk", text = "Eigene Klasse" })).IsSuccessStatusCode);
+        var fremd = await bra.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "6a", art = "Vermerk", text = "Fremde Klasse" });
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, fremd.StatusCode);
+        // Schulleitung und Administration: alle Klassen
+        var sl = await s.AlsAsync("sl", "leitung", "");
+        Assert.True((await sl.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "6a", art = "Vermerk", text = "Schulleitung" })).IsSuccessStatusCode);
+        var admin = await s.AlsAsync("admin");
+        Assert.True((await admin.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "6a", art = "Vermerk", text = "Administration" })).IsSuccessStatusCode);
+        // Klassenleitung der 6a
+        var leitung = stand.Klassen["6a"].Klassenleitung[0];
+        var kl = await s.AlsAsync("kl6a", "lehrer", leitung);
+        Assert.True((await kl.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = "2026-10-14", klasse = "6a", art = "Vermerk", text = "Klassenleitung" })).IsSuccessStatusCode);
+        // Vertretung: am Tag der vertretenen Stunde auch in einer fremden Klasse
+        var plan = s.Dienst<Plandienst>();
+        var vertretung = Enumerable.Range(0, 14).Select(i => new DateOnly(2026, 10, 12).AddDays(i))
+            .SelectMany(d => stand.Paket.Elemente.Lehrer.SelectMany(l => plan.Karten(stand, d, Elementtyp.Lehrer, l.Kurz)
+                .SelectMany(k => k.Klassen.Where(x => x.K.Length > 0 && !Klassenbuchdienst.UnterrichtetKlasse(stand, l.Kurz, x.K)).Select(x => (Tag: d, Lehrer: l.Kurz, Klasse: x.K)))))
+            .FirstOrDefault();
+        if (vertretung.Lehrer is not null)
+        {
+            var v = await s.AlsAsync("vertretung", "lehrer", vertretung.Lehrer);
+            Assert.True((await v.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = Plandienst.Iso(vertretung.Tag), klasse = vertretung.Klasse, art = "Vermerk", text = "Vertretung" })).IsSuccessStatusCode);
+            var anderer = vertretung.Tag.AddDays(vertretung.Tag.DayOfWeek == DayOfWeek.Friday ? 3 : 1);
+            if (!plan.Karten(stand, anderer, Elementtyp.Lehrer, vertretung.Lehrer).Any(k => k.Klassen.Any(x => x.K == vertretung.Klasse)))
+                Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await v.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = Plandienst.Iso(anderer), klasse = vertretung.Klasse, art = "Vermerk", text = "x" })).StatusCode);
+        }
     }
 }

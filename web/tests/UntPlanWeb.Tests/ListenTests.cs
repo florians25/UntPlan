@@ -291,7 +291,9 @@ public class ListenTests
         var plan = s.Dienst<Plandienst>();
         var stand = s.Dienst<Paketdienst>().Aktuell!;
         var heute = new DateOnly(2026, 10, 14);
-        var k = plan.Karten(stand, heute, Elementtyp.Klasse, "7a").First(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0);
+        // Lehrkraft, die in 7a und 6a unterrichtet (Klassenbucheinträge legen Lehrkräfte nur in eigenen Klassen an)
+        var k = plan.Karten(stand, heute, Elementtyp.Klasse, "7a").First(x => x.Unterricht.HasValue && x.Status == "regulaer" && x.Lehrer.Count > 0
+            && Klassenbuchdienst.UnterrichtetKlasse(stand, x.Lehrer[0].K, "6a"));
         var lehrer = k.Lehrer[0].K;
         var c = await s.AlsAsync(lehrer.ToLowerInvariant(), "lehrer", lehrer);
         var kl = await s.AlsAsync("sl-test", "leitung", "");
