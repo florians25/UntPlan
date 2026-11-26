@@ -1557,7 +1557,10 @@ public sealed partial class HauptFenster
                 Warten(900);
                 var mdi = Controls.OfType<MdiClient>().First();
                 kalender.SelbsttestLetzteSpalte();
+                foreach (var m in MdiChildren.OfType<MdiFenster>()) m.AuswahlMarkierungenAufheben();
                 Warten(300);
+                log.Add("MASS  V51 Auswahlfelder: " + string.Join(" | ", MdiChildren.SelectMany(MdiFenster.AlleAuswahlfelder).Where(c => c.Visible)
+                    .Select(c => $"{c.Text}:{c.DropDownStyle}/{c.SelectionLength}/{(c.Focused ? "F" : "-")}")) + $"; Vertretungen Fokus {vertr.ContainsFocus}, aktiv {Form.ActiveForm?.Text}, Kind {ActiveMdiChild?.Text}");
                 log.Add($"MASS  V51_Vorbild308: Arbeitsbereich {mdi.RectangleToScreen(mdi.ClientRectangle)}, Entfall {entfall.Stunde}. Stunde, Klasse {klasse.Kurzname}, Lehrkraft {lehrer.Kurzname}, Raum {raum.Kurzname}");
                 foreach (var f in MdiChildren) log.Add($"MASS  V51 Fenster „{f.Text}“: {f.Bounds}, Client {f.ClientSize}");
                 R3DRollbereich(mdi.Handle, 0, out var hMin, out var hMax);

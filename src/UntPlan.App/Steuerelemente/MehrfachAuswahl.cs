@@ -29,6 +29,8 @@ public static class MehrfachAuswahl
     /// <summary>Liste unter der Zelle zeigen; <paramref name="fertig"/> erhält die gewählten Kurznamen (in Listenreihenfolge).</summary>
     public static void Zeigen(DataGridView g, int zeile, int spalte, IReadOnlyList<Eintrag> eintraege, IEnumerable<string> gewaehlt, bool mehrfach, Action<List<string>> fertig)
     {
+        // wie im Vorbild zeigt die Zelle bei offener Liste den gedrückten Aufklappknopf (kein Texteditor darüber)
+        if (g.IsCurrentCellInEditMode && g.CurrentCell is { } aktuell && aktuell.RowIndex == zeile && aktuell.ColumnIndex == spalte) g.EndEdit();
         var liste = new ListBox
         {
             SelectionMode = mehrfach ? SelectionMode.MultiExtended : SelectionMode.One, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = ZeilenHoehe,
@@ -143,12 +145,17 @@ public static class MehrfachAuswahl
                 if (leiste.Visible || _offenesFenster is not { IsDisposed: false } offen || offen.Items.Count == 0) return;
                 var w = Math.Max(breite, 3 * 64 + 4 * 6);
                 leiste.Visible = true;
-                panel.Size = new Size(w, listenHoehe + LeistenHoehe);
-                offen.Items[0].Size = panel.Size;
+                var neu = new Size(w, listenHoehe + LeistenHoehe);
+                if (panel.Parent is { } rahmenNeu) rahmenNeu.Size = neu;
+                offen.Items[0].Size = neu;
                 offen.PerformLayout();
             };
         }
-        var host = new ToolStripControlHost(inhalt) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
+        // Rahmen wie im Vorbild (Bilder 348, 351, 352): 1 Pixel (100, 100, 100) um die ganze Liste
+        var rahmen = new Panel { Size = new Size(breite, hoehe), Padding = new Padding(1), BackColor = Color.FromArgb(100, 100, 100), Margin = Padding.Empty };
+        inhalt.Dock = DockStyle.Fill;
+        rahmen.Controls.Add(inhalt);
+        var host = new ToolStripControlHost(rahmen) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
         host.Size = new Size(breite, hoehe);
         // Rahmen wie im Vorbild (Bilder 348, 351, 352): 1 Pixel (100, 100, 100)
         var dd = new ToolStripDropDown { Padding = Padding.Empty, AutoClose = true, DropShadowEnabled = true, Renderer = new ToolStripProfessionalRenderer(new ListenRahmen()) };
@@ -213,12 +220,14 @@ public static class MehrfachAuswahl
     internal static (List<string> Knoepfe, int BreiteVorher, int BreiteNachher) SelbsttestMehrfach()
     {
         if (Offen is not { } l || l.Items.Count < 2) return (new(), 0, 0);
-        var vorher = l.Parent?.Width ?? l.Width;
+        Control aussen = l;
+        while (aussen.Parent is { } p && p is not ToolStripDropDown) aussen = p;
+        var vorher = aussen.Width;
         l.SetSelected(0, true);
         l.SetSelected(1, true);
         _leisteZeigen?.Invoke();
         var leiste = l.Parent?.Controls.OfType<Panel>().FirstOrDefault(p => p.Visible);
-        return (leiste?.Controls.OfType<Button>().Select(b => b.Text).ToList() ?? new(), vorher, l.Parent?.Width ?? l.Width);
+        return (leiste?.Controls.OfType<Button>().Select(b => b.Text).ToList() ?? new(), vorher, aussen.Width);
     }
     private static ToolStripDropDown? _offenesFenster;
 

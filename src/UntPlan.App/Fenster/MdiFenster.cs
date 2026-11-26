@@ -300,6 +300,27 @@ public class MdiFenster : Form
             leiste.Items.Add(knopf);
         }
         LeisteWieOriginal();
+        // wie im Vorbild: vom Programm gesetzte Texte der Auswahlfelder nicht blau markiert stehen lassen
+        Shown += (_, _) => BeginInvoke(AuswahlMarkierungenAufheben);
+        Deactivate += (_, _) => { if (IsHandleCreated) BeginInvoke(AuswahlMarkierungenAufheben); };
+    }
+
+    /// <summary>Markierten Text aller Auswahlfelder ohne Fokus aufheben (Windows lässt ihn sonst sichtbar markiert).</summary>
+    internal void AuswahlMarkierungenAufheben()
+    {
+        if (IsDisposed) return;
+        foreach (var cb in AlleAuswahlfelder(this))
+            if (cb.IsHandleCreated && cb.DropDownStyle == ComboBoxStyle.DropDown && !cb.Focused && cb.SelectionLength > 0) cb.SelectionLength = 0;
+    }
+
+    internal static IEnumerable<ComboBox> AlleAuswahlfelder(Control c)
+    {
+        foreach (Control k in c.Controls)
+        {
+            if (k is ComboBox cb) yield return cb;
+            if (k is ToolStrip ts) foreach (var tc in ts.Items.OfType<ToolStripComboBox>()) yield return tc.ComboBox;
+            if (k is not DataGridView) foreach (var x in AlleAuswahlfelder(k)) yield return x;
+        }
     }
 
     /// <summary>Name des Knopfs „Spalten“ (liegt immer im Überlauf der Werkzeugleiste).</summary>

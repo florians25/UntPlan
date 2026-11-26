@@ -167,6 +167,8 @@ public static class SondereinsatzDialog
         f.Controls.AddRange(new Control[] { dat, von, bis, bKl, bLe, bKk });
         var g = new DataGridView { Left = 2, Top = 83, Width = 858, Height = 179, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, true);
+        // Vorbild (Bild 348): Tabelle im vertieften Rahmen
+        g.BorderStyle = BorderStyle.Fixed3D;
         g.AllowUserToAddRows = true;
         g.AllowUserToDeleteRows = true;
         g.RowHeadersVisible = false;
@@ -609,8 +611,10 @@ public static class SondereinsatzAuswahl
         f.Ok.Size = f.Abbrechen.Size = new Size(75, 23);
         // Vorbild (Bild 349): Knopfschrift Segoe UI 8,25, „Abbrechen“ passt vollständig in 75 Pixel
         f.Ok.Font = f.Abbrechen.Font = new Font("Segoe UI", 8.25f);
-        var g = new DataGridView { Left = 1, Top = 1, Width = 281, Height = 312, BorderStyle = BorderStyle.Fixed3D, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
+        var g = new DataGridView { Left = 1, Top = 1, Width = 281, Height = 312, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom };
         Ui.RasterGestalten(g, false);
+        // Vorbild: Liste im vertieften Rahmen
+        g.BorderStyle = BorderStyle.Fixed3D;
         g.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         g.MultiSelect = true;
         g.RowHeadersVisible = false;
