@@ -646,6 +646,9 @@ struct Kachelaussehen {
             // Wie in der Vorlage mit Schatten (dunkel ohnehin ohne)
             farbigeKarte(flaeche: Farben.pruefungHintergrund, vergangeneFlaeche: Farben.pruefungVergangen, rand: Farben.pruefungRand, vergangenerRand: Farben.pruefungRandVergangen,
                          vergangen: v, dunkel: dunkel, schatten: true)
+            // Feld „…“ auf Prüfungskarten nicht gelb/orange, sondern wie bei einer regulären Stunde (Balkengrau, dunkle Schrift)
+            akzent = Farben.karteBalken
+            akzentSchrift = Color(hexWert: 0x10161D)
         case .termin:
             hintergrund = Farben.veranstaltungHintergrund
             rand = Farben.terminRand
