@@ -467,7 +467,7 @@ public class SchulsimulationTests
         Assert.NotEmpty(meldungen);
         var klassen = paket.Paket.Elemente.Klassen.Select(k => k.Kurz).ToList();
         var geprueft = 0;
-        foreach (var m in meldungen.Where(m => !new[] { "gesund", "wieder", "verlänger", "folge" }.Any(x => m.Betreff.Contains(x, StringComparison.OrdinalIgnoreCase))))
+        foreach (var m in meldungen.Where(m => !new[] { "gesund", "wieder", "verlänger", "folge", "nachtrag", "update", "au " }.Any(x => (m.Betreff + " ").Contains(x, StringComparison.OrdinalIgnoreCase))))
         {
             // erste Meldung: vor dem ersten Ausfalltag bzw. früh morgens an ihm
             var a = w.Ausfaelle.Where(x => x.Lehrer == m.Lehrer && (DateOnly.FromDateTime(m.Erstellt) < x.Von || (DateOnly.FromDateTime(m.Erstellt) == x.Von && m.Erstellt.Hour < 8)))
@@ -942,5 +942,141 @@ public class SchulsimulationTests
             Assert.Equal("", sim.Nachbesserungsstatus.Fehler);
         }
         finally { Schulsimulation.Raumaenderungsanteil = alt; }
+    }
+
+    /// <summary>Doppelstunde 6b Englisch (WOL, 14.10., 1. und 2. Stunde); in der 2. Stunde ein anderer Raum: zwei getrennte Karten.</summary>
+    private static System.Text.Json.Nodes.JsonObject GetrenntesPaket()
+    {
+        var paket = Testserver.Beispielpaket();
+        foreach (var t in paket["tage"]!.AsArray().Where(t => t!["datum"]!.GetValue<string>() == "2026-10-14"))
+            foreach (var x in t!["stunden"]!.AsArray().Where(x => x!["unterricht"]?.GetValue<int>() == 139 && x["stunde"]!.GetValue<int>() == 2))
+                x!["raeume"] = new System.Text.Json.Nodes.JsonArray("R105");
+        paket["revision"] = 2;
+        return paket;
+    }
+
+    private static List<(int Stunde, string Thema, bool Kontrolliert)> Eintraege139(Testserver s) =>
+        s.Dienst<Db>().Liste("SELECT stunde, thema, anwesenheit FROM klassenbuch WHERE datum = '2026-10-14' AND unterricht = 139 AND lehrer = 'WOL' ORDER BY stunde",
+            r => (r.Zahl("stunde"), r.Text("thema"), r.TextOderNull("anwesenheit") is not null));
+
+    [Fact]
+    public async Task Getrennt_dargestellte_Stunden_eines_Blocks_je_Karte_eintragen()
+    {
+        // laufender Betrieb: die Karten sind schon getrennt, jede erhält eigene Kontrolle und eigenen Lehrstoff
+        {
+            var s = await Testserver.StartenAsync();
+            await using var _ = s;
+            Assert.True((await s.PaketSendenAsync(GetrenntesPaket())).IsSuccessStatusCode);
+            var st = s.Dienst<Paketdienst>().Aktuell!;
+            var karten = s.Dienst<Plandienst>().Karten(st, new DateOnly(2026, 10, 14), Elementtyp.Lehrer, "WOL").Where(k => k.Unterricht == 139).ToList();
+            Assert.Equal(new[] { (1, 1), (2, 2) }, karten.Select(k => (k.Von, k.Bis)));
+            var uhr = s.Dienst<Uhr>();
+            var sim = s.Dienst<Schulsimulation>();
+            uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+            s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+            sim.Speichern(s.Dienst<Benutzerdienst>().NachLogin("admin")!, new Simulationseinstellungen { Aktiv = true });
+            uhr.Fest = new DateTime(2026, 10, 14, 23, 0, 0);
+            sim.Lauf();
+            var e = Eintraege139(s);
+            Assert.Equal(new[] { 1, 2 }, e.Select(x => x.Stunde));
+            Assert.All(e, x => { Assert.True(x.Kontrolliert); Assert.NotEqual("", x.Thema); });
+        }
+        // erst nachträglich getrennt (Änderung nach der Stunde): das Nachbessern ergänzt die zweite Stunde, ein zweiter Lauf ändert nichts
+        {
+            var s = await Testserver.StartenAsync();
+            await using var _ = s;
+            var uhr = s.Dienst<Uhr>();
+            var sim = s.Dienst<Schulsimulation>();
+            uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+            s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+            sim.Speichern(s.Dienst<Benutzerdienst>().NachLogin("admin")!, new Simulationseinstellungen { Aktiv = true });
+            uhr.Fest = new DateTime(2026, 10, 14, 23, 0, 0);
+            sim.Lauf();
+            Assert.Equal(new[] { 1 }, Eintraege139(s).Select(x => x.Stunde));
+            Assert.True((await s.PaketSendenAsync(GetrenntesPaket())).IsSuccessStatusCode);
+            uhr.Fest = new DateTime(2026, 10, 15, 6, 0, 0);
+            var st = s.Dienst<Paketdienst>().Aktuell!;
+            var nb = sim.Nachbessern(st, sim.Laden(), new DateOnly(2026, 10, 12), new DateOnly(2026, 10, 16));
+            Assert.Contains(nb.Zusammenfassung, x => x.StartsWith("Kontrolle bzw. Lehrstoff getrennter Einzelstunden ergänzt"));
+            var e = Eintraege139(s);
+            Assert.Equal(new[] { 1, 2 }, e.Select(x => x.Stunde));
+            Assert.True(e[1].Kontrolliert);
+            Assert.NotEqual("", e[1].Thema);
+            var zweiter = sim.Nachbessern(st, sim.Laden(), new DateOnly(2026, 10, 12), new DateOnly(2026, 10, 16));
+            Assert.Equal(0, zweiter.Korrigiert + zweiter.Entfernt);
+        }
+    }
+
+    [Fact]
+    public async Task Krankmeldungen_vielfaeltig_mit_festem_Stil_je_Lehrkraft()
+    {
+        var (s, sim, _) = await StartenAsync(new DateTime(2026, 10, 12, 7, 0, 0));
+        await using var __ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden() with { Start = "2026-09-01 07:00" };
+        var m = sim.Krankmeldungsvorschau(paket, e, new DateTime(2026, 9, 1, 7, 0, 0), new DateTime(2027, 1, 31, 23, 0, 0));
+        Assert.True(m.Count > 100, $"{m.Count} Meldungen");
+        // keine erkennbaren Wiederholungen: fast alle Texte verschieden, viele verschiedene Betreffzeilen und Einstiege
+        Assert.True(m.Select(x => x.Text).Distinct().Count() >= m.Count * 0.97, $"{m.Select(x => x.Text).Distinct().Count()} von {m.Count}");
+        Assert.True(m.Select(x => x.Betreff).Distinct().Count() >= 40);
+        string Einstieg(string t) => t.Split("\n\n").Skip(t.Split("\n\n")[0].EndsWith(',') ? 1 : 0).First();
+        Assert.True(m.Select(x => Einstieg(x.Text)).Distinct().Count() >= m.Count * 0.6);
+        // verschiedene Gründe und Teilausfälle, Folgemeldungen
+        // über mehrere Schuljahre (andere Startwerte) kommen alle Gründe vor
+        var mehr = m.Concat(new long[] { 11, 12, 13 }.SelectMany(seed => sim.Krankmeldungsvorschau(paket, e with { Seed = seed }, new DateTime(2026, 9, 1, 7, 0, 0), new DateTime(2027, 6, 30, 23, 0, 0)))).ToList();
+        foreach (var w in new[] { "Fieber", "Migräne", "Magen-Darm", "Rücken", "Corona", "Kind", "operi", "Unfall", "Facharzt", "Pflege", "Zahn" })
+            Assert.True(mehr.Any(x => x.Text.Contains(w, StringComparison.OrdinalIgnoreCase) || x.Betreff.Contains(w, StringComparison.OrdinalIgnoreCase)), $"{w} fehlt in {mehr.Count} Meldungen");
+        Assert.Contains(mehr, x => x.Betreff.StartsWith("AU") || x.Betreff.StartsWith("Nachtrag"));
+        Assert.Contains(mehr, x => x.Text.Contains("erst zur") || x.Text.Contains("erst ab der"));
+        Assert.Contains(mehr, x => x.Betreff.StartsWith("Verlängerung") || x.Betreff.StartsWith("Folge"));
+        Assert.Contains(m, x => x.Betreff.Contains("wieder", StringComparison.OrdinalIgnoreCase) || x.Betreff.StartsWith("Gesund"));
+        // fester Stil je Lehrkraft: gleiche Signatur in allen Meldungen
+        foreach (var g in m.GroupBy(x => x.Lehrer))
+            Assert.Single(g.Select(x => x.Text.Split("\n\n")[^1].Split('\n')[1..]).Select(x => string.Join("|", x)).Distinct());
+        Assert.True(m.Select(x => Schulsimulation.StilDer(4711, x.Lehrer).Ton).Distinct().Count() >= 4);
+        Assert.DoesNotContain(m, x => x.Text.Contains(" – ") || x.Text.Contains('·') || x.Text.Contains("  "));
+    }
+
+    [Fact]
+    public async Task Lehrstoff_vielfaeltig_mit_festem_Stil_je_Lehrkraft()
+    {
+        var (s, sim, _) = await StartenAsync(new DateTime(2026, 10, 12, 7, 0, 0));
+        await using var __ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden();
+        var w = sim.Welt(paket, e, DateTime.Parse(e.Start), new DateTime(2026, 10, 12, 7, 0, 0));
+        var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
+        var eintraege = new List<(string Lehrer, int U, string Text)>();
+        foreach (var (u, un) in paket.Unterricht)
+        {
+            var z = un.Zeilen.FirstOrDefault(x => x.Lehrer.Length > 0 && x.Klassen.Count > 0);
+            if (z is null || Schulsimulation.Zuordnung(z.Fach, paket.Faecher.TryGetValue(z.Fach, out var f) ? f.Name : null) is null) continue;
+            foreach (var (tag, von) in sim.Bloecke(paket, u).Where(b => b.Tag >= hv && b.Tag <= hb))
+                if (sim.Lehrstoff(paket, w, e, z.Fach, z.Klassen[0], u, tag, von) is { } roh)
+                    eintraege.Add((z.Lehrer, u, sim.Stilisieren(w.Seed, z.Lehrer, z.Fach, paket.Faecher.TryGetValue(z.Fach, out var fn) ? fn.Name : null, u, tag, von, roh)));
+        }
+        Assert.True(eintraege.Count > 1000);
+        // Vielfalt: über ein Halbjahr je Lerngruppe überwiegend verschiedene Einträge
+        var anteil = eintraege.GroupBy(x => x.U).Average(g => (double)g.Select(x => x.Text).Distinct().Count() / g.Count());
+        Assert.True(anteil >= 0.75, $"Anteil eindeutiger Einträge je Lerngruppe {anteil:P0}");
+        // Stil je Lehrkraft konstant: Länge, Seitenangaben, Abkürzungen
+        static bool Fest(string t) => System.Text.RegularExpressions.Regex.IsMatch(t, "^(Klassenarbeit|Klausur|Test|Abschlussprüfung|Rückgabe|Einstieg ins Schuljahr|Organisatorisches)") || t.Contains("Wiederholung zur ");
+        var frei = eintraege.Where(x => !Fest(x.Text)).ToList();
+        double Mittel(int laenge) => frei.Where(x => Schulsimulation.LehrstoffstilDer(w.Seed, x.Lehrer).Laenge == laenge).Select(x => (double)x.Text.Length).DefaultIfEmpty(0).Average();
+        Assert.True(Mittel(0) > 0 && Mittel(3) > 0);
+        Assert.True(Mittel(0) < Mittel(2) && Mittel(2) < Mittel(3), $"Stichwort {Mittel(0):F0}, normal {Mittel(2):F0}, ausführlich {Mittel(3):F0}");
+        foreach (var x in frei)
+        {
+            var st = Schulsimulation.LehrstoffstilDer(w.Seed, x.Lehrer);
+            if (!st.Seiten) Assert.DoesNotMatch(@"S\. \d", x.Text);
+            if (st.Abkuerzungen) Assert.DoesNotContain("Arbeitsblatt", x.Text);
+            else Assert.DoesNotContain("Wdh.", x.Text);
+            Assert.DoesNotContain("in Gruppenarbeit", x.Text);
+            Assert.DoesNotContain("in Partnerarbeit", x.Text);
+        }
+        Assert.Contains(frei, x => x.Text.StartsWith("Exkurs") || x.Text.StartsWith("Film") || x.Text.StartsWith("Vorbereitung"));
+        Assert.Contains(frei, x => x.Text.Contains("Material: "));
+        Assert.Contains(frei, x => x.Text.Contains("HA-Kontrolle") || x.Text.Contains("Hausaufgabenkontrolle"));
+        Assert.True(eintraege.Select(x => Schulsimulation.LehrstoffstilDer(w.Seed, x.Lehrer).Laenge).Distinct().Count() == 4);
     }
 }
