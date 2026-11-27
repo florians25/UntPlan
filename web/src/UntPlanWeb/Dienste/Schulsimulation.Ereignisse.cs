@@ -575,6 +575,12 @@ public sealed partial class Schulsimulation
         var res = new List<Pruefungsplan>();
         // frühestens eine Woche nach dem Start (vorher geplante Prüfungen stehen gleich nach dem Start im Kalender)
         var tage = Schuljahrestage(s).Where(d => d >= hv.AddDays(28) && d <= hb.AddDays(-14) && d >= DateOnly.FromDateTime(start).AddDays(7)).ToList();
+        // Kopplungen (ein Unterricht mehrerer Klassen): genau eine Prüfung je Kopplung und Fach, sie gilt für alle Klassen der Kopplung
+        bool Gekoppelt(int u) => s.Unterricht.TryGetValue(u, out var un) && un.Zeilen.SelectMany(x => x.Klassen).Distinct(Ci).Count() > 1;
+        var kopplungGeplant = new HashSet<(int, string, bool)>();
+        bool SchonGeplant(List<(DateOnly Tag, Karte Karte)> l, string fach, bool test) =>
+            l.Any(x => x.Karte.Unterricht is int u && kopplungGeplant.Contains((u, fach.ToUpperInvariant(), test)));
+        void Merken(Karte k, string fach, bool test) { if (k.Unterricht is int u && Gekoppelt(u)) kopplungGeplant.Add((u, fach.ToUpperInvariant(), test)); }
         foreach (var kl in s.Paket.Elemente.Klassen.OrderBy(k => k.Kurz, StringComparer.Ordinal))
         {
             var z = Zufall.Fuer(w.Seed, "pr", hv, kl.Kurz);
@@ -600,6 +606,7 @@ public sealed partial class Schulsimulation
             foreach (var fach in kandidaten.Keys.Order(StringComparer.Ordinal).OrderBy(_ => z.Naechste()).ToList())
             {
                 var abschluss = abschlussKlasse && Abschlussfaecher.Contains(fach, Ci);
+                if (SchonGeplant(kandidaten[fach], fach, false)) continue;
                 var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 2)
                     .Where(x => !abschluss || (x.Tag >= new DateOnly(x.Tag.Year, 4, 15) && x.Tag <= new DateOnly(x.Tag.Year, 5, 31))).ToList();
                 if (moeglich.Count == 0) continue;
@@ -610,11 +617,13 @@ public sealed partial class Schulsimulation
                 // vor dem Start geplante Prüfungen stehen gleich nach dem Start im Kalender, aber nicht kurzfristiger als eine Woche
                 if (eintragen < start) eintragen = start.AddMinutes(z.Zahl(3, 300));
                 res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0, Abschluss = abschluss });
+                Merken(karte, fach, false);
             }
             // zusätzlich selten ein angekündigter Test (nur eine Stunde, kurzfristig eingetragen), nicht am Tag einer anderen Prüfung
             foreach (var fach in kandidaten.Keys.Order(StringComparer.Ordinal).ToList())
             {
                 var zt = Zufall.Fuer(w.Seed, "test", hv, kl.Kurz, fach);
+                if (SchonGeplant(kandidaten[fach], fach, true)) continue;
                 if (!zt.Chance(Math.Min(1, 0.3 * Simulationsintensitaet.F(e.I.Tests)))) continue;
                 var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 3).ToList();
                 if (moeglich.Count == 0) continue;
@@ -623,6 +632,7 @@ public sealed partial class Schulsimulation
                 var eintragen = Um(tag.AddDays(-zt.Zahl(1, 6)), zt.Zahl(14 * 60, 20 * 60 + 30));
                 if (eintragen < start) eintragen = start.AddMinutes(zt.Zahl(3, 300));
                 res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Von, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0, Test = true });
+                Merken(karte, fach, true);
             }
         }
         _pruefungsCache[schluessel] = res;
@@ -659,7 +669,9 @@ public sealed partial class Schulsimulation
         // Thema: die Unterrichtsreihe, die zum Prüfungstermin läuft
         var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von, new[] { (p.Datum, p.Von, art) }) is { } ls
                     && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
-        _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
+        // Kopplung: die Prüfung gilt für alle Klassen des gekoppelten Unterrichts
+        var klassen = _rm.KopplungsKlassen(s, p.Datum, p.Von, p.Bis, new List<string> { p.Klasse }, new[] { p.Lehrer });
+        _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, klassen, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
         PruefungenGeaendert();
     }
 

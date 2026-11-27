@@ -435,6 +435,27 @@ public sealed class Rueckmeldungsdienst
         }
     }
 
+    /// <summary>
+    /// Klassen einer Prüfung um die Kopplung ergänzen: Unterricht der Klassen in den Stunden, den die Aufsicht hält (bzw. ohne Aufsicht der einzige
+    /// Unterricht der Klasse zu dieser Zeit); alle Klassen seiner Zeilen gehören zur Prüfung. Reihenfolge: angegebene Klassen zuerst.
+    /// </summary>
+    public List<string> KopplungsKlassen(Stand s, DateOnly d, int von, int bis, List<string> klassen, IReadOnlyCollection<string> aufsicht)
+    {
+        // auch Unterricht, der wegen einer schon übertragenen Prüfung entfällt bzw. dessen Lehrkraft dafür abgegeben ist (Nachbessern)
+        var roh = _plan.Rohstunden(s, d).Where(x => x.Stunde >= von && x.Stunde <= bis && x.Unterricht.HasValue
+            && (x.Status != "entfall" || x.Text.TrimStart().StartsWith("Klausur ", StringComparison.OrdinalIgnoreCase))).ToList();
+        var u = new HashSet<int>();
+        foreach (var kl in klassen)
+        {
+            var eigene = roh.Where(x => x.Klassen.Contains(kl, Ci)).ToList();
+            var mitAufsicht = eigene.Where(x => x.Lehrer.Concat(x.LehrerAlt ?? Array.Empty<string>()).Any(l => aufsicht.Contains(l, Ci))).Select(x => x.Unterricht!.Value).Distinct().ToList();
+            if (mitAufsicht.Count > 0) u.UnionWith(mitAufsicht);
+            else if (eigene.Select(x => x.Unterricht).Distinct().Count() == 1) u.Add(eigene[0].Unterricht!.Value);
+        }
+        return klassen.Concat(roh.Where(x => u.Contains(x.Unterricht!.Value)).SelectMany(x => x.Klassen).Where(x => s.Klassen.ContainsKey(x)).Select(x => s.Klassen[x].Kurz))
+            .Distinct(Ci).ToList();
+    }
+
     public Meldung Klausur(Stand s, Benutzer b, DateOnly d, int? stundeVon, int? stundeBis, IEnumerable<string> klassen, IEnumerable<string> raeume, IEnumerable<string> aufsicht, string titel, string text)
     {
         if (!b.Kollegium) throw new ArgumentException("Nur Lehrkräfte können Klausuren eintragen.");
@@ -454,6 +475,8 @@ public sealed class Rueckmeldungsdienst
         if (l.FirstOrDefault(x => !s.Lehrer.ContainsKey(x)) is { } ul) throw new ArgumentException($"Unbekannte Lehrkraft {ul}.");
         r = r.Select(x => s.Raeume[x].Kurz).ToList();
         k = k.Select(x => s.Klassen[x].Kurz).ToList();
+        // Prüfung in einer Kopplung: gilt für die ganze Kopplung (alle Klassen des gekoppelten Unterrichts in diesen Stunden)
+        k = KopplungsKlassen(s, d, v, bi, k, l);
         // Räume müssen frei sein – belegt nur durch den Unterricht der eigenen Klassen zählt nicht (die Prüfung findet dort statt)
         var belegt = Plandienst.MitRaumaenderungen(_plan.Rohstunden(s, d), Vorgemerkt(d, s))
             .Where(x => x.Stunde >= v && x.Stunde <= bi && x.Status != "entfall" && !x.Klassen.Any(kl => k.Contains(kl, Ci)))

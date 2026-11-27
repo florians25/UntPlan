@@ -179,6 +179,25 @@ public sealed partial class Schulsimulation
                                 catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException) { }
                             }
                         }
+                        // Prüfung in einer Kopplung: gilt für alle Klassen der Kopplung
+                        var kopplung = _rm.KopplungsKlassen(s, d, m.StundeVon, m.StundeBis, m.Klassen.ToList(), new[] { lehrer });
+                        if (kopplung.Count > m.Klassen.Count)
+                        {
+                            if (offen)
+                            {
+                                _db.Ausfuehren("UPDATE rueckmeldungen SET klassen = @k WHERE id = @i", Db.P("@k", JsonSerializer.Serialize(kopplung)), Db.P("@i", m.Id));
+                                korrigiert++; Merke("Prüfungen auf die ganze Kopplung erweitert");
+                            }
+                            else if (zukunft)
+                            {
+                                try
+                                {
+                                    _rm.KlausurVerlegen(s, b, d, m.StundeVon, m.StundeBis, m.Klassen, m.Titel, d, m.StundeVon, m.StundeBis, kopplung, m.Raeume, Array.Empty<string>(), m.Titel, "");
+                                    korrigiert++; Merke("Prüfungen über den regulären Weg auf die ganze Kopplung erweitert");
+                                }
+                                catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException) { }
+                            }
+                        }
                     }
 
                     PruefungenGeaendert();
