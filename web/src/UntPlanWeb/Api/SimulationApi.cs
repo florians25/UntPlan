@@ -9,6 +9,7 @@ namespace UntPlanWeb.Api;
 /// <item><c>PUT /api/app/admin/simulation</c> – Einstellungen speichern (Einschalten beginnt die Simulation jetzt).</item>
 /// <item><c>POST /api/app/admin/simulation/lauf</c> – fällige Ereignisse sofort ausführen.</item>
 /// <item><c>POST /api/app/admin/simulation/nachpflegen</c> – Vergangenheit nachpflegen (Hintergrundauftrag, Stand im GET).</item>
+/// <item><c>POST /api/app/admin/simulation/nachpflegen/abbrechen</c>, <c>…/nachbessern/abbrechen</c>: Auftrag nach dem aktuellen Tag abbrechen.</item>
 /// <item><c>POST /api/app/admin/simulation/entfernen</c> – alle simulierten Daten und Konten entfernen.</item>
 /// </list>
 /// </summary>
@@ -46,6 +47,18 @@ public static class SimulationApi
             var st = sim.NachbessernStarten(b, d.Von, d.Bis);
             prot.Schreiben(b.Login, "Simulationsdaten nachbessern", $"{st.Von} bis {st.Bis}");
             return Results.Json(st);
+        });
+        api.MapPost("/nachpflegen/abbrechen", (HttpContext c, Schulsimulation sim, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            prot.Schreiben(b.Login, "Vergangenheit nachpflegen abgebrochen", "");
+            return Results.Json(sim.NachpflegenAbbrechen(b));
+        });
+        api.MapPost("/nachbessern/abbrechen", (HttpContext c, Schulsimulation sim, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            prot.Schreiben(b.Login, "Simulationsdaten nachbessern abgebrochen", "");
+            return Results.Json(sim.NachbessernAbbrechen(b));
         });
         api.MapPost("/entfernen", (HttpContext c, Schulsimulation sim, Protokoll prot) =>
         {

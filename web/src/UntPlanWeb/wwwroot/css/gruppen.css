@@ -92,12 +92,6 @@
 .wt-status.sim-aus .wt-symbol { background: #eef1f3; color: #67747e; }
 .sim-modul { cursor: pointer; }
 .sim-modul input { flex: none; }
-.sim-auswahl { display: flex; flex-wrap: wrap; gap: 6px; }
-.sim-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 8px; border: 1px solid #dfe3e7; border-radius: 999px; cursor: pointer; font-size: .9rem; background: #fff; }
-.sim-chip input { margin: 0; accent-color: var(--u-akzent); }
-.sim-chip b { font-weight: 500; }
-.sim-chip span { color: #67747e; }
-.sim-chip:has(input:checked) { border-color: var(--u-akzent); background: #eef6f8; }
 .sim-unter { font-size: .9rem; font-weight: 500; color: #67747e; margin: 12px 0 6px; }
 .sim-anteil { display: flex; align-items: center; gap: 12px; max-width: 360px; } .sim-anteil input { flex: 1; accent-color: var(--u-akzent); } .sim-anteil output { min-width: 3.5em; font-weight: 500; }
 .sim-feld { display: flex; flex-direction: column; gap: 2px; font-size: .85rem; color: #67747e; }
@@ -105,9 +99,6 @@
 .sim-fortschritt small { color: #67747e; }
 .sim-balken { height: 8px; border-radius: 4px; background: #eef1f3; overflow: hidden; margin-bottom: 6px; max-width: 480px; }
 .sim-balken span { display: block; height: 100%; background: var(--u-akzent); transition: width .4s; }
-.sim-raumgruppe { margin-bottom: 8px; }
-.sim-raumgruppe h6 { font-size: .8rem; font-weight: 500; color: #67747e; margin: 6px 0 4px; }
-.sim-suche { max-width: 280px; margin-bottom: 8px; }
 .sim-liste { margin: 6px 0 0; padding-left: 18px; font-size: .85rem; color: #67747e; }
 
 /* Simulation: Intensitätsregler mit Markierung des Standardwerts */
@@ -118,3 +109,29 @@
 .sim-reglerbahn input { width: 100%; }
 .sim-reglerbahn::after { content: ""; position: absolute; left: calc(var(--std) * 0.96 + 2%); top: -2px; width: 2px; height: 8px; background: var(--bs-secondary-color); border-radius: 1px; pointer-events: none; }
 @media (max-width: 575.98px) { .sim-regelzeile { grid-template-columns: 1fr auto; } .sim-reglerbahn { grid-column: 1 / -1; grid-row: 2; } }
+
+/* Simulation: Gliederung in Abschnitte, kompakte Mehrfachauswahl, Speichern fest unten, Wartung getrennt */
+.sim-formular { position: relative; }
+.sim-abschnitt h4 { margin-bottom: .35rem; }
+.sim-wahlraster { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; }
+.sim-wahlfeld { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.sim-wahltitel { font-size: .875rem; font-weight: 500; color: var(--u-titel, #24323d); }
+.sim-wahlhilfe { color: #67747e; font-size: .8125rem; }
+.sim-wahl { max-width: 520px; }
+.sim-wahl .au-knopf { width: 100%; }
+.sim-klapp > summary { display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.sim-klapp > summary::-webkit-details-marker { display: none; }
+.sim-klapp > summary::before { content: "\F285"; font-family: bootstrap-icons; font-size: .8rem; color: #67747e; transition: transform .15s; }
+.sim-klapp[open] > summary::before { transform: rotate(90deg); }
+.sim-klapp > summary h4 { margin: 0; }
+.sim-klapphinweis { font-size: .8125rem; color: #67747e; }
+.sim-klapp[open] > summary { margin-bottom: .5rem; }
+.sim-leiste { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; margin: 0 0 16px;
+  background: var(--bs-body-bg, #fff); border: 1px solid #e3e7eb; border-radius: 12px; box-shadow: 0 -4px 12px rgba(36, 50, 61, .06); }
+.sim-leistehinweis { margin-left: auto; font-size: .8125rem; color: #8a5a00; }
+.sim-wartungstitel { font-size: 1.05rem; font-weight: 600; margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid #e3e7eb; }
+.sim-fehler { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: #fdecea; color: #a12a1d; font-size: .8125rem; }
+.sim-balken.laeuft span { background-image: linear-gradient(90deg, rgba(255,255,255,.25) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.25) 50%, rgba(255,255,255,.25) 75%, transparent 75%);
+  background-size: 16px 16px; animation: sim-streifen 1s linear infinite; }
+@keyframes sim-streifen { from { background-position: 0 0; } to { background-position: 16px 0; } }
+@media (prefers-reduced-motion: reduce) { .sim-balken.laeuft span { animation: none; } }

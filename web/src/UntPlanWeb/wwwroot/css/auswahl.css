@@ -104,3 +104,8 @@ td > .au.w-auto, td > .au.d-inline-block { vertical-align: middle; }
 .u-suche .au-knopf { min-height: 0; height: 32px; padding: 0 6px 0 4px; border: 0; background: transparent; box-shadow: none !important; font-size: .95rem; color: var(--u-titel); }
 .u-suche .au.offen .au-knopf, .u-suche .au-knopf:focus-visible { background: rgba(255, 255, 255, .7); border-radius: 999px; }
 .sd-raumsuche.au-mit-x { position: relative; padding-right: 40px; }
+
+/* Mehrfachauswahl: „Alle“ und „Keine“ über der Liste */
+.au-alle { display: flex; gap: 6px; padding: 4px 10px 6px; border-bottom: 1px solid #eef1f4; }
+.au-alle button { border: 0; background: none; padding: 2px 6px; border-radius: 6px; font-size: .8125rem; color: var(--u-akzent, #0b6e8a); }
+.au-alle button:hover, .au-alle button:focus-visible { background: #eef6f8; }

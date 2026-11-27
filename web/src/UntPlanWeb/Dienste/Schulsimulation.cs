@@ -116,6 +116,7 @@ public sealed partial class Schulsimulation : BackgroundService
     {
         _db = db; _uhr = uhr; _einstellungen = einstellungen; _paket = paket; _plan = plan; _kb = kb; _ent = ent; _mit = mit; _bd = bd; _rm = rm;
         _listen = listen; _vw = vw; _st = st; _log = log;
+        AuftraegeLaden();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stop)
@@ -212,7 +213,7 @@ public sealed partial class Schulsimulation : BackgroundService
             intensitaetRegler = Simulationsintensitaet.Regler.Select(r => new { r.Schluessel, r.Name, r.Gruppe, r.Standard, r.Max, r.Art }),
             stand = _einstellungen.Lesen(StandSchluessel) ?? "",
             lehrer = (s?.Paket.Elemente.Lehrer ?? new()).Where(l => l.Kurz is not ("---" or "???" or "+++")).Select(l => new { l.Kurz, name = $"{l.Vorname} {l.Name}".Trim() }),
-            faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name }),
+            faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name, gruppe = Fachbereich(Zuordnung(f.Kurz, f.Name)?.Id) }),
             raeume = (s?.Paket.Elemente.Raeume ?? new()).Where(x => x.Kurz.Length > 0).OrderBy(x => x.Kurz, StringComparer.Create(De, true))
                 .Select(x => new { x.Kurz, x.Name, x.Raumart, gruppe = x.Gebaeude.Length > 0 ? x.Gebaeude : x.Raumgruppen.FirstOrDefault() ?? "" }),
             verteilerVorhanden = Verteilerliste(e.Verteiler) is not null,
@@ -567,6 +568,19 @@ public sealed partial class Schulsimulation : BackgroundService
     // ------------------------------------------------------------------------------------------ Konten
 
     /// <summary>Gesperrtes Konto der simulierten Lehrkraft (Rolle Lehrkraft, Kürzel); legt es beim ersten Bedarf an.</summary>
+    /// <summary>Bereich einer Fachgruppe für die Auswahllisten (Sprachen, Mathematik und Naturwissenschaften, …).</summary>
+    public static string Fachbereich(string? gruppe) => gruppe switch
+    {
+        null => "Ohne Unterricht",
+        "deutsch" or "literatur" or "englisch" or "fachenglisch" or "franzoesisch" or "latein" or "spanisch" => "Sprachen",
+        "mathe" or "biologie" or "chemie" or "physik" or "informatik" or "naturwissenschaft" => "Mathematik und Naturwissenschaften",
+        "erdkunde" or "geschichte" or "politik" or "wirtschaft" or "philosophie" or "religion" => "Gesellschaft und Religion",
+        "kunst" or "musik" or "sport" or "gestaltung" or "fotografie" or "koerper" => "Künste und Sport",
+        "anwendungsentwicklung" or "datenbanken" or "itsysteme" or "elektrotechnik" or "bautechnik" or "holz" or "textil" or "ernaehrung" or "pflege"
+            or "sozialpaedagogik" or "berufsorientierung" => "Berufliche Fächer",
+        _ => "Weitere Fächer",
+    };
+
     public Benutzer LehrerKonto(Stand s, string kuerzel)
     {
         var l = s.Lehrer.TryGetValue(kuerzel, out var x) ? x : null;
