@@ -86,14 +86,20 @@ public sealed partial class Schulsimulation
             lock (_sperre)
             {
                 liste.AddRange(Tagesereignisse(s, e, w, d, true).Where(x => x.Schluessel[..3] is "an|" or "kb|" or "vm|"));
-                if (e.Entschuldigungen) liste.AddRange(w.Schuelerausfaelle.Where(a => a.Bis == d).Select(a => Entschuldigung(s, e, w, a)).OfType<Ereignis>());
+                // Verspätungen: Kontrolle zur Stundenzeit, dann Eintreffen; sonst (gesammelt nachgetragen) gleich als Verspätung
+                liste.AddRange(Verspaetungsereignisse(s, e, w, d));
+                if (e.Entschuldigungen)
+                {
+                    liste.AddRange(w.Schuelerausfaelle.Where(a => a.Bis == d).Select(a => Entschuldigung(s, e, w, a)).OfType<Ereignis>());
+                    liste.AddRange(w.Schuelerausfaelle.Where(a => a.Von == d).Select(a => Schuelerkrankmeldung(s, e, w, a)).OfType<Ereignis>());
+                }
                 var vermerke = new List<(string, string, string)>();
                 var z = Zufall.Fuer(w.Seed, "np", d);
                 // gesammelt: nach dem Tag, bevorzugt Freitagnachmittag bzw. Wochenende; Entschuldigungen zu ihrer Zeit (spätestens jetzt)
                 var sammel = Sammelzeit(d, z);
                 foreach (var x in liste.Where(x => !erledigt.Contains(x.Schluessel)).OrderBy(x => x.Schluessel[..3] == "en|" ? 1 : 0).ThenBy(x => x.Zeit))
                 {
-                    var zeit = x.Schluessel[..3] == "en|" ? x.Zeit : x.Zeit < Um(d, 23 * 60) && z.Chance(0.25) ? x.Zeit : sammel.AddMinutes(z.Zahl(0, 90));
+                    var zeit = x.Schluessel[..3] is "en|" or "ms|" or "sp|" ? x.Zeit : x.Zeit < Um(d, 23 * 60) && z.Chance(0.25) ? x.Zeit : sammel.AddMinutes(z.Zahl(0, 90));
                     if (zeit >= jetzt) zeit = jetzt.AddMinutes(-1);
                     string ergebnis;
                     using (_uhr.Simuliert(zeit))

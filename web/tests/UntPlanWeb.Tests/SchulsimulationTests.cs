@@ -682,4 +682,54 @@ public class SchulsimulationTests
         if (j + 1 < bl.Count && bl[j + 1].Tag.DayNumber - bl[j].Tag.DayNumber <= 10)
             Assert.Equal(sim.Lehrstoff(stand, w, e, vt.Fach, vt.Klasse, vt.U, bl[j].Tag, bl[j].Von), sim.Lehrstoff(stand, w, e, vt.Fach, vt.Klasse, vt.U, bl[j + 1].Tag, bl[j + 1].Von));
     }
+
+    [Fact]
+    public async Task Verspaetung_beim_Eintreffen_und_Krankmeldungen_ueber_die_Klassenleitung()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 12, 6, 30, 0));
+        await using var _ = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden();
+        var start = DateTime.Parse(e.Start);
+        var uhr = s.Dienst<Uhr>();
+        var db = s.Dienst<Db>();
+        // Verspätung: zu Stundenbeginn fehlend, beim Eintreffen (Ereigniszeit = Ankunft) als Verspätung
+        var alle = sim.Ereignisse(stand, e, start, start, new DateTime(2026, 10, 16, 23, 0, 0));
+        var sp = alle.Where(x => x.Schluessel.StartsWith("sp|")).Select(x =>
+        {
+            var t = x.Schluessel.Split('|');
+            var an = alle.FirstOrDefault(y => y.Schluessel.StartsWith($"an|{t[1]}|{t[2]}|{t[3]}|"));
+            return (Ereignis: x, Tag: DateOnly.Parse(t[1]), Stunde: int.Parse(t[3]), Schueler: int.Parse(t[4]), Kontrolle: an?.Zeit);
+        }).First(x => x.Kontrolle is DateTime k && k < x.Ereignis.Zeit);
+        Assert.InRange(sp.Stunde, 1, 3);
+        uhr.Fest = sp.Ereignis.Zeit.AddMinutes(-1);
+        sim.Lauf();
+        Assert.Equal("fehlt", db.Wert("SELECT art FROM fehlzeiten WHERE schueler_id = @s AND datum = @d AND stunde = @n", Db.P("@s", sp.Schueler), Db.P("@d", sp.Tag), Db.P("@n", sp.Stunde)));
+        uhr.Fest = sp.Ereignis.Zeit.AddMinutes(1);
+        sim.Lauf();
+        var zeile = db.Liste("SELECT art, minuten, erstellt FROM fehlzeiten WHERE schueler_id = @s AND datum = @d AND stunde = @n", r => (Art: r.Text("art"), Min: r.Zahl("minuten"), Erstellt: r.Text("erstellt")),
+            Db.P("@s", sp.Schueler), Db.P("@d", sp.Tag), Db.P("@n", sp.Stunde)).Single();
+        Assert.Equal("verspaetet", zeile.Art);
+        Assert.InRange(zeile.Min, 5, 30);
+        Assert.Equal(sp.Ereignis.Zeit.ToString("yyyy-MM-dd HH:mm"), zeile.Erstellt);
+
+        // Krankmeldungen: Zeitraum durch die Klassenleitung, sofort entschuldigt, Kontrolle übernimmt die Meldung (keine Doppelerfassung)
+        uhr.Fest = new DateTime(2026, 10, 16, 23, 0, 0);
+        sim.Lauf();
+        var gemeldet = Liste(s, $"SELECT schueler_id, datum, stunde, status, grund, bemerkung FROM fehlzeiten WHERE benutzer_id IN {Konten} AND (bemerkung LIKE '%Krankmeldung%' OR bemerkung LIKE '%Sekretariat%' OR bemerkung LIKE '%Ausbildungsbetrieb%')",
+            r => (Id: r.Zahl("schueler_id"), Datum: r.Text("datum"), Status: r.Text("status"), Grund: r.Text("grund"), Bem: r.Text("bemerkung")));
+        Assert.NotEmpty(gemeldet);
+        Assert.All(gemeldet, g => { Assert.Equal("entschuldigt", g.Status); Assert.Equal("K", g.Grund); });
+        // am gemeldeten Tag tragen alle Stunden dieselbe Meldung (die Lehrkräfte übernehmen sie in der Kontrolle)
+        foreach (var g in gemeldet.GroupBy(g => (g.Id, g.Datum)))
+        {
+            var tag = db.Liste("SELECT bemerkung, status FROM fehlzeiten WHERE schueler_id = @s AND datum = @d", r => (Bem: r.Text("bemerkung"), Status: r.Text("status")), Db.P("@s", g.Key.Id), Db.P("@d", g.Key.Datum));
+            Assert.All(tag, t => { Assert.Equal(g.First().Bem, t.Bem); Assert.Equal("entschuldigt", t.Status); });
+        }
+        // der übrige Teil der Krankheiten läuft weiter über die Kontrolle (fehlt, später entschuldigt)
+        Assert.True(Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM fehlzeiten WHERE art = 'fehlt' AND status = 'offen' AND benutzer_id IN {Konten}")) > 0);
+        Assert.Contains(Schulsimulation.Meldungstext("bs", true, new Zufall(3)).Text, new[] { "Mitteilung vom Ausbildungsbetrieb", "Krankmeldung über den Ausbildungsbetrieb", "Eigene Krankmeldung per E-Mail", "Selbst telefonisch im Sekretariat gemeldet", "Eigene Krankmeldung per Mitteilung" });
+        sim.Entfernen(admin);
+        Assert.Equal(0, Convert.ToInt32(db.Wert("SELECT COUNT(*) FROM fehlzeiten")));
+    }
 }
