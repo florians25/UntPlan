@@ -24,11 +24,9 @@ public sealed partial class Schulsimulation
     private IEnumerable<Ereignis> Tagesereignisse(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d, bool vollstaendig = false)
     {
         var lehrer = w.KlassenDerLehrkraft.Keys.Where(l => !w.Ausgenommen.Contains(l) && s.Lehrer.ContainsKey(l)).Order(StringComparer.Ordinal).ToList();
-        var vorab = e.Lehreraktionen && Klassenbucheinstellungen.Laden(_db).LehrstoffZukunft;
+        var vorabErlaubt = Klassenbucheinstellungen.Laden(_db).LehrstoffZukunft;
         foreach (var l in lehrer)
         {
-            // manche Lehrkräfte planen voraus: Lehrstoff schon am Abend davor
-            var planer = vorab && Zufall.Fuer(w.Seed, "planer", l).Chance(0.25);
             List<Karte> karten;
             try { karten = _plan.Karten(s, d, Elementtyp.Lehrer, l).Where(Gehalten).ToList(); }
             catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
@@ -42,31 +40,32 @@ public sealed partial class Schulsimulation
                 var z = Zufall.Fuer(w.Seed, "kb", basis);
                 var beginn = Um(d, k.Beginn);
                 var ende = Um(d, k.Ende);
-                // Abwesenheitskontrolle nimmt bei Kopplungen die erste Lehrkraft vor
+                // Abwesenheitskontrolle (bei Kopplungen die erste Lehrkraft): 80 % zu Beginn der Stunde, sonst später am Tag, selten erst beim Nachpflegen
                 var kontrolle = e.Abwesenheiten && (k.Lehrer.Count == 0 || Ci.Equals(k.Lehrer[0].K, l));
-                var wk = z.Wert();
-                var sofort = kontrolle && wk < 0.9;
-                var spaeter = kontrolle && !sofort && (wk < 0.97 || vollstaendig);
-                if (sofort)
-                    yield return new($"an|{basis}", beginn.AddMinutes(z.Zahl(1, 8)), () => Kontrolle(s, w, d, l, u, k.Von));
-                if (e.Klassenbuch || spaeter)
+                if (kontrolle)
+                {
+                    var wk = z.Wert();
+                    DateTime? zeitAn = wk < 0.8 ? beginn.AddMinutes(z.Zahl(0, 5))
+                        : wk < 0.97 ? Max(ende.AddMinutes(z.Zahl(1, 20)), Um(d, z.Zahl(12 * 60, 17 * 60)))
+                        : vollstaendig ? Um(w.Schultag(d, z.Zahl(2, 6)), z.Zahl(15 * 60, 20 * 60)) : null;
+                    if (zeitAn is DateTime ta) yield return new($"an|{basis}", ta, () => Kontrolle(s, w, d, l, u, k.Von));
+                }
+                // Lehrstoff: 70 % zu Beginn der Stunde, 5 % im Voraus (ein bis zwei Tage vorher bzw. am Morgen), sonst nach der Stunde bis abends bzw. später
+                if (e.Klassenbuch)
                 {
                     var wt = z.Wert();
-                    var vorher = planer && !spaeter && e.Klassenbuch && z.Chance(0.5);
-                    DateTime? zeit = vorher ? Um(d.AddDays(-1), z.Zahl(17 * 60, 22 * 60)) : wt switch
+                    var vorabTag = d.AddDays(-z.Zahl(1, 2));
+                    DateTime? zeit = wt switch
                     {
-                        < 0.55 => ende.AddMinutes(z.Zahl(0, 12)),
-                        < 0.78 => Max(ende.AddMinutes(20), Um(d, z.Zahl(13 * 60 + 15, 17 * 60 + 45))),
-                        < 0.91 => Um(d, z.Zahl(19 * 60, 22 * 60 + 30)),
-                        < 0.97 => Um(w.Schultag(d, z.Zahl(1, 3)), z.Zahl(14 * 60, 20 * 60)),
+                        < 0.70 => beginn.AddMinutes(z.Zahl(0, 10)),
+                        < 0.75 => vorabErlaubt ? (z.Chance(0.6) ? Um(vorabTag, z.Zahl(15 * 60, 21 * 60)) : Min(Um(d, z.Zahl(6 * 60 + 30, 7 * 60 + 40)), beginn.AddMinutes(-5))) : beginn.AddMinutes(z.Zahl(0, 10)),
+                        < 0.87 => ende.AddMinutes(z.Zahl(0, 15)),
+                        < 0.93 => Max(ende.AddMinutes(20), Um(d, z.Zahl(13 * 60 + 15, 17 * 60 + 45))),
+                        < 0.97 => Um(d, z.Zahl(19 * 60, 22 * 60 + 30)),
+                        < 0.99 => Um(w.Schultag(d, z.Zahl(1, 3)), z.Zahl(14 * 60, 20 * 60)),
                         _ => vollstaendig ? Um(w.Schultag(d, z.Zahl(2, 6)), z.Zahl(15 * 60, 20 * 60)) : null,
                     };
-                    if (zeit is DateTime t)
-                        yield return new($"kb|{basis}", t, () =>
-                        {
-                            if (spaeter) Kontrolle(s, w, d, l, u, k.Von);
-                            if (e.Klassenbuch) Lehrstoff(s, e, w, d, l, u, k.Von);
-                        });
+                    if (zeit is DateTime t) yield return new($"kb|{basis}", t, () => Lehrstoff(s, e, w, d, l, u, k.Von));
                 }
                 if (e.Klassenbuch && z.Chance(0.045))
                     yield return new($"vm|{basis}", ende.AddMinutes(z.Zahl(0, 25)), () => Vermerk(s, w, d, l, u, k.Von));
@@ -87,6 +86,7 @@ public sealed partial class Schulsimulation
     }
 
     private static DateTime Max(DateTime a, DateTime b) => a > b ? a : b;
+    private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
 
     /// <summary>Karte der Stunde jetzt (zur Ausführung neu bestimmt: Vertretungen und Absenzen können sich geändert haben).</summary>
     private Karte KarteJetzt(Stand s, DateOnly d, string l, int u, int von) =>
@@ -146,20 +146,24 @@ public sealed partial class Schulsimulation
             throw new InvalidOperationException("Lehrstoff ist bereits eingetragen.");
         var b = LehrerKonto(s, l);
         var z = Zufall.Fuer(w.Seed, "ls", d, u, von, l);
-        var sekII = karte.Klassen.Any(k => Oberstufe(s, k.K));
-        var thema = LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
+        var sekII = karte.Klassen.Any(k => Oberstufe(s, k.K) || Stufe(s, k.K) == "bk");
+        var vertretung = Vertretungslehrkraft(s, karte, l);
+        var thema = vertretung is not null ? Vertretungsstoff(s, karte, vertretung, z, d)
+            : LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
         if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
-        var ohneHausaufgabe = Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fh) ? fh.Name : null)?.Id is "sport" or "klassenleitung" or "koerper";
-        var hausaufgabe = ohneHausaufgabe || !z.Chance(sekII ? 0.16 : 0.32) ? ""
+        // Hausaufgaben selten, eher in den Hauptfächern; nie in Vertretungsstunden, Sport, Klassenleitung
+        var gruppe = Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fh) ? fh.Name : null)?.Id;
+        var hauptfach = gruppe is "deutsch" or "mathe" or "englisch" or "franzoesisch" or "latein" or "spanisch" or "fachenglisch";
+        var anteil = vertretung is not null || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
+        var hausaufgabe = !z.Chance(anteil) ? ""
             : z.Zahlen(z.Wahl(sprache && z.Chance(0.6) ? HausaufgabenSprachen : Hausaufgaben));
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
         var notiz = z.Chance(0.03) ? z.Wahl(Notizen) : "";
-        var lehrform = z.Wahl(Lehrformen);
         // ein Hinweis an die Klasse vom Vortag bleibt (eigene Notiz und Hausaufgabe gehen vor)
         var alt = _kb.Holen(d, Klassenbuchdienst.Schluessel(karte), u, l);
         _kb.Speichern(b, s, d, von, u, thema, hausaufgabe.Length > 0 ? hausaufgabe : alt?.Hausaufgabe ?? "", hausaufgabe.Length > 0 ? faellig : alt?.Faellig is { } af ? DateOnly.Parse(af) : null,
-            notiz.Length > 0 ? notiz : alt?.Notiz ?? "", null, lehrform.Length > 0 ? lehrform : null, null, l);
+            notiz.Length > 0 ? notiz : alt?.Notiz ?? "", null, null, null, l);
     }
 
     /// <summary>Hinweis an die Klasse für die Stunde (für Schüler*innen sichtbar), bisherige Einträge der Stunde bleiben.</summary>

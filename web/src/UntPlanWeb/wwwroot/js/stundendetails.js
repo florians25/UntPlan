@@ -435,7 +435,8 @@ export function karteDialog(karte, kontext = {}) {
   function lehrstoffHtml() {
     const wert = daten.eintrag?.thema;
     const stift = daten.darf ? '<button type="button" class="sd-stift" data-bearbeiten="thema" title="Lehrstoff bearbeiten" aria-label="Lehrstoff bearbeiten"><i class="bi bi-pencil"></i></button>' : '';
-    const zusatz = [daten.eintrag?.lehrform ? `Lehrform: ${daten.eintrag.lehrform}` : '', daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : ''].filter(Boolean).join(', ');
+    // Die Unterrichtsform (Lehrform) wird im Klassenbuch nicht angezeigt
+    const zusatz = daten.eintrag?.anmerkung ? `Anmerkung: ${daten.eintrag.anmerkung}` : '';
     const hinweis = ebenenHinweis('thema');
     // wie in der Vorlage: Lehrstoff direkt auf der Seite eingeben – Klick auf den Text bzw. den Hinweis öffnet ein Eingabefeld mit
     // „Speichern“ (erst nach einer Änderung aktiv) und „Abbrechen“; der Stift öffnet weiterhin den Dialog (Lehrstoff aus Vorwochen, Lehrform)

@@ -52,8 +52,8 @@ public sealed partial class Schulsimulation
         ["alle"] = new()
         {
             $"{fach}: Grundlagen|Einführung und Überblick|Grundbegriffe|Erarbeitung mit Arbeitsblatt|Übungsaufgaben|Ergebnissicherung",
-            $"{fach}: Anwendung|Fallbeispiel aus der Praxis|Gruppenarbeit|Präsentation der Ergebnisse|Reflexion",
-            $"{fach}: Vertiefung|Fachtexte erschließen|Aufgaben in Partnerarbeit|Lernkontrolle|Besprechung",
+            $"{fach}: Anwendung|Fallbeispiel aus der Praxis|Fallbeispiel auswerten|Ergebnisse vorstellen|Reflexion",
+            $"{fach}: Vertiefung|Fachtexte erschließen|Aufgaben zum Thema|Lernkontrolle|Besprechung",
         },
     });
 
@@ -158,8 +158,11 @@ public sealed partial class Schulsimulation
             liste.AddRange(reihe.Skip(1).Select(x => (reihe[0], x)));
             if (reihe.Length >= 6) liste.Add((reihe[0], "Übungen und Wiederholung"));
         }
-        var gesamt = Math.Max(bloecke.Count, 1);
-        var pos = Math.Min(liste.Count - 1, (int)((long)Math.Max(0, i) * liste.Count / gesamt));
+        // vertretene bzw. entfallene Stunden der Lerngruppe bringen die Reihe nicht weiter
+        var ausgefallen = Ausgefallen(s, u);
+        var fort = Math.Max(0, i - bloecke.Take(Math.Max(0, i)).Count(b => ausgefallen.Contains(b)));
+        var gesamt = Math.Max(bloecke.Count - ausgefallen.Count, 1);
+        var pos = Math.Min(liste.Count - 1, (int)((long)fort * liste.Count / gesamt));
         var (titel, stunde) = liste[pos];
         // Prüfung: Stunde davor Wiederholung, am Termin die Prüfung, gut eine Woche später Rückgabe
         if (e.Pruefungen)
@@ -179,7 +182,7 @@ public sealed partial class Schulsimulation
         if (i > 0 && i < bloecke.Count && bloecke[i].Tag.DayNumber - bloecke[i - 1].Tag.DayNumber > 10) return Fertig($"{titel}: Wiederholung nach den Ferien");
         // mehrere Stunden je Eintrag (mehr Stunden als Einträge): Fortsetzung, Übung, Sicherung
         var erste = (int)Math.Ceiling((double)pos * gesamt / liste.Count);
-        var teil = Math.Max(0, i - erste);
+        var teil = Math.Max(0, fort - erste);
         // Übungs- und Wiederholungsstunden nicht mit „Übungen“ verlängern (keine doppelten Angaben)
         var uebung = stunde.Contains("Übung", StringComparison.OrdinalIgnoreCase) || stunde.Contains("Wiederholung", StringComparison.OrdinalIgnoreCase);
         var text = teil switch
@@ -187,12 +190,58 @@ public sealed partial class Schulsimulation
             0 => $"{titel}: {stunde}",
             1 => uebung ? $"{titel}: Anwendungsaufgaben" : $"{titel}: Fortsetzung {stunde}",
             2 => uebung ? $"{titel}: Besprechung der Übungen" : $"{titel}: {stunde}, Übungen S. {{s}}",
-            3 => uebung ? $"{titel}: Lernkontrolle" : $"{titel}: {stunde}, Vertiefung in Gruppenarbeit",
+            3 => uebung ? $"{titel}: Lernkontrolle" : $"{titel}: {stunde}, Vertiefung",
             4 => $"{titel}: Anwendungsaufgaben zu {stunde}",
             5 => $"{titel}: Lernkontrolle {stunde}",
             _ => $"{titel}: Übungen S. {{s}} Nr. {{a}} und {{b}}",
         };
         return Fertig(text);
+    }
+
+    private readonly Dictionary<(string, int), HashSet<(DateOnly Tag, int Von)>> _ausgefallen = new();
+
+    /// <summary>Stunden des Unterrichts, die laut Vertretungsplan vertreten wurden bzw. entfallen sind (Stand der übertragenen Tage).</summary>
+    public HashSet<(DateOnly Tag, int Von)> Ausgefallen(Stand s, int u)
+    {
+        lock (_ausgefallen)
+        {
+            if (_ausgefallen.TryGetValue((s.Empfangen, u), out var a)) return a;
+            if (_ausgefallen.Count > 5000) _ausgefallen.Clear();
+            a = new();
+            foreach (var t in s.Paket.Tage)
+            {
+                if (!DateOnly.TryParse(t.Datum, out var d)) continue;
+                var stunden = t.Stunden.Where(x => x.Unterricht == u && x.Status is "vertreten" or "entfall" or "offen").Select(x => x.Stunde).ToHashSet();
+                foreach (var n in stunden.Where(n => !stunden.Contains(n - 1))) a.Add((d, n));
+            }
+            return _ausgefallen[(s.Empfangen, u)] = a;
+        }
+    }
+
+    /// <summary>Vertritt die Lehrkraft die Stunde (sie gehört nicht zu den Lehrkräften des Unterrichts)? Ergebnis: Kürzel der vertretenen Lehrkraft ("" = unbekannt), sonst null.</summary>
+    public static string? Vertretungslehrkraft(Stand s, Karte k, string lehrer)
+    {
+        if (k.Unterricht is not int u || !s.Unterricht.TryGetValue(u, out var un)) return null;
+        var regulaer = un.Zeilen.Select(z => z.Lehrer).Where(x => x.Length > 0).ToHashSet(Ci);
+        if (regulaer.Count == 0 || regulaer.Contains(lehrer)) return null;
+        return k.Lehrer.FirstOrDefault(w => Ci.Equals(w.K, lehrer))?.Alt is { Length: > 0 } alt && !Ci.Equals(alt, lehrer) ? alt : regulaer.Order(StringComparer.Ordinal).First();
+    }
+
+    /// <summary>Lehrstoff der Vertretungslehrkraft (statt der Reihe): Aufgaben der Fachlehrkraft, Teams, Arbeitsblatt, Stillarbeit, Wiederholung.</summary>
+    private string Vertretungsstoff(Stand s, Karte k, string fachlehrkraft, Zufall z, DateOnly tag)
+    {
+        var name = s.Lehrer.TryGetValue(fachlehrkraft, out var l) && l.Name.Length > 0 ? $"{l.Vorname} {l.Name}".Trim() : fachlehrkraft;
+        var reihe = "";
+        try { reihe = LehrstoffFuer(s, Welt(s, Laden(), DateTime.Parse(Laden().Start, Inv), _uhr.Jetzt), Laden(), k, tag)?.Split(':')[0] ?? ""; }
+        catch (Exception ex) when (ex is FormatException or ArgumentException) { }
+        var texte = new List<string>
+        {
+            $"Vertretung: Aufgaben von {name} bearbeitet", "Vertretungsaufgaben aus Teams bearbeitet", "Arbeitsblatt der Fachlehrkraft bearbeitet", "Stillarbeit",
+            "Vertretung: Arbeitsaufträge der Fachlehrkraft", $"Vertretung: Übungsaufgaben im Buch S. {z.Zahl(12, 210)}", "Vertretungsstunde: Aufgaben in Teams bearbeitet",
+        };
+        if (reihe.Length > 0 && !reihe.StartsWith("Einstieg", StringComparison.Ordinal) && !reihe.StartsWith("Rückgabe", StringComparison.Ordinal))
+            texte.AddRange(new[] { $"Vertretungsunterricht: Wiederholung {reihe}", $"Vertretung: Übungen zu {reihe}" });
+        return z.Wahl(texte);
     }
 
     /// <summary>Geplante Prüfungen der Simulation für Klasse und Fach im Schuljahr.</summary>

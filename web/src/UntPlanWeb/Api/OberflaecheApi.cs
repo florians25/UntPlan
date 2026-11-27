@@ -178,8 +178,11 @@ public static partial class OberflaecheApi
                     stunden = karten.Select(z =>
                     {
                         var e = eintraege.FirstOrDefault(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis);
-                        var f = fehl.Where(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art == "fehlt")
-                            .GroupBy(y => y.SchuelerId).Select(g => g.First()).ToList();
+                        // Fehlzeiten der Teilnehmer*innen dieser Stunde (wie die Schülerkarten der Stundendetails): gespeichert sind sie unter dem Unterricht der
+                        // Schülerin bzw. des Schülers (Kurs, Gruppe einer Kopplung, Unterricht laut Klassenplan bei ganztägigen Abwesenheiten), nicht immer unter dem der Karte
+                        var teilnehmer = kb.SchuelerDerStunde(s, z, d).Select(x => x.Id).ToHashSet();
+                        var inStunde = fehl.Where(y => y.Datum == iso && y.Stunde >= z.Von && y.Stunde <= z.Bis && (teilnehmer.Contains(y.SchuelerId) || (teilnehmer.Count == 0 && y.Unterricht == z.Unterricht))).ToList();
+                        var f = inStunde.Where(y => y.Art == "fehlt").GroupBy(y => y.SchuelerId).Select(g => g.First()).ToList();
                         var hw = kb.HausaufgabenDerStunde(DateOnly.Parse(iso), z.Von, z.Bis, z.Unterricht!.Value).ToList();
                         return new
                         {
@@ -188,7 +191,7 @@ public static partial class OberflaecheApi
                             status = z.Status, unterricht = z.Unterricht, lehrstoff = e?.Thema ?? "", geprueft = e?.Anwesenheit != null,
                             abwesend = f.Count, entschuldigt = f.Count(y => y.Status == "entschuldigt"), unentschuldigt = f.Count(y => y.Status == "unentschuldigt"),
                             hausaufgaben = string.Join("; ", hw.Select(h => h.Text)),
-                            verspaetet = fehl.Count(y => y.Datum == iso && y.Unterricht == z.Unterricht && y.Stunde >= z.Von && y.Stunde <= z.Bis && y.Art != "fehlt"),
+                            verspaetet = inStunde.Where(y => y.Art != "fehlt" && f.All(x => x.SchuelerId != y.SchuelerId)).Select(y => y.SchuelerId).Distinct().Count(),
                             eintraege = tagVermerke.Count(w => w.Zeit.Length == 5 && z.Klassen.Any(k => string.Equals(k.K, w.Klasse, StringComparison.OrdinalIgnoreCase))
                                 && string.CompareOrdinal(w.Zeit, z.Beginn) >= 0 && string.CompareOrdinal(w.Zeit, z.Ende) < 0),
                         };
