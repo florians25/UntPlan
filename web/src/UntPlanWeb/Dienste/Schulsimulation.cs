@@ -315,9 +315,14 @@ public sealed partial class Schulsimulation : BackgroundService
         {
             if (d < DateOnly.FromDateTime(start) || !w.Schultag(d)) continue;
             if (e.Klassenbuch || e.Abwesenheiten || e.Lehreraktionen) res.AddRange(TagesereignisseGemerkt(s, e, w, d));
+            res.AddRange(Verspaetungsereignisse(s, e, w, d));
         }
         if (e.Krankmeldungen) res.AddRange(w.Ausfaelle.SelectMany(a => Meldungen(s, e, w, a)));
-        if (e.Entschuldigungen && e.Abwesenheiten) res.AddRange(w.Schuelerausfaelle.Select(a => Entschuldigung(s, e, w, a)).OfType<Ereignis>());
+        if (e.Entschuldigungen && e.Abwesenheiten)
+        {
+            res.AddRange(w.Schuelerausfaelle.Select(a => Entschuldigung(s, e, w, a)).OfType<Ereignis>());
+            res.AddRange(w.Schuelerausfaelle.Select(a => Schuelerkrankmeldung(s, e, w, a)).OfType<Ereignis>());
+        }
         if (e.Pruefungen) res.AddRange(Pruefungsereignisse(s, e, w, start, bis));
         if (e.Sprechtag) res.AddRange(Sprechtagereignisse(s, e, w, start));
         return res;
@@ -489,7 +494,7 @@ public sealed partial class Schulsimulation : BackgroundService
                 }
                 else if (w < gSpaet)
                 {
-                    res.Add(new(sch.Id, sch.Klasse, "verspaetet", new() { d }, 0, 0, z.Gewichtet(new[] { (3, 20.0), (5, 25.0), (8, 20.0), (10, 15.0), (15, 12.0), (20, 8.0) }, x => x.Item2).Item1,
+                    res.Add(new(sch.Id, sch.Klasse, "verspaetet", new() { d }, 0, 0, z.Gewichtet(new[] { (5, 20.0), (7, 18.0), (10, 20.0), (12, 12.0), (15, 14.0), (20, 9.0), (25, 4.0), (30, 3.0) }, x => x.Item2).Item1,
                         z.Chance(bg == "bs" ? 0.7 : 0.5) ? "Z" : "v"));
                     frei = d;
                 }

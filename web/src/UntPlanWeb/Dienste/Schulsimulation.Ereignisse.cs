@@ -104,8 +104,15 @@ public sealed partial class Schulsimulation
             throw new InvalidOperationException("Die Abwesenheiten wurden bereits erfasst.");
         var b = LehrerKonto(s, l);
         var eintraege = new List<AnwesenheitEintrag>();
+        // schon erfasst (z. B. Krankmeldung über die Klassenleitung): als abwesend übernehmen, Grund und Text bleiben, keine Doppelerfassung
+        var vorhanden = _kb.FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && f.Art == "fehlt").GroupBy(f => f.SchuelerId).ToDictionary(g => g.Key, g => g.First());
         foreach (var sch in _kb.SchuelerDerStunde(s, karte, d))
         {
+            if (vorhanden.TryGetValue(sch.Id, out var vf))
+            {
+                eintraege.Add(new(sch.Id, "fehlt", 0, Klassenbuchdienst.Klartext(vf.Bemerkung), vf.Grund.Length > 0 ? vf.Grund : null));
+                continue;
+            }
             // Berufsschule: Klasse in der schriftlichen Kammerprüfung (freigestellt)
             if (KammerpruefungDer(s, w.Seed, sch.Klasse) is { } kp && kp.Tag == d)
             {
@@ -125,11 +132,50 @@ public sealed partial class Schulsimulation
                     eintraege.Add(new(sch.Id, "fehlt", 0, a.StundeBis >= 99 ? "Arzttermin, nach Hause gegangen" : null));
                     break;
                 case "verspaetet" when karte.Von <= 3 && karte.Von == ErsteStunde(s, sch.Klasse, d):
-                    eintraege.Add(new(sch.Id, "verspaetet", a.Minuten, a.Grund == "Z" ? (sch.Id % 2 == 0 ? "Bahn verspätet" : "Bus verspätet") : null, a.Grund == "Z" ? "Z" : null));
+                    // vor dem Eintreffen: fehlt (beim Eintreffen wird daraus über „anwesend ab jetzt“ die Verspätung); danach bzw. beim Nachpflegen gleich als Verspätung
+                    if (_uhr.Jetzt < Um(d, karte.Beginn).AddMinutes(a.Minuten)) eintraege.Add(new(sch.Id, "fehlt", 0, null));
+                    else eintraege.Add(new(sch.Id, "verspaetet", a.Minuten, a.Grund == "Z" ? Verspaetungstext(sch.Id) : null, a.Grund == "Z" ? "Z" : null));
                     break;
             }
         }
         _kb.AnwesenheitSpeichern(b, s, d, von, u, eintraege);
+    }
+
+    private static string Verspaetungstext(int schuelerId) => schuelerId % 2 == 0 ? "Bahn verspätet" : "Bus verspätet";
+
+    /// <summary>
+    /// Verspätungen während der Stunde: Die Schülerin bzw. der Schüler steht bei der Kontrolle zu Stundenbeginn als fehlend im Klassenbuch und wird beim
+    /// Eintreffen (Ereigniszeit = Ankunft) über „anwesend ab jetzt“ zur Verspätung. Nur in der ersten Stunde des Tages, wenn sie in der 1. bis 3. Stunde liegt.
+    /// </summary>
+    private IEnumerable<Ereignis> Verspaetungsereignisse(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly d)
+    {
+        if (!e.Abwesenheiten) yield break;
+        foreach (var a in w.Schuelerausfaelle.Where(a => a.Art == "verspaetet" && a.Von == d))
+        {
+            var erste = ErsteStunde(s, a.Klasse, d);
+            if (erste is < 1 or > 3) continue;
+            Karte? karte;
+            try { karte = _plan.Karten(s, d, Elementtyp.Klasse, a.Klasse).FirstOrDefault(k => Gehalten(k) && k.Von == erste && k.Lehrer.Count > 0); }
+            catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
+            if (karte is null) continue;
+            var l = karte.Lehrer[0].K;
+            if (w.Ausgenommen.Contains(l) || w.Krank(l, d, erste)) continue;
+            var u = karte.Unterricht!.Value;
+            var ankunft = Um(d, karte.Beginn).AddMinutes(a.Minuten);
+            yield return new($"sp|{d:yyyy-MM-dd}|{u}|{erste}|{a.SchuelerId}", ankunft, () =>
+            {
+                var b = LehrerKonto(s, l);
+                if (_db.Wert("SELECT 1 FROM fehlzeiten WHERE schueler_id = @s AND datum = @d AND stunde = @n AND art = 'fehlt'", Db.P("@s", a.SchuelerId), Db.P("@d", d), Db.P("@n", erste)) is null)
+                    throw new InvalidOperationException("Nicht als fehlend erfasst.");
+                _kb.Aufgestanden(b, s, d, erste, u, a.SchuelerId);
+                // Grund „Zug/Bus verspätet“ mit Text (Format der Bemerkung wie beim Erfassen: Hinweis – Text)
+                if (a.Grund == "Z")
+                    foreach (var (id, bem) in _db.Liste($"SELECT id, bemerkung FROM fehlzeiten WHERE schueler_id = @s AND datum = @d AND art = 'verspaetet' AND benutzer_id IN {SimKonten}",
+                                 r => (r.Zahl("id"), r.Text("bemerkung")), Db.P("@s", a.SchuelerId), Db.P("@d", d)))
+                        _db.Ausfuehren("UPDATE fehlzeiten SET grund = 'Z', bemerkung = @b WHERE id = @i",
+                            Db.P("@b", bem.Length == 0 ? Verspaetungstext(a.SchuelerId) : $"{bem} – {Verspaetungstext(a.SchuelerId)}"), Db.P("@i", id));
+            });
+        }
     }
 
     private readonly Dictionary<(string, DateOnly), int> _ersteStunde = new();
@@ -236,10 +282,56 @@ public sealed partial class Schulsimulation
 
     // ------------------------------------------------------------------------------------------ Entschuldigungen der Klassenleitung
 
+    /// <summary>Klassenleitung der Klasse, für die die Automatik läuft (nicht ausgenommen); null = keine.</summary>
+    private static string? Klassenleitung(Stand s, Weltstand w, string klasse) =>
+        s.Klassen.TryGetValue(klasse, out var kl) ? kl.Klassenleitung.FirstOrDefault(x => !w.Ausgenommen.Contains(x) && s.Lehrer.ContainsKey(x)) : null;
+
+    /// <summary>Ein Teil der Krankheiten wird gemeldet (E-Mail, Sekretariat, Betrieb): die Klassenleitung trägt sie als Zeitraum ein und entschuldigt sofort.</summary>
+    private static bool Gemeldet(Weltstand w, Schuelerausfall a) => a.Art == "krank" && Zufall.Fuer(w.Seed, "mel", a.SchuelerId, a.Von).Chance(0.45);
+
+    /// <summary>
+    /// Krankmeldung von Eltern, volljährigen Schüler*innen bzw. dem Ausbildungsbetrieb: Die Klassenleitung legt die Abwesenheit für den gemeldeten
+    /// Zeitraum an (Grund Krankheit, entschuldigt, mit Bemerkung zur Meldung). Gemeldet wird im Voraus (Vorabend, Wochenende), am Morgen, im Lauf des
+    /// Tages oder erst Tage später; liegt die Meldung vor der Stunde, steht die Schülerin bzw. der Schüler in der Kontrolle schon als abwesend.
+    /// </summary>
+    private Ereignis? Schuelerkrankmeldung(Stand s, Simulationseinstellungen e, Weltstand w, Schuelerausfall a)
+    {
+        if (!Gemeldet(w, a) || Klassenleitung(s, w, a.Klasse) is not { } leitung) return null;
+        var z = Zufall.Fuer(w.Seed, "melz", a.SchuelerId, a.Von);
+        var vortag = a.Von.AddDays(-1);
+        var zeit = z.Gewichtet(new[] { (1, 25.0), (2, 35.0), (3, 15.0), (4, 25.0) }, x => x.Item2).Item1 switch
+        {
+            1 => Um(vortag, z.Zahl(17 * 60, 21 * 60 + 30)),
+            2 => Um(a.Von, z.Zahl(6 * 60 + 40, 7 * 60 + 50)),
+            3 => Um(a.Von, z.Zahl(9 * 60, 12 * 60 + 30)),
+            _ => Um(w.Schultag(a.Von, z.Zahl(1, 4)), z.Zahl(13 * 60, 17 * 60)),
+        };
+        return new($"ms|{a.SchuelerId}|{a.Von:yyyy-MM-dd}", zeit, () =>
+        {
+            if (w.Krank(leitung, DateOnly.FromDateTime(_uhr.Jetzt), 1)) throw new InvalidOperationException("Die Klassenleitung ist krank.");
+            var bg = Bildungsgang(s, a.Klasse);
+            var (text, nachweis) = Meldungstext(bg, Volljaehrig(bg, a.SchuelerId), z);
+            if (a.Tage.Count > 1) text += $" für {a.Tage.Count} Tage";
+            var (von, bis) = Klassenbuchdienst.Ganztaegig(a.Von.ToDateTime(TimeOnly.MinValue), a.Bis.ToDateTime(TimeOnly.MinValue));
+            _kb.AbwesenheitErfassen(LehrerKonto(s, leitung), s, a.SchuelerId, von, bis, "K", text, "entschuldigt", null, null, nachweis, Plandienst.Iso(DateOnly.FromDateTime(_uhr.Jetzt)));
+        });
+    }
+
+    /// <summary>Wer meldet wie: Eltern (E-Mail, Sekretariat, Elternportal), Volljährige selbst, in der Berufsschule auch der Ausbildungsbetrieb.</summary>
+    public static (string Text, string Nachweis) Meldungstext(string bildungsgang, bool volljaehrig, Zufall z)
+    {
+        var liste = new List<(string, string)>();
+        if (bildungsgang == "bs") liste.AddRange(new[] { ("Mitteilung vom Ausbildungsbetrieb", "email"), ("Krankmeldung über den Ausbildungsbetrieb", "telefonisch") });
+        if (volljaehrig) liste.AddRange(new[] { ("Eigene Krankmeldung per E-Mail", "email"), ("Selbst telefonisch im Sekretariat gemeldet", "telefonisch"), ("Eigene Krankmeldung per Mitteilung", "schriftlich") });
+        else liste.AddRange(new[] { ("Krankmeldung per E-Mail der Mutter", "email"), ("Krankmeldung per E-Mail des Vaters", "email"), ("Anruf der Mutter im Sekretariat", "telefonisch"),
+            ("Telefonisch im Sekretariat gemeldet", "telefonisch"), ("Krankmeldung über das Elternportal", "schriftlich") });
+        return z.Wahl(liste);
+    }
+
     private Ereignis? Entschuldigung(Stand s, Simulationseinstellungen e, Weltstand w, Schuelerausfall a)
     {
-        if (!s.Klassen.TryGetValue(a.Klasse, out var kl)) return null;
-        var leitung = kl.Klassenleitung.FirstOrDefault(x => !w.Ausgenommen.Contains(x) && s.Lehrer.ContainsKey(x));
+        if (Gemeldet(w, a)) return null;
+        var leitung = Klassenleitung(s, w, a.Klasse);
         if (leitung is null) return null;
         var z = Zufall.Fuer(w.Seed, "en", a.SchuelerId, a.Von);
         var status = a.Art switch
