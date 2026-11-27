@@ -102,9 +102,13 @@ public sealed record Karte(
             var m = new List<string>();
             if (OhneMarker) return m;
             var verlegung = Verlegung;
+            var entfallen = Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend && !KlasseAbwesend);
+            // Ursprung einer Verlegung: solange er noch offen ist (nicht auf Entfall gesetzt), nur das Änderungssymbol; das
+            // Verlegungssymbol erst, wenn die Stunde dort entfällt
+            if (verlegung == "von" && !entfallen) { m.Add("aenderung"); return m; }
             if (verlegung == "von") m.Add("verlegungVon");
             else if (verlegung == "nach") m.Add("verlegungNach");
-            else if (Status == "entfall" || (Status == "abwesend" && !LehrerAbwesend && !KlasseAbwesend)) m.Add("entfall");
+            else if (entfallen) m.Add("entfall");
             if (Status == "klausur") { m.Add("pruefung"); if (WertGeaendert) m.Add("aenderung"); }
             else if (verlegung == "nach") { if (WertGeaendert && Status is "geaendert" or "offen") m.Add("aenderung"); }
             else if (verlegung is null && IstZusatz) { m.Add("plus"); if (ZusatzWertGeaendert) m.Add("aenderung"); }

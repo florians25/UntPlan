@@ -62,16 +62,32 @@ public class PlanSymboleTests
         var ix = new DatenIndex(d);
         foreach (var (typ, el) in new[] { ("klasse", ix.K(ElementTyp.Klasse, r.KlassenIds[0])), ("lehrer", ix.KLehrer(r.LehrerId)) })
         {
+            // Ursprung noch offen (nicht auf Entfall gesetzt): nur das Änderungssymbol, das Verlegungssymbol erst bei Entfall
             var von = Assert.Single(Karten(s, typ, el, Do, r.Stunde), k => k.Unterricht == r.Unterricht.Id);
-            Assert.Equal(new[] { "verlegungVon" }, von.Marker);
+            Assert.Equal("von", von.Verlegung);
+            Assert.Equal(new[] { "aenderung" }, von.Marker);
             var nach = Assert.Single(Karten(s, typ, el, Fr, ziel), k => k.Unterricht == r.Unterricht.Id);
             Assert.Equal("nach", nach.Verlegung);
             Assert.Equal("verlegungNach", nach.Marker[0]);
             Assert.NotNull(nach.VerlegungVon);
-            // sonst trägt keine Karte der Woche ein Verlegungssymbol
+            // sonst trägt keine Karte der Woche ein Verlegungssymbol (der offene Ursprung auch nicht)
             var plan = new Plandienst();
-            Assert.Equal(2, Enumerable.Range(0, 5).SelectMany(i => plan.Karten(s, Do.AddDays(i - 3), typ, el)).Count(Verlegungssymbol));
+            Assert.Equal(1, Enumerable.Range(0, 5).SelectMany(i => plan.Karten(s, Do.AddDays(i - 3), typ, el)).Count(Verlegungssymbol));
         }
+    }
+
+    [Fact]
+    public void Ursprung_einer_Verlegung_zeigt_das_Verlegungssymbol_erst_bei_Entfall()
+    {
+        Karte K(string status) => new Karte("2026-10-12", 3, 3, "09:35", "10:20", status, "PK", null, "Politik", "", new(), new(), new(), "", "Verlegung", null, 42, "")
+            { VerlegungsZeile = true, VerlegungsSeite = "von" };
+        // offen bzw. geändert: Lehrkraft fehlt dort noch, Stunde nicht entfallen
+        Assert.Equal(new[] { "aenderung" }, K("offen").Marker);
+        Assert.Equal(new[] { "aenderung" }, K("geaendert").Marker);
+        // auf Entfall gesetzt: Verlegungssymbol (rotes Dreieck mit Pfeil), kein Änderungssymbol
+        Assert.Equal(new[] { "verlegungVon" }, K("entfall").Marker);
+        // Ziel unverändert
+        Assert.Equal(new[] { "verlegungNach" }, (K("geaendert") with { VerlegungsSeite = "nach" }).Marker);
     }
 
     [Fact]
