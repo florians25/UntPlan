@@ -16,10 +16,12 @@ public sealed partial class Schulsimulation
     public static readonly string[] Laengen = { "Stichwort", "knapp", "normal", "ausführlich" };
 
     /// <summary>Stil der Lehrkraft (für dieselbe Lehrkraft immer gleich).</summary>
-    public static Lehrstoffstil LehrstoffstilDer(long seed, string lehrer)
+    /// <param name="ausfuehrlichkeit">Intensität in Prozent: mehr ausführliche und weniger Stichwort-Einträge (100 = Standard).</param>
+    public static Lehrstoffstil LehrstoffstilDer(long seed, string lehrer, int ausfuehrlichkeit = 100)
     {
         var z = Zufall.Fuer(seed, "lstil", lehrer);
-        var laenge = z.Gewichtet(new[] { (0, 15.0), (1, 25.0), (2, 35.0), (3, 25.0) }, x => x.Item2).Item1;
+        var a = Simulationsintensitaet.F(ausfuehrlichkeit);
+        var laenge = z.Gewichtet(new[] { (0, 15.0 * Math.Max(0, 2 - a)), (1, 25.0), (2, 35.0), (3, 25.0 * a) }, x => x.Item2).Item1;
         return new(laenge, z.Chance(0.55), z.Chance(0.4), laenge >= 2 || z.Chance(0.5));
     }
 
@@ -32,10 +34,10 @@ public sealed partial class Schulsimulation
         || text.Contains("Wiederholung zur ", StringComparison.Ordinal);
 
     /// <summary>Lehrstoff der Reihe im Stil der Lehrkraft (gleiche Eingaben ergeben denselben Text).</summary>
-    public string Stilisieren(long seed, string lehrer, string fach, string? fachName, int u, DateOnly d, int von, string text)
+    public string Stilisieren(long seed, string lehrer, string fach, string? fachName, int u, DateOnly d, int von, string text, int ausfuehrlichkeit = 100)
     {
         if (Fest(text)) return text;
-        var st = LehrstoffstilDer(seed, lehrer);
+        var st = LehrstoffstilDer(seed, lehrer, ausfuehrlichkeit);
         var z = Zufall.Fuer(seed, "stilisieren", lehrer, u, d, von);
         var gruppe = Zuordnung(fach, fachName);
         if (gruppe?.Zyklisch == true) return st.Abkuerzungen ? Abkuerzen(text) : text;

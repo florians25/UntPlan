@@ -3,6 +3,9 @@
 // Ausgenommene Lehrkräfte (Standard: Schulleitung) bleiben unberührt. Aufgerufen aus admin.js.
 import { e, holen, senden, toast, bestaetigen } from '../ui.js';
 
+/** Anzeige eines Intensitätsreglers: Prozent, beim Standardwert mit Hinweis. */
+const reglertext = (v, std, art) => `${v} %${art === 'faktor' && v === 0 ? ' (aus)' : ''}${v === std ? ' (Standard)' : ''}`;
+
 const zeit = s => s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
 const BEREICHE = [
@@ -59,6 +62,22 @@ export async function zeigen(ziel, kontext, neu) {
           Alle Einträge stammen von eigenen, gesperrten Konten und lassen sich unten vollständig entfernen.</p>
         <div class="wt-module">${BEREICHE.map(([n, t, h]) => `<label class="wt-modul sim-modul"><input class="form-check-input mt-1" type="checkbox" name="${n}" ${w[n] ? 'checked' : ''}>
           <span>${t}<small>${h}</small></span></label>`).join('')}</div>
+      </div>
+      <div class="wt-karte" data-intensitaet>
+        <h4>Intensität</h4>
+        <p class="ug-hinweis mt-0">Wie häufig und wie vollständig die Simulation einträgt. Faktoren beziehen sich auf den Standard (100 %), Anteile auf alle Stunden.
+          Die Markierung zeigt den Standardwert. Änderungen gelten sofort für neue Einträge und für das Nachpflegen; vorhandene Daten bleiben unverändert.</p>
+        ${[...new Set((d.intensitaetRegler ?? []).map(r => r.gruppe))].map(g => `<h5 class="sim-unter">${e(g)}</h5>
+          ${(d.intensitaetRegler ?? []).filter(r => r.gruppe === g).map(r => {
+            const v = Number(w.intensitaet?.[r.schluessel] ?? r.standard);
+            return `<label class="sim-regelzeile"><span>${e(r.name)}</span>
+              <span class="sim-reglerbahn" style="--std: ${(r.standard / r.max * 100).toFixed(1)}%"><input type="range" data-int="${e(r.schluessel)}" data-std="${r.standard}" data-art="${e(r.art)}"
+                min="0" max="${r.max}" step="5" value="${v}" aria-label="${e(r.name)}"></span>
+              <output>${reglertext(v, r.standard, r.art)}</output></label>`;
+          }).join('')}`).join('')}
+        <label class="wt-modul sim-modul mt-2"><input class="form-check-input mt-1" type="checkbox" name="grippewellen" ${w.intensitaet?.grippewellen !== false ? 'checked' : ''}>
+          <span>Grippewellen<small>Im Winter fehlen in einzelnen Klassen über rund zwei Wochen deutlich mehr Schüler*innen.</small></span></label>
+        <button class="btn btn-outline-secondary btn-sm mt-2" type="button" data-int-standard>Standard wiederherstellen</button>
       </div>
       <div class="wt-karte">
         <h4>Ausgenommene Lehrkräfte</h4>
@@ -132,6 +151,13 @@ export async function zeigen(ziel, kontext, neu) {
     form.querySelectorAll(`[data-raumliste="${f.dataset.raumsuche}"] [data-raum]`).forEach(c => { c.hidden = t.length > 0 && !c.dataset.raum.includes(t); });
   }));
   form.klausurraumanteil.oninput = ev => { ev.target.nextElementSibling.textContent = `${ev.target.value} %`; };
+  const regler = [...form.querySelectorAll('[data-int]')];
+  const reglerZeigen = r => { r.closest('.sim-regelzeile').querySelector('output').textContent = reglertext(Number(r.value), Number(r.dataset.std), r.dataset.art); };
+  regler.forEach(r => r.addEventListener('input', () => reglerZeigen(r)));
+  form.querySelector('[data-int-standard]').onclick = () => {
+    regler.forEach(r => { r.value = r.dataset.std; reglerZeigen(r); });
+    form.grippewellen.checked = true;
+  };
   form.onsubmit = async ev => {
     ev.preventDefault();
     const daten = { aktiv: form.aktiv.checked, verteiler: form.verteiler.value, klausurraumanteil: Number(form.klausurraumanteil.value),
@@ -139,6 +165,8 @@ export async function zeigen(ziel, kontext, neu) {
       pruefungSekI: [...form.querySelectorAll('[data-sek1]:checked')].map(x => x.value), pruefungSekII: [...form.querySelectorAll('[data-sek2]:checked')].map(x => x.value),
       klausurraeume: [...form.querySelectorAll('[data-kr]:checked')].map(x => x.value), raeumeAusgeschlossen: [...form.querySelectorAll('[data-ra]:checked')].map(x => x.value) };
     BEREICHE.forEach(([n]) => { daten[n] = form[n].checked; });
+    daten.intensitaet = { grippewellen: form.grippewellen.checked };
+    regler.forEach(r => { daten.intensitaet[r.dataset.int] = Number(r.value); });
     try {
       await senden('/api/app/admin/simulation', daten, 'PUT');
       toast(daten.aktiv ? (w.aktiv ? 'Einstellungen gespeichert.' : 'Die Simulation läuft ab jetzt.') : 'Die Simulation ist ausgeschaltet.');

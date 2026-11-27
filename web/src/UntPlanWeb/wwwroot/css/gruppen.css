@@ -109,3 +109,12 @@
 .sim-raumgruppe h6 { font-size: .8rem; font-weight: 500; color: #67747e; margin: 6px 0 4px; }
 .sim-suche { max-width: 280px; margin-bottom: 8px; }
 .sim-liste { margin: 6px 0 0; padding-left: 18px; font-size: .85rem; color: #67747e; }
+
+/* Simulation: Intensitätsregler mit Markierung des Standardwerts */
+.sim-regelzeile { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(140px, 2fr) 7.5rem; align-items: center; gap: .75rem; margin: .15rem 0; }
+.sim-regelzeile > span:first-child { font-size: .875rem; }
+.sim-regelzeile output { font-size: .8125rem; color: var(--bs-secondary-color); font-variant-numeric: tabular-nums; }
+.sim-reglerbahn { position: relative; display: block; }
+.sim-reglerbahn input { width: 100%; }
+.sim-reglerbahn::after { content: ""; position: absolute; left: calc(var(--std) * 0.96 + 2%); top: -2px; width: 2px; height: 8px; background: var(--bs-secondary-color); border-radius: 1px; pointer-events: none; }
+@media (max-width: 575.98px) { .sim-regelzeile { grid-template-columns: 1fr auto; } .sim-reglerbahn { grid-column: 1 / -1; grid-row: 2; } }

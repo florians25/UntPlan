@@ -175,6 +175,14 @@ public sealed partial class Schulsimulation
                         thema = Vertretungsstoff(s, w, e, karte, fl, Zufall.Fuer(w.Seed, "ls", d, x.U, karte.Von, x.Lehrer), d);
                         Merke("Lehrstoff in Vertretungsstunden ersetzt");
                     }
+                    // Prüfung, Wiederholung davor und Rückgabe nur, wenn es die Prüfung im Prüfungsmodul gibt (gelöscht, verlegt bzw. nie eingetragen:
+                    // normaler Stoff der Reihe; Prüfung ohne passenden Eintrag: Prüfungseintrag)
+                    else if (karte is not null && karte.Von == x.Stunde && LehrstoffFuer(s, w, e, karte, d) is { } soll && (Pruefungstext(soll) || Pruefungstext(thema)))
+                    {
+                        var neu = Pruefungstext(soll) ? soll
+                            : Stilisieren(w.Seed, x.Lehrer, karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fp) ? fp.Name : null, x.U, d, karte.Von, soll);
+                        if (neu != thema) { thema = neu; gestaltet = true; Merke("Prüfungseinträge im Lehrstoff an das Prüfungsmodul angepasst"); }
+                    }
                     // Lehrstoff der Reihe noch ohne den Schreibstil der Lehrkraft (ältere Simulationsdaten): im Stil der Lehrkraft
                     else if (karte is not null && karte.Von == x.Stunde && LehrstoffFuer(s, w, e, karte, d) is { } roh && roh == thema)
                     {
@@ -262,6 +270,11 @@ public sealed partial class Schulsimulation
         }
         return n;
     }
+
+    /// <summary>Lehrstoff zu einer Prüfung: die Prüfung selbst, die Wiederholung davor bzw. die Rückgabe.</summary>
+    public static bool Pruefungstext(string thema) =>
+        System.Text.RegularExpressions.Regex.IsMatch(thema, "^(Klassenarbeit|Klausur|Test|Abschlussprüfung|Präsentation|Referat|Vergleichsarbeit): ")
+        || thema.StartsWith("Rückgabe und Besprechung der ", StringComparison.Ordinal) || thema.Contains(": Wiederholung zur ", StringComparison.Ordinal);
 
     private static bool Vertretungstext(string thema) => thema.StartsWith("Vertretung", StringComparison.Ordinal) || thema is "Stillarbeit"
         || thema.StartsWith("Arbeitsblatt der Fachlehrkraft", StringComparison.Ordinal);
