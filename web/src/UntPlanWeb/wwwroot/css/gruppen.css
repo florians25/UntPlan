@@ -105,3 +105,6 @@
 .sim-fortschritt small { color: #67747e; }
 .sim-balken { height: 8px; border-radius: 4px; background: #eef1f3; overflow: hidden; margin-bottom: 6px; max-width: 480px; }
 .sim-balken span { display: block; height: 100%; background: var(--u-akzent); transition: width .4s; }
+.sim-raumgruppe { margin-bottom: 8px; }
+.sim-raumgruppe h6 { font-size: .8rem; font-weight: 500; color: #67747e; margin: 6px 0 4px; }
+.sim-suche { max-width: 280px; margin-bottom: 8px; }

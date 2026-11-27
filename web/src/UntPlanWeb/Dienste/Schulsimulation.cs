@@ -28,6 +28,10 @@ public sealed record Simulationseinstellungen
     public bool Lehreraktionen { get; init; } = true;
     /// <summary>Anteil der Prüfungen (Prozent), für die die Lehrkraft einen eigenen Prüfungsraum festlegt (Oberstufe; in der Sek I seltener).</summary>
     public int Klausurraumanteil { get; init; } = 30;
+    /// <summary>Räume (Kürzel), die als Prüfungsraum gewählt werden dürfen; leer = Automatik nach Raumart und Größe.</summary>
+    public List<string> Klausurraeume { get; init; } = new();
+    /// <summary>Räume (Kürzel), die die Simulation nie bucht (Raumänderungen, Prüfungsräume), z. B. Aula, Lehrerzimmer, Verwaltung.</summary>
+    public List<string> RaeumeAusgeschlossen { get; init; } = new();
     public bool Klassenbuch { get; init; } = true;
     public bool Abwesenheiten { get; init; } = true;
     public bool Entschuldigungen { get; init; } = true;
@@ -150,6 +154,8 @@ public sealed partial class Schulsimulation : BackgroundService
                 Ausgenommen = neu.Ausgenommen?.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList() ?? alt.Ausgenommen ?? Ausgenommen(alt),
                 OhnePruefung = neu.OhnePruefung is null ? alt.OhnePruefung : neu.OhnePruefung.Select(x => x.Trim()).Where(x => x.Length > 0).Distinct(Ci).ToList(),
                 Klausurraumanteil = Math.Clamp(neu.Klausurraumanteil, 0, 100),
+                Klausurraeume = Liste(neu.Klausurraeume) ?? new(),
+                RaeumeAusgeschlossen = Liste(neu.RaeumeAusgeschlossen) ?? new(),
                 PruefungSekI = Liste(neu.PruefungSekI) ?? alt.PruefungSekI,
                 PruefungSekII = Liste(neu.PruefungSekII) ?? alt.PruefungSekII,
                 Start = alt.Start, Seed = alt.Seed,
@@ -200,6 +206,8 @@ public sealed partial class Schulsimulation : BackgroundService
             stand = _einstellungen.Lesen(StandSchluessel) ?? "",
             lehrer = (s?.Paket.Elemente.Lehrer ?? new()).Where(l => l.Kurz is not ("---" or "???" or "+++")).Select(l => new { l.Kurz, name = $"{l.Vorname} {l.Name}".Trim() }),
             faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name }),
+            raeume = (s?.Paket.Elemente.Raeume ?? new()).Where(x => x.Kurz.Length > 0).OrderBy(x => x.Kurz, StringComparer.Create(De, true))
+                .Select(x => new { x.Kurz, x.Name, x.Raumart, gruppe = x.Gebaeude.Length > 0 ? x.Gebaeude : x.Raumgruppen.FirstOrDefault() ?? "" }),
             verteilerVorhanden = Verteilerliste(e.Verteiler) is not null,
             nachpflegen = _nachpflegen,
             schuljahrVon = s is null ? "" : Plandienst.Iso(Halbjahre(s)[0].Von),

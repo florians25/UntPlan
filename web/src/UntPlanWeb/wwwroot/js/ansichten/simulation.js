@@ -19,12 +19,25 @@ const BEREICHE = [
 const faecherwahl = (faecher, gewaehlt, name) => `<div class="sim-auswahl">${faecher.map(f => `<label class="sim-chip"><input type="checkbox" data-${name} value="${e(f.kurz)}" ${gewaehlt.has(f.kurz.toUpperCase()) ? 'checked' : ''}>
   <b>${e(f.kurz)}</b>${f.name && f.name !== f.kurz ? `<span>${e(f.name)}</span>` : ''}</label>`).join('')}</div>`;
 
+/** Räume als Häkchen-Chips, gruppiert nach Gebäude bzw. Raumgruppe, mit Suchfeld bei vielen Räumen. */
+function raumwahl(raeume, gewaehlt, name, suche) {
+  const gruppen = new Map();
+  raeume.forEach(r => { const g = r.gruppe || 'Weitere Räume'; if (!gruppen.has(g)) gruppen.set(g, []); gruppen.get(g).push(r); });
+  const chips = l => `<div class="sim-auswahl">${l.map(r => `<label class="sim-chip" data-raum="${e(`${r.kurz} ${r.name} ${r.raumart}`.toLowerCase())}"><input type="checkbox" data-${name} value="${e(r.kurz)}" ${gewaehlt.has(r.kurz.toUpperCase()) ? 'checked' : ''}>
+    <b>${e(r.kurz)}</b>${r.name && r.name !== r.kurz ? `<span>${e(r.name)}</span>` : ''}</label>`).join('')}</div>`;
+  const mehrere = gruppen.size > 1;
+  return `${suche && raeume.length > 24 ? `<label class="nl-suche sim-suche"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-raumsuche="${name}" placeholder="Raum suchen" aria-label="Raum suchen"></label>` : ''}
+    <div data-raumliste="${name}">${[...gruppen].map(([g, l]) => `<div class="sim-raumgruppe">${mehrere ? `<h6>${e(g)}</h6>` : ''}${chips(l)}</div>`).join('') || '<span class="text-body-secondary">Noch keine Räume übertragen.</span>'}</div>`;
+}
+
 export async function zeigen(ziel, kontext, neu) {
   const d = await holen('/api/app/admin/simulation');
   const w = d.einstellungen;
   const aus = new Set((w.ausgenommen ?? []).map(x => x.toUpperCase()));
   const sekI = new Set((w.pruefungSekI ?? []).map(x => x.toUpperCase()));
   const sekII = new Set((w.pruefungSekII ?? []).map(x => x.toUpperCase()));
+  const kr = new Set((w.klausurraeume ?? []).map(x => x.toUpperCase()));
+  const ra = new Set((w.raeumeAusgeschlossen ?? []).map(x => x.toUpperCase()));
   const z = d.zahlen;
   ziel.classList.add('wt-seite');
   ziel.innerHTML = `
@@ -68,6 +81,15 @@ export async function zeigen(ziel, kontext, neu) {
         <p class="ug-hinweis mb-0">Anteil der Klausuren in der Oberstufe, für die die Lehrkraft einen eigenen freien Raum festlegt (in der Sekundarstufe I ein Drittel davon).</p>
       </div>
       <div class="wt-karte">
+        <h4>Räume</h4>
+        <h5 class="sim-unter">Erlaubte Prüfungsräume</h5>
+        <p class="ug-hinweis mt-0">Legt die Lehrkraft einen eigenen Prüfungsraum fest, wählt sie nur aus diesen Räumen. Ohne Auswahl wählt die Simulation selbst einen freien Raum derselben Art und Größe.</p>
+        ${raumwahl(d.raeume ?? [], kr, 'kr', true)}
+        <h5 class="sim-unter">Von Buchungen ausgeschlossene Räume</h5>
+        <p class="ug-hinweis mt-0">Diese Räume bucht die Simulation nie, weder bei Raumänderungen noch als Prüfungsraum (z. B. Aula, Lehrerzimmer, Verwaltung, Sonderräume).</p>
+        ${raumwahl(d.raeume ?? [], ra, 'ra', true)}
+      </div>
+      <div class="wt-karte">
         <h4>Verteilerliste für Krankmeldungen</h4>
         <label class="form-label" for="sim-verteiler">Name der Liste im Mitteilungsmodul</label>
         <input id="sim-verteiler" class="form-control" name="verteiler" maxlength="100" value="${e(w.verteiler)}" style="max-width: 320px">
@@ -93,12 +115,17 @@ export async function zeigen(ziel, kontext, neu) {
       </div>
     </form>`;
   const form = ziel.querySelector('form');
+  form.querySelectorAll('[data-raumsuche]').forEach(f => f.addEventListener('input', () => {
+    const t = f.value.trim().toLowerCase();
+    form.querySelectorAll(`[data-raumliste="${f.dataset.raumsuche}"] [data-raum]`).forEach(c => { c.hidden = t.length > 0 && !c.dataset.raum.includes(t); });
+  }));
   form.klausurraumanteil.oninput = ev => { ev.target.nextElementSibling.textContent = `${ev.target.value} %`; };
   form.onsubmit = async ev => {
     ev.preventDefault();
     const daten = { aktiv: form.aktiv.checked, verteiler: form.verteiler.value, klausurraumanteil: Number(form.klausurraumanteil.value),
       ausgenommen: [...form.querySelectorAll('[data-aus]:checked')].map(x => x.value),
-      pruefungSekI: [...form.querySelectorAll('[data-sek1]:checked')].map(x => x.value), pruefungSekII: [...form.querySelectorAll('[data-sek2]:checked')].map(x => x.value) };
+      pruefungSekI: [...form.querySelectorAll('[data-sek1]:checked')].map(x => x.value), pruefungSekII: [...form.querySelectorAll('[data-sek2]:checked')].map(x => x.value),
+      klausurraeume: [...form.querySelectorAll('[data-kr]:checked')].map(x => x.value), raeumeAusgeschlossen: [...form.querySelectorAll('[data-ra]:checked')].map(x => x.value) };
     BEREICHE.forEach(([n]) => { daten[n] = form[n].checked; });
     try {
       await senden('/api/app/admin/simulation', daten, 'PUT');
