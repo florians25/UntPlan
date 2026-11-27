@@ -154,8 +154,8 @@ public sealed partial class Schulsimulation
         var w = new Weltstand
         {
             Seed = e.Seed, Start = von, Bis = bis, Schultage = tage.ToHashSet(), Tagesliste = tage, Ausgenommen = ausgenommen,
-            Ausfaelle = AusfaelleBerechnen(s, e.Seed, von.AddDays(-1), bis, tage, ausgenommen, klassenDerLehrkraft),
-            Schuelerausfaelle = SchuelerausfaelleBerechnen(s, e.Seed, von, bis, tage), KlassenDerLehrkraft = klassenDerLehrkraft,
+            Ausfaelle = AusfaelleBerechnen(s, e.Seed, von.AddDays(-1), bis, tage, ausgenommen, klassenDerLehrkraft, e.I),
+            Schuelerausfaelle = SchuelerausfaelleBerechnen(s, e.Seed, von, bis, tage, e.I), KlassenDerLehrkraft = klassenDerLehrkraft, Intensitaet = e.I,
         };
         foreach (var a in w.Schuelerausfaelle)
             foreach (var d in a.Tage) w.SchuelerAm.TryAdd((a.SchuelerId, d), a);

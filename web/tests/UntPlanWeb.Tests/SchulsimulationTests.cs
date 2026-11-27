@@ -448,7 +448,8 @@ public class SchulsimulationTests
         var pi = bl.IndexOf((p.Datum, p.Von));
         Assert.True(pi > 0);
         var klasse = paket.Unterricht[p.Unterricht].Zeilen[0].Klassen[0];
-        string Am(int i) => sim.Lehrstoff(paket, w, e, p.Fach, klasse, p.Unterricht, bl[i].Tag, bl[i].Von)!;
+        var termin = new[] { (p.Datum, p.Von, "Klassenarbeit") };
+        string Am(int i) => sim.Lehrstoff(paket, w, e, p.Fach, klasse, p.Unterricht, bl[i].Tag, bl[i].Von, termin)!;
         Assert.StartsWith("Klassenarbeit: ", Am(pi));
         Assert.Contains("Wiederholung zur Klassenarbeit", Am(pi - 1));
         Assert.Contains(Enumerable.Range(pi + 1, 6).Where(i => i < bl.Count), i => Am(i).StartsWith("Rückgabe"));
@@ -1078,5 +1079,148 @@ public class SchulsimulationTests
         Assert.Contains(frei, x => x.Text.Contains("Material: "));
         Assert.Contains(frei, x => x.Text.Contains("HA-Kontrolle") || x.Text.Contains("Hausaufgabenkontrolle"));
         Assert.True(eintraege.Select(x => Schulsimulation.LehrstoffstilDer(w.Seed, x.Lehrer).Laenge).Distinct().Count() == 4);
+    }
+
+    [Fact]
+    public async Task Pruefungen_im_Lehrstoff_nur_mit_Pruefung_im_Pruefungsmodul()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 11, 20, 23, 30, 0));
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var e = sim.Laden();
+        var w = sim.Welt(paket, e, DateTime.Parse(e.Start), new DateTime(2026, 11, 20, 23, 30, 0));
+        var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
+        var plan = sim.Pruefungsplanung(paket, e, w, hv, hb, DateTime.Parse(e.Start));
+        int mitPruefung = 0, ohneEintrag = 0;
+        foreach (var (u, un) in paket.Unterricht)
+        {
+            var z = un.Zeilen.FirstOrDefault(x => x.Klassen.Count > 0);
+            if (z is null || Schulsimulation.Zuordnung(z.Fach, paket.Faecher.TryGetValue(z.Fach, out var f) ? f.Name : null) is null) continue;
+            var modul = sim.PruefungenImModul(paket, z.Klassen[0], z.Fach);
+            var bloecke = sim.Bloecke(paket, u).Where(b => b.Tag >= hv && b.Tag <= hb).ToList();
+            var texte = bloecke.Select(b => (b.Tag, Text: sim.Lehrstoff(paket, w, e, z.Fach, z.Klassen[0], u, b.Tag, b.Von) ?? "")).ToList();
+            // jede Stunde mit Prüfungs-Lehrstoff hat eine Prüfung im Prüfungsmodul (am Tag bzw. kurz davor bei der Rückgabe, kurz danach bei der Wiederholung)
+            foreach (var (tag, text) in texte.Where(x => Schulsimulation.Pruefungstext(x.Text)))
+            {
+                if (text.StartsWith("Rückgabe")) Assert.Contains(modul, m => m.Datum < tag && m.Datum >= tag.AddDays(-42));
+                else if (text.Contains(": Wiederholung zur ")) Assert.Contains(modul, m => m.Datum > tag && m.Datum <= tag.AddDays(14));
+                else { Assert.Contains(modul, m => m.Datum == tag && text.StartsWith(m.Art + ": ")); mitPruefung++; }
+            }
+            // jede Prüfung im Modul mit Unterricht der Lerngruppe am Tag hat den passenden Lehrstoff
+            foreach (var m in modul.Where(m => m.Datum >= hv && m.Datum <= hb && bloecke.Any(b => b.Tag == m.Datum)))
+                Assert.Contains(texte, x => x.Tag == m.Datum && x.Text.StartsWith(m.Art + ": "));
+            // geplant, aber (noch) nicht im Prüfungsmodul: kein Prüfungseintrag
+            foreach (var p in plan.Where(p => p.Unterricht == u && !modul.Any(m => m.Datum == p.Datum)))
+            {
+                Assert.DoesNotContain(texte, x => x.Tag == p.Datum && Schulsimulation.Pruefungstext(x.Text) && !x.Text.StartsWith("Rückgabe") && !x.Text.Contains("Wiederholung zur"));
+                ohneEintrag++;
+            }
+        }
+        Assert.True(mitPruefung > 0, "keine Prüfung im Modul");
+        Assert.True(ohneEintrag > 0, "keine geplante Prüfung außerhalb des Moduls");
+        // Nachbessern: Prüfungseintrag ohne Prüfung wird normaler Stoff der Reihe
+        var db = s.Dienst<Db>();
+        var id = Convert.ToInt32(db.Wert($"SELECT MIN(id) FROM klassenbuch WHERE thema <> '' AND thema NOT LIKE 'Vertretung%' AND thema NOT LIKE 'Einstieg%' AND benutzer_id IN {Konten}"));
+        db.Ausfuehren("UPDATE klassenbuch SET thema = 'Klassenarbeit: Erfundene Reihe' WHERE id = @i", Db.P("@i", id));
+        var nb = sim.Nachbessern(paket, sim.Laden(), hv, hb);
+        Assert.Contains(nb.Zusammenfassung, x => x.StartsWith("Prüfungseinträge im Lehrstoff"));
+        Assert.False(Schulsimulation.Pruefungstext((string)db.Wert("SELECT thema FROM klassenbuch WHERE id = @i", Db.P("@i", id))!));
+        Assert.Equal(0, sim.Nachbessern(paket, sim.Laden(), hv, hb).Korrigiert);
+    }
+
+    [Fact]
+    public async Task Krankmeldungen_auch_am_Wochenende_und_am_letzten_Ferientag()
+    {
+        var (s, sim, _) = await StartenAsync(new DateTime(2026, 10, 12, 7, 0, 0));
+        await using var __ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var plan = s.Dienst<Plandienst>();
+        var m = new long[] { 4711, 11, 12 }.SelectMany(seed => sim.Krankmeldungsvorschau(paket, sim.Laden() with { Start = "2026-09-01 07:00", Seed = seed },
+            new DateTime(2026, 9, 1, 7, 0, 0), new DateTime(2027, 6, 30, 23, 0, 0))).ToList();
+        var sonntag = m.Where(x => x.Zeit.DayOfWeek == DayOfWeek.Sunday).ToList();
+        var samstag = m.Where(x => x.Zeit.DayOfWeek == DayOfWeek.Saturday).ToList();
+        Assert.True(sonntag.Count > samstag.Count && samstag.Count > 0, $"So {sonntag.Count}, Sa {samstag.Count}");
+        // Sonntag: vor allem nachmittags und abends
+        Assert.True(sonntag.Count(x => x.Zeit.Hour >= 13) >= sonntag.Count * 0.7);
+        // Folgemeldungen und Gesundmeldungen auch am Wochenende
+        Assert.Contains(m, x => x.Zeit.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday && new[] { "Verlängerung", "Folge", "Nachtrag", "AU ", "Update" }.Any(x.Betreff.StartsWith));
+        Assert.Contains(m, x => x.Zeit.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday && (x.Betreff.Contains("wieder", StringComparison.OrdinalIgnoreCase) || x.Betreff.StartsWith("Gesund")));
+        // in den Ferien (Werktag ohne Unterricht), z. B. am letzten Ferientag für den ersten Schultag
+        Assert.Contains(m, x => x.Zeit.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && plan.Frei(paket, DateOnly.FromDateTime(x.Zeit)).Frei);
+        // werktags bleibt der Schwerpunkt
+        Assert.True(m.Count(x => x.Zeit.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday) < m.Count * 0.3);
+    }
+
+    [Fact]
+    public async Task Intensitaet_Faktor_null_nichts_Faktor_zwei_doppelt_Standard_wie_bisher()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 12, 7, 0, 0));
+        await using var _ = s;
+        var paket = s.Dienst<Paketdienst>().Aktuell!;
+        var basis = sim.Laden() with { Start = "2026-09-01 07:00" };
+        var von = new DateTime(2026, 9, 1, 7, 0, 0);
+        var bis = new DateTime(2027, 1, 31, 23, 0, 0);
+        Schulsimulation.Weltstand W(Simulationsintensitaet? i) => sim.Welt(paket, basis with { Intensitaet = i }, von, bis);
+        // Standardwerte = bisheriges Verhalten
+        var ohne = W(null);
+        var standard = W(new Simulationsintensitaet());
+        Assert.Equal(ohne.Ausfaelle.Select(a => (a.Lehrer, a.Von, a.Bis, a.Art.Id)), standard.Ausfaelle.Select(a => (a.Lehrer, a.Von, a.Bis, a.Art.Id)));
+        Assert.Equal(ohne.Schuelerausfaelle.Select(a => (a.SchuelerId, a.Von, a.Art)), standard.Schuelerausfaelle.Select(a => (a.SchuelerId, a.Von, a.Art)));
+        int Krank(Schulsimulation.Weltstand w) => w.Schuelerausfaelle.Count(a => a.Art == "krank");
+        int Spaet(Schulsimulation.Weltstand w) => w.Schuelerausfaelle.Count(a => a.Art == "verspaetet");
+        // Faktor 0: nichts dieser Art
+        var null0 = W(new Simulationsintensitaet { Fehlquote = 0, Verspaetungen = 0, Lehrerausfaelle = 0 });
+        Assert.Equal(0, Krank(null0));
+        Assert.Equal(0, Spaet(null0));
+        Assert.Empty(null0.Ausfaelle);
+        // Faktor 2: ungefähr doppelt so viel
+        var doppelt = W(new Simulationsintensitaet { Fehlquote = 200, Verspaetungen = 200, Lehrerausfaelle = 200 });
+        double V(int a, int b) => (double)a / Math.Max(1, b);
+        Assert.InRange(V(Krank(doppelt), Krank(ohne)), 1.6, 2.3);
+        Assert.InRange(V(Spaet(doppelt), Spaet(ohne)), 1.5, 2.7);  // wenige Verspätungen in den Demodaten: größere Streuung
+        Assert.InRange(V(doppelt.Ausfaelle.Count, ohne.Ausfaelle.Count), 1.6, 2.4);
+        // Tests: 0 keine, 200 etwa doppelt so viele
+        var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
+        int Tests(int t) { var e = basis with { Intensitaet = new() { Tests = t } }; return sim.Pruefungsplanung(paket, e, sim.Welt(paket, e, von, bis), hv, hb, von).Count(p => p.Test); }
+        Assert.Equal(0, Tests(0));
+        Assert.InRange(V(Tests(200), Tests(100)), 1.4, 2.6);
+        // Ausführlichkeit: mehr ausführliche Einträge, bei 0 keine
+        var lehrer = paket.Lehrer.Keys.ToList();
+        Assert.DoesNotContain(lehrer, l => Schulsimulation.LehrstoffstilDer(basis.Seed, l, 0).Laenge == 3);
+        Assert.True(lehrer.Count(l => Schulsimulation.LehrstoffstilDer(basis.Seed, l, 300).Laenge == 3) > lehrer.Count(l => Schulsimulation.LehrstoffstilDer(basis.Seed, l).Laenge == 3));
+        // gespeichert und begrenzt, über die Schnittstelle mit Reglern
+        var gespeichert = sim.Speichern(admin, sim.Laden() with { Intensitaet = new() { Fehlquote = 500, KontrolleZuBeginn = 120, Hausaufgaben = 0, Grippewellen = false } });
+        Assert.Equal(300, gespeichert.I.Fehlquote);
+        Assert.Equal(100, gespeichert.I.KontrolleZuBeginn);
+        Assert.False(sim.Laden().I.Grippewellen);
+        Assert.Equal(0, sim.Laden().I.Hausaufgaben);
+        // ohne Angabe bleibt die gespeicherte Intensität
+        Assert.Equal(300, sim.Speichern(admin, sim.Laden() with { Intensitaet = null }).I.Fehlquote);
+        var api = await s.AlsAsync("admin");
+        var status = await Testserver.JsonAsync(await api.GetAsync("/api/app/admin/simulation"));
+        Assert.Equal(300, status["einstellungen"]!["intensitaet"]!["fehlquote"]!.GetValue<int>());
+        Assert.Contains(status["intensitaetRegler"]!.AsArray(), r => r!["schluessel"]!.GetValue<string>() == "kontrolleZuBeginn" && r["standard"]!.GetValue<int>() == 80);
+    }
+
+    [Fact]
+    public async Task Intensitaet_null_fuer_Hausaufgaben_und_Klassenbucheintraege()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var uhr = s.Dienst<Uhr>();
+        var sim = s.Dienst<Schulsimulation>();
+        uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+        sim.Speichern(s.Dienst<Benutzerdienst>().NachLogin("admin")!, new Simulationseinstellungen
+            { Aktiv = true, Intensitaet = new() { Hausaufgaben = 0, Klassenbucheintraege = 0, Raumaenderungen = 0, KontrolleZuBeginn = 100, FehlendeEintraege = 0 } });
+        uhr.Fest = new DateTime(2026, 10, 16, 23, 30, 0);
+        sim.Lauf();
+        var db = s.Dienst<Db>();
+        Assert.True(Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND benutzer_id IN {Konten}")) > 50);
+        Assert.Equal(0, Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM klassenbuch WHERE hausaufgabe <> '' AND benutzer_id IN {Konten}")));
+        Assert.Equal(0, Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM vermerke WHERE benutzer_id IN {Konten}")));
+        Assert.Equal(0, Convert.ToInt32(db.Wert($"SELECT COUNT(*) FROM simulation_ereignisse WHERE schluessel LIKE 'ra|%'")));
+        // Kontrolle immer zu Stundenbeginn: kein Ereignis später am Tag
+        Assert.Equal(0, Convert.ToInt32(db.Wert("SELECT COUNT(*) FROM simulation_ereignisse WHERE schluessel LIKE 'an|%' AND substr(zeit, 12, 2) >= '16'")));
     }
 }

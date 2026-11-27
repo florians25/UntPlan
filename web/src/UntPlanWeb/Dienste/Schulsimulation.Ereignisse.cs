@@ -45,8 +45,10 @@ public sealed partial class Schulsimulation
                 if (kontrolle)
                 {
                     var wk = z.Wert();
-                    DateTime? zeitAn = wk < 0.8 ? beginn.AddMinutes(z.Zahl(0, 5))
-                        : wk < 0.97 ? Max(ende.AddMinutes(z.Zahl(1, 20)), Um(d, z.Zahl(12 * 60, 17 * 60)))
+                    var anBeginn = e.I.KontrolleZuBeginn / 100.0;
+                    var anNie = Math.Min(1 - anBeginn, 0.03 * Simulationsintensitaet.F(e.I.FehlendeEintraege));
+                    DateTime? zeitAn = wk < anBeginn ? beginn.AddMinutes(z.Zahl(0, 5))
+                        : wk < 1 - anNie ? Max(ende.AddMinutes(z.Zahl(1, 20)), Um(d, z.Zahl(12 * 60, 17 * 60)))
                         : vollstaendig ? Um(w.Schultag(d, z.Zahl(2, 6)), z.Zahl(15 * 60, 20 * 60)) : null;
                     if (zeitAn is DateTime ta) yield return new($"an|{basis}", ta, () => Kontrolle(s, w, d, l, u, k.Von));
                 }
@@ -55,6 +57,16 @@ public sealed partial class Schulsimulation
                 {
                     var wt = z.Wert();
                     var vorabTag = d.AddDays(-z.Zahl(1, 2));
+                    // Intensität: Anteile zu Beginn, im Voraus und vergessen; der Rest verteilt sich wie bisher auf später (12 : 6 : 4 : 2)
+                    var lb = e.I.LehrstoffZuBeginn / 100.0;
+                    var lv = lb + e.I.LehrstoffVorab / 100.0;
+                    var nie = Math.Min(Math.Max(0, 1 - lv), 0.01 * Simulationsintensitaet.F(e.I.FehlendeEintraege));
+                    var rest = Math.Max(0, 1 - lv - nie) / 0.24;
+                    if (e.I.LehrstoffZuBeginn != 70 || e.I.LehrstoffVorab != 5 || e.I.FehlendeEintraege != 100)
+                        wt = wt < lb ? wt * 0.70 / Math.Max(lb, 1e-9)
+                            : wt < lv ? 0.70 + (wt - lb) / Math.Max(lv - lb, 1e-9) * 0.05
+                            : wt >= 1 - nie ? 0.99 + (wt - (1 - nie)) / Math.Max(nie, 1e-9) * 0.01
+                            : 0.75 + (wt - lv) / Math.Max(rest, 1e-9);
                     DateTime? zeit = wt switch
                     {
                         < 0.70 => beginn.AddMinutes(z.Zahl(0, 10)),
@@ -67,12 +79,12 @@ public sealed partial class Schulsimulation
                     };
                     if (zeit is DateTime t) yield return new($"kb|{basis}", t, () => Lehrstoff(s, e, w, d, l, u, k.Von));
                 }
-                if (e.Klassenbuch && z.Chance(0.045))
+                if (e.Klassenbuch && z.Chance(0.045 * Simulationsintensitaet.F(e.I.Klassenbucheintraege)))
                     yield return new($"vm|{basis}", ende.AddMinutes(z.Zahl(0, 25)), () => Vermerk(s, w, d, l, u, k.Von));
                 if (!e.Lehreraktionen) continue;
                 // Raumänderung: selten, ein bis zwei Tage bzw. wenige Stunden vorher
                 var za = Zufall.Fuer(w.Seed, "ra", basis);
-                if (za.Chance(Raumaenderungsanteil))
+                if (za.Chance(Raumaenderungsanteil * Simulationsintensitaet.F(e.I.Raumaenderungen)))
                 {
                     var zeitRa = za.Chance(0.65) || beginn.Hour < 8 ? Um(d.AddDays(-za.Zahl(1, 2)), za.Zahl(15 * 60, 21 * 60)) : Um(d, za.Zahl(6 * 60 + 30, 7 * 60 + 25));
                     yield return new($"ra|{basis}", zeitRa, () => Raumaendern(s, w, d, l, u, k.Von, za));
@@ -218,7 +230,7 @@ public sealed partial class Schulsimulation
         var thema = kammer is not null ? $"Klasse in der {kammer.Name} (Kammer), kein Unterricht"
             : vertretung is not null ? Vertretungsstoff(s, w, e, karte, vertretung, z, d)
             : Stilisieren(w.Seed, l, karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fs) ? fs.Name : null, u, d, karte.Von,
-                LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach."));
+                LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach."), e.I.Ausfuehrlichkeit);
         if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
         // Hausaufgaben selten, eher in den Hauptfächern; nie in Vertretungsstunden, Sport, Klassenleitung
@@ -230,7 +242,7 @@ public sealed partial class Schulsimulation
         if (kammer is null && vertretung is null && hauptfachOderBeruf(gruppe) && Zufall.Fuer(w.Seed, "kt", d, u, von).Chance(0.025) && !thema.StartsWith("Klass") && !thema.StartsWith("Klausur") && !thema.StartsWith("Test"))
             thema = $"{thema}, {Kurztest(gruppe, Zufall.Fuer(w.Seed, "ktt", d, u))}";
         var anteil = vertretung is not null || kammer is not null || berufsschule || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
-        var hausaufgabe = !z.Chance(anteil) ? ""
+        var hausaufgabe = !z.Chance(Math.Min(1, anteil * Simulationsintensitaet.F(e.I.Hausaufgaben))) ? ""
             : z.Zahlen(z.Wahl(sprache && z.Chance(0.6) ? HausaufgabenSprachen : Hausaufgaben));
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
         var notiz = z.Chance(0.03) ? z.Wahl(Notizen) : "";
@@ -313,7 +325,8 @@ public sealed partial class Schulsimulation
         s.Klassen.TryGetValue(klasse, out var kl) ? kl.Klassenleitung.FirstOrDefault(x => !w.Ausgenommen.Contains(x) && s.Lehrer.ContainsKey(x)) : null;
 
     /// <summary>Ein Teil der Krankheiten wird gemeldet (E-Mail, Sekretariat, Betrieb): die Klassenleitung trägt sie als Zeitraum ein und entschuldigt sofort.</summary>
-    private static bool Gemeldet(Weltstand w, Schuelerausfall a) => a.Art == "krank" && Zufall.Fuer(w.Seed, "mel", a.SchuelerId, a.Von).Chance(0.45);
+    private static bool Gemeldet(Weltstand w, Schuelerausfall a) => a.Art == "krank"
+        && Zufall.Fuer(w.Seed, "mel", a.SchuelerId, a.Von).Chance(Math.Min(1, 0.45 * Simulationsintensitaet.F(w.Intensitaet.GemeldeteKrankheiten)));
 
     /// <summary>
     /// Krankmeldung von Eltern, volljährigen Schüler*innen bzw. dem Ausbildungsbetrieb: Die Klassenleitung legt die Abwesenheit für den gemeldeten
@@ -360,15 +373,19 @@ public sealed partial class Schulsimulation
         var leitung = Klassenleitung(s, w, a.Klasse);
         if (leitung is null) return null;
         var z = Zufall.Fuer(w.Seed, "en", a.SchuelerId, a.Von);
+        // Intensität: Faktor auf den Anteil entschuldigter Fehlzeiten bzw. auf den Verzug
+        var fe = Simulationsintensitaet.F(w.Intensitaet.Entschuldigungen);
         var status = a.Art switch
         {
-            "verspaetet" => z.Gewichtet(new[] { ("entschuldigt", 45.0), ("unentschuldigt", 35.0), ("", 20.0) }, x => x.Item2).Item1,
-            "arzt" => z.Gewichtet(new[] { ("entschuldigt", 90.0), ("", 10.0) }, x => x.Item2).Item1,
-            "betrieb" => z.Gewichtet(new[] { ("entschuldigt", 45.0), ("unentschuldigt", 45.0), ("", 10.0) }, x => x.Item2).Item1,
-            _ => z.Gewichtet(new[] { ("entschuldigt", 82.0), ("unentschuldigt", 7.0), ("", 11.0) }, x => x.Item2).Item1,
+            "verspaetet" => z.Gewichtet(new[] { ("entschuldigt", 45.0 * fe), ("unentschuldigt", 35.0), ("", 20.0) }, x => x.Item2).Item1,
+            "arzt" => z.Gewichtet(new[] { ("entschuldigt", 90.0 * fe), ("", 10.0) }, x => x.Item2).Item1,
+            "betrieb" => z.Gewichtet(new[] { ("entschuldigt", 45.0 * fe), ("unentschuldigt", 45.0), ("", 10.0) }, x => x.Item2).Item1,
+            _ => z.Gewichtet(new[] { ("entschuldigt", 82.0 * fe), ("unentschuldigt", 7.0), ("", 11.0) }, x => x.Item2).Item1,
         };
         if (status.Length == 0) return null;
-        var tag = w.Schultag(a.Bis, status == "unentschuldigt" ? z.Zahl(8, 12) : z.Zahl(1, 7));
+        var verzug = status == "unentschuldigt" ? z.Zahl(8, 12) : z.Zahl(1, 7);
+        if (status != "unentschuldigt" && w.Intensitaet.Entschuldigungsverzug != 100) verzug = (int)Math.Round(verzug * Simulationsintensitaet.F(w.Intensitaet.Entschuldigungsverzug));
+        var tag = w.Schultag(a.Bis, verzug);
         // Klassenleitung nach Unterrichtsschluss bzw. vor der ersten Stunde; ist sie krank, später
         var zeit = z.Chance(0.75) ? Um(tag, z.Zahl(13 * 60 + 20, 17 * 60 + 40)) : Um(tag, z.Zahl(7 * 60 + 10, 7 * 60 + 50));
         return new($"en|{a.SchuelerId}|{a.Von:yyyy-MM-dd}|{a.Art}", zeit, () =>
@@ -552,7 +569,7 @@ public sealed partial class Schulsimulation
     public List<Pruefungsplan> Pruefungsplanung(Stand s, Simulationseinstellungen e, Weltstand w, DateOnly hv, DateOnly hb, DateTime start)
     {
         var (sekI, sekII) = Pruefungsfaecher(s, e);
-        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{start:yyyy-MM-dd HH:mm}|{string.Join(",", sekI.Order(StringComparer.Ordinal))}|{string.Join(",", sekII.Order(StringComparer.Ordinal))}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}";
+        var schluessel = $"{w.Seed}|{s.Empfangen}|{hv:yyyy-MM-dd}|{start:yyyy-MM-dd HH:mm}|{string.Join(",", sekI.Order(StringComparer.Ordinal))}|{string.Join(",", sekII.Order(StringComparer.Ordinal))}|{string.Join(",", w.Ausgenommen.Order(StringComparer.Ordinal))}|{e.Start}|{e.I.Tests}";
         if (_pruefungsCache.TryGetValue(schluessel, out var fertig)) return fertig;
         if (_pruefungsCache.Count > 4) _pruefungsCache.Clear();
         var res = new List<Pruefungsplan>();
@@ -598,7 +615,7 @@ public sealed partial class Schulsimulation
             foreach (var fach in kandidaten.Keys.Order(StringComparer.Ordinal).ToList())
             {
                 var zt = Zufall.Fuer(w.Seed, "test", hv, kl.Kurz, fach);
-                if (!zt.Chance(0.3)) continue;
+                if (!zt.Chance(Math.Min(1, 0.3 * Simulationsintensitaet.F(e.I.Tests)))) continue;
                 var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 3).ToList();
                 if (moeglich.Count == 0) continue;
                 var (tag, karte) = zt.Wahl(moeglich);
@@ -640,7 +657,8 @@ public sealed partial class Schulsimulation
         var art = p.Test ? "Test" : p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, p.Klasse);
         var z = Zufall.Fuer(Laden().Seed, "prt", p.Klasse, p.Fach, p.Datum);
         // Thema: die Unterrichtsreihe, die zum Prüfungstermin läuft
-        var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von) is { } ls && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
+        var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von, new[] { (p.Datum, p.Von, art) }) is { } ls
+                    && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
         _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
     }
 
@@ -693,7 +711,7 @@ public sealed partial class Schulsimulation
                 var z = Zufall.Fuer(w.Seed, "st", t.Id, l);
                 // Berufskolleg: eher Ausbildersprechtag, Eltern nur bei Minderjährigen, insgesamt wenige Termine
                 var nurBk = w.KlassenDerLehrkraft.TryGetValue(l, out var kl0) && kl0.Count > 0 && kl0.All(k => Bildungsgang(s, k) is not ("sek1u" or "sek1o" or "sek2"));
-                if (!z.Chance(nurBk ? 0.25 : 0.6)) continue;
+                if (!z.Chance(Math.Min(1, (nurBk ? 0.25 : 0.6) * Simulationsintensitaet.F(e.I.Sprechtagbuchungen)))) continue;
                 var schueler = Sprechtagdienst.SchuelerDerLehrkraft(s, l).Where(x => Sprechtagberechtigt(s, x)).OrderBy(x => x.Id).ToList();
                 if (schueler.Count == 0) continue;
                 var eingeladen = Enumerable.Range(0, z.Zahl(1, 4)).Select(_ => z.Wahl(schueler).Id).Distinct().ToList();
@@ -704,7 +722,7 @@ public sealed partial class Schulsimulation
                 foreach (var sid in eingeladen)
                 {
                     var zb = Zufall.Fuer(w.Seed, "stb", t.Id, l, sid);
-                    if (!zb.Chance(0.75)) continue;
+                    if (!zb.Chance(Math.Min(1, 0.75 * Simulationsintensitaet.F(e.I.Sprechtagbuchungen)))) continue;
                     var (von, bis) = p1 is DateTime x1 && p1b is DateTime y1 ? (x1, y1) : p2 is DateTime x2 && p2b is DateTime y2 ? (x2, y2) : (DateTime.MinValue, DateTime.MinValue);
                     if (von == DateTime.MinValue || bis <= von) continue;
                     var zeit = Max(Einschnitt(von, bis, zb), frueh.AddMinutes(30));
@@ -715,7 +733,7 @@ public sealed partial class Schulsimulation
                 foreach (var sch in s.Schueler.OrderBy(x => x.Id))
                 {
                     var z = Zufall.Fuer(w.Seed, "stf", t.Id, sch.Id);
-                    if (!Sprechtagberechtigt(s, sch) || !z.Chance(Bildungsgang(s, sch.Klasse) is "sek1u" or "sek1o" or "sek2" ? 0.12 : 0.03)) continue;
+                    if (!Sprechtagberechtigt(s, sch) || !z.Chance(Math.Min(1, (Bildungsgang(s, sch.Klasse) is "sek1u" or "sek1o" or "sek2" ? 0.12 : 0.03) * Simulationsintensitaet.F(e.I.Sprechtagbuchungen)))) continue;
                     var lehrkraefte = Sprechtagdienst.LehrkraefteDesKindes(s, sch).Where(x => !w.Ausgenommen.Contains(x.Kurz)).ToList();
                     if (lehrkraefte.Count == 0) continue;
                     foreach (var lk in Enumerable.Range(0, z.Zahl(1, 2)).Select(_ => z.Wahl(lehrkraefte).Kurz).Distinct(Ci))

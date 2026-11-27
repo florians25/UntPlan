@@ -200,6 +200,14 @@ public sealed partial class Schulsimulation
                 3 => z.Chance(0.5) ? Um(vortag, z.Zahl(22 * 60 + 30, 23 * 60 + 59)) : Um(a.Von, z.Zahl(0, 4 * 60 + 30)),
                 _ => Um(a.Von, z.Zahl(5 * 60 + 15, 7 * 60 + 15)),
             };
+            // nach einem Wochenende bzw. Ferien: meist am letzten freien Tag (Sonntag bzw. letzter Ferientag) nachmittags oder abends, gelegentlich schon
+            // am Samstag bzw. einige Tage vorher (Erkrankung seit Freitag), selten erst am Morgen
+            if (!w.Schultag(vortag) && z.Chance(0.12))
+            {
+                var frei = vortag;
+                while (!w.Schultag(frei.AddDays(-1)) && frei.AddDays(-1) >= vortag.AddDays(-2)) frei = frei.AddDays(-1);
+                zeit = Um(frei, z.Zahl(10 * 60, 20 * 60 + 30));
+            }
             // geplante Operation bzw. Reha: einige Tage vorher angekündigt
             if (a.Art.Id is "op" or "reha" && z.Chance(0.6)) zeit = Um(a.Von.AddDays(-z.Zahl(3, 10)), z.Zahl(13 * 60, 20 * 60));
         }
@@ -214,18 +222,28 @@ public sealed partial class Schulsimulation
                 var bis = a.Tage[Math.Min(a.Tage.Count - 1, i + abschnitt - 1)];
                 var zv = Zufall.Fuer(w.Seed, "kmv", a.Lehrer, a.Von, i);
                 var tag = a.Tage[i - 1];
-                yield return ($"{basis}|verl|{i}", Max(Um(tag, zv.Zahl(12 * 60, 19 * 60)), startZeit), () => Verlaengerung(s, w, a, bis, Zufall.Fuer(w.Seed, "kmv", a.Lehrer, a.Von, i, "text")));
+                // liegt ein Wochenende dazwischen, kommt die Folgebescheinigung oft erst am Samstag bzw. Sonntag
+                var naechster = a.Tage[i];
+                var wochenende = Enumerable.Range(1, Math.Max(0, naechster.DayNumber - tag.DayNumber - 1)).Select(n => tag.AddDays(n)).ToList();
+                var zeitV = wochenende.Count > 0 && zv.Chance(0.45) ? Um(zv.Wahl(wochenende), zv.Zahl(10 * 60, 20 * 60 + 30)) : Um(tag, zv.Zahl(12 * 60, 19 * 60));
+                yield return ($"{basis}|verl|{i}", Max(zeitV, startZeit), () => Verlaengerung(s, w, a, bis, Zufall.Fuer(w.Seed, "kmv", a.Lehrer, a.Von, i, "text")));
             }
         // Bescheinigung nachgereicht (bei mehrtägiger Erkrankung), Zwischenstand bei Corona
         var za = Zufall.Fuer(w.Seed, "kma", a.Lehrer, a.Von);
+        // freie Tage (Wochenende) innerhalb des Ausfalls: Nachträge kommen dann oft am Samstag bzw. Sonntag
+        var freiImAusfall = Enumerable.Range(1, Math.Max(0, a.Bis.DayNumber - a.Von.DayNumber - 1)).Select(n => a.Von.AddDays(n)).Where(t => !a.Tage.Contains(t)).ToList();
+        DateOnly Nachtragstag() => freiImAusfall.Count > 0 && za.Chance(0.4) ? za.Wahl(freiImAusfall) : a.Tage[1];
         if (a.Art.Selbst && !a.Art.Teil && a.Tage.Count >= 3 && za.Chance(0.35))
-            yield return ($"{basis}|au", Max(Um(a.Tage[1], za.Zahl(9 * 60, 18 * 60)), startZeit), () => AuNachgereicht(s, w, a, Zufall.Fuer(w.Seed, "kma", a.Lehrer, a.Von, "au")));
+            yield return ($"{basis}|au", Max(Um(Nachtragstag(), za.Zahl(9 * 60, 18 * 60)), startZeit), () => AuNachgereicht(s, w, a, Zufall.Fuer(w.Seed, "kma", a.Lehrer, a.Von, "au")));
         if (a.Art.Id == "corona" && a.Tage.Count >= 3 && za.Chance(0.6))
-            yield return ($"{basis}|update", Max(Um(a.Tage[1], za.Zahl(15 * 60, 20 * 60)), startZeit), () => CoronaZwischenstand(s, w, a, Zufall.Fuer(w.Seed, "kma", a.Lehrer, a.Von, "up")));
+            yield return ($"{basis}|update", Max(Um(Nachtragstag(), za.Zahl(15 * 60, 20 * 60)), startZeit), () => CoronaZwischenstand(s, w, a, Zufall.Fuer(w.Seed, "kma", a.Lehrer, a.Von, "up")));
         if (a.Tage.Count >= 2 && z.Chance(0.5) || a.Tage.Count >= 8 && z.Chance(0.8))
         {
             var zg = Zufall.Fuer(w.Seed, "kmg", a.Lehrer, a.Von);
-            yield return ($"{basis}|gesund", Max(Um(a.Bis, zg.Zahl(16 * 60, 21 * 60 + 30)), startZeit), () => Gesundmeldung(s, w, a, Zufall.Fuer(w.Seed, "kmg", a.Lehrer, a.Von, "text")));
+            // vor einem Wochenende bzw. Ferien: auch am Sonntag bzw. letzten Ferientag
+            var wieder = w.Schultag(a.Bis.AddDays(1), 0);
+            var tagG = wieder.DayNumber - a.Bis.DayNumber > 1 && zg.Chance(0.4) ? wieder.AddDays(-1) : a.Bis;
+            yield return ($"{basis}|gesund", Max(Um(tagG, zg.Zahl(16 * 60, 21 * 60 + 30)), startZeit), () => Gesundmeldung(s, w, a, Zufall.Fuer(w.Seed, "kmg", a.Lehrer, a.Von, "text")));
         }
     }
 

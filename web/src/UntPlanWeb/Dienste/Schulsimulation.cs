@@ -40,6 +40,10 @@ public sealed record Simulationseinstellungen
     public bool Sprechtag { get; init; } = true;
     /// <summary>Name der Verteilerliste im Mitteilungsmodul, an die die Lehrkräfte ihre Krankmeldungen schicken.</summary>
     public string Verteiler { get; init; } = "Vertretung";
+    /// <summary>Intensität (Fehlquoten, Anteile, Häufigkeiten); null = Standardwerte.</summary>
+    public Simulationsintensitaet? Intensitaet { get; init; }
+    /// <summary>Intensität mit Standardwerten.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public Simulationsintensitaet I => Intensitaet ?? new();
 }
 
 /// <summary>Ergebnis eines Simulationslaufs.</summary>
@@ -159,6 +163,7 @@ public sealed partial class Schulsimulation : BackgroundService
                 PruefungSekI = Liste(neu.PruefungSekI) ?? alt.PruefungSekI,
                 PruefungSekII = Liste(neu.PruefungSekII) ?? alt.PruefungSekII,
                 Start = alt.Start, Seed = alt.Seed,
+                Intensitaet = (neu.Intensitaet ?? alt.Intensitaet)?.Begrenzt(),
             };
             if (e.Aktiv && (!alt.Aktiv || alt.Start.Length == 0))
             {
@@ -202,7 +207,9 @@ public sealed partial class Schulsimulation : BackgroundService
                 Ausgenommen = Ausgenommen(e),
                 PruefungSekI = Pruefungsfaecher(s, e).SekI.Order(StringComparer.Ordinal).ToList(),
                 PruefungSekII = Pruefungsfaecher(s, e).SekII.Order(StringComparer.Ordinal).ToList(),
+                Intensitaet = e.I,
             },
+            intensitaetRegler = Simulationsintensitaet.Regler.Select(r => new { r.Schluessel, r.Name, r.Gruppe, r.Standard, r.Max, r.Art }),
             stand = _einstellungen.Lesen(StandSchluessel) ?? "",
             lehrer = (s?.Paket.Elemente.Lehrer ?? new()).Where(l => l.Kurz is not ("---" or "???" or "+++")).Select(l => new { l.Kurz, name = $"{l.Vorname} {l.Name}".Trim() }),
             faecher = (s?.Paket.Elemente.Faecher ?? new()).Select(f => new { f.Kurz, f.Name }),
@@ -366,6 +373,7 @@ public sealed partial class Schulsimulation : BackgroundService
         public required List<Schuelerausfall> Schuelerausfaelle { get; init; }
         public Dictionary<(int Schueler, DateOnly Tag), Schuelerausfall> SchuelerAm { get; } = new();
         public Dictionary<string, List<string>> KlassenDerLehrkraft { get; init; } = new(Ci);
+        public Simulationsintensitaet Intensitaet { get; init; } = new();
         public bool Schultag(DateOnly d) => Schultage.Contains(d);
         public bool Krank(string lehrer, DateOnly d, int stunde) => Ausfaelle.Any(a => Ci.Equals(a.Lehrer, lehrer) && a.Tage.Contains(d) && (!a.Art.Teil || (stunde >= a.StundeVon && stunde <= a.StundeBis)));
         /// <summary>n-ter Schultag nach d (n = 0: d bzw. der nächste Schultag).</summary>
@@ -398,7 +406,7 @@ public sealed partial class Schulsimulation : BackgroundService
     {
         var ausgenommen = Ausgenommen(e).ToHashSet(Ci);
         var bisTag = DateOnly.FromDateTime(bis).AddDays(21);
-        var schluessel = $"{e.Seed}|{e.Start}|{s.Empfangen}|{string.Join(",", ausgenommen.Order(StringComparer.Ordinal))}|{bisTag:yyyy-MM-dd}|{s.Zusatzferien.Count}";
+        var schluessel = $"{e.I.Kennung}|{e.Seed}|{e.Start}|{s.Empfangen}|{string.Join(",", ausgenommen.Order(StringComparer.Ordinal))}|{bisTag:yyyy-MM-dd}|{s.Zusatzferien.Count}";
         if (_cache.TryGetValue(schluessel, out var w)) return w;
         if (_cache.Count > 8) _cache.Clear();
         var startTag = DateOnly.FromDateTime(start);
@@ -415,8 +423,8 @@ public sealed partial class Schulsimulation : BackgroundService
         w = new Weltstand
         {
             Seed = e.Seed, Start = startTag, Bis = bisTag, Schultage = tage.ToHashSet(), Tagesliste = tage, Ausgenommen = ausgenommen,
-            Ausfaelle = AusfaelleBerechnen(s, e.Seed, startTag, bisTag, tage, ausgenommen, klassenDerLehrkraft),
-            Schuelerausfaelle = SchuelerausfaelleBerechnen(s, e.Seed, startTag, bisTag, tage), KlassenDerLehrkraft = klassenDerLehrkraft,
+            Ausfaelle = AusfaelleBerechnen(s, e.Seed, startTag, bisTag, tage, ausgenommen, klassenDerLehrkraft, e.I),
+            Schuelerausfaelle = SchuelerausfaelleBerechnen(s, e.Seed, startTag, bisTag, tage, e.I), KlassenDerLehrkraft = klassenDerLehrkraft, Intensitaet = e.I,
         };
         foreach (var a in w.Schuelerausfaelle)
             foreach (var d in a.Tage) w.SchuelerAm.TryAdd((a.SchuelerId, d), a);
@@ -429,8 +437,12 @@ public sealed partial class Schulsimulation : BackgroundService
     /// Ausfall, meldet sich eine zufällige gesunde Lehrkraft kurz krank (jeden Schultag mindestens eine Krankmeldung).
     /// </summary>
     public static List<Ausfall> AusfaelleBerechnen(Stand s, long seed, DateOnly start, DateOnly bis, List<DateOnly> tage, HashSet<string> ausgenommen,
-        Dictionary<string, List<string>> klassenDerLehrkraft)
+        Dictionary<string, List<string>> klassenDerLehrkraft, Simulationsintensitaet? intensitaet = null)
     {
+        var it = intensitaet ?? new();
+        var faktor = Simulationsintensitaet.F(it.Lehrerausfaelle);
+        var lang = Simulationsintensitaet.F(it.LangeAusfaelle);
+        double Gewicht(Ausfallart a) => a.Gewicht * (a.Max >= 8 ? lang : 1);
         var lehrer = s.Paket.Elemente.Lehrer.Select(l => l.Kurz).Where(k => klassenDerLehrkraft.ContainsKey(k) && !ausgenommen.Contains(k) && k is not ("---" or "???" or "+++"))
             .Order(StringComparer.Ordinal).ToList();
         var res = new List<Ausfall>();
@@ -446,15 +458,24 @@ public sealed partial class Schulsimulation : BackgroundService
             {
                 if (krankBis.TryGetValue(l, out var kb) && kb >= d) continue;
                 var z = Zufall.Fuer(seed, "lk", l, d);
-                if (!z.Chance(0.0035)) continue;
-                res.Add(Neu(l, z.Gewichtet(Ausfallarten, a => a.Gewicht), z, i));
+                if (!z.Chance(0.0035 * faktor)) continue;
+                res.Add(Neu(l, z.Gewichtet(Ausfallarten, Gewicht), z, i));
                 neu = true;
             }
-            if (neu) continue;
-            var gesund = lehrer.Where(l => !(krankBis.TryGetValue(l, out var kb) && kb >= d)).ToList();
-            if (gesund.Count == 0) continue;
+            // jeden Schultag mindestens eine Meldung (Standard); kleinere Intensität: an einem Teil der Tage, größere: zusätzliche Meldungen
             var zp = Zufall.Fuer(seed, "lkp", d);
-            res.Add(Neu(zp.Wahl(gesund), zp.Gewichtet(kurz, a => a.Gewicht), zp, i));
+            if (!neu && (faktor >= 1 || zp.Chance(faktor)))
+            {
+                var gesund = lehrer.Where(l => !(krankBis.TryGetValue(l, out var kb) && kb >= d)).ToList();
+                if (gesund.Count > 0) res.Add(Neu(zp.Wahl(gesund), zp.Gewichtet(kurz, a => a.Gewicht), zp, i));
+            }
+            for (var extra = faktor - 1; extra > 0 && !neu; extra--)
+            {
+                var ze = Zufall.Fuer(seed, "lkx", d, (int)Math.Ceiling(extra));
+                if (extra < 1 && !ze.Chance(extra)) break;
+                var gesund = lehrer.Where(l => !(krankBis.TryGetValue(l, out var kb) && kb >= d)).ToList();
+                if (gesund.Count > 0) res.Add(Neu(ze.Wahl(gesund), ze.Gewichtet(kurz, a => a.Gewicht), ze, i));
+            }
         }
         return res;
 
@@ -488,8 +509,11 @@ public sealed partial class Schulsimulation : BackgroundService
     }
 
     /// <summary>Abwesenheiten der Schüler*innen: Krankheiten über mehrere Tage, einzelne Arzttermine, seltene Verspätungen.</summary>
-    public static List<Schuelerausfall> SchuelerausfaelleBerechnen(Stand s, long seed, DateOnly start, DateOnly bis, List<DateOnly> tage)
+    public static List<Schuelerausfall> SchuelerausfaelleBerechnen(Stand s, long seed, DateOnly start, DateOnly bis, List<DateOnly> tage, Simulationsintensitaet? intensitaet = null)
     {
+        var it = intensitaet ?? new();
+        var fq = Simulationsintensitaet.F(it.Fehlquote);
+        var fv = Simulationsintensitaet.F(it.Verspaetungen);
         var res = new List<Schuelerausfall>();
         var lauf = tage.Where(d => d >= start && d <= bis).ToList();
         var bildungsgaenge = new Dictionary<string, string>(Ci);
@@ -504,9 +528,9 @@ public sealed partial class Schulsimulation : BackgroundService
                 var d = lauf[i];
                 if (d <= frei) continue;
                 var vorFerien = i + 1 < lauf.Count && lauf[i + 1].DayNumber - d.DayNumber > 4;
-                var q = Fehlquoten.KrankBeginn * f * Fehlquoten.Saison(d) * Fehlquoten.Tag(d, vorFerien) * (InGrippewelle(seed, sch.Klasse, d) ? Fehlquoten.Grippewelle : 1);
-                double gKrank = q, gArzt = gKrank + Fehlquoten.Arzttermin * f, gSpaet = gArzt + Fehlquoten.Verspaetung * (bg == "bs" ? 1.4 : f),
-                    gBetrieb = gSpaet + (bg == "bs" ? Fehlquoten.BetrieblicheGruende : 0);
+                var q = Fehlquoten.KrankBeginn * f * Fehlquoten.Saison(d) * Fehlquoten.Tag(d, vorFerien) * (it.Grippewellen && InGrippewelle(seed, sch.Klasse, d) ? Fehlquoten.Grippewelle : 1) * fq;
+                double gKrank = q, gArzt = gKrank + Fehlquoten.Arzttermin * f * fq, gSpaet = gArzt + Fehlquoten.Verspaetung * (bg == "bs" ? 1.4 : f) * fv,
+                    gBetrieb = gSpaet + (bg == "bs" ? Fehlquoten.BetrieblicheGruende * fq : 0);
                 var z = Zufall.Fuer(seed, "sch", sch.Id, d);
                 var w = z.Wert();
                 if (w < gKrank)

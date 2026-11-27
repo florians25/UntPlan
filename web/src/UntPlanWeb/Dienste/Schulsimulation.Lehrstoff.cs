@@ -139,7 +139,9 @@ public sealed partial class Schulsimulation
         k.Unterricht is int u ? Lehrstoff(s, w, e, k.Fach, k.Klassen.FirstOrDefault()?.K ?? "", u, d, k.Von) : null;
 
     /// <summary>Lehrstoff einer Stunde des Unterrichts (Fach, erste Klasse, Datum, erste Stunde des Blocks).</summary>
-    public string? Lehrstoff(Stand s, Weltstand w, Simulationseinstellungen e, string fach, string klasse, int u, DateOnly d, int von)
+    /// <param name="pruefungen">Prüfungstermine der Lerngruppe (Tag, Stunde, Art, Abschlussprüfung); ohne Angabe die Prüfungen im Prüfungsmodul.</param>
+    public string? Lehrstoff(Stand s, Weltstand w, Simulationseinstellungen e, string fach, string klasse, int u, DateOnly d, int von,
+        IReadOnlyList<(DateOnly Datum, int Von, string Art)>? pruefungen = null)
     {
         var fachName = s.Faecher.TryGetValue(fach, out var f) ? f.Name : fach;
         var g = Zuordnung(fach, fachName);
@@ -185,18 +187,19 @@ public sealed partial class Schulsimulation
         var pos = Math.Min(liste.Count - 1, (int)((long)fort * liste.Count / gesamt));
         var (titel, stunde) = liste[pos];
         // Prüfung: Stunde davor Wiederholung, am Termin die Prüfung, gut eine Woche später Rückgabe
-        if (e.Pruefungen)
+        // nur Prüfungen, die es im Prüfungsmodul wirklich gibt (eingetragen, nicht gelöscht, ggf. verlegt): nie ein Prüfungseintrag aus der Reihe allein
+        foreach (var p in pruefungen ?? PruefungenImModul(s, klasse, k.Fach))
         {
-            foreach (var p in PruefungenDerKlasse(s, e, w, klasse, k.Fach))
-            {
-                var art = p.Test ? "Test" : p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, klasse);
-                var pi = bloecke.IndexOf((p.Datum, p.Von));
-                if (pi < 0) continue;
-                var proWoche = Math.Max(1, bloecke.Count(x => Plandienst.Montag(x.Tag) == Plandienst.Montag(p.Datum)));
-                if (i == pi) return $"{art}: {titel}";
-                if (i == pi - 1 && !p.Test) return $"{titel}: Wiederholung zur {art}";
-                if (!p.Abschluss && !p.Test && i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {art}";
-            }
+            // Block der Lerngruppe, in dem die Prüfung liegt
+            var pi = bloecke.FindLastIndex(x => x.Tag == p.Datum && x.Von <= p.Von);
+            if (pi < 0) pi = bloecke.FindIndex(x => x.Tag == p.Datum);
+            if (pi < 0) continue;
+            var test = p.Art == "Test";
+            var abschluss = p.Art == "Abschlussprüfung";
+            var proWoche = Math.Max(1, bloecke.Count(x => Plandienst.Montag(x.Tag) == Plandienst.Montag(p.Datum)));
+            if (i == pi) return $"{p.Art}: {titel}";
+            if (i == pi - 1 && !test) return $"{titel}: Wiederholung zur {p.Art}";
+            if (!abschluss && !test && i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {p.Art}";
         }
         if (i == 0) return "Einstieg ins Schuljahr: Organisatorisches, Leistungsbewertung, " + titel;
         if (i > 0 && i < bloecke.Count && bloecke[i].Tag.DayNumber - bloecke[i - 1].Tag.DayNumber > 10) return Fertig($"{titel}: Wiederholung nach den Ferien");
@@ -283,12 +286,20 @@ public sealed partial class Schulsimulation
         return z.Wahl(texte);
     }
 
-    /// <summary>Geplante Prüfungen der Simulation für Klasse und Fach im Schuljahr.</summary>
-    private IEnumerable<Pruefungsplan> PruefungenDerKlasse(Stand s, Simulationseinstellungen e, Weltstand w, string klasse, string fach)
+    /// <summary>
+    /// Prüfungen der Klasse im Fach laut Prüfungsmodul (übertragene Termine und noch offene Meldungen, ohne zum Löschen vorgemerkte), im ganzen Schuljahr.
+    /// Art: Klassenarbeit, Klausur, Test bzw. Abschlussprüfung.
+    /// </summary>
+    public List<(DateOnly Datum, int Von, string Art)> PruefungenImModul(Stand s, string klasse, string fach)
     {
-        if (!DateTime.TryParse(e.Start, Inv, System.Globalization.DateTimeStyles.None, out var start)) yield break;
-        foreach (var (hv, hb) in Halbjahre(s))
-            foreach (var p in Pruefungsplanung(s, e, w, hv, hb, start).Where(p => Ci.Equals(p.Klasse, klasse) && Ci.Equals(p.Fach, fach)))
-                yield return p;
+        var fachName = s.Faecher.TryGetValue(fach, out var f) ? f.Name : fach;
+        var (von, bis) = (Halbjahre(s)[0].Von, Halbjahre(s)[^1].Bis);
+        return _listen.Pruefungen(s, _rm.OffeneKlausuren(s), von, bis, klasse, null, _rm.OffeneLoeschungen())
+            .Where(x => Ci.Equals(x.Fach, fach) || (fachName.Length > 2 && x.Titel.Contains(fachName, StringComparison.OrdinalIgnoreCase))
+                        || Regex.IsMatch(x.Titel, $@"(^|\s){Regex.Escape(fach)}$", RegexOptions.IgnoreCase))
+            .Select(x => (Datum: DateOnly.TryParse(x.Datum, out var d) ? d : DateOnly.MinValue, x.StundeVon,
+                Art: x.Art.Length > 0 ? x.Art : Pruefungsart(s, klasse)))
+            .Where(x => x.Datum != DateOnly.MinValue).ToList();
     }
+
 }
