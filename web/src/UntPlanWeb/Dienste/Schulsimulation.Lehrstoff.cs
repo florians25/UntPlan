@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using UntPlan.Web.Contracts;
 
 namespace UntPlanWeb.Dienste;
@@ -151,12 +152,24 @@ public sealed partial class Schulsimulation
         }
         // fortlaufende Liste: Reihen ab einer Startreihe je Klasse, nach längeren Reihen eine Übungsstunde
         var start = (int)(Zufall.Fuer(w.Seed, "reihe", klasse, fach).Naechste() % (ulong)reihen.Count);
+        // Berufsschule und Fachschule: berufliche Fächer mit Lernfeld und Lernsituation („LF 3, LS 3.2: …“), am Ende der Lernsituation die Präsentation
+        var bildungsgang = Bildungsgang(s, klasse);
+        var lernfelder = bildungsgang is "bs" or "fs" && BeruflicheGruppen.Contains(g.Id);
         var liste = new List<(string Titel, string Stunde)>();
         for (var r = 0; r < reihen.Count; r++)
         {
-            var reihe = reihen[(start + r) % reihen.Count];
-            liste.AddRange(reihe.Skip(1).Select(x => (reihe[0], x)));
-            if (reihe.Length >= 6) liste.Add((reihe[0], "Übungen und Wiederholung"));
+            var nr = (start + r) % reihen.Count;
+            var reihe = reihen[nr];
+            var titel0 = reihe[0];
+            if (lernfelder)
+            {
+                var lf = Regex.Match(titel0, @"^LF\s?(\d+[a-z]?)") is { Success: true } m ? m.Groups[1].Value : (nr + 1).ToString(Inv);
+                liste.AddRange(reihe.Skip(1).Select((x, j) => ($"LF {lf}, LS {lf}.{j / 2 + 1}", x)));
+                if (reihe.Length >= 6) liste.Add(($"LF {lf}, LS {lf}.{(reihe.Length - 2) / 2 + 1}", "Präsentation der Ergebnisse der Lernsituation"));
+                continue;
+            }
+            liste.AddRange(reihe.Skip(1).Select(x => (titel0, x)));
+            if (reihe.Length >= 6) liste.Add((titel0, "Übungen und Wiederholung"));
         }
         // vertretene bzw. entfallene Stunden der Lerngruppe bringen die Reihe nicht weiter
         var ausgefallen = Ausgefallen(s, u);
@@ -167,15 +180,15 @@ public sealed partial class Schulsimulation
         // Prüfung: Stunde davor Wiederholung, am Termin die Prüfung, gut eine Woche später Rückgabe
         if (e.Pruefungen)
         {
-            var art = Oberstufe(s, klasse) ? "Klausur" : "Klassenarbeit";
             foreach (var p in PruefungenDerKlasse(s, e, w, klasse, k.Fach))
             {
+                var art = p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, klasse);
                 var pi = bloecke.IndexOf((p.Datum, p.Von));
                 if (pi < 0) continue;
                 var proWoche = Math.Max(1, bloecke.Count(x => Plandienst.Montag(x.Tag) == Plandienst.Montag(p.Datum)));
                 if (i == pi) return $"{art}: {titel}";
                 if (i == pi - 1) return $"{titel}: Wiederholung zur {art}";
-                if (i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {art}";
+                if (!p.Abschluss && i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {art}";
             }
         }
         if (i == 0) return "Einstieg ins Schuljahr: Organisatorisches, Leistungsbewertung, " + titel;

@@ -459,33 +459,44 @@ public sealed partial class Schulsimulation : BackgroundService
     {
         var res = new List<Schuelerausfall>();
         var lauf = tage.Where(d => d >= start && d <= bis).ToList();
+        var bildungsgaenge = new Dictionary<string, string>(Ci);
         foreach (var sch in s.Schueler.OrderBy(x => x.Id))
         {
             var frei = DateOnly.MinValue;
+            // Berufskolleg: Vollzeit-Bildungsgänge mit mehr Fehlzeiten als Teilzeit; Berufsschule mit betrieblichen Gründen und mehr Verspätungen (Pendeln)
+            if (!bildungsgaenge.TryGetValue(sch.Klasse, out var bg)) bildungsgaenge[sch.Klasse] = bg = Bildungsgang(s, sch.Klasse);
+            var f = Fehlfaktor(bg);
+            double gKrank = 0.0085 * f, gArzt = gKrank + 0.003 * f, gSpaet = gArzt + 0.004 * (bg == "bs" ? 1.4 : f), gBetrieb = gSpaet + (bg == "bs" ? 0.0025 : 0);
             for (var i = 0; i < lauf.Count; i++)
             {
                 var d = lauf[i];
                 if (d <= frei) continue;
                 var z = Zufall.Fuer(seed, "sch", sch.Id, d);
                 var w = z.Wert();
-                if (w < 0.0085)
+                if (w < gKrank)
                 {
                     var dauer = z.Gewichtet(new[] { (1, 35.0), (2, 25.0), (3, 20.0), (4, 9.0), (5, 6.0), (8, 4.0), (10, 1.0) }, x => x.Item2).Item1;
                     var t = lauf.Skip(i).Take(dauer).ToList();
                     res.Add(new(sch.Id, sch.Klasse, "krank", t, 1, 99, 0, z.Chance(0.9) ? "K" : "F"));
                     frei = t[^1];
                 }
-                else if (w < 0.0115)
+                else if (w < gArzt)
                 {
                     // Arzttermin: einige Stunden am Vormittag bzw. ab der 4. Stunde nach Hause
                     var von = z.Chance(0.5) ? z.Zahl(1, 3) : z.Zahl(4, 6);
                     res.Add(new(sch.Id, sch.Klasse, "arzt", new() { d }, von, z.Chance(0.4) ? 99 : von + z.Zahl(0, 2), 0, "A"));
                     frei = d;
                 }
-                else if (w < 0.0155)
+                else if (w < gSpaet)
                 {
                     res.Add(new(sch.Id, sch.Klasse, "verspaetet", new() { d }, 0, 0, z.Gewichtet(new[] { (3, 20.0), (5, 25.0), (8, 20.0), (10, 15.0), (15, 12.0), (20, 8.0) }, x => x.Item2).Item1,
-                        z.Chance(0.5) ? "Z" : "v"));
+                        z.Chance(bg == "bs" ? 0.7 : 0.5) ? "Z" : "v"));
+                    frei = d;
+                }
+                else if (w < gBetrieb)
+                {
+                    // Berufsschule: Betrieb hält zurück (Montage, Kundentermin, Personalengpass) für einen Tag
+                    res.Add(new(sch.Id, sch.Klasse, "betrieb", new() { d }, 1, 99, 0, "B"));
                     frei = d;
                 }
             }
@@ -510,7 +521,9 @@ public sealed partial class Schulsimulation : BackgroundService
         var login = KontoPraefix + "e." + schuelerId.ToString(Inv);
         if (_bd.NachLogin(login) is { } b) return b;
         var sch = s.Schueler.FirstOrDefault(x => x.Id == schuelerId);
-        var neu = Anlegen(login, Rollen.Eltern, "", sch is null ? "Erziehungsberechtigte" : $"Familie {sch.Name}");
+        // Berufsschule: Ausbilderin bzw. Ausbilder des Betriebs; sonst die Familie
+        var name = sch is null ? "Erziehungsberechtigte" : Bildungsgang(s, sch.Klasse) == "bs" ? $"Ausbildungsbetrieb ({sch.Vorname} {sch.Name})" : $"Familie {sch.Name}";
+        var neu = Anlegen(login, Rollen.Eltern, "", name);
         _bd.SchuelerZuordnen(neu.Id, new[] { schuelerId });
         return _bd.Holen(neu.Id)!;
     }
