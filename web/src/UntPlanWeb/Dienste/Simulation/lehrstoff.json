@@ -383,9 +383,10 @@
       ],
       "stufen": {
         "sek1o": [
-          "Daten und Codierung|Binärzahlen|Zeichencodierung|Bilder als Daten",
+          "Computer und Daten|Aufbau eines Computers|Binärzahlen|Dateien und Ordner",
+          "Office und Tabellenkalkulation|Textverarbeitung|Tabellenkalkulation: Formeln|Diagramme",
           "Algorithmen|Ablaufdiagramme|Programmieren mit Scratch|Schleifen und Bedingungen",
-          "Netzwerke und Internet|Wie das Internet funktioniert|Datenschutz|Sichere Passwörter"
+          "Sicher im Netz|Datenschutz|Sichere Passwörter|Fake News erkennen"
         ],
         "sek2": [
           "Objektorientierte Modellierung|Klassen und Objekte|UML-Klassendiagramm|Vererbung",
@@ -393,9 +394,10 @@
           "Datenbanken|ER-Modell|Relationales Modell|SQL-Abfragen"
         ],
         "bk": [
-          "Programmieren|Variablen und Datentypen|Kontrollstrukturen|Funktionen",
-          "Datenbanken|ER-Modell|SQL",
-          "Netzwerke|OSI-Modell|IP-Adressen"
+          "Hardware und Betriebssystem|Aufbau eines Computers|Betriebssystem und Dateiverwaltung|Software installieren",
+          "Tabellenkalkulation|Formeln und Funktionen|Diagramme|Auswertungen",
+          "Einfache Programmierung|Variablen und Datentypen|Verzweigungen|Schleifen|Kleine Programme schreiben",
+          "Datenschutz und Medien|DSGVO im Alltag|Datensicherung|Informationen bewerten"
         ]
       }
     },
@@ -792,15 +794,16 @@
       ],
       "stufen": {
         "alle": [
-          "LF1 Das Unternehmen und die eigene Rolle|Ausbildungsbetrieb vorstellen|Geschäftsprozesse|Marktformen|Kommunikation mit Kunden",
-          "LF2 Arbeitsplätze nach Kundenwunsch ausstatten|Kundenanforderungen aufnehmen|Hardwarekomponenten|Angebotsvergleich|Nutzwertanalyse|Ergonomie am Arbeitsplatz",
-          "LF3 Clients in Netzwerke einbinden|OSI- und TCP/IP-Modell|IPv4-Adressierung|Subnetting, Übungen|IPv6|Client konfigurieren",
-          "LF4 Schutzbedarfsanalyse|Schutzziele|IT-Grundschutz nach BSI|Schutzbedarf feststellen|Maßnahmen ableiten|Datenschutz",
-          "Betriebssysteme|Aufgaben eines Betriebssystems|Benutzer und Rechte|Dateisysteme|Kommandozeile|Skripte zur Automatisierung",
-          "LF6 Serviceanfragen bearbeiten|Ticketsysteme|Fehleranalyse|Kundengespräch|Dokumentation",
-          "LF9 Netzwerke und Dienste bereitstellen|VLAN|Routing|DHCP und DNS|Firewall-Regeln|Netzwerkplan",
-          "IT-Dienste gestalten|Service Level Agreement|Cloud-Dienste|Virtualisierung|Monitoring",
-          "Projektphase|Projektauftrag und Planung|Umsetzung im Team|Dokumentation|Präsentation der Projektergebnisse"
+          "LF1 Das Unternehmen und die eigene Rolle|Ausbildungsbetrieb vorstellen|Aufbau und Organisation des Betriebs|Kommunikation mit Kunden|Arbeiten im Team",
+          "LF2 Arbeitsplätze ausstatten|Hardwaregrundlagen: Prozessor, Arbeitsspeicher, Festplatte|Mainboard und Schnittstellen|Peripheriegeräte|Kundenwunsch aufnehmen|Angebote vergleichen|Ergonomie am Arbeitsplatz",
+          "Betriebssystem und Dateiverwaltung|Aufgaben eines Betriebssystems|Ordner und Dateien verwalten|Dateiendungen und Dateitypen|Benutzerkonten und Rechte|Updates und Programme installieren",
+          "Office: Textverarbeitung|Dokument formatieren|Formatvorlagen und Inhaltsverzeichnis|Geschäftsbrief nach DIN 5008|Tabellen und Bilder einfügen",
+          "Office: Tabellenkalkulation|Zellbezüge und einfache Formeln|Funktionen SUMME, MITTELWERT, WENN|Diagramme erstellen|Kalkulation eines Angebots|Daten sortieren und filtern",
+          "Präsentieren|Präsentation gestalten|Folienmaster und Layout|Präsentationstechnik|Präsentationen halten, Feedback",
+          "Datenschutz und Datensicherheit|Personenbezogene Daten und DSGVO|Sichere Passwörter|Datensicherung und Backup|Viren und Phishing erkennen",
+          "Medienkompetenz|Informationen im Netz bewerten|Urheberrecht und Bildrechte|Soziale Netzwerke und digitale Identität|Cloud-Dienste nutzen",
+          "LF3 Clients in Netzwerke einbinden|Was ist ein Netzwerk|Netzwerkkomponenten: Router, Switch, WLAN|IP-Adresse und Subnetzmaske im Überblick|Client ins Netz einbinden|Fehlersuche mit ping",
+          "LF6 Serviceanfragen bearbeiten|Ticketsystem kennenlernen|Fehleranalyse Schritt für Schritt|Kundengespräch führen|Lösung dokumentieren"
         ]
       }
     },

@@ -108,6 +108,18 @@ export async function zeigen(ziel, kontext, neu) {
         </div>
         <div class="sim-fortschritt" data-np-stand></div>
       </div>
+      <div class="wt-karte">
+        <h4>Simulationsdaten nachbessern</h4>
+        <p class="ug-hinweis mt-0">Passt bereits erzeugte Simulationsdaten an die aktuellen Einstellungen an: Einträge ausgenommener Lehrkräfte, Raumänderungen und Prüfungsräume
+          in ausgeschlossenen bzw. nicht erlaubten Räumen, Prüfungen außerhalb der Prüfungsliste, Hausaufgaben in der Berufsschule, Unterrichtsform und Lehrstoff in Vertretungsstunden.
+          Nur simulierte Einträge werden geändert; schon an UntPlan übertragene Änderungen laufen über den regulären Weg.</p>
+        <div class="d-flex flex-wrap align-items-end gap-2">
+          <label class="sim-feld"><span>Von</span><input class="form-control" type="date" data-nb-von value="${e(d.schuljahrVon)}"></label>
+          <label class="sim-feld"><span>Bis</span><input class="form-control" type="date" data-nb-bis value="${e(d.schuljahrBis)}"></label>
+          <button class="btn btn-outline-secondary" type="button" data-nachbessern ${d.nachbessern?.laeuft ? 'disabled' : ''}>Simulationsdaten nachbessern</button>
+        </div>
+        <div class="sim-fortschritt" data-nb-stand></div>
+      </div>
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-primary" type="submit">Speichern</button>
         ${w.aktiv ? '<button class="btn btn-outline-secondary" type="button" data-lauf>Jetzt ausführen</button>' : ''}
@@ -165,6 +177,33 @@ export async function zeigen(ziel, kontext, neu) {
       ev.target.disabled = true;
       zeigeStand(n);
       verfolgen();
+    } catch (err) { kontext.fehler(err); }
+  };
+  const nbStand = ziel.querySelector('[data-nb-stand]');
+  const zeigeNb = n => {
+    if (!n || (!n.laeuft && !n.ende)) { nbStand.innerHTML = ''; return; }
+    nbStand.innerHTML = n.laeuft ? '<small>Läuft …</small>'
+      : `<small>Abgeschlossen am ${e(zeit(n.ende))}: ${n.geprueft} geprüft, ${n.korrigiert} korrigiert, ${n.entfernt} entfernt.${n.fehler ? ` Fehler: ${e(n.fehler)}` : ''}</small>
+         ${(n.zusammenfassung ?? []).length ? `<ul class="sim-liste">${n.zusammenfassung.map(x => `<li>${e(x)}</li>`).join('')}</ul>` : ''}`;
+  };
+  zeigeNb(d.nachbessern);
+  const nbVerfolgen = () => {
+    const t = setInterval(async () => {
+      if (!document.body.contains(nbStand)) { clearInterval(t); return; }
+      try {
+        const n = (await holen('/api/app/admin/simulation')).nachbessern;
+        zeigeNb(n);
+        if (!n.laeuft) { clearInterval(t); ziel.querySelector('[data-nachbessern]').disabled = false; toast('Das Nachbessern ist abgeschlossen.'); }
+      } catch { clearInterval(t); }
+    }, 2000);
+  };
+  if (d.nachbessern?.laeuft) nbVerfolgen();
+  ziel.querySelector('[data-nachbessern]').onclick = async ev => {
+    try {
+      const n = await senden('/api/app/admin/simulation/nachbessern', { von: ziel.querySelector('[data-nb-von]').value || null, bis: ziel.querySelector('[data-nb-bis]').value || null });
+      ev.target.disabled = true;
+      zeigeNb(n);
+      nbVerfolgen();
     } catch (err) { kontext.fehler(err); }
   };
   ziel.querySelector('[data-entfernen]').onclick = async () => {

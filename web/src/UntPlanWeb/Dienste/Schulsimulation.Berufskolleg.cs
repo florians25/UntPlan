@@ -42,10 +42,7 @@ public sealed partial class Schulsimulation
     public static bool Teilzeit(string bildungsgang) => bildungsgang is "bs" or "fos11";
 
     /// <summary>Faktor für Fehlzeiten (Vollzeit-Bildungsgänge mehr, Teilzeit weniger, Ausbildungsvorbereitung am meisten).</summary>
-    public static double Fehlfaktor(string bildungsgang) => bildungsgang switch
-    {
-        "av" => 2.2, "bfs" => 1.7, "fos12" or "fos13" or "bg" => 1.25, "fs" => 1.15, "bs" or "fos11" => 0.8, _ => 1.0,
-    };
+    public static double Fehlfaktor(string bildungsgang) => Fehlquoten.Bildungsgang(bildungsgang);
 
     /// <summary>Überwiegend volljährig (Entschuldigung durch die Schülerin bzw. den Schüler selbst): Berufsschule, Fachschule, Fachoberschule 12 und 13.</summary>
     public static bool Volljaehrig(string bildungsgang, int schuelerId) => bildungsgang switch
@@ -89,4 +86,33 @@ public sealed partial class Schulsimulation
             return _kammer[(s.Empfangen, klasse, seed)] = k;
         }
     }
+}
+
+/// <summary>
+/// Parameter der Schülerabwesenheiten an einer Stelle. Ziel: allgemeinbildend etwa 5 bis 8 % der Schüler*innen je Tag (im Winter mehr), Vollzeit-Bildungsgänge
+/// des Berufskollegs und Ausbildungsvorbereitung etwa 10 bis 15 %, Teilzeit-Berufsschule etwas weniger. Mehrtägige Krankheiten (2 bis 5 Tage) überwiegen;
+/// Montag, Freitag und die Tage vor Ferien leicht höher; gelegentlich eine Grippewelle in einer Klasse.
+/// </summary>
+public static class Fehlquoten
+{
+    /// <summary>Wahrscheinlichkeit, dass eine gesunde Schülerin bzw. ein gesunder Schüler an einem Schultag erkrankt (allgemeinbildend, ohne Saisonfaktor).</summary>
+    public const double KrankBeginn = 0.019;
+    /// <summary>Dauer einer Krankheit in Schultagen mit Gewicht.</summary>
+    public static readonly (int Tage, double Gewicht)[] Dauer = { (1, 24), (2, 25), (3, 22), (4, 13), (5, 10), (7, 4), (10, 2) };
+    public const double Arzttermin = 0.003, Verspaetung = 0.004, BetrieblicheGruende = 0.0025;
+    /// <summary>Faktor während einer Grippewelle in der Klasse; Anteil der Klassen mit einer Welle je Winter; Länge in Schultagen.</summary>
+    public const double Grippewelle = 2.6, GrippewelleAnteil = 0.3;
+    public const int GrippewelleTage = 7;
+
+    /// <summary>Faktor des Bildungsgangs (Vollzeit mehr, Teilzeit weniger, Ausbildungsvorbereitung am meisten).</summary>
+    public static double Bildungsgang(string bildungsgang) => bildungsgang switch
+    {
+        "av" => 2.1, "bfs" => 1.9, "fos12" or "fos13" or "bg" => 1.45, "fs" => 1.35, "fos11" => 0.95, "bs" => 0.85, _ => 1.0,
+    };
+
+    /// <summary>Saison: Erkältungswellen November bis Februar, weniger im Spätsommer.</summary>
+    public static double Saison(DateOnly d) => d.Month switch { 11 or 12 or 1 or 2 => 1.4, 3 => 1.15, 6 or 7 or 8 or 9 => 0.8, _ => 1.0 };
+
+    /// <summary>Montag und Freitag leicht höher, der letzte Schultag vor Ferien ebenfalls.</summary>
+    public static double Tag(DateOnly d, bool vorFerien) => (d.DayOfWeek is DayOfWeek.Monday or DayOfWeek.Friday ? 1.15 : 1.0) * (vorFerien ? 1.25 : 1.0);
 }
