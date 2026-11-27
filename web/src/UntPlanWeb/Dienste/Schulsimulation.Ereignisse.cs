@@ -217,7 +217,8 @@ public sealed partial class Schulsimulation
         var kammer = karte.Klassen.Select(x => KammerpruefungDer(s, w.Seed, x.K)).FirstOrDefault(x => x is not null && x.Tag == d);
         var thema = kammer is not null ? $"Klasse in der {kammer.Name} (Kammer), kein Unterricht"
             : vertretung is not null ? Vertretungsstoff(s, w, e, karte, vertretung, z, d)
-            : LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
+            : Stilisieren(w.Seed, l, karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fs) ? fs.Name : null, u, d, karte.Von,
+                LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach."));
         if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
         // Hausaufgaben selten, eher in den Hauptfächern; nie in Vertretungsstunden, Sport, Klassenleitung
@@ -419,46 +420,6 @@ public sealed partial class Schulsimulation
 
     // ------------------------------------------------------------------------------------------ Krankmeldungen der Lehrkräfte
 
-    private IEnumerable<Ereignis> Meldungen(Stand s, Simulationseinstellungen e, Weltstand w, Ausfall a)
-    {
-        var z = Zufall.Fuer(w.Seed, "km", a.Lehrer, a.Von);
-        var startZeit = DateTime.TryParse(e.Start, Inv, DateTimeStyles.None, out var st) ? st.AddMinutes(1) : DateTime.MinValue;
-        var basis = $"km|{a.Lehrer}|{a.Von:yyyy-MM-dd}";
-        // Erste Meldung: Arzttermin einige Tage vorher, sonst meist am Nachmittag bzw. Abend davor, manchmal nachts bzw. früh morgens
-        DateTime zeit;
-        if (a.Art.Teil) zeit = Um(a.Von.AddDays(-z.Zahl(1, 5)), z.Zahl(14 * 60, 20 * 60 + 30));
-        else
-        {
-            var vortag = a.Von.AddDays(-1);
-            zeit = z.Gewichtet(new[] { (1, 44.0), (2, 22.0), (3, 11.0), (4, 23.0) }, x => x.Item2).Item1 switch
-            {
-                1 => Um(vortag, z.Zahl(17 * 60, 22 * 60 + 30)),
-                2 => Um(vortag, z.Zahl(13 * 60, 17 * 60)),
-                3 => z.Chance(0.5) ? Um(vortag, z.Zahl(22 * 60 + 30, 23 * 60 + 59)) : Um(a.Von, z.Zahl(0, 4 * 60 + 30)),
-                _ => Um(a.Von, z.Zahl(5 * 60 + 15, 7 * 60 + 15)),
-            };
-        }
-        // lange Ausfälle: zuerst bis zum Ende der ersten Woche, dann Verlängerungen (Folgebescheinigungen)
-        const int Abschnitt = 5;
-        var lang = a.Tage.Count > Abschnitt + 1;
-        var ersteBis = lang ? a.Tage[Abschnitt - 1] : a.Bis;
-        yield return new(basis + "|start", Max(zeit, startZeit), () => Senden(s, e, a.Lehrer, Krankmeldung(s, w, a, ersteBis, z)));
-        if (lang)
-            for (var i = Abschnitt; i < a.Tage.Count; i += Abschnitt)
-            {
-                var bis = a.Tage[Math.Min(a.Tage.Count - 1, i + Abschnitt - 1)];
-                var zv = Zufall.Fuer(w.Seed, "kmv", a.Lehrer, a.Von, i);
-                var tag = a.Tage[i - 1];
-                var nummer = i;
-                yield return new($"{basis}|verl|{nummer}", Max(Um(tag, zv.Zahl(12 * 60, 19 * 60)), startZeit), () => Senden(s, e, a.Lehrer, Verlaengerung(s, a, bis, zv)));
-            }
-        if (a.Tage.Count >= 2 && z.Chance(0.5))
-        {
-            var zg = Zufall.Fuer(w.Seed, "kmg", a.Lehrer, a.Von);
-            yield return new($"{basis}|gesund", Max(Um(a.Bis, zg.Zahl(16 * 60, 21 * 60 + 30)), startZeit), () => Senden(s, e, a.Lehrer, Gesundmeldung(s, w, a, zg)));
-        }
-    }
-
     private void Senden(Stand s, Simulationseinstellungen e, string lehrer, (string Betreff, string Text) m)
     {
         var b = LehrerKonto(s, lehrer);
@@ -486,53 +447,6 @@ public sealed partial class Schulsimulation
     {
         var heute = _uhr.Heute;
         return tag == heute ? "heute" : tag == heute.AddDays(1) ? "morgen" : $"am {Datum(tag)}";
-    }
-
-    private static string Name(Stand s, string lehrer, Zufall z) =>
-        s.Lehrer.TryGetValue(lehrer, out var l) && l.Vorname.Length > 0 ? z.Chance(0.55) ? l.Vorname : $"{l.Vorname} {l.Name}" : lehrer;
-
-    private string Anrede(Zufall z)
-    {
-        var h = _uhr.Jetzt.Hour;
-        return z.Chance(0.4) ? z.Wahl(h >= 18 ? AnredenAbend : h < 9 ? AnredenMorgen : Anreden) : z.Wahl(Anreden);
-    }
-
-    private (string, string) Krankmeldung(Stand s, Weltstand w, Ausfall a, DateOnly bis, Zufall z)
-    {
-        var tag = Tagwort(a.Von);
-        var satz = z.Wahl(a.Art.Saetze);
-        var sb = new System.Text.StringBuilder();
-        sb.Append(Anrede(z)).Append("\n\n");
-        string betreff;
-        if (a.Art.Teil)
-        {
-            var stunden = a.StundeBis >= 10 ? $"ab der {a.StundeVon}. Stunde" : a.StundeVon == a.StundeBis ? $"in der {a.StundeVon}. Stunde" : $"von der {a.StundeVon}. bis zur {a.StundeBis}. Stunde";
-            betreff = z.Wahl(new[] { $"Arzttermin {Datum(a.Von)}", "Abwesenheit wegen Arzttermin", $"Ausfall {Datum(a.Von)}, {stunden}" });
-            sb.Append($"{satz}, deshalb fehle ich {tag} {stunden}.");
-        }
-        else
-        {
-            betreff = z.Wahl(new[] { "Krankmeldung", $"Krankmeldung {Name(s, a.Lehrer, Zufall.Fuer(w.Seed, "n", a.Lehrer))}", $"Krankmeldung {tag}", $"Ausfall {Datum(a.Von)}", "Bin leider krank" });
-            sb.Append(a.Art.Id == "kind" ? $"{satz}, deshalb kann ich {tag} leider nicht in die Schule kommen." : $"{satz}, deshalb muss ich mich für {tag} leider krankmelden.");
-            if (bis > a.Von)
-                sb.Append(' ').Append(z.Wahl(new[]
-                {
-                    $"Voraussichtlich falle ich bis einschließlich {Datum(bis)} aus.", $"Krankgeschrieben bin ich bis {Datum(bis)}.",
-                    $"Ich rechne damit, bis {Datum(bis)} auszufallen.", $"Die Krankschreibung gilt bis {Datum(bis)}.",
-                }));
-            else if (z.Chance(0.5))
-                sb.Append(' ').Append(z.Wahl(new[] { "Ich hoffe, dass ich übermorgen wieder fit bin.", "Ich melde mich, falls es länger dauert.", "Wenn es besser wird, bin ich am nächsten Tag wieder da." }));
-        }
-        var betroffen = BetroffeneStunden(s, a, bis);
-        var absatz = BetroffenText(betroffen, z, a.Tage.Count(t => t <= bis) > 1);
-        if (absatz.Length > 0) sb.Append("\n\n").Append(absatz);
-        var bk = betroffen.Any(b => b.Klassen.Split('/').Any(k => Bildungsgang(s, k) is not ("sek1u" or "sek1o" or "sek2")));
-        var berufsschule = betroffen.Any(b => b.Klassen.Split('/').Any(k => Bildungsgang(s, k) == "bs"));
-        var aufgaben = AufgabenText(betroffen, z, bk, berufsschule);
-        if (aufgaben.Length > 0) sb.Append(absatz.Length > 0 ? " " : "\n\n").Append(aufgaben);
-        if (!a.Art.Teil && (_uhr.Jetzt.Hour < 7 || _uhr.Jetzt.Hour >= 22) && z.Chance(0.6)) sb.Append("\n\nEntschuldigung für die kurzfristige Meldung.");
-        sb.Append("\n\n").Append(z.Wahl(Gruesse)).Append('\n').Append(Name(s, a.Lehrer, z));
-        return (betreff, sb.ToString().Replace(".. ", ". ").Replace("..\n", ".\n"));
     }
 
     /// <summary>Stunde, die wegen des Ausfalls entfällt bzw. vertreten werden muss (laut Plan der Lehrkraft).</summary>
@@ -571,7 +485,7 @@ public sealed partial class Schulsimulation
         if (mehrereTage)
             return "Betroffen:\n" + string.Join("\n", b.GroupBy(x => x.Tag).Select(g => $"{Kurztag(g.Key)}: {string.Join(", ", g.Select(x => $"{x.Klassen} ({Stunden(x.Von, x.Bis)} Std.)"))}"));
         if (form < 0.7) return $"Betroffen {(b.Count == 1 ? "ist" : "sind")} {Aufzaehlung(b.Select(x => $"die {Stunden(x.Von, x.Bis)} Stunde in der {x.Klassen} ({x.Fach})").ToList())}.";
-        return $"Klassen {string.Join(", ", klassen)}.";
+        return klassen.Count == 1 ? $"Klasse {klassen[0]}." : $"Klassen {string.Join(", ", klassen)}.";
     }
 
     /// <summary>Aufgaben: meist über Teams, manchmal keine Angabe, selten eine konkrete Aufgabe für eine der betroffenen Klassen.</summary>
@@ -591,23 +505,6 @@ public sealed partial class Schulsimulation
         var k = z.Wahl(b).Klassen;
         return z.Wahl(new[] { $"Die {k} bearbeitet Buch S. {{s}} Nr. {{a}} bis {{b}}.", $"Die {k} kann am Arbeitsblatt aus der letzten Stunde weiterarbeiten.",
             $"Für die {k} liegen Kopien in meinem Fach im Lehrerzimmer." }) is var t ? z.Zahlen(t) : "";
-    }
-
-    private (string, string) Verlaengerung(Stand s, Ausfall a, DateOnly bis, Zufall z)
-    {
-        var text = $"{z.Wahl(Anreden)}\n\n{z.Wahl(new[] { "ich bin leider weiterhin krankgeschrieben.", "leider geht es mir noch nicht besser.", "meine Krankschreibung wurde verlängert." })} " +
-                   $"{z.Wahl(new[] { $"Die Folgebescheinigung gilt bis {Datum(bis)}.", $"Ich falle voraussichtlich bis {Datum(bis)} aus.", $"Die neue Bescheinigung reicht bis {Datum(bis)}." })}\n\n" +
-                   $"{z.Wahl(Gruesse)}\n{Name(s, a.Lehrer, z)}";
-        return (z.Wahl(new[] { "Verlängerung der Krankmeldung", "Krankmeldung verlängert", "Folgebescheinigung" }), text);
-    }
-
-    private (string, string) Gesundmeldung(Stand s, Weltstand w, Ausfall a, Zufall z)
-    {
-        var naechster = w.Schultag(a.Bis.AddDays(1), 0);
-        var wann = naechster == _uhr.Heute.AddDays(1) ? "morgen" : $"am {Datum(naechster)}";
-        var text = $"{z.Wahl(Anreden)}\n\n{z.Wahl(new[] { $"ich bin {wann} wieder im Dienst.", $"mir geht es besser, ich bin {wann} wieder da.", $"kurze Info: Ich bin {wann} wieder in der Schule." })}" +
-                   (z.Chance(0.4) ? " Danke fürs Vertreten!" : "") + $"\n\n{z.Wahl(Gruesse)}\n{Name(s, a.Lehrer, z)}";
-        return (z.Wahl(new[] { "Gesundmeldung", $"Ab {(wann == "morgen" ? "morgen" : Datum(naechster))} wieder da", "Wieder gesund" }), text);
     }
 
     // ------------------------------------------------------------------------------------------ Klassenarbeiten und Klausuren

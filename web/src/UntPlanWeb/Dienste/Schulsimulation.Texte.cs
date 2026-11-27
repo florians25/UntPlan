@@ -53,24 +53,6 @@ public sealed partial class Schulsimulation
 
     // ------------------------------------------------------------------------------------------ Krankmeldungen der Lehrkräfte
 
-    /// <summary>Art einer Abwesenheit der Lehrkraft: Gewicht, Dauer in Schultagen (min, max), Teil des Tages (Arzttermin), Betreff und Text.</summary>
-    public sealed record Ausfallart(string Id, double Gewicht, int Min, int Max, bool Teil, string[] Saetze);
-
-    public static readonly Ausfallart[] Ausfallarten =
-    {
-        new("erkaeltung", 30, 1, 3, false, new[] { "mich hat eine Erkältung erwischt", "ich habe mir eine starke Erkältung eingefangen", "ich liege mit Halsschmerzen und Fieber im Bett", "ich bin stark erkältet und habe kaum Stimme" }),
-        new("infekt", 16, 3, 6, false, new[] { "ich habe einen grippalen Infekt", "mein Arzt hat mich wegen eines fieberhaften Infekts krankgeschrieben", "ich bin an einer Grippe erkrankt" }),
-        new("magen", 12, 1, 2, false, new[] { "ich habe mir einen Magen-Darm-Infekt eingefangen", "mir geht es seit heute Nachmittag sehr schlecht, vermutlich Magen-Darm" }),
-        new("kind", 10, 1, 2, false, new[] { "mein Sohn ist krank und ich muss ihn betreuen", "meine Tochter hat Fieber und kann nicht in die Kita", "ich muss mein krankes Kind betreuen" }),
-        new("migraene", 6, 1, 1, false, new[] { "ich habe eine starke Migräne", "ich habe eine heftige Migräneattacke" }),
-        new("arzt", 8, 1, 1, true, new[] { "ich habe einen Facharzttermin, der sich nicht verschieben ließ", "ich habe einen dringenden Arzttermin", "ich muss zu einer Untersuchung ins Krankenhaus" }),
-        new("ruecken", 5, 2, 5, false, new[] { "ich habe mir den Rücken verrenkt und kann mich kaum bewegen", "ich habe einen Hexenschuss" }),
-        new("lang", 3, 10, 30, false, new[] { "ich muss mich leider einer Operation unterziehen", "ich bin für längere Zeit krankgeschrieben", "nach meinem Bandscheibenvorfall bin ich vorerst krankgeschrieben" }),
-    };
-
-    public static readonly string[] Anreden = { "Liebes Vertretungsteam,", "Hallo zusammen,", "Liebe Kolleginnen und Kollegen,", "Hallo,", "Liebe Schulleitung,", "Guten Tag," };
-    public static readonly string[] AnredenAbend = { "Guten Abend,", "Liebes Vertretungsteam,", "Hallo zusammen," };
-    public static readonly string[] AnredenMorgen = { "Guten Morgen,", "Guten Morgen zusammen,", "Hallo," };
-    public static readonly string[] Gruesse = { "Viele Grüße", "Liebe Grüße", "Beste Grüße", "Danke und viele Grüße", "Herzliche Grüße", "Viele Grüße und danke fürs Organisieren" };
+    // Ausfallarten und Textbausteine der Krankmeldungen: siehe Schulsimulation.Krankmeldungen.cs
 
 }

@@ -1,5 +1,5 @@
 {
-  "hinweis": "Unterrichtsreihen der Schulsimulation je Fachgruppe und Stufe (sek1u: Klassen 5 und 6, sek1o: Klassen 7 bis 10, sek2: gymnasiale Oberstufe, bk: Berufskolleg). Eigene Formulierungen in Anlehnung an die Kernlehrpläne bzw. Bildungs- und Rahmenlehrpläne (Lernfelder). Jede Reihe: Titel|Stunde|Stunde|... ({s} = Buchseite, {a}/{b} = Aufgaben).",
+  "hinweis": "Unterrichtsreihen der Schulsimulation je Fachgruppe und Stufe (sek1u: Klassen 5 und 6, sek1o: Klassen 7 bis 10, sek2: gymnasiale Oberstufe, bk: Berufskolleg). Eigene Formulierungen in Anlehnung an die Kernlehrpläne bzw. Bildungs- und Rahmenlehrpläne (Lernfelder). Jede Reihe: Titel|Stunde|Stunde|... ({s} = Buchseite, {a}/{b} = Aufgaben). Extras: Exkurse, Filme und Exkursionsvorbereitungen je Fachgruppe (selten statt der Reihe).",
   "nicht": {
     "kuerzel": [
       "BER",
@@ -66,7 +66,9 @@
           "Wortarten und Satzglieder|Verben und Zeitformen, Übungen S. {s}|Adjektive steigern|Subjekt und Prädikat|Objekte erfragen|Umstellprobe|Test zu Satzgliedern",
           "Jugendbuch|Einstieg in die Lektüre|Figuren beschreiben|Kapitel 3 bis 5, Lesetagebuch|Spannungskurve|Szenen nachspielen|Buchvorstellung",
           "Tiere in Sachtexten|Sachtexte lesen, Fünf-Schritt-Lesemethode|Informationen markieren|Tiersteckbrief|Kurzvortrag vorbereiten|Kurzvorträge halten, Feedback",
-          "Gedichte|Reim und Strophe|Gedichte vortragen|Gedichte zu Bildern|Elfchen und Haiku|Gedichtwerkstatt"
+          "Gedichte|Reim und Strophe|Gedichte vortragen|Gedichte zu Bildern|Elfchen und Haiku|Gedichtwerkstatt",
+          "Sagen und Fabeln|Merkmale von Sagen|Sagen aus der Region|Fabeln von Äsop und Lessing|Die Lehre einer Fabel formulieren|Eigene Fabel schreiben|Fabeln szenisch lesen|Überarbeitung in Schreibkonferenz",
+          "Rechtschreibtraining|s-Laute: s, ss und ß|Groß- und Kleinschreibung|Dehnung und Schärfung|Wörter verlängern und ableiten|Diktatformen: Partnerdiktat, Laufdiktat|Rechtschreibstrategien anwenden"
         ],
         "sek1o": [
           "Argumentieren|These, Argument, Beispiel|Argumente gewichten|Stellungnahme schreiben|Leserbrief zu Handyverbot an Schulen|Diskussion führen, Regeln|Überarbeitung der Stellungnahmen",
@@ -75,7 +77,10 @@
           "Sachtexte und Medien|Sachtexte analysieren|Diagramme auswerten|Zeitungsartikel: Bericht und Kommentar|Nachrichten im Netz prüfen|Fake News erkennen",
           "Grammatik und Rechtschreibung|Kommasetzung bei Nebensätzen, Übungen S. {s}|das oder dass|Aktiv und Passiv|Konjunktiv in der indirekten Rede|Fehleranalyse eigener Texte",
           "Lektüre im Unterricht|Einstieg und Leseauftrag|Figurenkonstellation|Kapitel 4 bis 6 besprechen|Konflikte im Roman|Zentrale Textstelle interpretieren|Lektüre abschließen, Rezension",
-          "Bewerbung und Beruf|Stellenanzeigen auswerten|Lebenslauf erstellen|Anschreiben formulieren|Vorstellungsgespräch üben"
+          "Bewerbung und Beruf|Stellenanzeigen auswerten|Lebenslauf erstellen|Anschreiben formulieren|Vorstellungsgespräch üben",
+          "Kurzgeschichten|Merkmale der Kurzgeschichte|Wolfgang Borchert: Das Brot|Inhaltsangabe planen|Inhaltsangabe schreiben|Figurencharakterisierung|Deutungshypothese formulieren|Interpretationsaufsatz überarbeiten",
+          "Argumentieren|These, Argument, Beispiel|Pro und Kontra sammeln|Stellungnahme gliedern|Einleitung und Schluss|Erörterung schreiben|Textgebundene Erörterung|Überarbeitung mit Kriterienkatalog",
+          "Medien und Werbung|Werbeanzeigen untersuchen|Sprachliche Mittel der Werbung|Influencer-Marketing kritisch betrachten|Werbespots analysieren|Eigene Kampagne entwerfen|Präsentationen der Gruppenergebnisse"
         ],
         "sek2": [
           "Sachtextanalyse|Aufbau einer Analyse|Argumentationsstruktur erschließen|Sprachliche Mittel und Funktion|Analyse schreiben, Übung|Musteranalyse besprechen",
@@ -83,7 +88,9 @@
           "Lyrik von der Romantik bis zur Gegenwart|Merkmale romantischer Lyrik|Gedichtvergleich: Aufbau|Naturlyrik im Wandel|Großstadtlyrik des Expressionismus|Gedichtvergleich schreiben",
           "Epik: Kafka|Die Verwandlung: Einstieg|Erzählweise und Perspektive|Familie Samsa|Deutungsansätze|Erörterung literarischer Texte",
           "Sprache und Kommunikation|Kommunikationsmodelle nach Schulz von Thun|Sprachwandel|Jugendsprache und Denglisch|Mehrsprachigkeit|Sprachkritik in Medien",
-          "Facharbeit|Themenfindung und Fragestellung|Gliederung und Zeitplan|Recherche und richtiges Zitieren|Beratungsgespräche zur Facharbeit|Abgabe und Rückmeldung"
+          "Facharbeit|Themenfindung und Fragestellung|Gliederung und Zeitplan|Recherche und richtiges Zitieren|Beratungsgespräche zur Facharbeit|Abgabe und Rückmeldung",
+          "Lyrik der Romantik|Epochenüberblick Romantik|Eichendorff: Mondnacht|Motive Sehnsucht und Wandern|Gedichtvergleich vorbereiten|Gedichtvergleich schreiben|Romantik und Gegenwart",
+          "Sprache und Medien|Sprachwandel durch digitale Kommunikation|Jugendsprache: Sachtexte erschließen|Sprachkritik|Materialgestütztes Schreiben: Planung|Materialgestütztes Schreiben: Ausarbeitung|Besprechung der Schreibprodukte"
         ],
         "bk": [
           "Kommunikation im Betrieb|Kommunikationsmodell nach Schulz von Thun|Gesprächsregeln|Telefonate führen, Rollenspiel|Feedback geben und nehmen|Konflikte im Team",
@@ -127,7 +134,9 @@
           "Geometrische Grundbegriffe|Strecken, Geraden, Strahlen|Senkrecht und parallel|Koordinatensystem|Achsensymmetrie|Vierecke und ihre Eigenschaften",
           "Brüche|Bruchteile darstellen|Erweitern und Kürzen|Brüche vergleichen|Brüche addieren und subtrahieren, Übungen S. {s}|Brüche multiplizieren|Brüche dividieren",
           "Dezimalzahlen|Dezimalschreibweise|Dezimalzahlen runden|Rechnen mit Dezimalzahlen|Periodische Dezimalzahlen",
-          "Flächen und Größen|Längen und Maßeinheiten|Flächeninhalt Rechteck|Umfang und Flächeninhalt, Übungen|Volumen von Quadern"
+          "Flächen und Größen|Längen und Maßeinheiten|Flächeninhalt Rechteck|Umfang und Flächeninhalt, Übungen|Volumen von Quadern",
+          "Größen und Maßstab|Längen umrechnen|Gewichte und Zeitspannen|Maßstab auf Karten|Sachaufgaben mit Größen|Kommazahlen bei Größen|Lernkontrolle Größen",
+          "Daten und Diagramme|Strichlisten und Häufigkeitstabellen|Säulendiagramme zeichnen|Mittelwert und Spannweite|Umfrage in der Klasse auswerten|Diagramme kritisch lesen"
         ],
         "sek1o": [
           "Zuordnungen|Proportionale Zuordnungen|Dreisatz|Antiproportionale Zuordnungen|Zuordnungen im Alltag, Übungen S. {s}",
@@ -136,7 +145,10 @@
           "Lineare Funktionen|Funktionsbegriff|Steigungsdreieck, Übungen S. {s}|Achsenabschnitt und Funktionsgleichung|Geraden zeichnen|Schnittpunkte zweier Geraden|Lineare Gleichungssysteme",
           "Satz des Pythagoras|Rechtwinklige Dreiecke|Satz des Pythagoras beweisen|Anwendungsaufgaben|Pythagoras im Raum",
           "Quadratische Funktionen|Normalparabel|Scheitelpunktform|pq-Formel|Anwendungsaufgaben, Übungen S. {s}",
-          "Wahrscheinlichkeit|Zufallsexperimente|Baumdiagramme|Pfadregeln|Wahrscheinlichkeit im Alltag"
+          "Wahrscheinlichkeit|Zufallsexperimente|Baumdiagramme|Pfadregeln|Wahrscheinlichkeit im Alltag",
+          "Lineare Funktionen|Zuordnung und Funktion|Steigung und y-Achsenabschnitt|Funktionsgleichung aus zwei Punkten|Schnittpunkte von Geraden|Anwendungen: Handytarife vergleichen|Lineare Gleichungssysteme grafisch lösen|Lernkontrolle lineare Funktionen",
+          "Satz des Pythagoras|Rechtwinklige Dreiecke untersuchen|Beweis des Satzes|Fehlende Seitenlängen berechnen|Pythagoras im Raum|Anwendungsaufgaben: Leiter und Bildschirmdiagonale|Umkehrung des Satzes",
+          "Wahrscheinlichkeitsrechnung|Zufallsexperimente durchführen|Relative Häufigkeit|Laplace-Wahrscheinlichkeit|Baumdiagramme|Pfadregeln|Simulation mit der Tabellenkalkulation"
         ],
         "sek2": [
           "Funktionen und Ableitungen|Änderungsraten|Ableitung als Grenzwert|Ableitungsregeln, Übungen S. {s}|Tangentengleichung|Monotonie",
@@ -144,7 +156,9 @@
           "Integralrechnung|Rekonstruktion von Beständen|Stammfunktionen|Hauptsatz der Differential- und Integralrechnung|Flächen zwischen Graphen",
           "Exponentialfunktionen|Wachstum und Zerfall|e-Funktion und Ableitung|Logarithmus|Anwendungen aus Biologie und Wirtschaft",
           "Analytische Geometrie|Vektoren im Raum|Geradengleichungen|Lagebeziehungen von Geraden|Ebenen und Skalarprodukt",
-          "Stochastik|Bernoulli-Ketten|Binomialverteilung|Erwartungswert und Standardabweichung|Hypothesentests"
+          "Stochastik|Bernoulli-Ketten|Binomialverteilung|Erwartungswert und Standardabweichung|Hypothesentests",
+          "Exponentialfunktionen|Wachstumsprozesse modellieren|Die Eulersche Zahl|Ableitung der e-Funktion|Exponentialgleichungen mit Logarithmus|Beschränktes Wachstum|Anwendungsaufgaben aus der Biologie",
+          "Stochastik: Binomialverteilung|Bernoulli-Ketten|Binomialkoeffizient|Erwartungswert und Standardabweichung|Kumulierte Wahrscheinlichkeiten mit dem GTR|Hypothesentest einseitig|Fehler 1. und 2. Art"
         ],
         "bk": [
           "Grundlagen und Terme|Bruchrechnung wiederholen|Potenzen und Wurzeln|Terme umformen, Übungen S. {s}|Formeln umstellen",
@@ -169,21 +183,27 @@
           "Unit 1: My new school|Vocabulary Unit 1|Simple present|Talking about my timetable|Listening: First day at school|Writing about my school",
           "Unit 2: Family and friends|Possessive determiners|Describing people|Present progressive|Role play: At home",
           "Unit 3: Free time|Hobbies vocabulary|Adverbs of frequency|Can and can't|Writing an email",
-          "Unit 4: Around town|Directions|Simple past|Reading: A trip to London|Postcard from London"
+          "Unit 4: Around town|Directions|Simple past|Reading: A trip to London|Postcard from London",
+          "Unit: My hobbies|Talking about free time|Simple present: questions and negatives|Listening: a radio interview|Writing an email to a pen friend|Vocabulary: sports and activities|Presenting my hobby",
+          "Unit: Shopping and food|At the market: dialogues|Some and any|Prices and numbers|Recipes and instructions|Role play: in a café|Revision of the unit"
         ],
         "sek1o": [
           "Unit 1: Life in Britain|Present perfect|Present perfect and simple past|Reading: Teenage life|Mediation",
           "Unit 2: Going places|Going to future|Will future|Travel vocabulary|Writing a travel blog",
           "Unit 3: Growing up|If clauses type 1|If clauses type 2|Discussion: rules at home|Writing a comment",
           "Unit 4: The USA|American states|Passive voice|Reading: The American Dream|Presentation about a US state",
-          "Unit 5: Media|Reported speech|Social media vocabulary|Film scene analysis|Mediation exercise"
+          "Unit 5: Media|Reported speech|Social media vocabulary|Film scene analysis|Mediation exercise",
+          "Unit: Teenage life|Present perfect vs. simple past|Reading: a blog entry|Giving opinions|Writing a comment|Mediation: German article into English|Speaking: discussion in small groups",
+          "Unit: The USA|Regions and landmarks|National parks|Reading: Route 66|Passive voice|Film scenes: Beobachtungsauftrag|Project: travel itinerary"
         ],
         "sek2": [
           "Globalisation|Globalisation: definitions|Fair trade|Analysing statistics|Writing a comment",
           "The American Dream|Myth and reality|Analysing a political speech|Rhetorical devices|Mediation",
           "Shakespeare|Shakespeare's world|Romeo and Juliet: Act 1|Sonnets|Film analysis: camera work",
           "Dystopian fiction|Features of dystopias|Reading Brave New World|Character analysis|Creative writing",
-          "Post-colonial Britain|The Commonwealth|Multicultural Britain|Analysing a short story|Exam training: analysis"
+          "Post-colonial Britain|The Commonwealth|Multicultural Britain|Analysing a short story|Exam training: analysis",
+          "Globalization|Global players and local cultures|Analysing a speech|Statistics and charts in English|Fair trade debate|Writing an argumentative essay|Mediation task",
+          "Shakespeare|Introduction to the Elizabethan age|Romeo and Juliet: prologue|Key scenes analysed|Language of love and hate|Film adaptation compared|Creative writing: modern version"
         ],
         "bk": [
           "Working life|Introducing yourself and your company|Job descriptions|Telephoning at work|Writing emails",
@@ -297,13 +317,16 @@
         "sek1o": [
           "Der Mensch|Verdauung|Atmung|Blut und Blutkreislauf|Herz und Kreislauf",
           "Ökologie|Ökosystem Wald|Nahrungsnetze|Stoffkreisläufe|Mensch und Umwelt",
-          "Genetik|Zellteilung|Mendelsche Regeln|Erbgänge|Gentechnik"
+          "Genetik|Zellteilung|Mendelsche Regeln|Erbgänge|Gentechnik",
+          "Ökologie: Der Wald|Stockwerke des Waldes|Nahrungsketten und Nahrungsnetze|Bodenproben untersuchen|Zeigerpflanzen bestimmen|Der Wald im Klimawandel|Protokoll der Untersuchung",
+          "Sexualerziehung und Pubertät|Körperliche Veränderungen|Hormone als Botenstoffe|Verhütung|Gefühle und Beziehungen|Fragenbox: anonyme Fragen"
         ],
         "sek2": [
           "Zellbiologie|Biomembranen|Transportvorgänge|Enzyme|Enzymkinetik",
           "Genetik|DNA und Replikation|Proteinbiosynthese|Genregulation|Mutationen",
           "Neurobiologie|Bau des Neurons|Ruhepotential|Aktionspotential|Synapse",
-          "Ökologie und Evolution|Populationsdynamik|Evolutionstheorien|Artbildung|Stammbäume"
+          "Ökologie und Evolution|Populationsdynamik|Evolutionstheorien|Artbildung|Stammbäume",
+          "Neurobiologie|Bau der Nervenzelle|Ruhepotenzial|Aktionspotenzial|Synapse und Transmitter|Wirkung von Drogen an Synapsen|Klausurvorbereitung: Materialaufgaben"
         ],
         "bk": [
           "Zellen und Gewebe|Aufbau der Zelle|Gewebearten|Mikroskopie",
@@ -325,7 +348,8 @@
           "Stoffe und Eigenschaften|Sicherheit im Fachraum|Stoffeigenschaften untersuchen|Trennverfahren|Reinstoffe und Gemische",
           "Chemische Reaktionen|Verbrennung|Energieumsatz|Reaktionsgleichungen|Gesetz von der Erhaltung der Masse",
           "Atombau und Periodensystem|Atommodell nach Bohr|Periodensystem|Ionenbindung|Salze",
-          "Säuren und Laugen|Säuren im Alltag|pH-Wert|Neutralisation|Titration"
+          "Säuren und Laugen|Säuren im Alltag|pH-Wert|Neutralisation|Titration",
+          "Säuren und Laugen|Indikatoren|pH-Wert messen|Neutralisation|Titration im Schülerversuch|Säuren im Alltag|Versuchsprotokoll auswerten"
         ],
         "sek2": [
           "Reaktionsgeschwindigkeit|Geschwindigkeit messen|Einflussfaktoren|Katalyse",
@@ -358,7 +382,8 @@
           "Mechanik|Geschwindigkeit|Kräfte und ihre Wirkung|Hebel|Dichte",
           "Elektrizität|Stromkreis|Reihen- und Parallelschaltung|Ohmsches Gesetz|Elektrische Leistung",
           "Optik|Reflexion|Brechung|Linsen",
-          "Energie|Energieformen|Energieerhaltung|Kraftwerke"
+          "Energie|Energieformen|Energieerhaltung|Kraftwerke",
+          "Elektrizitätslehre|Stromkreise aufbauen|Reihen- und Parallelschaltung|Spannung und Stromstärke messen|Ohmsches Gesetz|Widerstand berechnen|Elektrische Sicherheit im Haushalt"
         ],
         "sek2": [
           "Kinematik|Gleichförmige Bewegung|Beschleunigung|Freier Fall",
@@ -386,7 +411,8 @@
           "Computer und Daten|Aufbau eines Computers|Binärzahlen|Dateien und Ordner",
           "Office und Tabellenkalkulation|Textverarbeitung|Tabellenkalkulation: Formeln|Diagramme",
           "Algorithmen|Ablaufdiagramme|Programmieren mit Scratch|Schleifen und Bedingungen",
-          "Sicher im Netz|Datenschutz|Sichere Passwörter|Fake News erkennen"
+          "Sicher im Netz|Datenschutz|Sichere Passwörter|Fake News erkennen",
+          "Algorithmen im Alltag|Handlungsanweisungen formulieren|Struktogramme|Programmieren mit Scratch: Schleifen|Verzweigungen|Kleines Spiel programmieren|Fehler finden und beheben"
         ],
         "sek2": [
           "Objektorientierte Modellierung|Klassen und Objekte|UML-Klassendiagramm|Vererbung",
@@ -418,7 +444,8 @@
         "sek1o": [
           "Naturgefahren|Vulkane|Erdbeben|Tsunamis",
           "Klima und Vegetation|Klimazonen|Klimadiagramme|Regenwald",
-          "Stadt und Raum|Stadtentwicklung|Tourismus|Strukturwandel im Ruhrgebiet"
+          "Stadt und Raum|Stadtentwicklung|Tourismus|Strukturwandel im Ruhrgebiet",
+          "Klimazonen der Erde|Klimadiagramme lesen|Tropischer Regenwald|Wüsten und Trockenräume|Polarregionen|Klimawandel und seine Folgen|Gruppenpuzzle: Klimazonen"
         ],
         "sek2": [
           "Globale Disparitäten|Entwicklungsindikatoren|Globalisierung|Raumanalyse",
@@ -442,11 +469,13 @@
         "sek1o": [
           "Mittelalter|Lehnswesen|Leben im Mittelalter|Stadt im Mittelalter",
           "Revolutionen|Französische Revolution|Industrialisierung|Soziale Frage",
-          "20. Jahrhundert|Erster Weltkrieg|Weimarer Republik|Nationalsozialismus|Teilung Deutschlands"
+          "20. Jahrhundert|Erster Weltkrieg|Weimarer Republik|Nationalsozialismus|Teilung Deutschlands",
+          "Industrialisierung|Erfindungen und Fabriken|Lebensbedingungen der Arbeiter|Kinderarbeit: Quellenarbeit|Soziale Frage|Arbeiterbewegung und Gewerkschaften|Industrialisierung im Ruhrgebiet"
         ],
         "sek2": [
           "Deutsche Geschichte|Reichsgründung 1871|Imperialismus|Ende der Weimarer Republik",
-          "Nach 1945|Kalter Krieg|Deutsche Einheit|Erinnerungskultur"
+          "Nach 1945|Kalter Krieg|Deutsche Einheit|Erinnerungskultur",
+          "Weimarer Republik|Novemberrevolution|Verfassung im Vergleich|Krisenjahr 1923|Goldene Zwanziger|Weltwirtschaftskrise|Scheitern der Republik: Ursachen gewichten"
         ]
       }
     },
@@ -470,7 +499,8 @@
         "sek1o": [
           "Demokratie|Wahlen in Deutschland|Parteien|Der Bundestag",
           "Europa|Die Europäische Union|Institutionen der EU",
-          "Wirtschaft|Markt und Preis|Soziale Marktwirtschaft"
+          "Wirtschaft|Markt und Preis|Soziale Marktwirtschaft",
+          "Demokratie in der Gemeinde|Aufgaben der Kommune|Rat und Bürgermeister|Bürgerbeteiligung|Jugendparlament|Planspiel: Neue Skateanlage"
         ],
         "sek2": [
           "Politisches System|Grundgesetz|Parteien|Gesetzgebung",
@@ -540,7 +570,8 @@
           "Religion und Leben|Was ist Religion|Rituale im Alltag|Feste im Jahreskreis",
           "Weltreligionen|Judentum|Christentum|Islam|Interreligiöser Dialog",
           "Ethik und Verantwortung|Gewissen|Nächstenliebe und Diakonie|Bewahrung der Schöpfung",
-          "Sinnfragen|Leid und Hoffnung|Tod und Trauer|Was gibt meinem Leben Sinn"
+          "Sinnfragen|Leid und Hoffnung|Tod und Trauer|Was gibt meinem Leben Sinn",
+          "Feste der Religionen|Weihnachten und Ostern|Ramadan und Zuckerfest|Pessach|Feste vergleichen|Plakat zu einem Fest"
         ]
       }
     },
@@ -557,7 +588,8 @@
           "Farbe|Farbkreis|Farbkontraste|Farbmischungen|Bild nach Itten",
           "Zeichnen|Linie und Schraffur|Perspektive|Porträt",
           "Plastik|Ton modellieren|Plastisches Gestalten|Präsentation",
-          "Bildanalyse|Werkbetrachtung|Expressionismus|Pop Art"
+          "Bildanalyse|Werkbetrachtung|Expressionismus|Pop Art",
+          "Perspektive|Fluchtpunkt und Horizont|Zentralperspektive zeichnen|Zwei-Fluchtpunkt-Perspektive|Räume skizzieren|Eigenes Raumbild gestalten"
         ]
       }
     },
@@ -594,7 +626,8 @@
         "alle": [
           "Musik machen|Rhythmus und Takt|Singen im Klassenverband|Klassenmusizieren",
           "Musik hören|Instrumentenkunde|Musikalische Formen|Filmmusik",
-          "Musik und Gesellschaft|Popmusik analysieren|Musik und Werbung"
+          "Musik und Gesellschaft|Popmusik analysieren|Musik und Werbung",
+          "Musik und Film|Filmmusik erkennen|Leitmotive|Geräusche und Stimmungen|Eine Szene vertonen"
         ]
       }
     },
@@ -618,7 +651,9 @@
           "Volleyball|Pritschen|Baggern|Aufschlag|Spiel 4 gegen 4",
           "Turnen|Bodenturnen|Gerätebahn|Akrobatik|Präsentation",
           "Fitness und Gesundheit|Kraftzirkel|Aufwärmen selbst gestalten|Dehnen und Mobilisation|Aerobic-Choreografie",
-          "Leichtathletik|Sprint|Weitsprung|Kugelstoßen|Staffellauf"
+          "Leichtathletik|Sprint|Weitsprung|Kugelstoßen|Staffellauf",
+          "Ausdauer|Laufen im eigenen Tempo|Pulsmessung|Intervalltraining|Cooper-Test vorbereiten|Cooper-Test",
+          "Turnen|Aufwärmen und Helfen|Rolle vorwärts und rückwärts|Handstand an der Wand|Bodenturnen: Kür zusammenstellen|Kür präsentieren"
         ]
       }
     },
@@ -980,5 +1015,207 @@
         ]
       }
     }
-  ]
+  ],
+  "extras": {
+    "deutsch": {
+      "exkurse": [
+        "Exkurs: Woher kommen unsere Redewendungen?",
+        "Exkurs: Leichte Sprache",
+        "Exkurs: Jugendwort des Jahres"
+      ],
+      "filme": [
+        "Literaturverfilmung, erste Szenen mit Beobachtungsauftrag",
+        "Kurzfilm zum Thema, Gespräch über die Wirkung"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Theaterbesuchs",
+        "Vorbereitung des Besuchs in der Stadtbibliothek"
+      ]
+    },
+    "mathe": {
+      "exkurse": [
+        "Exkurs: Mathematik im Alltag",
+        "Exkurs: Knobelaufgaben und Logikrätsel",
+        "Exkurs: Geschichte der Null"
+      ],
+      "filme": [
+        "Erklärvideo zum Thema mit Notizen"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Mathematik-Wettbewerbs"
+      ]
+    },
+    "englisch": {
+      "exkurse": [
+        "Exkurs: British and American English",
+        "Exkurs: English in the news"
+      ],
+      "filme": [
+        "Film scenes with viewing tasks",
+        "Short film, discussion in English"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Austauschs"
+      ]
+    },
+    "biologie": {
+      "exkurse": [
+        "Exkurs: Gesunde Ernährung",
+        "Exkurs: Haustiere artgerecht halten"
+      ],
+      "filme": [
+        "Dokumentarfilm mit Beobachtungsbogen"
+      ],
+      "exkursionen": [
+        "Vorbereitung der Exkursion zum Bach",
+        "Vorbereitung des Zoobesuchs"
+      ]
+    },
+    "chemie": {
+      "exkurse": [
+        "Exkurs: Chemie in der Küche",
+        "Exkurs: Sicherheit im Labor"
+      ],
+      "filme": [
+        "Experimentvideo, Beobachtungen notieren"
+      ]
+    },
+    "physik": {
+      "exkurse": [
+        "Exkurs: Energie sparen zu Hause",
+        "Exkurs: Physik im Freizeitpark"
+      ],
+      "filme": [
+        "Video zu Versuchen, die im Klassenraum nicht möglich sind"
+      ]
+    },
+    "erdkunde": {
+      "exkurse": [
+        "Exkurs: Aktuelles Naturereignis",
+        "Exkurs: Orientierung mit Karte und Kompass"
+      ],
+      "filme": [
+        "Dokumentation mit Arbeitsauftrag"
+      ],
+      "exkursionen": [
+        "Vorbereitung der Exkursion in die Innenstadt"
+      ]
+    },
+    "geschichte": {
+      "exkurse": [
+        "Exkurs: Geschichte unserer Stadt",
+        "Exkurs: Gedenktage"
+      ],
+      "filme": [
+        "Ausschnitte aus einer Dokumentation, Quellenkritik"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Museumsbesuchs",
+        "Vorbereitung des Gedenkstättenbesuchs"
+      ]
+    },
+    "politik": {
+      "exkurse": [
+        "Exkurs: Aktuelle Nachrichtenlage",
+        "Exkurs: Wahlen in einem Nachbarland"
+      ],
+      "filme": [
+        "Nachrichtensendung analysieren"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Besuchs im Rathaus",
+        "Vorbereitung des Landtagsbesuchs"
+      ]
+    },
+    "informatik": {
+      "exkurse": [
+        "Exkurs: Sichere Passwörter",
+        "Exkurs: Künstliche Intelligenz im Alltag"
+      ],
+      "filme": [
+        "Erklärvideo zur Funktionsweise des Internets"
+      ]
+    },
+    "religion": {
+      "exkurse": [
+        "Exkurs: Aktuelle Fragen der Klasse",
+        "Exkurs: Fastenzeit"
+      ],
+      "filme": [
+        "Kurzfilm, Gespräch über Werte"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Kirchen- und Moscheebesuchs"
+      ]
+    },
+    "kunst": {
+      "exkurse": [
+        "Exkurs: Streetart",
+        "Exkurs: Künstlerin der Woche"
+      ],
+      "filme": [
+        "Video zu einer Maltechnik"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Museumsbesuchs"
+      ]
+    },
+    "musik": {
+      "exkurse": [
+        "Exkurs: Musik aus den aktuellen Charts",
+        "Exkurs: Instrumente der Welt"
+      ],
+      "filme": [
+        "Konzertmitschnitt mit Höraufträgen"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Konzertbesuchs"
+      ]
+    },
+    "sport": {
+      "exkurse": [
+        "Regelkunde",
+        "Fair Play und Schiedsrichter"
+      ],
+      "exkursionen": [
+        "Vorbereitung des Sportfests"
+      ]
+    },
+    "wirtschaft": {
+      "exkurse": [
+        "Exkurs: Aktuelle Wirtschaftsnachrichten",
+        "Exkurs: Mein erstes Girokonto"
+      ],
+      "filme": [
+        "Reportage zum Thema mit Arbeitsauftrag"
+      ],
+      "exkursionen": [
+        "Vorbereitung der Betriebserkundung"
+      ]
+    },
+    "itsysteme": {
+      "exkurse": [
+        "Exkurs: Aktuelle Sicherheitslücken",
+        "Exkurs: Nachhaltige IT"
+      ],
+      "filme": [
+        "Erklärvideo, Notizen und Rückfragen"
+      ],
+      "exkursionen": [
+        "Vorbereitung der Messe- bzw. Betriebserkundung"
+      ]
+    },
+    "sozialpaedagogik": {
+      "exkurse": [
+        "Exkurs: Aktuelle Fachdiskussion",
+        "Exkurs: Kinderrechte"
+      ],
+      "filme": [
+        "Dokumentarfilm zum Kita-Alltag mit Beobachtungsbogen"
+      ],
+      "exkursionen": [
+        "Vorbereitung der Hospitation in einer Einrichtung"
+      ]
+    }
+  }
 }

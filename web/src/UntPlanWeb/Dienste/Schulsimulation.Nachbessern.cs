@@ -165,6 +165,7 @@ public sealed partial class Schulsimulation
                 var thema = x.Thema.Replace(", Vertiefung in Gruppenarbeit", ", Vertiefung").Replace("Gruppenarbeit und Präsentation", "Ergebnisse vorstellen")
                     .Replace("Aufgaben in Partnerarbeit", "Aufgaben zum Thema");
                 var ha = x.Ha;
+                var gestaltet = false;
                 if (ha.Length > 0 && x.Klassen.Any(k => Bildungsgang(s, k) == "bs")) { ha = ""; Merke("Hausaufgaben in der Berufsschule entfernt"); }
                 if (thema.Length > 0 && w is not null && x.Stunde > 0 && DateOnly.TryParse(x.Datum, out var d) && !Vertretungstext(thema))
                 {
@@ -174,10 +175,16 @@ public sealed partial class Schulsimulation
                         thema = Vertretungsstoff(s, w, e, karte, fl, Zufall.Fuer(w.Seed, "ls", d, x.U, karte.Von, x.Lehrer), d);
                         Merke("Lehrstoff in Vertretungsstunden ersetzt");
                     }
+                    // Lehrstoff der Reihe noch ohne den Schreibstil der Lehrkraft (ältere Simulationsdaten): im Stil der Lehrkraft
+                    else if (karte is not null && karte.Von == x.Stunde && LehrstoffFuer(s, w, e, karte, d) is { } roh && roh == thema)
+                    {
+                        var stil = Stilisieren(w.Seed, x.Lehrer, karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fs) ? fs.Name : null, x.U, d, karte.Von, roh);
+                        if (stil != thema) { thema = stil; gestaltet = true; Merke("Lehrstoff im Stil der Lehrkraft"); }
+                    }
                 }
                 if (x.Lf.Length > 0) Merke("Unterrichtsform entfernt");
                 if (thema == x.Thema && ha == x.Ha && x.Lf.Length == 0) continue;
-                if (thema != x.Thema && !Vertretungstext(thema)) Merke("Gruppenarbeitszusätze entfernt");
+                if (thema != x.Thema && !Vertretungstext(thema) && !gestaltet) Merke("Gruppenarbeitszusätze entfernt");
                 _db.Ausfuehren("UPDATE klassenbuch SET thema = @t, hausaufgabe = @h, faellig = CASE WHEN @h = '' THEN NULL ELSE faellig END, lehrform = '' WHERE id = @i",
                     Db.P("@t", thema), Db.P("@h", ha), Db.P("@i", x.Id));
                 korrigiert++;
@@ -189,12 +196,71 @@ public sealed partial class Schulsimulation
             entfernt += haEntfernt;
             Merke("Hausaufgaben in der Berufsschule entfernt", haEntfernt);
 
+            // getrennt dargestellte Stunden eines Blocks (Vertretung, Änderung in einer Stunde): jede Einzelstunde braucht eigene Kontrolle und eigenen Lehrstoff
+            var ergaenzt = Einzelstunden(s, e, von, bis < heute ? bis : heute.AddDays(-1));
+            korrigiert += ergaenzt;
+            Merke("Kontrolle bzw. Lehrstoff getrennter Einzelstunden ergänzt", ergaenzt);
+
             _nachbessern = new(false, Plandienst.Iso(von), Plandienst.Iso(bis), geprueft, korrigiert, entfernt, _nachbessern.Beginn.Length > 0 ? _nachbessern.Beginn : Zeit(_uhr.Jetzt),
                 Zeit(_uhr.Jetzt), "", notizen.Select(n => $"{n.Key}: {n.Value}").ToList());
             _cache.Clear();
             _tageCache.Clear();
             return _nachbessern;
         }
+    }
+
+    /// <summary>
+    /// Fehlende Abwesenheitskontrollen und fehlenden Lehrstoff der Karten nachtragen, die zusammen mit einer Nachbarkarte desselben Unterrichts einen Block
+    /// bilden würden, aber getrennt dargestellt werden (z. B. erst später eine Vertretung in einer der beiden Stunden). Gleiche Ereignisse und Schlüssel wie
+    /// im laufenden Betrieb: was schon ausgeführt ist, bleibt; Einträge anderer Benutzer werden nie überschrieben.
+    /// </summary>
+    private int Einzelstunden(Stand s, Simulationseinstellungen e, DateOnly von, DateOnly bis)
+    {
+        if (bis < von) return 0;
+        var jetzt = _uhr.Jetzt;
+        var simStart = DateTime.TryParse(e.Start, Inv, System.Globalization.DateTimeStyles.None, out var st) ? DateOnly.FromDateTime(st) : DateOnly.MaxValue;
+        var vorher = Vergangenheitswelt(s, e, von, simStart == DateOnly.MaxValue ? bis : simStart.AddDays(-1));
+        var betrieb = simStart <= bis ? Welt(s, e, st, jetzt) : null;
+        var erledigt = _db.Liste("SELECT schluessel FROM simulation_ereignisse", r => r.Text("schluessel")).ToHashSet(StringComparer.Ordinal);
+        var n = 0;
+        foreach (var d in Schuljahrestage(s).Where(d => d >= von && d <= bis))
+        {
+            var w = d >= simStart && betrieb is not null ? betrieb : vorher;
+            var getrennt = new HashSet<(string L, int U, int Von)>();
+            foreach (var l in w.KlassenDerLehrkraft.Keys)
+            {
+                List<Karte> karten;
+                try { karten = _plan.Karten(s, d, Elementtyp.Lehrer, l).Where(Gehalten).Where(k => k.Unterricht.HasValue).ToList(); }
+                catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException) { continue; }
+                foreach (var k in karten.Where(k => karten.Any(x => x != k && x.Unterricht == k.Unterricht && (x.Bis + 1 == k.Von || x.Von == k.Bis + 1))))
+                    getrennt.Add((l, k.Unterricht!.Value, k.Von));
+            }
+            if (getrennt.Count == 0) continue;
+            var vermerke = new List<(string, string, string)>();
+            foreach (var x in Tagesereignisse(s, e, w, d, true).Where(x => x.Schluessel[..3] is "an|" or "kb|" && !erledigt.Contains(x.Schluessel)))
+            {
+                var t = x.Schluessel.Split('|');
+                if (t.Length < 5 || !int.TryParse(t[2], out var u) || !int.TryParse(t[3], out var v) || !getrennt.Contains((t[4], u, v))) continue;
+                var zeit = x.Zeit < jetzt ? x.Zeit : jetzt.AddMinutes(-1);
+                string ergebnis;
+                using (_uhr.Simuliert(zeit))
+                {
+                    try { x.Aktion(); ergebnis = "ok"; n++; }
+                    catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException or FormatException)
+                    { ergebnis = ex.Message.Length > 290 ? ex.Message[..290] : ex.Message; }
+                }
+                vermerke.Add((x.Schluessel.Length > 190 ? x.Schluessel[..190] : x.Schluessel, Zeit(zeit), ergebnis));
+                erledigt.Add(x.Schluessel);
+            }
+            if (vermerke.Count > 0)
+                _db.Transaktion(c =>
+                {
+                    foreach (var (k, z2, erg) in vermerke)
+                        Db.Ausfuehren(c, "INSERT INTO simulation_ereignisse (schluessel, zeit, ausgefuehrt, ergebnis) VALUES (@s, @z, @a, @e) ON CONFLICT(schluessel) DO NOTHING",
+                            Db.P("@s", k), Db.P("@z", z2), Db.P("@a", Zeit(jetzt)), Db.P("@e", "nachgebessert: " + erg));
+                });
+        }
+        return n;
     }
 
     private static bool Vertretungstext(string thema) => thema.StartsWith("Vertretung", StringComparison.Ordinal) || thema is "Stillarbeit"

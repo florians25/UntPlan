@@ -462,8 +462,15 @@ public sealed partial class Schulsimulation : BackgroundService
         {
             var dauer = z.Zahl(art.Min, art.Max);
             var t = tage.Skip(i).Take(dauer).ToList();
-            var von = art.Teil ? z.Zahl(1, 5) : 1;
-            var a = new Ausfall(l, art, t, von, art.Teil ? Math.Min(10, von + z.Zahl(1, 3)) : 99);
+            // Teilausfall: Termin in einzelnen Stunden, später kommen (fehlt ab der 1. Stunde) bzw. früher gehen (fehlt bis Tagesende)
+            var (von, bisStunde) = art.Modus switch
+            {
+                "termin" => z.Zahl(1, 5) is var v ? (v, Math.Min(10, v + z.Zahl(1, 3))) : default,
+                "spaeter" => (1, z.Zahl(1, 3)),
+                "frueher" => (z.Zahl(4, 6), 99),
+                _ => (1, 99),
+            };
+            var a = new Ausfall(l, art, t, von, bisStunde);
             krankBis[l] = t[^1];
             return a;
         }

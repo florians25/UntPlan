@@ -12,7 +12,11 @@ public sealed record Fachgruppe(string Id, List<string> Kuerzel, List<string> Wo
 }
 
 /// <summary>Katalog der Unterrichtsreihen (eingebettete Ressource Dienste/Simulation/lehrstoff.json).</summary>
-public sealed record Lehrstoffkatalog(List<Fachgruppe> Gruppen, List<string> NichtKuerzel, List<string> NichtWorte);
+public sealed record Lehrstoffkatalog(List<Fachgruppe> Gruppen, List<string> NichtKuerzel, List<string> NichtWorte)
+{
+    /// <summary>Exkurse, Filme und Exkursionsvorbereitungen je Fachgruppe (Art → Texte).</summary>
+    public Dictionary<string, Dictionary<string, List<string>>> Extras { get; init; } = new();
+}
 
 public sealed partial class Schulsimulation
 {
@@ -25,7 +29,10 @@ public sealed partial class Schulsimulation
         static List<string> Liste(JsonElement e) => e.EnumerateArray().Select(x => x.GetString() ?? "").ToList();
         var gruppen = w.GetProperty("gruppen").EnumerateArray().Select(g => new Fachgruppe(g.GetProperty("id").GetString()!, Liste(g.GetProperty("kuerzel")),
             Liste(g.GetProperty("worte")), g.GetProperty("stufen").EnumerateObject().ToDictionary(p => p.Name, p => Liste(p.Value)))).ToList();
-        return new(gruppen, Liste(w.GetProperty("nicht").GetProperty("kuerzel")), Liste(w.GetProperty("nicht").GetProperty("worte")));
+        var extras = w.TryGetProperty("extras", out var ex)
+            ? ex.EnumerateObject().ToDictionary(g => g.Name, g => g.Value.EnumerateObject().ToDictionary(a => a.Name, a => Liste(a.Value)))
+            : new Dictionary<string, Dictionary<string, List<string>>>();
+        return new(gruppen, Liste(w.GetProperty("nicht").GetProperty("kuerzel")), Liste(w.GetProperty("nicht").GetProperty("worte"))) { Extras = extras };
     });
 
     public static Lehrstoffkatalog Katalog => KatalogLaden.Value;
