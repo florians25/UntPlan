@@ -481,7 +481,9 @@ export function karteDialog(karte, kontext = {}) {
       const st = { offen: 'offen', entschuldigt: 'entschuldigt', unentschuldigt: 'nicht entschuldigt' }[f.status] ?? '';
       const farbe = { offen: 'gelb', entschuldigt: 'gruen', unentschuldigt: 'rot' }[f.status] ?? 'grau';
       const label = spaeter ? '<span class="nl-chip grau">spätere Stunde</span>' : vor ? '<span class="nl-chip grau">Vorstunde</span>' : st ? `<span class="nl-chip ${farbe}">${st}</span>` : '';
-      const zusatz = spaeter ? `${f.stunde}. Stunde` : vor ? 'verlängern' : f.art === 'verspaetet' ? `verspätet ${f.minuten} min${gewertet}` : f.art === 'vorzeitig' ? `vorzeitig gegangen ${f.minuten} min${gewertet}` : '';
+      const zusatz = spaeter ? `${f.stunde}. Stunde` : vor ? 'verlängern' : f.art === 'verspaetet' ? `verspätet${gewertet}` : f.art === 'vorzeitig' ? `vorzeitig gegangen${gewertet}` : '';
+      // Minuten der Verspätung nicht als Text wiederholen, sie ergeben sich aus Von und Bis
+      const abwText = (f.text ?? f.bemerkung ?? '').replace(/^(verspätet|vorzeitig gegangen) \d+ min\b[,;.]?\s*/i, '');
       return `<tr class="${vor ? 'vorstunde' : ''} ${abwAuswahl.has(f.schuelerId) ? 'nl-gewaehlt' : ''}">
         <td class="nl-wahl">${spaeter ? '' : `<input type="checkbox" class="nl-rund" data-abw="${f.schuelerId}" ${abwAuswahl.has(f.schuelerId) ? 'checked' : ''} aria-label="${e(name(f.schuelerId))} auswählen">`}</td>
         <td class="sd-abw-name">${e(name(f.schuelerId))}</td>
@@ -489,7 +491,7 @@ export function karteDialog(karte, kontext = {}) {
         <td class="text-nowrap">${datumDe(bisD)} <span class="sd-abw-zeit">${e(ende)}</span>${schluss}</td>
         <td>${e(grundText(f.grund) || '–')}</td>
         <td class="text-nowrap">${label}${zusatz ? `<span class="sd-abw-zusatz">${e(zusatz)}</span>` : ''}</td>
-        <td class="nl-text sd-abw-text" title="${e(f.text ?? f.bemerkung ?? '')}">${e(f.text ?? f.bemerkung)}</td>
+        <td class="nl-text sd-abw-text" title="${e(abwText)}">${e(abwText)}</td>
         <td class="text-end text-nowrap">${a.darf && !vor && f.art === 'fehlt' && laeuftJetzt() ? `<button type="button" class="sd-kreisknopf sd-aufgestanden-rund" data-aufgestanden="${f.schuelerId}" title="Aufgestanden" aria-label="Aufgestanden: ${e(name(f.schuelerId))} ab jetzt anwesend">${BETT_AUF}</button>` : ''}${a.darf && !vor ? `<button type="button" class="sd-kreisknopf" data-abw-bearbeiten="${f.schuelerId}" title="Abwesenheit bearbeiten" aria-label="Abwesenheit von ${e(name(f.schuelerId))} bearbeiten"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`;
     };
     const n = zeilen.length;
