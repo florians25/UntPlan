@@ -513,6 +513,25 @@ public sealed class Plandienst
     /// <summary>Karten eines Elements an einem Tag; zusammenhängende gleiche Stunden werden zu Blöcken zusammengefasst.</summary>
     public List<Karte> Karten(Stand s, DateOnly d, string typ, string kurz, IEnumerable<Rohstunde>? zusaetzlich = null)
     {
+        // Ohne zusätzliche (vorgemerkte) Zeilen hängen die Karten nur vom Stand, den offenen Web-Absenzen und den zusätzlich freien Tagen ab:
+        // zwischengespeichert (je Aufruf eine Kopie der Liste), sonst rechnet jede Karte eines Tages den ganzen Tag der Schule neu
+        // (Schulsimulation, Tagesansichten großer Schulen)
+        if (zusaetzlich is null)
+        {
+            var schluessel = (s, (object)WebAbsenzen, (object)s.Zusatzferien, s.Zusatzferien.Count, (object)s.Zuordnungen, (object)s.Schueler, d, typ, kurz.ToLowerInvariant());
+            if (_kartenCache.TryGetValue(schluessel, out var fertig)) return new List<Karte>(fertig);
+            var neu = KartenBerechnen(s, d, typ, kurz, null);
+            if (_kartenCache.Count > 20000) _kartenCache.Clear();
+            _kartenCache[schluessel] = neu;
+            return new List<Karte>(neu);
+        }
+        return KartenBerechnen(s, d, typ, kurz, zusaetzlich);
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(Stand, object, object, int, object, object, DateOnly, string, string), List<Karte>> _kartenCache = new();
+
+    private List<Karte> KartenBerechnen(Stand s, DateOnly d, string typ, string kurz, IEnumerable<Rohstunde>? zusaetzlich)
+    {
         var zeiten = s.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr);
         var einzel = new List<Karte>();
         var vorgemerkt = new List<(Rohstunde R, Karte K)>();
@@ -537,7 +556,9 @@ public sealed class Plandienst
         static bool GleicherZusatz(Rohstunde a, Rohstunde b) => a.Stunde == b.Stunde && Ci.Equals(a.Fach, b.Fach) && GleicherRaum(a, b) && GleicheKlassen(a, b)
             && (a.Fach.Length > 0 || Ci.Equals(a.Text.Trim(), b.Text.Trim()));
         // auch entfallene Kopplungszeilen der Kolleg*innen: in der gemeinsamen Karte durchgestrichen (siehe TeilentfallInKopplung)
-        bool Mitgekoppelt(Rohstunde r) => r.Status is not "vorgemerkt" &&
+        // (nur in Stunden, in denen die Lehrkraft selbst eine Zeile hat: vorab gesammelt, sonst wäre jede Prüfung ein Durchlauf über alle Zeilen)
+        var eigeneStunden = typ == Elementtyp.Lehrer ? roh.Where(x => Enthaelt(x.Lehrer, kurz)).Select(x => x.Stunde).ToHashSet() : new HashSet<int>();
+        bool Mitgekoppelt(Rohstunde r) => r.Status is not "vorgemerkt" && eigeneStunden.Contains(r.Stunde) &&
             (r.Unterricht is int u
                 ? r.Fach.Length > 0 && roh.Any(x => !ReferenceEquals(x, r) && x.Stunde == r.Stunde && x.Unterricht == u && x.Status is not ("entfall" or "vorgemerkt") && Ci.Equals(x.Fach, r.Fach) && GleicherRaum(x, r) && Enthaelt(x.Lehrer, kurz))
                 : ZusatzOhneUnterricht(r) && roh.Any(x => !ReferenceEquals(x, r) && ZusatzOhneUnterricht(x) && GleicherZusatz(x, r) && Enthaelt(x.Lehrer, kurz)));

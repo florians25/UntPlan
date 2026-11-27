@@ -318,6 +318,10 @@ public sealed partial class Klassenbuchdienst
         return passend.OrderByDescending(Lehrer).ThenByDescending(k => k.Von == stunde).ThenByDescending(k => k.Von).First();
     }
 
+    /// <summary>Fehlzeiten eines Tages in den Stunden von–bis (über den Index statt des ganzen Tages der Schule).</summary>
+    public List<Fehlzeit> FehlzeitenStunden(DateOnly d, int von, int bis) =>
+        _db.Liste("SELECT * FROM fehlzeiten WHERE datum = @d AND stunde >= @v AND stunde <= @b ORDER BY stunde", LesenFehlzeit, Db.P("@d", d), Db.P("@v", von), Db.P("@b", bis));
+
     public List<Fehlzeit> FehlzeitenZeitraum(DateOnly von, DateOnly bis, string? klasse = null) =>
         _db.Liste("SELECT * FROM fehlzeiten WHERE datum >= @v AND datum <= @b AND (@k IS NULL OR klasse = @k COLLATE NOCASE) ORDER BY datum, stunde", LesenFehlzeit,
             Db.P("@v", von), Db.P("@b", bis), Db.P("@k", klasse));
@@ -332,7 +336,7 @@ public sealed partial class Klassenbuchdienst
         var unterrichte = UnterrichteDerKarte(s, d, karte, unterricht);
         var teilnehmerIds = teilnehmer.Select(x => x.Id).ToHashSet();
         ZeitraumErgaenzen(s, karte, d, teilnehmerIds);
-        var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && teilnehmerIds.Contains(f.SchuelerId))
+        var fz = FehlzeitenStunden(d, karte.Von, karte.Bis).Where(f => teilnehmerIds.Contains(f.SchuelerId))
             .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList(), s, Gesamtabwesenheit(g.ToList(), karte))).ToList();
         // gekoppelt: Kontrolle gilt auch, wenn sie über einen der anderen Unterrichte erfasst wurde (Plan der Mitklasse)
         var eintrag = Zeitraum(d, d).Where(e => unterrichte.Contains(e.Unterricht) && e.Stunde == block.Von && e.Anwesenheit != null)
@@ -407,7 +411,7 @@ public sealed partial class Klassenbuchdienst
         RueckwirkendPruefen(b, d, _uhr.Heute);
         var (liste, unterrichtVon, _) = TeilnehmerDerStunde(s, karte, d);
         var schueler = liste.ToDictionary(x => x.Id);
-        var alt = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && schueler.ContainsKey(f.SchuelerId)).ToList();
+        var alt = FehlzeitenStunden(d, karte.Von, karte.Bis).Where(f => schueler.ContainsKey(f.SchuelerId)).ToList();
         // Klassenbuch-Einstellungen: nur bei Änderungen (die reine Abwesenheitskontrolle bleibt immer möglich)
         var einst = Einstellungen();
         var kl = klassen.Any(k => IstKlassenleitung(b, s, k));

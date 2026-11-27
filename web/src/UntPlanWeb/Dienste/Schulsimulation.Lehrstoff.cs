@@ -286,6 +286,22 @@ public sealed partial class Schulsimulation
         return z.Wahl(texte);
     }
 
+    private (DateTime Zeit, string Empfangen, List<Pruefung> Liste)? _pruefungen;
+
+    /// <summary>Alle Prüfungen des Schuljahres laut Prüfungsmodul, kurz zwischengespeichert (die Simulation fragt je Stunde; eigene Änderungen leeren den Speicher).</summary>
+    private List<Pruefung> AllePruefungen(Stand s)
+    {
+        var jetzt = DateTime.UtcNow;
+        if (_pruefungen is { } p && p.Empfangen == s.Empfangen && jetzt - p.Zeit < TimeSpan.FromSeconds(30)) return p.Liste;
+        var (von, bis) = (Halbjahre(s)[0].Von, Halbjahre(s)[^1].Bis);
+        var liste = _listen.Pruefungen(s, _rm.OffeneKlausuren(s), von, bis, null, null, _rm.OffeneLoeschungen());
+        _pruefungen = (jetzt, s.Empfangen, liste);
+        return liste;
+    }
+
+    /// <summary>Zwischenspeicher der Prüfungen leeren (nach eigenen Änderungen im Prüfungsmodul).</summary>
+    private void PruefungenGeaendert() => _pruefungen = null;
+
     /// <summary>
     /// Prüfungen der Klasse im Fach laut Prüfungsmodul (übertragene Termine und noch offene Meldungen, ohne zum Löschen vorgemerkte), im ganzen Schuljahr.
     /// Art: Klassenarbeit, Klausur, Test bzw. Abschlussprüfung.
@@ -293,8 +309,7 @@ public sealed partial class Schulsimulation
     public List<(DateOnly Datum, int Von, string Art)> PruefungenImModul(Stand s, string klasse, string fach)
     {
         var fachName = s.Faecher.TryGetValue(fach, out var f) ? f.Name : fach;
-        var (von, bis) = (Halbjahre(s)[0].Von, Halbjahre(s)[^1].Bis);
-        return _listen.Pruefungen(s, _rm.OffeneKlausuren(s), von, bis, klasse, null, _rm.OffeneLoeschungen())
+        return AllePruefungen(s).Where(x => x.Klassen.Contains(klasse, Ci))
             .Where(x => Ci.Equals(x.Fach, fach) || (fachName.Length > 2 && x.Titel.Contains(fachName, StringComparison.OrdinalIgnoreCase))
                         || Regex.IsMatch(x.Titel, $@"(^|\s){Regex.Escape(fach)}$", RegexOptions.IgnoreCase))
             .Select(x => (Datum: DateOnly.TryParse(x.Datum, out var d) ? d : DateOnly.MinValue, x.StundeVon,

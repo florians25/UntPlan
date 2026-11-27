@@ -4,7 +4,15 @@ using UntPlanWeb.Daten;
 namespace UntPlanWeb.Dienste;
 
 /// <summary>Stand des Nachpflegens der Vergangenheit (Hintergrundauftrag).</summary>
-public sealed record Nachpflegestand(bool Laeuft, string Von, string Bis, int Tage, int Fertig, int Eintraege, int Uebersprungen, string Beginn, string Ende, string Fehler);
+public sealed record Nachpflegestand(bool Laeuft, string Von, string Bis, int Tage, int Fertig, int Eintraege, int Uebersprungen, string Beginn, string Ende, string Fehler)
+{
+    /// <summary>Tag, der gerade bearbeitet wird (yyyy-MM-dd).</summary>
+    public string Tag { get; init; } = "";
+    /// <summary>Nach dem aktuellen Tag abgebrochen (bzw. durch einen Neustart unterbrochen); bearbeitete Tage bleiben.</summary>
+    public bool Abgebrochen { get; init; }
+    /// <summary>Wartet auf einen anderen Auftrag (dessen Name), sonst leer.</summary>
+    public string Wartet { get; init; } = "";
+}
 
 public sealed partial class Schulsimulation
 {
@@ -23,15 +31,11 @@ public sealed partial class Schulsimulation
             var (v, b) = Zeitraum(s, von, bis);
             var e = MitStartwert();
             _nachpflegen = new(true, Plandienst.Iso(v), Plandienst.Iso(b), 0, 0, 0, 0, Zeit(_uhr.Jetzt), "", "");
-            Task.Run(() =>
-            {
-                try { Nachpflegen(s, e, v, b); }
-                catch (Exception ex)
-                {
-                    _log.LogWarning(ex, "Schulsimulation: Nachpflegen fehlgeschlagen");
-                    _nachpflegen = _nachpflegen with { Laeuft = false, Fehler = ex.Message, Ende = Zeit(_uhr.Jetzt) };
-                }
-            });
+            var abbruch = _abbruchNachpflegen = new CancellationTokenSource();
+            AuftragStarten("Vergangenheit nachpflegen", abbruch, w => _nachpflegen = _nachpflegen with { Wartet = w }, t => Nachpflegen(s, e, v, b, t),
+                f => _nachpflegen = _nachpflegen with { Laeuft = false, Wartet = "", Fehler = f, Ende = Zeit(_uhr.Jetzt) },
+                () => _nachpflegen = _nachpflegen with { Laeuft = false, Wartet = "", Abgebrochen = true, Ende = Zeit(_uhr.Jetzt) });
+            AuftraegeSpeichern();
             return _nachpflegen;
         }
     }
@@ -63,11 +67,11 @@ public sealed partial class Schulsimulation
     /// wie im laufenden Betrieb (gleiche Schlüssel): Was schon ausgeführt ist, bleibt; erneutes Nachpflegen ändert nichts. Ausgenommene und abwesende
     /// Lehrkräfte tragen nie ein, Einträge anderer Benutzer werden nie überschrieben. Je Tag ein Stapel (Ereignisvermerke in einer Transaktion).
     /// </summary>
-    public Nachpflegestand Nachpflegen(Stand s, Simulationseinstellungen e, DateOnly von, DateOnly bis)
+    public Nachpflegestand Nachpflegen(Stand s, Simulationseinstellungen e, DateOnly von, DateOnly bis, CancellationToken abbruch = default)
     {
         var jetzt = _uhr.Jetzt;
         var tage = Schuljahrestage(s).Where(d => d >= von && d <= bis).ToList();
-        _nachpflegen = _nachpflegen with { Laeuft = true, Von = Plandienst.Iso(von), Bis = Plandienst.Iso(bis), Tage = tage.Count, Fertig = 0, Eintraege = 0, Uebersprungen = 0 };
+        _nachpflegen = _nachpflegen with { Laeuft = true, Von = Plandienst.Iso(von), Bis = Plandienst.Iso(bis), Tage = tage.Count, Fertig = 0, Eintraege = 0, Uebersprungen = 0, Abgebrochen = false, Fehler = "", Tag = "" };
         var simStart = DateTime.TryParse(e.Start, Inv, DateTimeStyles.None, out var st) ? DateOnly.FromDateTime(st) : DateOnly.MaxValue;
         // vor dem Start der Simulation eine eigene Grundlage (Ausfälle der Lehrkräfte und Schüler*innen), ab dem Start die des laufenden Betriebs
         Weltstand vorher;
@@ -81,6 +85,8 @@ public sealed partial class Schulsimulation
         int ok = 0, weg = 0;
         foreach (var d in tage)
         {
+            if (abbruch.IsCancellationRequested) { _nachpflegen = _nachpflegen with { Abgebrochen = true }; break; }
+            _nachpflegen = _nachpflegen with { Tag = Plandienst.Iso(d) };
             var w = d >= simStart && betrieb is not null ? betrieb : vorher;
             var liste = new List<Ereignis>();
             lock (_sperre)
@@ -120,8 +126,10 @@ public sealed partial class Schulsimulation
                     });
             }
             _nachpflegen = _nachpflegen with { Fertig = _nachpflegen.Fertig + 1, Eintraege = ok, Uebersprungen = weg };
+            AuftraegeSpeichern();
         }
-        _nachpflegen = _nachpflegen with { Laeuft = false, Ende = Zeit(_uhr.Jetzt) };
+        _nachpflegen = _nachpflegen with { Laeuft = false, Tag = "", Ende = Zeit(_uhr.Jetzt) };
+        AuftraegeSpeichern();
         return _nachpflegen;
     }
 

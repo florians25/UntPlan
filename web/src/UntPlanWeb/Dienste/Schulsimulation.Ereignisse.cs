@@ -117,7 +117,7 @@ public sealed partial class Schulsimulation
         var b = LehrerKonto(s, l);
         var eintraege = new List<AnwesenheitEintrag>();
         // schon erfasst (z. B. Krankmeldung über die Klassenleitung): als abwesend übernehmen, Grund und Text bleiben, keine Doppelerfassung
-        var vorhanden = _kb.FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && f.Art == "fehlt").GroupBy(f => f.SchuelerId).ToDictionary(g => g.Key, g => g.First());
+        var vorhanden = _kb.FehlzeitenStunden(d, karte.Von, karte.Bis).Where(f => f.Art == "fehlt").GroupBy(f => f.SchuelerId).ToDictionary(g => g.Key, g => g.First());
         foreach (var sch in _kb.SchuelerDerStunde(s, karte, d))
         {
             if (vorhanden.TryGetValue(sch.Id, out var vf))
@@ -660,6 +660,7 @@ public sealed partial class Schulsimulation
         var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von, new[] { (p.Datum, p.Von, art) }) is { } ls
                     && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
         _rm.Klausur(s, b, p.Datum, p.Von, p.Bis, new[] { p.Klasse }, Pruefungsraeume(s, e, p, z), Array.Empty<string>(), $"{art} {p.Fach}", $"{art}: {thema}");
+        PruefungenGeaendert();
     }
 
     /// <summary>

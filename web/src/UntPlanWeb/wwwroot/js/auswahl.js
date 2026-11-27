@@ -207,17 +207,19 @@ function oeffnenPerTaste(ev, oeffnen) {
 
 /**
  * Auswahlknopf mit Menü erzeugen.
- * { eintraege, wert (bzw. Array bei mehrfach), mehrfach, platzhalter, suchePlatzhalter, leerText, beiWahl(wert | werte), klasse, klein }
+ * { eintraege, wert (bzw. Array bei mehrfach), mehrfach, platzhalter, suchePlatzhalter, leerText, beiWahl(wert | werte), klasse, klein,
+ *   alleKeine (Mehrfachauswahl: Knöpfe „Alle“ und „Keine“ über der Liste; gelten für die gerade gefilterten Einträge),
+ *   zusammenfassung(anzahl, gewaehlte Einträge) → Text statt Chips, sobald mehr als drei gewählt sind (z. B. „12 Räume ausgewählt“) }
  * Liefert das Element; el.wert liefert/setzt den Wert, el.eintraegeSetzen(liste) tauscht die Einträge.
  */
-export function auswahl({ eintraege = [], wert = null, mehrfach = false, platzhalter = 'Auswählen …', suchePlatzhalter, leerText, beiWahl, klasse = '', klein = false, label } = {}) {
+export function auswahl({ eintraege = [], wert = null, mehrfach = false, platzhalter = 'Auswählen …', suchePlatzhalter, leerText, beiWahl, klasse = '', klein = false, label, alleKeine = false, zusammenfassung } = {}) {
   const wurzel = document.createElement('div');
   wurzel.className = `au ${klein ? 'au-sm' : ''} ${klasse}`;
   wurzel.innerHTML = `<button type="button" class="au-knopf" aria-haspopup="listbox" aria-expanded="false" ${label ? `aria-label="${esc(label)}"` : ''}><span class="au-wert"></span><i class="bi bi-chevron-down au-pfeil" aria-hidden="true"></i></button>`;
   const knopf = wurzel.firstElementChild;
   let liste = eintraege;
   let werte = new Set(mehrfach ? (wert ?? []).map(String) : wert != null && wert !== '' ? [String(wert)] : []);
-  const anzeigen = () => anzeigeSetzen(knopf, liste, werte, mehrfach, platzhalter, w => { werte.delete(w); anzeigen(); beiWahl?.([...werte]); });
+  const anzeigen = () => anzeigeSetzen(knopf, liste, werte, mehrfach, platzhalter, w => { werte.delete(w); anzeigen(); beiWahl?.([...werte]); }, zusammenfassung);
   const oeffnen = suche => {
     if (knopf.disabled) return;
     knopf.setAttribute('aria-expanded', 'true');
@@ -226,6 +228,17 @@ export function auswahl({ eintraege = [], wert = null, mehrfach = false, platzha
       gewaehlt: werte, mehrfach, suche, platzhalter: suchePlatzhalter, leerText,
       beiWahl: () => { anzeigen(); beiWahl?.(mehrfach ? [...werte] : [...werte][0] ?? null); },
       beiSchliessen: () => { knopf.setAttribute('aria-expanded', 'false'); wurzel.classList.remove('offen'); },
+      zusatz: mehrfach && alleKeine ? (el, st) => {
+        el.innerHTML = '<div class="au-alle"><button type="button" data-alle>Alle</button><button type="button" data-keine>Keine</button></div>';
+        // gilt für die gefilterten Einträge (Suchtext), sonst für alle
+        const gefiltert = () => {
+          const b = norm(st.suchfeld.value).trim().split(/\s+/).filter(Boolean);
+          return liste.filter(x => !x.deaktiviert && (!b.length || b.every(t => norm(`${x.text} ${x.zweit ?? ''} ${x.gruppe ?? ''} ${x.suchtext ?? ''}`).includes(t))));
+        };
+        el.addEventListener('mousedown', ev => ev.preventDefault());
+        el.querySelector('[data-alle]').onclick = () => { gefiltert().forEach(x => werte.add(String(x.wert))); st.zeichnen(); anzeigen(); beiWahl?.([...werte]); st.suchfeld.focus(); };
+        el.querySelector('[data-keine]').onclick = () => { gefiltert().forEach(x => werte.delete(String(x.wert))); st.zeichnen(); anzeigen(); beiWahl?.([...werte]); st.suchfeld.focus(); };
+      } : undefined,
     });
   };
   knopf.addEventListener('click', () => (wurzel.classList.contains('offen') ? menueSchliessen() : oeffnen('')));
@@ -241,12 +254,17 @@ export function auswahl({ eintraege = [], wert = null, mehrfach = false, platzha
 }
 
 /** Anzeige im Knopf: Text (bzw. Platzhalter) oder Chips bei Mehrfachauswahl. */
-function anzeigeSetzen(knopf, eintraege, werte, mehrfach, platzhalter, entfernen) {
+function anzeigeSetzen(knopf, eintraege, werte, mehrfach, platzhalter, entfernen, zusammenfassung) {
   const ziel = knopf.querySelector('.au-wert');
   const gew = eintraege.filter(e => werte.has(String(e.wert)));
   knopf.classList.toggle('leer', !gew.length);
   if (mehrfach) {
     if (!gew.length) { ziel.innerHTML = `<span class="au-platzhalter">${esc(platzhalter)}</span>`; return; }
+    if (zusammenfassung && gew.length > 3) {
+      ziel.innerHTML = `<span class="au-wert-text">${esc(zusammenfassung(gew.length, gew))}</span>`;
+      knopf.title = gew.map(x => x.text).join(', ');
+      return;
+    }
     const zeigen = gew.slice(0, 3);
     ziel.innerHTML = zeigen.map(e => `<span class="au-chip">${esc(e.text)}<span class="au-chip-x" role="button" tabindex="-1" aria-label="${esc(e.text)} entfernen" data-weg="${esc(e.wert)}">×</span></span>`).join('')
       + (gew.length > zeigen.length ? `<span class="au-chip mehr">+${gew.length - zeigen.length}</span>` : '');
