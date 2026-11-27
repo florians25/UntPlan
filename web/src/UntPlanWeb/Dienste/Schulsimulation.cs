@@ -210,6 +210,8 @@ public sealed partial class Schulsimulation : BackgroundService
                 .Select(x => new { x.Kurz, x.Name, x.Raumart, gruppe = x.Gebaeude.Length > 0 ? x.Gebaeude : x.Raumgruppen.FirstOrDefault() ?? "" }),
             verteilerVorhanden = Verteilerliste(e.Verteiler) is not null,
             nachpflegen = _nachpflegen,
+            nachbessern = _nachbessern,
+            schuljahrBis = s is null ? "" : Plandienst.Iso(Halbjahre(s)[^1].Bis),
             schuljahrVon = s is null ? "" : Plandienst.Iso(Halbjahre(s)[0].Von),
             gestern = Plandienst.Iso(_uhr.Heute.AddDays(-1)),
             zahlen = new
@@ -467,6 +469,17 @@ public sealed partial class Schulsimulation : BackgroundService
         }
     }
 
+    /// <summary>Grippewelle einer Klasse im Winter: ein Zeitraum von rund zwei Wochen zwischen Dezember und Februar (unabhängig vom berechneten Zeitraum).</summary>
+    public static bool InGrippewelle(long seed, string klasse, DateOnly d)
+    {
+        if (d.Month is not (12 or 1 or 2 or 3)) return false;
+        var winter = d.Month == 12 ? d.Year : d.Year - 1;
+        var z = Zufall.Fuer(seed, "grippe", klasse, winter);
+        if (!z.Chance(Fehlquoten.GrippewelleAnteil)) return false;
+        var beginn = new DateOnly(winter, 12, 1).AddDays(z.Zahl(0, 80));
+        return d >= beginn && d < beginn.AddDays(Fehlquoten.GrippewelleTage * 7 / 5 + 1);
+    }
+
     /// <summary>Abwesenheiten der Schüler*innen: Krankheiten über mehrere Tage, einzelne Arzttermine, seltene Verspätungen.</summary>
     public static List<Schuelerausfall> SchuelerausfaelleBerechnen(Stand s, long seed, DateOnly start, DateOnly bis, List<DateOnly> tage)
     {
@@ -479,16 +492,19 @@ public sealed partial class Schulsimulation : BackgroundService
             // Berufskolleg: Vollzeit-Bildungsgänge mit mehr Fehlzeiten als Teilzeit; Berufsschule mit betrieblichen Gründen und mehr Verspätungen (Pendeln)
             if (!bildungsgaenge.TryGetValue(sch.Klasse, out var bg)) bildungsgaenge[sch.Klasse] = bg = Bildungsgang(s, sch.Klasse);
             var f = Fehlfaktor(bg);
-            double gKrank = 0.0085 * f, gArzt = gKrank + 0.003 * f, gSpaet = gArzt + 0.004 * (bg == "bs" ? 1.4 : f), gBetrieb = gSpaet + (bg == "bs" ? 0.0025 : 0);
             for (var i = 0; i < lauf.Count; i++)
             {
                 var d = lauf[i];
                 if (d <= frei) continue;
+                var vorFerien = i + 1 < lauf.Count && lauf[i + 1].DayNumber - d.DayNumber > 4;
+                var q = Fehlquoten.KrankBeginn * f * Fehlquoten.Saison(d) * Fehlquoten.Tag(d, vorFerien) * (InGrippewelle(seed, sch.Klasse, d) ? Fehlquoten.Grippewelle : 1);
+                double gKrank = q, gArzt = gKrank + Fehlquoten.Arzttermin * f, gSpaet = gArzt + Fehlquoten.Verspaetung * (bg == "bs" ? 1.4 : f),
+                    gBetrieb = gSpaet + (bg == "bs" ? Fehlquoten.BetrieblicheGruende : 0);
                 var z = Zufall.Fuer(seed, "sch", sch.Id, d);
                 var w = z.Wert();
                 if (w < gKrank)
                 {
-                    var dauer = z.Gewichtet(new[] { (1, 35.0), (2, 25.0), (3, 20.0), (4, 9.0), (5, 6.0), (8, 4.0), (10, 1.0) }, x => x.Item2).Item1;
+                    var dauer = z.Gewichtet(Fehlquoten.Dauer, x => x.Gewicht).Tage;
                     var t = lauf.Skip(i).Take(dauer).ToList();
                     res.Add(new(sch.Id, sch.Klasse, "krank", t, 1, 99, 0, z.Chance(0.9) ? "K" : "F"));
                     frei = t[^1];

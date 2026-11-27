@@ -40,6 +40,13 @@ public static class SimulationApi
             prot.Schreiben(b.Login, "Vergangenheit nachpflegen", $"{st.Von} bis {st.Bis}");
             return Results.Json(st);
         });
+        api.MapPost("/nachbessern", (NachpflegenDaten d, HttpContext c, Schulsimulation sim, Protokoll prot) =>
+        {
+            var b = Admin(c);
+            var st = sim.NachbessernStarten(b, d.Von, d.Bis);
+            prot.Schreiben(b.Login, "Simulationsdaten nachbessern", $"{st.Von} bis {st.Bis}");
+            return Results.Json(st);
+        });
         api.MapPost("/entfernen", (HttpContext c, Schulsimulation sim, Protokoll prot) =>
         {
             var b = Admin(c);

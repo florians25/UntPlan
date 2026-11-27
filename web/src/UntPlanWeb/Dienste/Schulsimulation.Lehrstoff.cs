@@ -182,13 +182,13 @@ public sealed partial class Schulsimulation
         {
             foreach (var p in PruefungenDerKlasse(s, e, w, klasse, k.Fach))
             {
-                var art = p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, klasse);
+                var art = p.Test ? "Test" : p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, klasse);
                 var pi = bloecke.IndexOf((p.Datum, p.Von));
                 if (pi < 0) continue;
                 var proWoche = Math.Max(1, bloecke.Count(x => Plandienst.Montag(x.Tag) == Plandienst.Montag(p.Datum)));
                 if (i == pi) return $"{art}: {titel}";
-                if (i == pi - 1) return $"{titel}: Wiederholung zur {art}";
-                if (!p.Abschluss && i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {art}";
+                if (i == pi - 1 && !p.Test) return $"{titel}: Wiederholung zur {art}";
+                if (!p.Abschluss && !p.Test && i == pi + Math.Max(2, proWoche + 1)) return $"Rückgabe und Besprechung der {art}";
             }
         }
         if (i == 0) return "Einstieg ins Schuljahr: Organisatorisches, Leistungsbewertung, " + titel;
@@ -234,15 +234,34 @@ public sealed partial class Schulsimulation
     /// <summary>Vertritt die Lehrkraft die Stunde (sie gehört nicht zu den Lehrkräften des Unterrichts)? Ergebnis: Kürzel der vertretenen Lehrkraft ("" = unbekannt), sonst null.</summary>
     public static string? Vertretungslehrkraft(Stand s, Karte k, string lehrer)
     {
-        if (k.Unterricht is not int u || !s.Unterricht.TryGetValue(u, out var un)) return null;
+        if (k.Unterricht is not int u) return null;
+        // 1. Karte: die Lehrkraft ersetzt eine andere (Wert mit bisheriger Lehrkraft), auch wenn sie selbst zum Unterricht gehört (Kopplung)
+        if (k.Lehrer.FirstOrDefault(w => Ci.Equals(w.K, lehrer))?.Alt is { Length: > 0 } alt && !Ci.Equals(alt, lehrer) && alt is not ("???" or "---" or "+++")) return alt;
+        // 2. Vertretungsplan aus dem Desktop-Programm: Stunde „vertreten“ mit bisherigen Lehrkräften
+        if (DateOnly.TryParse(k.Datum, out var d) && s.Tage.TryGetValue(Plandienst.Iso(d), out var tag)
+            && tag.Stunden.FirstOrDefault(x => x.Unterricht == u && x.Stunde >= k.Von && x.Stunde <= k.Bis && x.Status == "vertreten" && x.Lehrer.Contains(lehrer, Ci)) is { } st)
+        {
+            var bisher = st.LehrerAlt.FirstOrDefault(x => x.Length > 0 && !Ci.Equals(x, lehrer));
+            if (bisher is not null) return bisher;
+        }
+        // 3. Regellehrkräfte des Unterrichts: wer nicht dazugehört, vertritt
+        if (!s.Unterricht.TryGetValue(u, out var un)) return null;
         var regulaer = un.Zeilen.Select(z => z.Lehrer).Where(x => x.Length > 0).ToHashSet(Ci);
         if (regulaer.Count == 0 || regulaer.Contains(lehrer)) return null;
-        return k.Lehrer.FirstOrDefault(w => Ci.Equals(w.K, lehrer))?.Alt is { Length: > 0 } alt && !Ci.Equals(alt, lehrer) ? alt : regulaer.Order(StringComparer.Ordinal).First();
+        return regulaer.Order(StringComparer.Ordinal).First();
     }
 
     /// <summary>Lehrstoff der Vertretungslehrkraft (statt der Reihe): Aufgaben der Fachlehrkraft, Teams, Arbeitsblatt, Stillarbeit, Wiederholung.</summary>
-    private string Vertretungsstoff(Stand s, Karte k, string fachlehrkraft, Zufall z, DateOnly tag)
+    private string Vertretungsstoff(Stand s, Weltstand w, Simulationseinstellungen e, Karte k, string fachlehrkraft, Zufall z, DateOnly tag)
     {
+        // Fachwechsel: die Vertretungslehrkraft unterrichtet ihr eigenes Fach in der Klasse
+        var regelfach = k.Unterricht is int uf && s.Unterricht.TryGetValue(uf, out var unf) ? unf.Zeilen.Select(x => x.Fach).FirstOrDefault(x => x.Length > 0) : null;
+        if (regelfach is not null && !Ci.Equals(regelfach, k.Fach) && k.Fach.Length > 0)
+        {
+            var fachName = s.Faecher.TryGetValue(k.Fach, out var fn) ? fn.Name : k.Fach;
+            var stoff = Lehrstoff(s, w, e, k.Fach, k.Klassen.FirstOrDefault()?.K ?? "", k.Unterricht!.Value, tag, k.Von);
+            return stoff is null ? $"Vertretung im Fach {fachName}" : $"Vertretung im Fach {fachName}: {stoff.Split(": ", 2)[^1]}";
+        }
         var name = s.Lehrer.TryGetValue(fachlehrkraft, out var l) && l.Name.Length > 0 ? $"{l.Vorname} {l.Name}".Trim() : fachlehrkraft;
         var reihe = "";
         try { reihe = LehrstoffFuer(s, Welt(s, Laden(), DateTime.Parse(Laden().Start, Inv), _uhr.Jetzt), Laden(), k, tag)?.Split(':')[0] ?? ""; }

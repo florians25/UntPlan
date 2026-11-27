@@ -139,6 +139,17 @@ public sealed partial class Schulsimulation
             }
         }
         _kb.AnwesenheitSpeichern(b, s, d, von, u, eintraege);
+        // erste kontrollierte Stunde des Tages: kranke Schüler*innen meist gleich bis Tagesende als abwesend (die folgenden Stunden zeigen sie dann schon so,
+        // auch wenn dort niemand kontrolliert); war die erste Stunde nicht kontrolliert (ausgenommene Lehrkraft), übernimmt das die nächste
+        foreach (var x in eintraege.Where(x => x.Art == "fehlt" && !vorhanden.ContainsKey(x.SchuelerId)))
+        {
+            if (!w.SchuelerAm.TryGetValue((x.SchuelerId, d), out var a) || a.Art != "krank") continue;
+            var sch = s.Schueler.FirstOrDefault(y => y.Id == x.SchuelerId);
+            if (sch is null || !Zufall.Fuer(w.Seed, "tag", x.SchuelerId, d).Chance(0.8)) continue;
+            if (_db.Wert("SELECT 1 FROM fehlzeiten WHERE schueler_id = @s AND datum = @d AND stunde < @v", Db.P("@s", x.SchuelerId), Db.P("@d", d), Db.P("@v", von)) is not null) continue;
+            try { _kb.AbwesenheitErfassen(b, s, x.SchuelerId, Um(d, karte.Beginn), d.ToDateTime(new TimeOnly(23, 59)), null, null, null, (d, von, u)); }
+            catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException) { }
+        }
     }
 
     private static string Verspaetungstext(int schuelerId) => schuelerId % 2 == 0 ? "Bahn verspätet" : "Bus verspätet";
@@ -205,14 +216,19 @@ public sealed partial class Schulsimulation
         var vertretung = Vertretungslehrkraft(s, karte, l);
         var kammer = karte.Klassen.Select(x => KammerpruefungDer(s, w.Seed, x.K)).FirstOrDefault(x => x is not null && x.Tag == d);
         var thema = kammer is not null ? $"Klasse in der {kammer.Name} (Kammer), kein Unterricht"
-            : vertretung is not null ? Vertretungsstoff(s, karte, vertretung, z, d)
+            : vertretung is not null ? Vertretungsstoff(s, w, e, karte, vertretung, z, d)
             : LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
         if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
         // Hausaufgaben selten, eher in den Hauptfächern; nie in Vertretungsstunden, Sport, Klassenleitung
         var gruppe = Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fh) ? fh.Name : null)?.Id;
         var hauptfach = gruppe is "deutsch" or "mathe" or "englisch" or "franzoesisch" or "latein" or "spanisch" or "fachenglisch";
-        var anteil = vertretung is not null || kammer is not null || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
+        // Berufsschule (Teilzeit): gar keine Hausaufgaben
+        var berufsschule = karte.Klassen.Any(x => Bildungsgang(s, x.K) == "bs");
+        // gelegentlich eine kurze schriftliche Überprüfung in einem Teil der Stunde (nicht angekündigt bis kurz angekündigt)
+        if (kammer is null && vertretung is null && hauptfachOderBeruf(gruppe) && Zufall.Fuer(w.Seed, "kt", d, u, von).Chance(0.025) && !thema.StartsWith("Klass") && !thema.StartsWith("Klausur") && !thema.StartsWith("Test"))
+            thema = $"{thema}, {Kurztest(gruppe, Zufall.Fuer(w.Seed, "ktt", d, u))}";
+        var anteil = vertretung is not null || kammer is not null || berufsschule || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
         var hausaufgabe = !z.Chance(anteil) ? ""
             : z.Zahlen(z.Wahl(sprache && z.Chance(0.6) ? HausaufgabenSprachen : Hausaufgaben));
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
@@ -222,6 +238,13 @@ public sealed partial class Schulsimulation
         _kb.Speichern(b, s, d, von, u, thema, hausaufgabe.Length > 0 ? hausaufgabe : alt?.Hausaufgabe ?? "", hausaufgabe.Length > 0 ? faellig : alt?.Faellig is { } af ? DateOnly.Parse(af) : null,
             notiz.Length > 0 ? notiz : alt?.Notiz ?? "", null, null, null, l);
     }
+
+    private static bool hauptfachOderBeruf(string? gruppe) => gruppe is not (null or "sport" or "klassenleitung" or "koerper" or "foerder" or "musik" or "kunst" or "religion");
+
+    /// <summary>Kurze schriftliche Überprüfung als Teil der Stunde (Klassenbucheintrag).</summary>
+    public static string Kurztest(string? gruppe, Zufall z) => gruppe is "englisch" or "franzoesisch" or "latein" or "spanisch" or "fachenglisch"
+        ? z.Wahl(new[] { "Vokabeltest (15 Min.)", "Vokabeltest zur Unit", "kurzer Vokabeltest" })
+        : z.Wahl(new[] { "schriftliche Übung (20 Min.)", "Kurztest (15 Min.)", "Lernkontrolle (20 Min.)", "schriftliche Überprüfung der Hausaufgabe" });
 
     /// <summary>Hinweis an die Klasse für die Stunde (für Schüler*innen sichtbar), bisherige Einträge der Stunde bleiben.</summary>
     private void Hinweis(Stand s, DateOnly d, string l, int u, int von, Zufall z)
@@ -595,6 +618,8 @@ public sealed partial class Schulsimulation
         public int Unterricht { get; init; }
         /// <summary>Schriftliche Abschlussprüfung (Fachoberschule 12 und 13 im Frühjahr) statt einer Klassenarbeit bzw. Klausur.</summary>
         public bool Abschluss { get; init; }
+        /// <summary>Angekündigter Test (eine Stunde, zählt nicht als Klassenarbeit bzw. Klausur des Fachs).</summary>
+        public bool Test { get; init; }
     }
 
     /// <summary>Art der Prüfung: Klausur in der Oberstufe, im Beruflichen Gymnasium, in der Fachoberschule 12 und 13 und in der Fachschule, sonst Klassenarbeit.</summary>
@@ -619,7 +644,7 @@ public sealed partial class Schulsimulation
         {
             if (hb < DateOnly.FromDateTime(start) || hv > DateOnly.FromDateTime(bis).AddDays(60)) continue;
             foreach (var p in Pruefungsplanung(s, e, w, hv, hb, start))
-                yield return new($"pr|{hv:yyyy-MM-dd}|{p.Klasse}|{p.Fach}", p.Eintragen, () => PruefungEintragen(s, e, p));
+                yield return new($"pr|{hv:yyyy-MM-dd}|{p.Klasse}|{p.Fach}{(p.Test ? "|test" : "")}", p.Eintragen, () => PruefungEintragen(s, e, p));
         }
     }
 
@@ -664,16 +689,44 @@ public sealed partial class Schulsimulation
                 var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 2)
                     .Where(x => !abschluss || (x.Tag >= new DateOnly(x.Tag.Year, 4, 15) && x.Tag <= new DateOnly(x.Tag.Year, 5, 31))).ToList();
                 if (moeglich.Count == 0) continue;
-                var (tag, karte) = z.Wahl(moeglich);
+                // gehäuft in den letzten Wochen vor Ferien bzw. vor dem Halbjahresende (dessen letzte zwei Wochen sind ohnehin frei)
+                var (tag, karte) = z.Gewichtet(moeglich, x => Vorferiengewicht(s, x.Tag, hb));
                 belegt.Add(tag);
                 var eintragen = Um(tag.AddDays(-z.Zahl(14, 35)), z.Zahl(14 * 60, 20 * 60 + 30));
                 // vor dem Start geplante Prüfungen stehen gleich nach dem Start im Kalender, aber nicht kurzfristiger als eine Woche
                 if (eintragen < start) eintragen = start.AddMinutes(z.Zahl(3, 300));
                 res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0, Abschluss = abschluss });
             }
+            // zusätzlich selten ein angekündigter Test (nur eine Stunde, kurzfristig eingetragen), nicht am Tag einer anderen Prüfung
+            foreach (var fach in kandidaten.Keys.Order(StringComparer.Ordinal).ToList())
+            {
+                var zt = Zufall.Fuer(w.Seed, "test", hv, kl.Kurz, fach);
+                if (!zt.Chance(0.3)) continue;
+                var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 3).ToList();
+                if (moeglich.Count == 0) continue;
+                var (tag, karte) = zt.Wahl(moeglich);
+                belegt.Add(tag);
+                var eintragen = Um(tag.AddDays(-zt.Zahl(1, 6)), zt.Zahl(14 * 60, 20 * 60 + 30));
+                if (eintragen < start) eintragen = start.AddMinutes(zt.Zahl(3, 300));
+                res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Von, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0, Test = true });
+            }
         }
         _pruefungsCache[schluessel] = res;
         return res;
+    }
+
+    /// <summary>Gewicht eines Prüfungstages: drei Wochen vor längeren Ferien bzw. dem Halbjahresende dreifach, fünf Wochen vorher doppelt.</summary>
+    private double Vorferiengewicht(Stand s, DateOnly tag, DateOnly hb)
+    {
+        var tage = Schuljahrestage(s);
+        var i = tage.BinarySearch(tag);
+        if (i < 0) return 1;
+        var bisFerien = int.MaxValue;
+        for (var j = i; j + 1 < tage.Count && tage[j] <= tag.AddDays(40); j++)
+            if (tage[j + 1].DayNumber - tage[j].DayNumber > 4) { bisFerien = tage[j].DayNumber - tag.DayNumber; break; }
+        var bisEnde = hb.AddDays(-14).DayNumber - tag.DayNumber;
+        var abstand = Math.Min(bisFerien, bisEnde);
+        return abstand <= 21 ? 3 : abstand <= 35 ? 2 : 1;
     }
 
     private void PruefungEintragen(Stand s, Simulationseinstellungen e, Pruefungsplan p)
@@ -681,12 +734,13 @@ public sealed partial class Schulsimulation
         // schon eine Prüfung im Fach (z. B. selbst eingetragen) bzw. am Tag: nichts doppelt
         var vorhanden = _listen.Pruefungen(s, _rm.OffeneKlausuren(s), p.HjVon, p.HjBis, p.Klasse, null, _rm.OffeneLoeschungen());
         var fachName = s.Faecher.TryGetValue(p.Fach, out var f) ? f.Name : p.Fach;
-        if (vorhanden.Any(x => Ci.Equals(x.Fach, p.Fach) || (fachName.Length > 2 && x.Titel.Contains(fachName, StringComparison.OrdinalIgnoreCase))))
+        // Tests zählen nicht als Klassenarbeit bzw. Klausur des Fachs
+        if (!p.Test && vorhanden.Where(x => x.Art != "Test").Any(x => Ci.Equals(x.Fach, p.Fach) || (fachName.Length > 2 && x.Titel.Contains(fachName, StringComparison.OrdinalIgnoreCase))))
             throw new InvalidOperationException("Im Fach gibt es in diesem Halbjahr schon eine Prüfung.");
         if (vorhanden.Any(x => x.Datum == Plandienst.Iso(p.Datum))) throw new InvalidOperationException("An diesem Tag gibt es schon eine Prüfung.");
         var b = LehrerKonto(s, p.Lehrer);
         ErweiterungApi.PruefungssperrePruefen(_vw, _listen, _rm, s, b, p.Datum, new[] { p.Klasse });
-        var art = p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, p.Klasse);
+        var art = p.Test ? "Test" : p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, p.Klasse);
         var z = Zufall.Fuer(Laden().Seed, "prt", p.Klasse, p.Fach, p.Datum);
         // Thema: die Unterrichtsreihe, die zum Prüfungstermin läuft
         var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von) is { } ls && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
@@ -700,6 +754,7 @@ public sealed partial class Schulsimulation
     /// </summary>
     public List<string> Pruefungsraeume(Stand s, Simulationseinstellungen e, Pruefungsplan p, Zufall z)
     {
+        if (p.Test) return p.Raeume;
         var sekII = Oberstufe(s, p.Klasse);
         var anteil = Math.Clamp(e.Klausurraumanteil, 0, 100) / 100.0 * (sekII ? 1.0 : 1.0 / 3);
         if (anteil <= 0 || !z.Chance(anteil)) return p.Raeume;

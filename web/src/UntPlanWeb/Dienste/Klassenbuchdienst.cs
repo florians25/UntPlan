@@ -331,6 +331,7 @@ public sealed partial class Klassenbuchdienst
         var (teilnehmer, _, gaeste) = TeilnehmerDerStunde(s, karte, d);
         var unterrichte = UnterrichteDerKarte(s, d, karte, unterricht);
         var teilnehmerIds = teilnehmer.Select(x => x.Id).ToHashSet();
+        ZeitraumErgaenzen(s, karte, d, teilnehmerIds);
         var fz = FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= karte.Von && f.Stunde <= karte.Bis && teilnehmerIds.Contains(f.SchuelerId))
             .GroupBy(f => f.SchuelerId).Select(g => Zusammenfassen(g.ToList(), s, Gesamtabwesenheit(g.ToList(), karte))).ToList();
         // gekoppelt: Kontrolle gilt auch, wenn sie über einen der anderen Unterrichte erfasst wurde (Plan der Mitklasse)
@@ -358,6 +359,41 @@ public sealed partial class Klassenbuchdienst
             beginn = karte.Beginn.Length > 0 ? karte.Beginn : Hhmm(bb), ende = karte.Ende.Length > 0 ? karte.Ende : Hhmm(be),
             regeln = Regeln(), laengen = Enumerable.Range(karte.Von, karte.Bis - karte.Von + 1).Select(n => StundenLaenge(s, n)).ToList(),
         };
+    }
+
+    /// <summary>
+    /// Zeitraum-Abwesenheiten (Abwesenheitsdialog, Krankmeldung über die Klassenleitung, ganzer Tag) gelten für jede Stunde in ihrem Zeitraum. Gespeichert
+    /// werden sie je Unterrichtsstunde laut Plan beim Erfassen; fehlt einer Stunde im Zeitraum die Fehlzeit (Stunde erst später im Plan, verlegt bzw.
+    /// vertreten, Unterricht eines Kurses bzw. einer anderen Klasse), wird sie hier aus der Abwesenheit ergänzt, damit die Schülerkarten die
+    /// Schülerin bzw. den Schüler als abwesend zeigen.
+    /// </summary>
+    private void ZeitraumErgaenzen(Stand s, Karte karte, DateOnly d, HashSet<int> teilnehmer)
+    {
+        if (teilnehmer.Count == 0 || karte.Unterricht is not int u) return;
+        // schon kontrollierte Stunden bleiben, wie die Lehrkraft sie gespeichert hat (z. B. trotz Krankmeldung anwesend)
+        if (_db.Wert("SELECT 1 FROM klassenbuch WHERE datum = @d AND unterricht = @u AND stunde >= @v AND stunde <= @b AND anwesenheit IS NOT NULL",
+                Db.P("@d", d), Db.P("@u", u), Db.P("@v", karte.Von), Db.P("@b", karte.Bis)) is not null) return;
+        var lb =d.ToDateTime(StundenZeit(s, karte.Von).Beginn);
+        var le = d.ToDateTime(StundenZeit(s, karte.Bis).Ende);
+        var gruppen = _db.Liste("SELECT * FROM fehlzeiten WHERE gruppe LIKE 'abw:%' AND datum >= @v AND datum <= @b", LesenFehlzeit, Db.P("@v", d.AddDays(-62)), Db.P("@b", d.AddDays(62)))
+            .Where(f => teilnehmer.Contains(f.SchuelerId)).GroupBy(f => (f.SchuelerId, f.Gruppe));
+        foreach (var g in gruppen)
+        {
+            var zeilen = g.ToList();
+            if (zeilen.Any(f => f.Datum == Plandienst.Iso(d) && f.Stunde >= karte.Von && f.Stunde <= karte.Bis)) continue;
+            DateTime Von(Fehlzeit f) => DateOnly.Parse(f.Datum, System.Globalization.CultureInfo.InvariantCulture).ToDateTime(Fenster(s, f).Beginn);
+            DateTime Bis(Fehlzeit f) => DateOnly.Parse(f.Datum, System.Globalization.CultureInfo.InvariantCulture).ToDateTime(Fenster(s, f).Ende);
+            if (zeilen.Min(Von) > lb || zeilen.Max(Bis) < le) continue;
+            var vorlage = zeilen.OrderBy(f => f.Datum, StringComparer.Ordinal).ThenBy(f => f.Stunde).First();
+            for (var n = karte.Von; n <= karte.Bis; n++)
+                _db.Ausfuehren("""
+                    INSERT INTO fehlzeiten (datum, stunde, unterricht, schueler_id, klasse, fach, art, minuten, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe,
+                        nachweis, entschuldigt_am, eltern_informiert, notiz_intern, beginn, ende, status_name)
+                    SELECT @d, @s, @u, schueler_id, klasse, @f, 'fehlt', 0, status, bemerkung, lehrer, erstellt, benutzer_id, grund, gruppe,
+                        nachweis, entschuldigt_am, eltern_informiert, notiz_intern, '', '', status_name FROM fehlzeiten WHERE id = @t
+                    ON CONFLICT(datum, stunde, schueler_id) DO NOTHING
+                    """, Db.P("@d", d), Db.P("@s", n), Db.P("@u", u), Db.P("@f", karte.Fach), Db.P("@t", vorlage.Id));
+        }
     }
 
     /// <summary>Anwesenheit speichern: ersetzt die Fehlzeiten der Stunde (Entschuldigungsstatus bleibt erhalten) und markiert die Stunde als geprüft.</summary>

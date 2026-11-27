@@ -136,19 +136,30 @@ public class SchulsimulationTests
         var (hv, hb) = Schulsimulation.Halbjahre(paket)[0];
         var plan = sim.Pruefungsplanung(paket, e, w, hv, hb, start);
         Assert.NotEmpty(plan);
-        Assert.All(plan.GroupBy(p => (p.Klasse, p.Fach)), g => Assert.Single(g));
+        // Tests (eine Stunde, kurz angekündigt) zählen nicht als Klassenarbeit bzw. Klausur des Fachs
+        Assert.All(plan.Where(p => !p.Test).GroupBy(p => (p.Klasse, p.Fach)), g => Assert.Single(g));
+        Assert.Contains(plan, p => p.Test);
+        Assert.All(plan.Where(p => p.Test), p => { Assert.Equal(p.Von, p.Bis); Assert.True(p.Datum.ToDateTime(TimeOnly.MinValue) - p.Eintragen <= TimeSpan.FromDays(7) || p.Eintragen.Date == start.Date); });
         Assert.DoesNotContain(plan, p => Schulsimulation.StandardOhnePruefung.Contains(p.Fach));
         Assert.DoesNotContain(plan, p => p.Lehrer == "MUE");
         Assert.All(plan.GroupBy(p => (p.Klasse, p.Datum)), g => Assert.Single(g));
-        Assert.All(plan.GroupBy(p => (p.Klasse, Plandienst.Montag(p.Datum))), g => Assert.True(g.Count() <= 2));
+        Assert.All(plan.Where(p => !p.Test).GroupBy(p => (p.Klasse, Plandienst.Montag(p.Datum))), g => Assert.True(g.Count() <= 2));
+        // gehäuft vor Ferien bzw. dem Halbjahresende: mehr als die Hälfte in den letzten fünf Wochen davor
+        var klausuren = plan.Where(p => !p.Test).ToList();
+        var tage = s.Dienst<Plandienst>();
+        bool VorFerien(DateOnly d) => Enumerable.Range(0, 36).Select(i => d.AddDays(i)).Any(x => x > hb.AddDays(-15) || (Enumerable.Range(0, 5).All(j => tage.Frei(paket, x.AddDays(j)).Frei)));
+        Assert.True(klausuren.Count(p => VorFerien(p.Datum)) > klausuren.Count / 2, $"{klausuren.Count(p => VorFerien(p.Datum))} von {klausuren.Count}");
         Assert.All(plan, p => Assert.True(p.Datum >= DateOnly.FromDateTime(start).AddDays(7) && p.Datum <= hb.AddDays(-14)));
         Assert.All(plan, p => Assert.True(p.Eintragen < p.Datum.ToDateTime(TimeOnly.MinValue)));
         var eingetragen = Liste(s, $"SELECT titel, klassen FROM rueckmeldungen WHERE typ = 'klausur' AND benutzer_id IN {Konten}", r => r.Text("titel") + r.Text("klassen"));
-        Assert.NotEmpty(eingetragen);
         Assert.Equal(eingetragen.Count, eingetragen.Distinct().Count());
-        var ef = Liste(s, "SELECT schluessel, zeit, ergebnis FROM simulation_ereignisse WHERE schluessel LIKE 'pr|%|EF|%'", r => $"{r.Text("schluessel")} {r.Text("zeit")} {r.Text("ergebnis")}");
-        Assert.True(eingetragen.Any(t => t.StartsWith("Klausur ") && t.Contains("EF")), string.Join("\n", ef) + "\nPLAN " + string.Join(";", plan.Where(p => p.Klasse == "EF").Select(p => $"{p.Fach} {p.Datum} {p.Eintragen}")));
-        Assert.Contains(eingetragen, t => t.StartsWith("Klassenarbeit "));
+        // bis jetzt fällige Einträge sind eingetragen (Klausur in der Oberstufe, Klassenarbeit bzw. Test sonst)
+        var jetzt = s.Dienst<Uhr>().Jetzt;
+        var faellig = plan.Where(p => p.Eintragen <= jetzt).ToList();
+        if (faellig.Count > 0) Assert.NotEmpty(eingetragen);
+        if (faellig.Any(p => p.Klasse == "EF" && !p.Test)) Assert.Contains(eingetragen, t => t.StartsWith("Klausur ") && t.Contains("EF"));
+        if (faellig.Any(p => p.Klasse != "EF" && !p.Test)) Assert.Contains(eingetragen, t => t.StartsWith("Klassenarbeit "));
+        if (faellig.Any(p => p.Test)) Assert.Contains(eingetragen, t => t.StartsWith("Test "));
     }
 
     [Fact]
@@ -776,6 +787,159 @@ public class SchulsimulationTests
             var st = await Testserver.HolenAsync(api, "/api/app/admin/simulation");
             Assert.Contains(st["raeume"]!.AsArray(), x => x!["kurz"]!.GetValue<string>() == "R108");
             Assert.Equal(aus.Count, st["einstellungen"]!["raeumeAusgeschlossen"]!.AsArray().Count);
+        }
+        finally { Schulsimulation.Raumaenderungsanteil = alt; }
+    }
+
+    [Fact]
+    public async Task Karten_zeigen_Abwesenheiten_aller_Speicherwege_auch_ohne_Zeile_der_Stunde()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 16, 23, 0, 0));
+        await using var _ = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        // Nachpflegen der Vorwoche dazu, dann jede Stunde der beiden Wochen in allen Ansichten (Klassen, Lehrkräfte, Räume) gegen die Karten-API
+        sim.Nachpflegen(stand, sim.Laden(), new DateOnly(2026, 10, 5), new DateOnly(2026, 10, 9));
+        var api = await s.AlsAsync("admin");
+        var fehler = new List<string>();
+        foreach (var d in Enumerable.Range(0, 12).Select(i => new DateOnly(2026, 10, 5).AddDays(i)).Where(d => !s.Dienst<Plandienst>().Frei(stand, d).Frei))
+            fehler.AddRange(await AlleAnsichtenPruefenAsync(s, api, d));
+        Assert.Empty(fehler);
+        // Zeitraum-Abwesenheit über mehrere Tage, eine Stunde ohne gespeicherte Zeile (Stunde später in den Plan gekommen bzw. verlegt): die Karte zeigt sie trotzdem
+        var db = s.Dienst<Db>();
+        var sid = stand.Schueler.First(x => x.Klasse == "6a").Id;
+        await Testserver.JsonAsync(await api.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new { schuelerIds = new[] { sid }, von = "2026-11-02T00:00", bis = "2026-11-04T23:59", ganztaegig = true, grund = "K" }));
+        var mitte = db.Liste("SELECT id, stunde, unterricht FROM fehlzeiten WHERE schueler_id = @s AND datum = '2026-11-03' ORDER BY stunde", r => (Id: r.Zahl("id"), Stunde: r.Zahl("stunde"), U: r.Zahl("unterricht")), Db.P("@s", sid))[1];
+        db.Ausfuehren("DELETE FROM fehlzeiten WHERE id = @i", Db.P("@i", mitte.Id));
+        var karte = s.Dienst<Plandienst>().Karten(stand, new DateOnly(2026, 11, 3), Elementtyp.Klasse, "6a").First(k => k.Unterricht.HasValue && k.Von <= mitte.Stunde && k.Bis >= mitte.Stunde);
+        var a = await Testserver.HolenAsync(api, $"/api/app/klassenbuch/anwesenheit?datum=2026-11-03&stunde={karte.Von}&unterricht={karte.Unterricht}");
+        Assert.Contains(a["fehlzeiten"]!.AsArray(), f => f!["schuelerId"]!.GetValue<int>() == sid);
+        // eine kontrollierte Stunde bleibt wie gespeichert (z. B. trotz Krankmeldung anwesend)
+        var spaeter = s.Dienst<Plandienst>().Karten(stand, new DateOnly(2026, 11, 4), Elementtyp.Klasse, "6a").Where(k => k.Unterricht.HasValue && k.Status == "regulaer").OrderBy(k => k.Von).Last();
+        s.Dienst<Uhr>().Fest = new DateTime(2026, 11, 4, 7, 0, 0).Add(TimeSpan.Parse(spaeter.Beginn) - TimeSpan.FromHours(7)).AddMinutes(5);
+        await Testserver.JsonAsync(await api.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = "2026-11-04", stunde = spaeter.Von, unterricht = spaeter.Unterricht, eintraege = Array.Empty<object>() }));
+        var b = await Testserver.HolenAsync(api, $"/api/app/klassenbuch/anwesenheit?datum=2026-11-04&stunde={spaeter.Von}&unterricht={spaeter.Unterricht}");
+        Assert.DoesNotContain(b["fehlzeiten"]!.AsArray(), f => f!["schuelerId"]!.GetValue<int>() == sid);
+    }
+
+    /// <summary>Für jede Stunde des Tages in allen Plänen (Klassen, Lehrkräfte, Räume): Abwesende laut Datenbank = Schülerkarten der Stundendetails.</summary>
+    private static async Task<List<string>> AlleAnsichtenPruefenAsync(Testserver s, HttpClient c, DateOnly d)
+    {
+        var plan = s.Dienst<Plandienst>(); var st = s.Dienst<Paketdienst>().Aktuell!; var kb = s.Dienst<Klassenbuchdienst>();
+        var fehler = new List<string>();
+        var ansichten = st.Paket.Elemente.Klassen.Select(k => (Elementtyp.Klasse, k.Kurz)).Concat(st.Paket.Elemente.Lehrer.Select(l => (Elementtyp.Lehrer, l.Kurz))).Concat(st.Paket.Elemente.Raeume.Select(r => (Elementtyp.Raum, r.Kurz)));
+        foreach (var (typ, kurz) in ansichten)
+            foreach (var k in plan.Karten(st, d, typ, kurz).Where(k => k.Unterricht.HasValue && k.Klassen.Count > 0 && k.Status is not ("entfall" or "veranstaltung")))
+            {
+                var teil = kb.SchuelerDerStunde(st, k, d).Select(x => x.Id).ToHashSet();
+                var r = await c.GetAsync($"/api/app/klassenbuch/anwesenheit?datum={Plandienst.Iso(d)}&stunde={k.Von}&unterricht={k.Unterricht}");
+                if (!r.IsSuccessStatusCode) continue;
+                var a = System.Text.Json.Nodes.JsonNode.Parse(await r.Content.ReadAsStringAsync())!;
+                var db = kb.FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= k.Von && f.Stunde <= k.Bis && teil.Contains(f.SchuelerId)).Select(f => f.SchuelerId).ToHashSet();
+                var karten = a["fehlzeiten"]!.AsArray().Select(x => x!["schuelerId"]!.GetValue<int>()).ToHashSet();
+                if (!karten.SetEquals(db)) fehler.Add($"{typ} {kurz} {d} {k.Fach} {k.Von}: DB [{string.Join(",", db)}], Karten [{string.Join(",", karten)}]");
+            }
+        return fehler;
+    }
+
+    [Fact]
+    public async Task Fehlquote_je_Tag_realistisch_mit_Winter()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        var st = s.Dienst<Paketdienst>().Aktuell!;
+        var plan = s.Dienst<Plandienst>();
+        var tage = Enumerable.Range(0, 320).Select(i => new DateOnly(2026, 9, 2).AddDays(i)).Where(d => !plan.Frei(st, d).Frei).ToList();
+        var aus = Schulsimulation.SchuelerausfaelleBerechnen(st, 4711, tage[0], tage[^1], tage);
+        double Quote(Func<DateOnly, bool> f)
+        {
+            var t = tage.Where(f).ToList();
+            var tageMitAusfall = aus.Where(a => a.Art is "krank" or "arzt").SelectMany(a => a.Tage).Count(t.Contains);
+            return tageMitAusfall / (double)(t.Count * st.Schueler.Count);
+        }
+        var herbst = Quote(d => d.Month is 9 or 10);
+        var winter = Quote(d => d.Month is 12 or 1 or 2);
+        Assert.InRange(herbst, 0.04, 0.08);
+        Assert.InRange(winter, 0.06, 0.11);
+        Assert.True(winter > herbst);
+        // mehrtägige Krankheiten überwiegen
+        var krank = aus.Where(a => a.Art == "krank").ToList();
+        Assert.True(krank.Count(a => a.Tage.Count >= 2) > krank.Count / 2);
+        // Bildungsgänge: Vollzeit deutlich höher, Teilzeit-Berufsschule niedriger
+        Assert.InRange(0.06 * Fehlquoten.Bildungsgang("bfs"), 0.10, 0.15);
+        Assert.InRange(0.06 * Fehlquoten.Bildungsgang("av"), 0.10, 0.15);
+        Assert.True(Fehlquoten.Bildungsgang("bs") < 1);
+    }
+
+    [Fact]
+    public async Task Vertretung_mit_Fachwechsel_aus_dem_Vertretungsplan()
+    {
+        var s = await Testserver.StartenAsync();
+        await using var _ = s;
+        // Vertretung aus dem Desktop-Programm: am 14.10. vertritt KRU in der 6a (1. Stunde) mit eigenem Fach Mathematik
+        var paket = Testserver.Beispielpaket();
+        foreach (var t in paket["tage"]!.AsArray().Where(t => t!["datum"]!.GetValue<string>() == "2026-10-14"))
+            foreach (var x in t!["stunden"]!.AsArray().Where(x => x!["status"]!.GetValue<string>() == "vertreten" && x["unterricht"]?.GetValue<int>() == 129 && x["stunde"]!.GetValue<int>() == 1))
+                x!["fach"] = "M";
+        paket["revision"] = 2;
+        Assert.True((await s.PaketSendenAsync(paket)).IsSuccessStatusCode);
+        var bd = s.Dienst<Benutzerdienst>();
+        var sim = s.Dienst<Schulsimulation>();
+        var uhr = s.Dienst<Uhr>();
+        uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+        s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+        sim.Speichern(bd.NachLogin("admin")!, new Simulationseinstellungen { Aktiv = true });
+        uhr.Fest = new DateTime(2026, 10, 14, 23, 0, 0);
+        sim.Lauf();
+        var db = s.Dienst<Db>();
+        string? Thema(string d, int u, string l, int stunde) => db.Wert("SELECT thema FROM klassenbuch WHERE datum = @d AND unterricht = @u AND lehrer = @l AND stunde <= @s ORDER BY stunde DESC LIMIT 1",
+            Db.P("@d", d), Db.P("@u", u), Db.P("@l", l), Db.P("@s", stunde)) as string;
+        var fachwechsel = Thema("2026-10-14", 129, "KRU", 1);
+        if (fachwechsel is not null) Assert.StartsWith("Vertretung im Fach Mathematik", fachwechsel);
+        // übrige Vertretungen des Plans: Vertretungsstoff, die Reihe der Lerngruppe rückt nicht weiter
+        foreach (var (d, u, l, st) in new[] { ("2026-10-12", 123, "HAR", 1), ("2026-10-12", 112, "BEC", 3), ("2026-10-14", 160, "SNE", 3) })
+            if (Thema(d, u, l, st) is { } t) Assert.Matches("^(Vertretung|Stillarbeit|Arbeitsblatt der Fachlehrkraft)", t);
+        Assert.True(new[] { ("2026-10-12", 123, "HAR", 1), ("2026-10-12", 112, "BEC", 3), ("2026-10-14", 160, "SNE", 3), ("2026-10-14", 129, "KRU", 1) }.Count(x => Thema(x.Item1, x.Item2, x.Item3, x.Item4) is not null) >= 2);
+    }
+
+    [Fact]
+    public async Task Simulationsdaten_nachbessern_an_neue_Einstellungen()
+    {
+        var alt = Schulsimulation.Raumaenderungsanteil;
+        Schulsimulation.Raumaenderungsanteil = 0.25;
+        try
+        {
+            var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 16, 23, 30, 0));
+            await using var _ = s;
+            var stand = s.Dienst<Paketdienst>().Aktuell!;
+            var db = s.Dienst<Db>();
+            int Zahl(string sql) => Convert.ToInt32(db.Wert(sql));
+            // eigener Eintrag der Administration bleibt; Unterrichtsform-Rest in einem simulierten Eintrag
+            var eigen = s.Dienst<Klassenbuchdienst>().VermerkAnlegen(admin, stand, new DateOnly(2026, 10, 13), "5a", null, "Vermerk", "Eigener Eintrag");
+            db.Ausfuehren($"UPDATE klassenbuch SET lehrform = 'Gruppenarbeit' WHERE id = (SELECT MIN(id) FROM klassenbuch WHERE benutzer_id IN {Konten})");
+            var genutzt = Liste(s, $"SELECT raeume FROM rueckmeldungen WHERE typ = 'raumbuchung' AND status = 'offen' AND benutzer_id IN {Konten}",
+                r => System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.Text("raeume"))!).SelectMany(x => x).Distinct().ToList();
+            Assert.NotEmpty(genutzt);
+            Assert.True(Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE lehrer = 'SCH' AND benutzer_id IN {Konten}") > 0);
+            // neue Einstellungen: SCH ausgenommen, die genutzten Räume ausgeschlossen
+            var e = sim.Speichern(admin, sim.Laden() with { Ausgenommen = new() { "MUE", "SCH" }, RaeumeAusgeschlossen = genutzt });
+            var st = sim.Nachbessern(stand, e, new DateOnly(2026, 9, 2), new DateOnly(2027, 7, 16));
+            Assert.True(st.Entfernt + st.Korrigiert > 0);
+            Assert.NotEmpty(st.Zusammenfassung);
+            Assert.Equal(0, Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE lehrer = 'SCH' AND benutzer_id IN {Konten}"));
+            Assert.Equal(0, Zahl($"SELECT COUNT(*) FROM klassenbuch WHERE lehrform <> '' AND benutzer_id IN {Konten}"));
+            var rest = Liste(s, $"SELECT raeume FROM rueckmeldungen WHERE typ = 'raumbuchung' AND status = 'offen' AND benutzer_id IN {Konten}",
+                r => System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.Text("raeume"))!);
+            Assert.DoesNotContain(rest.SelectMany(x => x), genutzt.Contains);
+            Assert.Equal(1, Zahl($"SELECT COUNT(*) FROM vermerke WHERE id = {eigen.Id}"));
+            // idempotent
+            var zweiter = sim.Nachbessern(stand, sim.Laden(), new DateOnly(2026, 9, 2), new DateOnly(2027, 7, 16));
+            Assert.Equal(0, zweiter.Entfernt + zweiter.Korrigiert);
+            // über die Oberfläche als Hintergrundauftrag
+            var api = await s.AlsAsync("admin");
+            var gestartet = await Testserver.JsonAsync(await api.PostAsJsonAsync("/api/app/admin/simulation/nachbessern", new { }));
+            for (var i = 0; i < 100 && sim.Nachbesserungsstatus.Laeuft; i++) await Task.Delay(100);
+            Assert.False(sim.Nachbesserungsstatus.Laeuft);
+            Assert.Equal("", sim.Nachbesserungsstatus.Fehler);
         }
         finally { Schulsimulation.Raumaenderungsanteil = alt; }
     }

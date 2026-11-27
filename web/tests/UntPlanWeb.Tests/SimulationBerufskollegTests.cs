@@ -84,6 +84,9 @@ public class SimulationBerufskollegTests
         sim.Nachpflegen(st, sim.Laden(), new DateOnly(2026, 9, 3), new DateOnly(2026, 10, 13));
         var texte = db.Liste("SELECT f.klasse AS klasse, e.text AS text FROM fehlzeit_entschuldigungen e JOIN fehlzeiten f ON f.schueler_id = e.schueler_id AND f.datum = e.datum AND f.stunde = e.stunde",
             r => (Klasse: r.Text("klasse"), Text: r.Text("text")));
+        // Berufsschule (Teilzeit): keine Hausaufgaben
+        Assert.Equal(0, Convert.ToInt32(db.Wert("SELECT COUNT(*) FROM klassenbuch WHERE hausaufgabe <> '' AND (klassen LIKE '%ITA25%' OR klassen LIKE '%ELG24%')")));
+        Assert.True(Convert.ToInt32(db.Wert("SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND (klassen LIKE '%ITA25%' OR klassen LIKE '%ELG24%')")) > 0);
         Assert.Contains(texte, t => t.Klasse is "ITA25" or "ELG24" && (t.Text.Contains("Betrieb") || t.Text.Contains("Arbeitsunfähigkeit") || t.Text.Contains("Ausbild")));
         Assert.DoesNotContain(texte, t => t.Klasse is "5a" && t.Text.Contains("Betrieb"));
         var e = sim.Laden();
@@ -105,6 +108,10 @@ public class SimulationBerufskollegTests
         Assert.All(lf.Where(x => !x.StartsWith("Rückgabe") && !x.StartsWith("Klassenarbeit")), x => Assert.Matches(@"^LF \d+[a-z]?, LS \d+[a-z]?\.\d+: ", x));
         Assert.DoesNotContain(bl.Skip(3).Take(10).Select(b => sim.Lehrstoff(st, w, e, "D", "5a", u, b.Tag, b.Von)!), x => x.StartsWith("LF "));
 
+        // IT-Unterricht auf Grundlagenniveau (Hardware, Betriebssystem, Office, Datenschutz), Netzwerkspezialthemen höchstens am Rand
+        var it = bl.Select(b => sim.Lehrstoff(st, w, e, "FU1", "ITA25", u, b.Tag, b.Von)!).ToList();
+        Assert.DoesNotContain(it, x => x.Contains("Subnetting") || x.Contains("IPv6") || x.Contains("VLAN"));
+        Assert.Contains(it, x => x.Contains("Tabellenkalkulation") || x.Contains("Hardware") || x.Contains("Betriebssystem") || x.Contains("Datenschutz"));
         // Fachoberschule 12: Abschlussprüfungen in D, M, E im Frühjahr
         var hj2 = Schulsimulation.Halbjahre(st)[1];
         var plan = sim.Pruefungsplanung(st, e, w, hj2.Von, hj2.Bis, DateTime.Parse(e.Start)).Where(p => p.Klasse == "FOS12A").ToList();
