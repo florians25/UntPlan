@@ -539,6 +539,8 @@ public sealed class Plandienst
         var roh = TeilfreisetzungenAufheben(s, d, Rohstunden(s, d).Concat(zusaetzlich ?? Enumerable.Empty<Rohstunde>()).ToList(), amPlatz);
         // Kopplung mit EINEM gemeinsamen Raum im Stundenplan: die Raumänderung (z. B. Raum gesperrt) steht nur an einer Zeile – sie gilt für alle
         roh = RaumaenderungAufKopplung(s, d, roh, out var raumVertretung);
+        // Prüfung in einer Kopplung: gilt für die ganze Kopplung (alle Klassen der gekoppelten Zeilen zur selben Zeit)
+        roh = PruefungAufKopplung(s, roh);
         // Veranstaltung: abwesende (kranke) Lehrkräfte nehmen nicht teil – sie verschwinden aus der Veranstaltung (in allen Plänen) und die
         // Veranstaltung aus ihrem eigenen Plan (siehe betrifft)
         bool IstVeranstaltung(Rohstunde x) => IstVeranstaltungsStunde(s, x);
@@ -683,6 +685,10 @@ public sealed class Plandienst
                 var kr = r.Raeume.Count == 0 ? ziel.Raeume
                     : r.Raeume.Select(x => ziel.Raeume.FirstOrDefault(w => Ci.Equals(w.K, x)) ?? new Wert(x, ziel.Raeume.FirstOrDefault()?.K ?? "", true)).ToList();
                 einzel[i] = ziel with { Status = "klausur", Art = VorgemerktePruefung, Text = r.Text, Raeume = kr };
+                // Kopplung: die übrigen Zeilen desselben Unterrichts zur selben Zeit gehören zur Prüfung (keine davon „abgegeben“)
+                for (var j = 0; j < einzel.Count; j++)
+                    if (j != i && einzel[j].Unterricht == ziel.Unterricht && einzel[j].Von == ziel.Von && einzel[j].Status != "klausur")
+                        einzel[j] = einzel[j] with { Status = "klausur", Art = VorgemerktePruefung, Text = r.Text, Raeume = r.Raeume.Count == 0 ? einzel[j].Raeume : kr };
                 continue;
             }
             var raeume = RaeumeNachBuchung(ziel.Raeume, r.Raeume);
@@ -887,6 +893,36 @@ public sealed class Plandienst
     /// <summary>Art einer in UntPlanWeb eingetragenen, noch nicht aus UntPlan übertragenen Prüfung (Status „klausur“, gelb).</summary>
     public const string VorgemerktePruefung = "Klausur (vorgemerkt)";
 
+    /// <summary>
+    /// Prüfung in einer Kopplung (Zeilen desselben Unterrichts zur selben Zeit, z. B. ET13, INF13 und ING13 in WW): Die Prüfung gilt für die ganze
+    /// Kopplung. Die Prüfungszeile erhält die Klassen aller gekoppelten Zeilen ihrer Stunde. Gekoppelt ist der Unterricht, der wegen der Prüfung
+    /// entfällt (Klausur-Id bzw. Entfalltext), den die Aufsicht hält bzw. (ohne Aufsicht) der einzige Unterricht der Klasse zu dieser Zeit.
+    /// </summary>
+    internal static List<Rohstunde> PruefungAufKopplung(Stand s, List<Rohstunde> roh)
+    {
+        bool Pruefungszeile(Rohstunde x) => x.Unterricht is null && x.Status != "entfall" && (x.Klausur.HasValue || Ci.Equals(x.Art, "Klausur")
+            || (x.Vertretung is int vid && s.Vertretungen.TryGetValue(vid, out var v) && IstKlausur(v.Art)));
+        if (!roh.Any(Pruefungszeile)) return roh;
+        var res = new List<Rohstunde>(roh.Count);
+        foreach (var x in roh)
+        {
+            if (!Pruefungszeile(x) || x.Klassen.Count == 0) { res.Add(x); continue; }
+            var kandidaten = roh.Where(z => z.Stunde == x.Stunde && z.Unterricht.HasValue && z.Klassen.Any(k => Enthaelt(x.Klassen, k))).ToList();
+            var name = x.Text.Trim();
+            var u = kandidaten.Where(z => (x.Klausur.HasValue && z.Klausur == x.Klausur)
+                    || (z.Status == "entfall" && z.Text.Trim().StartsWith("Klausur ", StringComparison.OrdinalIgnoreCase) && name.Length > 0
+                        && name.StartsWith(z.Text.Trim()[8..].Trim(), StringComparison.OrdinalIgnoreCase))
+                    || z.Lehrer.Concat(z.LehrerAlt ?? Array.Empty<string>()).Any(l => Enthaelt(x.Lehrer, l)))
+                .Select(z => z.Unterricht!.Value).ToHashSet();
+            if (u.Count == 0 && kandidaten.Where(z => z.Status != "entfall").Select(z => z.Unterricht).Distinct().Count() == 1)
+                u.Add(kandidaten.First(z => z.Status != "entfall").Unterricht!.Value);
+            var klassen = x.Klassen.Concat(roh.Where(z => z.Stunde == x.Stunde && z.Unterricht is int zu && u.Contains(zu)).SelectMany(z => z.Klassen))
+                .Where(k => k.Length > 0).Distinct(Ci).ToList();
+            res.Add(klassen.Count > x.Klassen.Count ? x with { Klassen = klassen } : x);
+        }
+        return res;
+    }
+
     private static bool IstPruefungsKarte(Karte x) => x.Unterricht is null && (x.Status == "klausur" || Ci.Equals(x.Art, "Klausur"));
 
     /// <summary>
@@ -955,6 +991,11 @@ public sealed class Plandienst
                     if (typ == Elementtyp.Klasse && x.Status == "entfall" && WegenPruefung(x, kl)) weg.Add(x);
                 treffer = eigene;
             }
+            // Kopplung: weitere Zeilen desselben Unterrichts zur selben Zeit (andere Klassen bzw. Gruppen, auch wenn die Lehrkraft dort wegen der
+            // Aufsicht als abgegeben gilt) gehören zur Prüfung
+            var gekoppelt = treffer.Select(t => t.x.Unterricht).ToHashSet();
+            treffer.AddRange(res.Select((x, i) => (x, i)).Where(t => t.x.Unterricht.HasValue && gekoppelt.Contains(t.x.Unterricht) && t.x.Von <= kl.Bis && t.x.Bis >= kl.Von
+                && t.x.Status != "klausur" && !treffer.Any(z => z.i == t.i) && !weg.Any(w => ReferenceEquals(w, t.x))).ToList());
             foreach (var (x, i) in treffer)
             {
                 var raeume = x.Raeume;

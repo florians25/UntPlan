@@ -146,6 +146,7 @@ export async function zeigen(seite, kontext, [bereichParam]) {
         ${feld('Aufsicht', mehrfach('aufsicht', el.lehrer, 'Lehrkräfte wählen'), { optional: true })}
         ${feld('Bemerkung', '<input class="form-control" name="text" maxlength="500">', { optional: true })}
       </div>
+      <p class="ug-hinweis mb-0">Liegt die Stunde in einer Kopplung, gilt die Prüfung für die ganze Kopplung: Die übrigen gekoppelten Klassen werden automatisch einbezogen.</p>
       ${fussLeiste('Prüfung eintragen')}`);
     const form = ziel.querySelector('form');
     form.stundeVon.addEventListener('change', () => { if (Number(form.stundeBis.value) < Number(form.stundeVon.value)) form.stundeBis.value = form.stundeVon.value; });
@@ -158,11 +159,13 @@ export async function zeigen(seite, kontext, [bereichParam]) {
       const klassen = werte('klassen');
       if (!klassen.length) { toast('Bitte mindestens eine Klasse auswählen.', true); return; }
       absenden(form, kontext, async () => {
-        await senden('/api/app/meldungen/klausur', {
+        const m = await senden('/api/app/meldungen/klausur', {
           datum: form.datum.value, stundeVon: Number(form.stundeVon.value), stundeBis: Number(form.stundeBis.value),
           klassen, raeume: raumTokens(form.raeume.value), aufsicht: werte('aufsicht'), titel: form.titel.value.trim(), text: form.text.value,
         });
-        toast('Prüfung eingetragen.');
+        // Kopplung: weitere Klassen wurden einbezogen
+        const dazu = (m?.klassen ?? []).filter(k => !klassen.some(x => x.toUpperCase() === String(k).toUpperCase()));
+        toast(dazu.length ? `Prüfung eingetragen, wegen der Kopplung auch für ${dazu.join(', ')}.` : 'Prüfung eingetragen.');
         kontext.navigieren('#/melden/meine');
       });
     };
