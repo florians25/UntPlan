@@ -703,6 +703,9 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
     const aufsichten = plan.aufsichten.filter(a => a.datum === t.datum && aufbau.pause.has(a.nachStunde))
       .map(a => ({ aufsicht: a, von: a.nachStunde + 0.5, bis: a.nachStunde + 0.5 }));
     const lage = spuren([...alleKarten, ...aufsichten]);
+    // Karten und Aufsichten in zeitlicher Reihenfolge (von oben nach unten) ins DOM: bei gleicher Ebene liegt das spätere Element über
+    // dem früheren, der Schatten einer Karte fällt so unter die folgende Aufsicht bzw. Karte und nicht auf sie
+    const stuecke = [];
     for (const k of alleKarten) {
       const { spur, anzahl } = lage.get(k);
       const breite = 100 / anzahl;
@@ -715,8 +718,8 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
         const mitZeit = kartenZeiten && k.status !== 'gesperrt' && h >= 60 && (anzahl === 1 || (anzahl === 2 && spur === 0));
         const zeit = mitZeit ? `<span class="zt o">${e(zeiten[iv].beginn)}</span><span class="zt u">${e(zeiten[ib].ende)}</span>` : '';
         belegt.push([oben, oben + h, spur * breite, breite]);
-        html += `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
-          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60, plan.format, plan.langnamen)}</div>`;
+        stuecke.push([oben, `<div class="std ${e(kartenKlasse(k, plan.typ, heute, jetzt))} ${mitZeit ? 'mit-zeit' : ''}" ${nr} tabindex="0" role="button"
+          aria-label="${e(titelText(k))}" style="${fachStil(k)}top:${oben}px;height:${h}px;left:calc(${spur * breite}% + 1px);width:calc(${breite}% - 1px)">${zeit}${karteInhalt(k, plan.typ, h < 60, plan.format, plan.langnamen)}</div>`]);
       }
     }
     // Karte (Block, Veranstaltung) läuft über diese Pause: Aufsicht in ihrer Spur neben der Karte (kleinere Schrift)
@@ -741,9 +744,10 @@ export function wochenGitter(plan, { gewaehlterTag = null, kartenZeiten = false,
       // Lage wie die Stundenkarten: von der Linie (1px darunter) bis an die nächste Linie – füllt genau die Pausenzeile, deren Höhe
       // aus der Pausendauer im Zeitraster kommt –, gleiche Breite und Einrückung
       // Klick bzw. Enter öffnet die Details der Aufsicht (wie bei den Stundenkarten)
-      html += `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
-        data-aufsicht="${plan.aufsichten.indexOf(a)}" tabindex="0" role="button" ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`;
+      stuecke.push([pOben + 1, `<div class="aufsicht u-hover-bereich ${e(aufsichtKlasse(a))} ${ueberPause(nach) ? 'schmal' : ''} ${vorbei ? 'vergangen' : ''}" style="top:${pOben + 1}px;height:${pHoehe - 1}px;left:calc(${j * breite}% + 1px);width:calc(${breite}% - 1px)"
+        data-aufsicht="${plan.aufsichten.indexOf(a)}" tabindex="0" role="button" ${label ? '' : `title="${e(titel)}"`} aria-label="${e(titel)}"><span class="auf-text">${[ort ? e(ort) : '', label].filter(Boolean).join(' ')}</span></div>`]);
     }
+    html += stuecke.sort((x, y) => x[0] - y[0]).map(x => x[1]).join('');
     const abw = abwesenheitFlaechen((plan.abwesenheiten || []).filter(a => a.datum === t.datum), zeiten, aufbau, belegt);
     if (abw) html = html.slice(0, vorKarten) + abw + html.slice(vorKarten);
     if (jetztY !== null) html += `<div class="tt-jetzt" style="top:${jetztY}px"></div>${t.datum === heute ? `<div class="tt-jetzt heute" style="top:${jetztY}px"></div>` : ''}`;

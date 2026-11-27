@@ -149,10 +149,10 @@ html:root.is-win .aufsicht .auf-text { font-weight: 500; }
 /* vergangene Aufsicht verblasst wie vergangene Stunden: graue Fläche, graue Schrift, blasser Balken */
 .aufsicht.vergangen:not(.vertretung) .auf-text, .aufsicht.vergangen:not(.vertretung) { color: #67747e; }
 .aufsicht.vergangen:not(.vertretung)::before { opacity: .45; }
-/* Wunsch: vergangene Aufsichtsvertretungen verblassen nicht (wie normale Vertretungen). Schatten wie Vorlage 318: Kartenschatten;
-   die Aufsicht liegt eine Ebene unter den Karten, damit der Schatten der folgenden Karte auf sie fällt und ihr eigener Schatten nach
-   unten unter der folgenden Karte bleibt */
-.tt .aufsicht { z-index: 1; }
+/* Wunsch: vergangene Aufsichtsvertretungen verblassen nicht (wie normale Vertretungen). Schatten wie Vorlage 318: Kartenschatten.
+   Aufsicht auf derselben Ebene wie die Karten; die Reihenfolge im Plan (von oben nach unten, plangitter.js) sorgt dafür, dass der
+   Schatten der Karte darüber unter der Aufsicht liegt und ihr eigener Schatten unter der folgenden Karte bleibt */
+.tt .aufsicht { z-index: 2; }
 
 /* ------------------------------------------------------------------ Stundendetails */
 
