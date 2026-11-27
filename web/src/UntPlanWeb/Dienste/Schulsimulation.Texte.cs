@@ -3,7 +3,6 @@ namespace UntPlanWeb.Dienste;
 /// <summary>Textbausteine der Schulsimulation: Lehrstoff je Fach, Hausaufgaben, Klassenbucheinträge, Krankmeldungen und Entschuldigungen.</summary>
 public sealed partial class Schulsimulation
 {
-    public static readonly string[] Lehrformen = { "", "", "", "Einzelarbeit", "Partnerarbeit", "Gruppenarbeit", "Unterrichtsgespräch", "Stationenlernen", "Lehrervortrag" };
 
     public static readonly string[] Hausaufgaben =
     {

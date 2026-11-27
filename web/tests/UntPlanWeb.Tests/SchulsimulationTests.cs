@@ -46,8 +46,8 @@ public class SchulsimulationTests
             r => (Datum: r.Text("datum"), Stunde: r.Zahl("stunde"), Lehrer: r.Text("lehrer"), Thema: r.Text("thema"), Geaendert: r.Text("geaendert"), Anwesenheit: r.TextOderNull("anwesenheit")));
         Assert.True(kb.Count(k => k.Thema.Length > 0) > 100, $"Lehrstoff: {kb.Count(k => k.Thema.Length > 0)}");
         Assert.DoesNotContain(kb, k => k.Lehrer == "MUE");
-        // frühestens am Vorabend (vorausplanende Lehrkräfte), sonst nach der Stunde
-        Assert.All(kb.Where(k => k.Thema.Length > 0), k => Assert.True(string.CompareOrdinal(k.Geaendert, DateOnly.Parse(k.Datum).AddDays(-1).ToString("yyyy-MM-dd")) >= 0));
+        // frühestens zwei Tage vorher (im Voraus), sonst zu Beginn bzw. nach der Stunde
+        Assert.All(kb.Where(k => k.Thema.Length > 0), k => Assert.True(string.CompareOrdinal(k.Geaendert, DateOnly.Parse(k.Datum).AddDays(-2).ToString("yyyy-MM-dd")) >= 0));
         // Einträge mit der Uhrzeit der Simulation (nach Stundenbeginn, nicht alle zur selben Zeit)
         Assert.True(kb.Select(k => k.Geaendert).Distinct().Count() > 50);
 
@@ -304,9 +304,8 @@ public class SchulsimulationTests
                             Assert.False(belegt[i].Von <= belegt[j].Bis && belegt[j].Von <= belegt[i].Bis && belegt[i].Unterricht != belegt[j].Unterricht, $"{raum} doppelt am {g.Key}");
                 }
             Assert.All(rm, x => Assert.NotEqual("MUE", x.Absender));
-            // Hinweise an die Klasse und Lehrstoff am Vorabend
+            // Hinweise an die Klasse (Lehrstoff im Voraus prüft der Test der Zeitpunkte)
             Assert.True(Convert.ToInt32(s.Dienst<Db>().Wert($"SELECT COUNT(*) FROM klassenbuch WHERE notiz_schueler <> '' AND benutzer_id IN {Konten}")) > 0);
-            Assert.True(Convert.ToInt32(s.Dienst<Db>().Wert($"SELECT COUNT(*) FROM klassenbuch WHERE thema <> '' AND substr(geaendert, 1, 10) < datum AND benutzer_id IN {Konten}")) > 0);
             // Entfernen macht die Raumänderungen rückgängig
             sim.Entfernen(admin);
             Assert.Equal(0, Convert.ToInt32(s.Dienst<Db>().Wert("SELECT COUNT(*) FROM rueckmeldungen WHERE typ = 'raumbuchung'")));
@@ -421,7 +420,9 @@ public class SchulsimulationTests
             Assert.All(texte, t => Assert.False(string.IsNullOrWhiteSpace(t)));
             Assert.StartsWith(g.Zyklisch ? "Organisatorisches" : "Einstieg ins Schuljahr", texte[0]);
             if (!g.Zyklisch)
-                for (var i = 1; i < texte.Count; i++) Assert.True(texte[i] != texte[i - 1], $"{z.Fach} {z.Klassen[0]}: gleiche Stunde {texte[i]}");
+                // nach einer vertretenen bzw. entfallenen Stunde geht es mit derselben Stunde weiter (die Reihe rückt nicht weiter)
+                for (var i = 1; i < texte.Count; i++)
+                    Assert.True(texte[i] != texte[i - 1] || sim.Ausgefallen(paket, u.Id).Contains(bloecke[i - 1]), $"{z.Fach} {z.Klassen[0]}: gleiche Stunde {texte[i]}");
             Assert.DoesNotContain(texte, t => t.Contains('{'));
             // Stufe: Klasse 5 und 6 nie mit Oberstufenthemen
             if (z.Fach == "M" && z.Klassen[0].StartsWith("5")) Assert.DoesNotContain(texte, t => t.Contains("Integralrechnung") || t.Contains("Ableitung"));
@@ -503,7 +504,7 @@ public class SchulsimulationTests
         // gesammelt nachgetragen, nie in der Zukunft
         var zeiten = Liste(s, $"SELECT datum, geaendert FROM klassenbuch WHERE benutzer_id IN {Konten} AND datum < '2026-10-14'", r => (D: r.Text("datum"), G: r.Text("geaendert")));
         // frühestens am Vorabend (vorausplanende Lehrkräfte), nie in der Zukunft
-        Assert.All(zeiten, x => Assert.True(string.CompareOrdinal(x.G, "2026-10-14 10:00") < 0 && string.CompareOrdinal(x.G, DateOnly.Parse(x.D).AddDays(-1).ToString("yyyy-MM-dd")) >= 0));
+        Assert.All(zeiten, x => Assert.True(string.CompareOrdinal(x.G, "2026-10-14 10:00") < 0 && string.CompareOrdinal(x.G, DateOnly.Parse(x.D).AddDays(-2).ToString("yyyy-MM-dd")) >= 0));
         Assert.Contains(zeiten, x => DateTime.Parse(x.G).DayOfWeek is DayOfWeek.Friday or DayOfWeek.Saturday or DayOfWeek.Sunday && DateTime.Parse(x.G).Date > DateTime.Parse(x.D));
         // Entschuldigungen nachgepflegt
         Assert.True(Zahl($"SELECT COUNT(*) FROM fehlzeiten WHERE status <> 'offen' AND benutzer_id IN {Konten}") > 0);
@@ -586,5 +587,99 @@ public class SchulsimulationTests
             if (!plan.Karten(stand, anderer, Elementtyp.Lehrer, vertretung.Lehrer).Any(k => k.Klassen.Any(x => x.K == vertretung.Klasse)))
                 Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await v.PostAsJsonAsync("/api/app/klassenbuch/vermerke", new { datum = Plandienst.Iso(anderer), klasse = vertretung.Klasse, art = "Vermerk", text = "x" })).StatusCode);
         }
+    }
+
+    /// <summary>Abwesende laut Datenbank (Teilnehmer*innen der Stunde) = Schülerkarten der Stundendetails = Zahlen der Klassenbuchübersicht.</summary>
+    private static async Task<List<string>> KartenPruefenAsync(Testserver s, HttpClient c, DateOnly d)
+    {
+        var plan = s.Dienst<Plandienst>(); var st = s.Dienst<Paketdienst>().Aktuell!; var kb = s.Dienst<Klassenbuchdienst>();
+        var fehler = new List<string>();
+        foreach (var kl in st.Paket.Elemente.Klassen)
+        {
+            var ue = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/uebersicht?von={Plandienst.Iso(d)}&bis={Plandienst.Iso(d)}&klasse={kl.Kurz}");
+            foreach (var k in plan.Karten(st, d, Elementtyp.Klasse, kl.Kurz).Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert"))
+            {
+                var teil = kb.SchuelerDerStunde(st, k, d).Select(x => x.Id).ToHashSet();
+                var db = kb.FehlzeitenZeitraum(d, d).Where(f => f.Stunde >= k.Von && f.Stunde <= k.Bis && teil.Contains(f.SchuelerId)).Select(f => f.SchuelerId).ToHashSet();
+                var a = await Testserver.HolenAsync(c, $"/api/app/klassenbuch/anwesenheit?datum={Plandienst.Iso(d)}&stunde={k.Von}&unterricht={k.Unterricht}");
+                var karten = a["fehlzeiten"]!.AsArray().Select(x => x!["schuelerId"]!.GetValue<int>()).ToHashSet();
+                var std = ue["tage"]!.AsArray().SelectMany(t => t!["stunden"]!.AsArray()).FirstOrDefault(x => x!["unterricht"]!.GetValue<int>() == k.Unterricht && x["von"]!.GetValue<int>() == k.Von);
+                var zahl = std is null ? db.Count : std["abwesend"]!.GetValue<int>() + std["verspaetet"]!.GetValue<int>();
+                if (!karten.SetEquals(db) || zahl != db.Count) fehler.Add($"{kl.Kurz} {k.Fach} {k.Von}: DB [{string.Join(",", db)}], Karten [{string.Join(",", karten)}], Übersicht {zahl}");
+            }
+        }
+        return fehler;
+    }
+
+    [Fact]
+    public async Task Abwesenheiten_erscheinen_auf_den_Schuelerkarten_und_in_der_Uebersicht()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 14, 23, 0, 0));
+        await using var _ = s;
+        var api = await s.AlsAsync("admin");
+        // simulierte Abwesenheiten (auch Kurse der Oberstufe: gespeichert unter dem Unterricht der Schülerin bzw. des Schülers)
+        foreach (var d in new[] { new DateOnly(2026, 10, 12), new DateOnly(2026, 10, 13), new DateOnly(2026, 10, 14) })
+            Assert.Empty(await KartenPruefenAsync(s, api, d));
+        // echte Einträge: ganztägige Abwesenheit einer Schülerin der EF über den Abwesenheitsdialog und eine Verspätung in der Stunde
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var tag = new DateOnly(2026, 10, 15);
+        var ef = stand.Schueler.Where(x => x.Klasse == "EF").Select(x => x.Id).ToList();
+        await Testserver.JsonAsync(await api.PostAsJsonAsync("/api/app/klassenbuch/abwesenheit", new { schuelerIds = new[] { ef[0] }, von = "2026-10-15T00:00", bis = "2026-10-15T23:59", ganztaegig = true, grund = "K" }));
+        var karte = stand.Paket.Elemente.Klassen.Where(k => k.Kurz != "EF").SelectMany(kl => s.Dienst<Plandienst>().Karten(stand, tag, Elementtyp.Klasse, kl.Kurz))
+            .Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert").OrderBy(k => k.Von).First();
+        var fuenf = s.Dienst<Klassenbuchdienst>().SchuelerDerStunde(stand, karte, tag)[0].Id;
+        s.Dienst<Uhr>().Fest = Um(tag, karte.Beginn).AddMinutes(10);
+        await Testserver.JsonAsync(await api.PutAsJsonAsync("/api/app/klassenbuch/anwesenheit", new { datum = Plandienst.Iso(tag), stunde = karte.Von, unterricht = karte.Unterricht,
+            eintraege = new[] { new { schuelerId = fuenf, art = "verspaetet", minuten = 10 } } }));
+        var fehler = await KartenPruefenAsync(s, api, tag);
+        Assert.Empty(fehler);
+        var ue = await Testserver.HolenAsync(api, $"/api/app/klassenbuch/uebersicht?von=2026-10-15&bis=2026-10-15&klasse=EF");
+        Assert.All(ue["tage"]![0]!["stunden"]!.AsArray(), x => Assert.True(x!["abwesend"]!.GetValue<int>() >= 1, $"{x["fach"]} {x["von"]}"));
+    }
+
+    private static DateTime Um(DateOnly d, string hhmm) => d.ToDateTime(TimeOnly.Parse(hhmm));
+
+    [Fact]
+    public async Task Zeitpunkte_Hausaufgaben_ohne_Unterrichtsform_und_Vertretungsstunden()
+    {
+        var (s, sim, admin) = await StartenAsync(new DateTime(2026, 10, 16, 23, 30, 0));
+        await using var _ = s;
+        var stand = s.Dienst<Paketdienst>().Aktuell!;
+        var beginn = stand.Paket.Zeitraster.Stunden.ToDictionary(z => z.Nr, z => z.Beginn);
+        var ereignisse = Liste(s, "SELECT schluessel, zeit, ergebnis FROM simulation_ereignisse WHERE ergebnis = 'ok' AND (schluessel LIKE 'an|%' OR schluessel LIKE 'kb|%')",
+            r => (Art: r.Text("schluessel")[..2], Teile: r.Text("schluessel").Split('|'), Zeit: DateTime.Parse(r.Text("zeit"))));
+        double Anteil(string art, Func<DateTime, DateTime, bool> f)
+        {
+            var l = ereignisse.Where(x => x.Art == art).Select(x => (Zeit: x.Zeit, Beginn: Um(DateOnly.Parse(x.Teile[1]), beginn[int.Parse(x.Teile[3])]))).ToList();
+            return l.Count(x => f(x.Zeit, x.Beginn)) / (double)l.Count;
+        }
+        // Abwesenheitskontrolle zu 80 % zu Beginn der Stunde; Lehrstoff zu 70 % zu Beginn, zu 5 % im Voraus
+        Assert.InRange(Anteil("an", (z, b) => z >= b && z <= b.AddMinutes(5)), 0.72, 0.9);
+        Assert.InRange(Anteil("kb", (z, b) => z >= b && z <= b.AddMinutes(10)), 0.6, 0.82);
+        Assert.InRange(Anteil("kb", (z, b) => z < b), 0.0, 0.12);
+        // wenige Hausaufgaben, keine Unterrichtsform
+        var kb = Liste(s, $"SELECT thema, hausaufgabe, lehrform FROM klassenbuch WHERE thema <> '' AND benutzer_id IN {Konten}", r => (Thema: r.Text("thema"), Ha: r.Text("hausaufgabe"), Lf: r.Text("lehrform")));
+        Assert.InRange(kb.Count(x => x.Ha.Length > 0) / (double)kb.Count, 0.0, 0.1);
+        Assert.All(kb, x => Assert.Equal("", x.Lf));
+        Assert.DoesNotContain(kb, x => x.Thema.Contains("Gruppenarbeit") || x.Thema.Contains("Partnerarbeit") || x.Thema.Contains("Einzelarbeit"));
+        Assert.DoesNotContain("Lehrform: ", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "UntPlanWeb", "wwwroot", "js", "stundendetails.js")));
+        // Vertretungsstunden: Vertretungsstoff statt der Reihe, die Reihe der Lerngruppe rückt nicht weiter
+        var plan = s.Dienst<Plandienst>();
+        var vertretungen = Enumerable.Range(0, 5).Select(i => new DateOnly(2026, 10, 12).AddDays(i)).SelectMany(d => stand.Paket.Elemente.Lehrer
+            .SelectMany(l => plan.Karten(stand, d, Elementtyp.Lehrer, l.Kurz).Where(k => k.Unterricht.HasValue && k.Status is "regulaer" or "geaendert"
+                && Schulsimulation.Vertretungslehrkraft(stand, k, l.Kurz) is not null).Select(k => (Tag: d, Lehrer: l.Kurz, Karte: k)))).ToList();
+        Assert.NotEmpty(vertretungen);
+        var texte = vertretungen.Select(v => s.Dienst<Db>().Wert("SELECT thema FROM klassenbuch WHERE datum = @d AND unterricht = @u AND lehrer = @l AND thema <> ''",
+            Db.P("@d", v.Tag), Db.P("@u", v.Karte.Unterricht), Db.P("@l", v.Lehrer)) as string).Where(t => t is not null).ToList();
+        Assert.NotEmpty(texte);
+        Assert.All(texte, t => Assert.Matches("Vertretung|Stillarbeit|Arbeitsblatt der Fachlehrkraft", t!));
+        var e = sim.Laden();
+        var w = sim.Welt(stand, e, DateTime.Parse(e.Start), new DateTime(2026, 10, 16, 23, 30, 0));
+        var vt = stand.Paket.Tage.SelectMany(t => t.Stunden.Where(x => x.Status == "vertreten" && x.Unterricht.HasValue).Select(x => (Tag: DateOnly.Parse(t.Datum), x.Stunde, U: x.Unterricht!.Value, x.Fach, Klasse: x.Klassen.FirstOrDefault() ?? "")))
+            .First(x => x.Klasse.Length > 0 && sim.Bloecke(stand, x.U).Contains((x.Tag, x.Stunde)));
+        var bl = sim.Bloecke(stand, vt.U);
+        var j = bl.IndexOf((vt.Tag, vt.Stunde));
+        if (j + 1 < bl.Count && bl[j + 1].Tag.DayNumber - bl[j].Tag.DayNumber <= 10)
+            Assert.Equal(sim.Lehrstoff(stand, w, e, vt.Fach, vt.Klasse, vt.U, bl[j].Tag, bl[j].Von), sim.Lehrstoff(stand, w, e, vt.Fach, vt.Klasse, vt.U, bl[j + 1].Tag, bl[j + 1].Von));
     }
 }

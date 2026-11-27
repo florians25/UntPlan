@@ -2035,7 +2035,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-nav .u-nav-punkt:hover .u-nav-sym { color: var(--u-akzent); }
 .u-leiste .u-nav .u-nav-punkt.aktiv { background: none; color: var(--u-akzent); }
 .u-leiste .u-nav-kompakt .u-nav-punkt { width: calc(100% - 16px); }
-.u-leiste .u-nav-kompakt .u-nav-punkt.aktiv::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 0; background: var(--u-akzent); }
+.u-leiste .u-nav-kompakt .u-nav-punkt.aktiv::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 0 4px 4px 0; background: var(--u-primaer); }
 
 /* Schriften der Seitenleiste wie im Original (Textbreiten der Vorlage mit Avenir Next LT Pro nachgemessen):
    Menüpunkte Demi 16 px, Titel Demi 22 px, Schulname Regular 14,2 px, Schuljahr Demi 13,8 px, Benutzername Demi 16 px,
@@ -2045,6 +2045,8 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste .u-nav-unter .u-nav-punkt { font-size: 14px; font-weight: 600; gap: 23px; } /* Untermenü wie Original (Bild 284): 14 px Demi, Text bei x ≈ 99 px */
 /* aktiver Punkt im Untermenü wie Original (Bild 284): hell-orange Fläche, rechts rund, bis 15 px vor den Rand, 50 px hoch */
 .u-leiste .u-nav-unter .u-nav-punkt.aktiv { background: #ffeae6; border-radius: 0 999px 999px 0; width: calc(100% - 15px); min-height: 50px; }
+/* Stammdaten und Administration (kompakt): der aktive Punkt bleibt so schmal und niedrig wie die übrigen Punkte */
+.u-leiste .u-nav-kompakt .u-nav-punkt.aktiv { min-height: 0; width: calc(100% - 16px); }
 .u-leiste .u-marke b { font-size: 22px; font-weight: 600; }
 .u-leiste .u-marke small { font-size: 14.2px; font-weight: 400; }
 .u-leiste .u-jahr { font-size: 13.8px; font-weight: 600; }
@@ -2085,7 +2087,7 @@ body:has(.u-app:not([data-ansicht="heute"])) :is(.ic-wurzel, .ic-hinweis), body:
 .u-leiste.mit-unter .u-jahr.mit-pfeil { height: 32px; padding: 0 9px 0 17px; gap: 3px; border: 1px solid #bfc8cf; color: #67747e; }
 .u-leiste.mit-unter .u-jahr.mit-pfeil .bi { font-size: 17.6px; color: #8a96a1; -webkit-text-stroke: 0; }
 .u-leiste .u-nav-unter .u-nav-punkt.aktiv:not(:hover) { background: none; }
-.u-leiste .u-nav-unter .u-nav-punkt.aktiv::before { width: 3px; border-radius: 0 3px 3px 0; }
+.u-leiste .u-nav-unter .u-nav-punkt.aktiv::before { width: 4px; border-radius: 0 4px 4px 0; background: var(--u-primaer); } /* Balken wie im Hauptmenü */
 .u-leiste .u-nav-unter .u-nav-punkt:not(.aktiv):not(:hover) .u-nav-sym { color: #8a96a1; } /* Symbole heller als der Text (Vorlage 295) */
 .u-leiste .u-benutzer b { color: #67747e; }
 .u-leiste .u-benutzer .u-avatar { border-color: #bfc8cf; }
