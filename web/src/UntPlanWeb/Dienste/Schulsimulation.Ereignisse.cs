@@ -244,7 +244,9 @@ public sealed partial class Schulsimulation
         var karte = KarteJetzt(s, d, l, u, von);
         var bisher = karte.Raeume.Select(r => r.K).Where(r => r.Length > 0 && r != "???").ToList();
         if (bisher.Count == 0) throw new InvalidOperationException("Die Stunde hat keinen Raum.");
-        var frei = Rueckmeldungsdienst.Buchbar(s).Where(r => !bisher.Contains(r.Kurz, Ci) && _rm.RaumFrei(s, d, r.Kurz, karte.Von, karte.Bis, u)).ToList();
+        // ausgeschlossene Räume (Einstellung) bucht die Simulation nie
+        var aus = Laden().RaeumeAusgeschlossen.ToHashSet(Ci);
+        var frei = Rueckmeldungsdienst.Buchbar(s).Where(r => !bisher.Contains(r.Kurz, Ci) && !aus.Contains(r.Kurz) && _rm.RaumFrei(s, d, r.Kurz, karte.Von, karte.Bis, u)).ToList();
         var art = s.Raeume.TryGetValue(bisher[0], out var alt) ? alt.Raumart : "";
         bool Passt(WebRaum r, params string[] w) => w.Any(x => r.Raumart.Contains(x, StringComparison.OrdinalIgnoreCase) || r.Name.Contains(x, StringComparison.OrdinalIgnoreCase));
         var fach = karte.Fach.ToUpperInvariant();
@@ -705,8 +707,13 @@ public sealed partial class Schulsimulation
         var art = bisher.FirstOrDefault()?.Raumart ?? "";
         var groesse = bisher.Select(r => r.Kapazitaet).DefaultIfEmpty(0).Max();
         static bool Ungeeignet(WebRaum r) => new[] { "Sport", "Halle", "EDV", "Computer", "Fachraum" }.Any(x => r.Raumart.Contains(x, StringComparison.OrdinalIgnoreCase));
-        var frei = Rueckmeldungsdienst.Buchbar(s).Where(r => !Ungeeignet(r) && !p.Raeume.Contains(r.Kurz, Ci) && (art.Length == 0 || Ci.Equals(r.Raumart, art)) && r.Kapazitaet >= groesse
-                                                              && _rm.RaumFrei(s, p.Datum, r.Kurz, p.Von, p.Bis)).OrderBy(r => r.Kurz, StringComparer.Ordinal).ToList();
+        // Positivliste der Prüfungsräume (Einstellung) bzw. Automatik nach Raumart und Größe; ausgeschlossene Räume nie
+        var aus = e.RaeumeAusgeschlossen.ToHashSet(Ci);
+        var liste = e.Klausurraeume.ToHashSet(Ci);
+        var frei = (liste.Count > 0
+                ? s.Paket.Elemente.Raeume.Where(r => liste.Contains(r.Kurz))
+                : Rueckmeldungsdienst.Buchbar(s).Where(r => !Ungeeignet(r) && (art.Length == 0 || Ci.Equals(r.Raumart, art)) && r.Kapazitaet >= groesse))
+            .Where(r => !aus.Contains(r.Kurz) && !p.Raeume.Contains(r.Kurz, Ci) && _rm.RaumFrei(s, p.Datum, r.Kurz, p.Von, p.Bis)).DistinctBy(r => r.Kurz, Ci).OrderBy(r => r.Kurz, StringComparer.Ordinal).ToList();
         if (frei.Count == 0) return p.Raeume;
         var erster = z.Wahl(frei).Kurz;
         var zweiter = sekII && frei.Count > 1 && z.Chance(0.25) ? frei.Where(r => r.Kurz != erster).ToList() is { Count: > 0 } rest ? z.Wahl(rest).Kurz : null : null;

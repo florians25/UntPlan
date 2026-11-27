@@ -732,4 +732,51 @@ public class SchulsimulationTests
         sim.Entfernen(admin);
         Assert.Equal(0, Convert.ToInt32(db.Wert("SELECT COUNT(*) FROM fehlzeiten")));
     }
+
+    [Fact]
+    public async Task Erlaubte_Pruefungsraeume_und_ausgeschlossene_Raeume()
+    {
+        var alt = Schulsimulation.Raumaenderungsanteil;
+        Schulsimulation.Raumaenderungsanteil = 0.25;
+        try
+        {
+            var s = await Testserver.StartenAsync();
+            await using var _ = s;
+            var uhr = s.Dienst<Uhr>();
+            var bd = s.Dienst<Benutzerdienst>();
+            bd.Anlegen("schulleitung", "test-passwort-1", Rollen.Leitung, "MUE", "Anna Müller");
+            var admin = bd.NachLogin("admin")!;
+            var sim = s.Dienst<Schulsimulation>();
+            var stand = s.Dienst<Paketdienst>().Aktuell!;
+            // ausgeschlossen: Computerräume, Turnhalle 2 und alle Fachräume; Prüfungsräume nur R108, R109 und (ausgeschlossen) PH1
+            var aus = stand.Paket.Elemente.Raeume.Where(r => r.Raumart is "EDV" or "Fachraum" || r.Kurz == "TH2").Select(r => r.Kurz).ToList();
+            uhr.Fest = new DateTime(2026, 10, 12, 6, 30, 0);
+            s.Dienst<Einstellungen>().Schreiben("simulation.einstellungen", """{"seed":4711}""");
+            var e = sim.Speichern(admin, new Simulationseinstellungen { Aktiv = true, Klausurraumanteil = 100, Klausurraeume = new() { "R108", "R109", "PH1" }, RaeumeAusgeschlossen = aus });
+            Assert.Equal(new[] { "R108", "R109", "PH1" }, e.Klausurraeume);
+            uhr.Fest = new DateTime(2026, 10, 16, 23, 30, 0);
+            sim.Lauf();
+            // Raumänderungen der Simulation nie in ausgeschlossene Räume
+            var rm = Liste(s, $"SELECT raeume FROM rueckmeldungen WHERE typ = 'raumbuchung' AND benutzer_id IN {Konten}", r => System.Text.Json.JsonSerializer.Deserialize<List<string>>(r.Text("raeume"))!);
+            Assert.NotEmpty(rm);
+            Assert.DoesNotContain(rm.SelectMany(x => x), r => aus.Contains(r));
+            // Prüfungsräume nur aus der Liste, ausgeschlossene nie
+            e = sim.Laden();
+            var start = DateTime.Parse(e.Start);
+            var w = sim.Welt(stand, e, start, start);
+            var plan = Schulsimulation.Halbjahre(stand).SelectMany(h => sim.Pruefungsplanung(stand, e, w, h.Von, h.Bis, start)).Where(p => p.Klasse == "EF").ToList();
+            var gewaehlt = plan.Select(p => (P: p, R: sim.Pruefungsraeume(stand, e, p, new Zufall((ulong)p.Datum.DayNumber)))).Where(x => !x.R.SequenceEqual(x.P.Raeume)).ToList();
+            Assert.NotEmpty(gewaehlt);
+            Assert.All(gewaehlt.SelectMany(x => x.R), r => Assert.Contains(r, new[] { "R108", "R109" }));
+            // ohne Liste: Automatik, aber nie ausgeschlossene Räume
+            var auto = plan.SelectMany(p => sim.Pruefungsraeume(stand, e with { Klausurraeume = new(), RaeumeAusgeschlossen = new() { "R108" } }, p, new Zufall((ulong)p.Datum.DayNumber + 1)).Except(p.Raeume)).ToList();
+            Assert.DoesNotContain("R108", auto);
+            // Admin-Seite liefert die Räume mit Gruppe
+            var api = await s.AlsAsync("admin");
+            var st = await Testserver.HolenAsync(api, "/api/app/admin/simulation");
+            Assert.Contains(st["raeume"]!.AsArray(), x => x!["kurz"]!.GetValue<string>() == "R108");
+            Assert.Equal(aus.Count, st["einstellungen"]!["raeumeAusgeschlossen"]!.AsArray().Count);
+        }
+        finally { Schulsimulation.Raumaenderungsanteil = alt; }
+    }
 }
