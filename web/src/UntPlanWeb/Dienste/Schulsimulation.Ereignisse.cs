@@ -106,9 +106,18 @@ public sealed partial class Schulsimulation
         var eintraege = new List<AnwesenheitEintrag>();
         foreach (var sch in _kb.SchuelerDerStunde(s, karte, d))
         {
+            // Berufsschule: Klasse in der schriftlichen Kammerprüfung (freigestellt)
+            if (KammerpruefungDer(s, w.Seed, sch.Klasse) is { } kp && kp.Tag == d)
+            {
+                eintraege.Add(new(sch.Id, "fehlt", 0, $"{kp.Name} (Kammer)", "B"));
+                continue;
+            }
             if (!w.SchuelerAm.TryGetValue((sch.Id, d), out var a)) continue;
             switch (a.Art)
             {
+                case "betrieb":
+                    eintraege.Add(new(sch.Id, "fehlt", 0, null));
+                    break;
                 case "krank":
                     eintraege.Add(new(sch.Id, "fehlt", 0, null));
                     break;
@@ -116,7 +125,7 @@ public sealed partial class Schulsimulation
                     eintraege.Add(new(sch.Id, "fehlt", 0, a.StundeBis >= 99 ? "Arzttermin, nach Hause gegangen" : null));
                     break;
                 case "verspaetet" when karte.Von <= 3 && karte.Von == ErsteStunde(s, sch.Klasse, d):
-                    eintraege.Add(new(sch.Id, "verspaetet", a.Minuten, a.Grund == "Z" ? "Bus verspätet" : null, a.Grund == "Z" ? "Z" : null));
+                    eintraege.Add(new(sch.Id, "verspaetet", a.Minuten, a.Grund == "Z" ? (sch.Id % 2 == 0 ? "Bahn verspätet" : "Bus verspätet") : null, a.Grund == "Z" ? "Z" : null));
                     break;
             }
         }
@@ -148,14 +157,16 @@ public sealed partial class Schulsimulation
         var z = Zufall.Fuer(w.Seed, "ls", d, u, von, l);
         var sekII = karte.Klassen.Any(k => Oberstufe(s, k.K) || Stufe(s, k.K) == "bk");
         var vertretung = Vertretungslehrkraft(s, karte, l);
-        var thema = vertretung is not null ? Vertretungsstoff(s, karte, vertretung, z, d)
+        var kammer = karte.Klassen.Select(x => KammerpruefungDer(s, w.Seed, x.K)).FirstOrDefault(x => x is not null && x.Tag == d);
+        var thema = kammer is not null ? $"Klasse in der {kammer.Name} (Kammer), kein Unterricht"
+            : vertretung is not null ? Vertretungsstoff(s, karte, vertretung, z, d)
             : LehrstoffFuer(s, w, e, karte, d) ?? throw new InvalidOperationException("Kein Unterrichtsfach.");
         if (Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fe) ? fe.Name : null)?.Zyklisch == true) z = Zufall.Fuer(w.Seed, "kl", d, u);
         var sprache = karte.Fach.ToUpperInvariant() is "E" or "F" or "L" or "S";
         // Hausaufgaben selten, eher in den Hauptfächern; nie in Vertretungsstunden, Sport, Klassenleitung
         var gruppe = Zuordnung(karte.Fach, s.Faecher.TryGetValue(karte.Fach, out var fh) ? fh.Name : null)?.Id;
         var hauptfach = gruppe is "deutsch" or "mathe" or "englisch" or "franzoesisch" or "latein" or "spanisch" or "fachenglisch";
-        var anteil = vertretung is not null || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
+        var anteil = vertretung is not null || kammer is not null || gruppe is "sport" or "klassenleitung" or "koerper" or "foerder" ? 0 : hauptfach ? (sekII ? 0.07 : 0.12) : 0.025;
         var hausaufgabe = !z.Chance(anteil) ? ""
             : z.Zahlen(z.Wahl(sprache && z.Chance(0.6) ? HausaufgabenSprachen : Hausaufgaben));
         DateOnly? faellig = hausaufgabe.Length > 0 ? d.AddDays(z.Chance(0.7) ? 7 : z.Zahl(1, 6)) : null;
@@ -235,6 +246,7 @@ public sealed partial class Schulsimulation
         {
             "verspaetet" => z.Gewichtet(new[] { ("entschuldigt", 45.0), ("unentschuldigt", 35.0), ("", 20.0) }, x => x.Item2).Item1,
             "arzt" => z.Gewichtet(new[] { ("entschuldigt", 90.0), ("", 10.0) }, x => x.Item2).Item1,
+            "betrieb" => z.Gewichtet(new[] { ("entschuldigt", 45.0), ("unentschuldigt", 45.0), ("", 10.0) }, x => x.Item2).Item1,
             _ => z.Gewichtet(new[] { ("entschuldigt", 82.0), ("unentschuldigt", 7.0), ("", 11.0) }, x => x.Item2).Item1,
         };
         if (status.Length == 0) return null;
@@ -249,7 +261,7 @@ public sealed partial class Schulsimulation
                     AND benutzer_id IN (SELECT id FROM benutzer WHERE login LIKE 'sim~%')
                 """, r => r.Zahl("id"), Db.P("@s", a.SchuelerId), Db.P("@v", a.Von), Db.P("@b", a.Bis));
             if (ids.Count == 0) throw new InvalidOperationException("Keine offenen Fehlzeiten.");
-            var (text, nachweis) = EntschuldigungText(a, status, z);
+            var (text, nachweis) = EntschuldigungText(a, status, z, Bildungsgang(s, a.Klasse));
             var b = LehrerKonto(s, leitung);
             _ent.AbwesenheitEntschuldigen(b, s, ids, status, text, Plandienst.Iso(DateOnly.FromDateTime(_uhr.Jetzt)), nachweis);
             if (status == "entschuldigt" && Convert.ToInt32(_db.Wert("SELECT COUNT(*) FROM abwesenheitsgruende WHERE kurz = @k", Db.P("@k", a.Grund)) ?? 0) > 0)
@@ -257,8 +269,22 @@ public sealed partial class Schulsimulation
         });
     }
 
-    private static (string Text, string? Nachweis) EntschuldigungText(Schuelerausfall a, string status, Zufall z)
+    public static (string Text, string? Nachweis) EntschuldigungText(Schuelerausfall a, string status, Zufall z, string bildungsgang = "")
     {
+        // Berufskolleg: Entschuldigung über den Ausbildungsbetrieb bzw. bei Volljährigen durch die Schülerin bzw. den Schüler selbst, ärztliche Bescheinigung bei längerer Krankheit
+        var bs = bildungsgang == "bs";
+        var selbst = Volljaehrig(bildungsgang, a.SchuelerId);
+        if (a.Art == "betrieb")
+            return status == "unentschuldigt"
+                ? (z.Wahl(new[] { "Betrieb hat zurückgehalten (Montage), keine Freistellung beantragt. Ausbilder informiert.", "Fehlen wegen Kundentermin im Betrieb, nicht entschuldigungsfähig. Ausbilderin informiert." }), null)
+                : (z.Wahl(new[] { "Freistellung durch den Ausbildungsbetrieb bestätigt.", "Betriebliche Gründe, schriftliche Bestätigung des Ausbildungsbetriebs liegt vor." }), "schriftlich");
+        if (status != "unentschuldigt" && a.Art == "krank" && (bs || bildungsgang == "fs" || selbst))
+        {
+            if (a.Tage.Count >= 3) return (bs ? "Arbeitsunfähigkeitsbescheinigung liegt vor, Betrieb informiert." : "Ärztliche Bescheinigung liegt vor.", "attest");
+            if (bs) return (z.Wahl(new[] { "Entschuldigung vom Ausbildungsbetrieb gegengezeichnet.", "Krankmeldung vor Unterrichtsbeginn, Bestätigung des Ausbildungsbetriebs liegt vor.",
+                "Eigene schriftliche Entschuldigung, vom Betrieb abgezeichnet." }), "schriftlich");
+            return (z.Wahl(new[] { "Eigene schriftliche Entschuldigung (volljährig).", "Krankmeldung per E-Mail, eigene Entschuldigung nachgereicht." }), selbst ? "schriftlich" : "email");
+        }
         if (status == "unentschuldigt") return (z.Wahl(new[] { "Keine Entschuldigung eingegangen, Frist abgelaufen.", "Trotz Erinnerung keine Entschuldigung abgegeben." }), null);
         if (a.Art == "verspaetet")
             return a.Grund == "Z" ? (z.Wahl(new[] { "Bus verspätet, Bestätigung der Eltern.", "Zugausfall, Mitteilung der Mutter." }), "schriftlich")
@@ -383,7 +409,9 @@ public sealed partial class Schulsimulation
         var betroffen = BetroffeneStunden(s, a, bis);
         var absatz = BetroffenText(betroffen, z, a.Tage.Count(t => t <= bis) > 1);
         if (absatz.Length > 0) sb.Append("\n\n").Append(absatz);
-        var aufgaben = AufgabenText(betroffen, z);
+        var bk = betroffen.Any(b => b.Klassen.Split('/').Any(k => Bildungsgang(s, k) is not ("sek1u" or "sek1o" or "sek2")));
+        var berufsschule = betroffen.Any(b => b.Klassen.Split('/').Any(k => Bildungsgang(s, k) == "bs"));
+        var aufgaben = AufgabenText(betroffen, z, bk, berufsschule);
         if (aufgaben.Length > 0) sb.Append(absatz.Length > 0 ? " " : "\n\n").Append(aufgaben);
         if (!a.Art.Teil && (_uhr.Jetzt.Hour < 7 || _uhr.Jetzt.Hour >= 22) && z.Chance(0.6)) sb.Append("\n\nEntschuldigung für die kurzfristige Meldung.");
         sb.Append("\n\n").Append(z.Wahl(Gruesse)).Append('\n').Append(Name(s, a.Lehrer, z));
@@ -430,16 +458,19 @@ public sealed partial class Schulsimulation
     }
 
     /// <summary>Aufgaben: meist über Teams, manchmal keine Angabe, selten eine konkrete Aufgabe für eine der betroffenen Klassen.</summary>
-    private static string AufgabenText(List<BetroffeneStunde> b, Zufall z)
+    public static string AufgabenText(List<BetroffeneStunde> b, Zufall z, bool bk = false, bool berufsschule = false)
     {
         if (b.Count == 0) return "";
         var w = z.Wert();
-        if (w < 0.32) return "";
+        // Berufsschule: entfallen die letzten Stunden, kann die Klasse früher in die Betriebe
+        var betriebe = berufsschule && z.Chance(0.3) ? " Falls die letzten Stunden entfallen, kann die Klasse gern früher in die Betriebe." : "";
+        if (w < 0.32) return betriebe.TrimStart();
+        if (bk && w < 0.5) return z.Wahl(new[] { "Material liegt im Moodle-Kurs.", "Die Aufgaben liegen in LOGINEO.", "Arbeitsaufträge liegen im Moodle-Kurs der Klasse." }) + betriebe;
         if (w < 0.86) return z.Wahl(new[]
         {
             "Aufgaben liegen in Teams.", "Die Aufgaben liegen in Teams.", "Aufgaben habe ich in Teams hochgeladen.", "Arbeitsaufträge stehen im jeweiligen Teams-Kanal.",
             "Die Klassen finden ihre Aufgaben in Teams.", "Aufgaben sind in Teams unter Dateien.", "Material ist in Teams, die Klassen wissen Bescheid.",
-        });
+        }) + betriebe;
         var k = z.Wahl(b).Klassen;
         return z.Wahl(new[] { $"Die {k} bearbeitet Buch S. {{s}} Nr. {{a}} bis {{b}}.", $"Die {k} kann am Arbeitsblatt aus der letzten Stunde weiterarbeiten.",
             $"Für die {k} liegen Kopien in meinem Fach im Lehrerzimmer." }) is var t ? z.Zahlen(t) : "";
@@ -468,7 +499,14 @@ public sealed partial class Schulsimulation
     public sealed record Pruefungsplan(string Klasse, string Fach, DateOnly Datum, int Von, int Bis, string Lehrer, List<string> Raeume, DateTime Eintragen, DateOnly HjVon, DateOnly HjBis)
     {
         public int Unterricht { get; init; }
+        /// <summary>Schriftliche Abschlussprüfung (Fachoberschule 12 und 13 im Frühjahr) statt einer Klassenarbeit bzw. Klausur.</summary>
+        public bool Abschluss { get; init; }
     }
+
+    /// <summary>Art der Prüfung: Klausur in der Oberstufe, im Beruflichen Gymnasium, in der Fachoberschule 12 und 13 und in der Fachschule, sonst Klassenarbeit.</summary>
+    public static string Pruefungsart(Stand s, string klasse) => Bildungsgang(s, klasse) is "sek2" or "bg" or "fos12" or "fos13" or "fs" ? "Klausur" : "Klassenarbeit";
+
+    private static readonly string[] Abschlussfaecher = { "D", "DEU", "M", "MDQ", "E", "FEN" };
 
     private readonly Dictionary<string, List<Pruefungsplan>> _pruefungsCache = new();
 
@@ -524,16 +562,20 @@ public sealed partial class Schulsimulation
                 }
             }
             var belegt = new HashSet<DateOnly>();
+            // Fachoberschule 12 und 13: im zweiten Halbjahr schriftliche Abschlussprüfungen in Deutsch, Mathematik und Englisch (Mitte April bis Ende Mai)
+            var abschlussKlasse = Bildungsgang(s, kl.Kurz) is "fos12" or "fos13" && hv.Month < 8;
             foreach (var fach in kandidaten.Keys.Order(StringComparer.Ordinal).OrderBy(_ => z.Naechste()).ToList())
             {
-                var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 2).ToList();
+                var abschluss = abschlussKlasse && Abschlussfaecher.Contains(fach, Ci);
+                var moeglich = kandidaten[fach].Where(x => !belegt.Contains(x.Tag) && belegt.Count(b => Plandienst.Montag(b) == Plandienst.Montag(x.Tag)) < 2)
+                    .Where(x => !abschluss || (x.Tag >= new DateOnly(x.Tag.Year, 4, 15) && x.Tag <= new DateOnly(x.Tag.Year, 5, 31))).ToList();
                 if (moeglich.Count == 0) continue;
                 var (tag, karte) = z.Wahl(moeglich);
                 belegt.Add(tag);
                 var eintragen = Um(tag.AddDays(-z.Zahl(14, 35)), z.Zahl(14 * 60, 20 * 60 + 30));
                 // vor dem Start geplante Prüfungen stehen gleich nach dem Start im Kalender, aber nicht kurzfristiger als eine Woche
                 if (eintragen < start) eintragen = start.AddMinutes(z.Zahl(3, 300));
-                res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0 });
+                res.Add(new(kl.Kurz, karte.Fach, tag, karte.Von, karte.Bis, karte.Lehrer[0].K, karte.Raeume.Select(r => r.K).Where(r => r.Length > 0).ToList(), eintragen, hv, hb) { Unterricht = karte.Unterricht ?? 0, Abschluss = abschluss });
             }
         }
         _pruefungsCache[schluessel] = res;
@@ -550,7 +592,7 @@ public sealed partial class Schulsimulation
         if (vorhanden.Any(x => x.Datum == Plandienst.Iso(p.Datum))) throw new InvalidOperationException("An diesem Tag gibt es schon eine Prüfung.");
         var b = LehrerKonto(s, p.Lehrer);
         ErweiterungApi.PruefungssperrePruefen(_vw, _listen, _rm, s, b, p.Datum, new[] { p.Klasse });
-        var art = Oberstufe(s, p.Klasse) ? "Klausur" : "Klassenarbeit";
+        var art = p.Abschluss ? "Abschlussprüfung" : Pruefungsart(s, p.Klasse);
         var z = Zufall.Fuer(Laden().Seed, "prt", p.Klasse, p.Fach, p.Datum);
         // Thema: die Unterrichtsreihe, die zum Prüfungstermin läuft
         var thema = Lehrstoff(s, Welt(s, e, DateTime.Parse(e.Start, Inv), _uhr.Jetzt), e, p.Fach, p.Klasse, p.Unterricht, p.Datum, p.Von) is { } ls && ls.StartsWith(art + ": ", StringComparison.Ordinal) ? ls[(art.Length + 2)..] : fachName;
@@ -598,8 +640,10 @@ public sealed partial class Schulsimulation
             foreach (var l in w.KlassenDerLehrkraft.Keys.Where(l => !w.Ausgenommen.Contains(l) && s.Lehrer.ContainsKey(l)).Order(StringComparer.Ordinal))
             {
                 var z = Zufall.Fuer(w.Seed, "st", t.Id, l);
-                if (!z.Chance(0.6)) continue;
-                var schueler = Sprechtagdienst.SchuelerDerLehrkraft(s, l).OrderBy(x => x.Id).ToList();
+                // Berufskolleg: eher Ausbildersprechtag, Eltern nur bei Minderjährigen, insgesamt wenige Termine
+                var nurBk = w.KlassenDerLehrkraft.TryGetValue(l, out var kl0) && kl0.Count > 0 && kl0.All(k => Bildungsgang(s, k) is not ("sek1u" or "sek1o" or "sek2"));
+                if (!z.Chance(nurBk ? 0.25 : 0.6)) continue;
+                var schueler = Sprechtagdienst.SchuelerDerLehrkraft(s, l).Where(x => Sprechtagberechtigt(s, x)).OrderBy(x => x.Id).ToList();
                 if (schueler.Count == 0) continue;
                 var eingeladen = Enumerable.Range(0, z.Zahl(1, 4)).Select(_ => z.Wahl(schueler).Id).Distinct().ToList();
                 var einladen = p1 is DateTime a1 ? a1.AddHours(-z.Zahl(2, 30)) : frueh.AddHours(z.Zahl(1, 48));
@@ -620,7 +664,7 @@ public sealed partial class Schulsimulation
                 foreach (var sch in s.Schueler.OrderBy(x => x.Id))
                 {
                     var z = Zufall.Fuer(w.Seed, "stf", t.Id, sch.Id);
-                    if (!z.Chance(0.12)) continue;
+                    if (!Sprechtagberechtigt(s, sch) || !z.Chance(Bildungsgang(s, sch.Klasse) is "sek1u" or "sek1o" or "sek2" ? 0.12 : 0.03)) continue;
                     var lehrkraefte = Sprechtagdienst.LehrkraefteDesKindes(s, sch).Where(x => !w.Ausgenommen.Contains(x.Kurz)).ToList();
                     if (lehrkraefte.Count == 0) continue;
                     foreach (var lk in Enumerable.Range(0, z.Zahl(1, 2)).Select(_ => z.Wahl(lehrkraefte).Kurz).Distinct(Ci))
@@ -630,6 +674,13 @@ public sealed partial class Schulsimulation
                     }
                 }
         }
+    }
+
+    /// <summary>Sprechtag: Berufsschule über die Ausbildungsbetriebe; übrige Bildungsgänge des Berufskollegs nur für Minderjährige (Eltern).</summary>
+    public static bool Sprechtagberechtigt(Stand s, WebSchueler x)
+    {
+        var bg = Bildungsgang(s, x.Klasse);
+        return bg is "sek1u" or "sek1o" or "sek2" or "bs" or "bk" || !Volljaehrig(bg, x.Id);
     }
 
     /// <summary>Zeitpunkt in der Anmeldephase: meist in den ersten Tagen, abends gehäuft.</summary>
