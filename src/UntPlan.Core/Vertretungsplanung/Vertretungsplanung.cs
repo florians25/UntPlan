@@ -103,6 +103,10 @@ public static class Vertretungen
 
         if (Kalender.IstUnterrichtstag(d, datum))
         {
+            // Prüfungen in gekoppelten Stunden gelten für die ganze Kopplung: fehlende Klassen der Kopplung ergänzen (sonst entfiele nur
+            // die Zeile der eingetragenen Klasse und die übrigen Zeilen stünden ohne Lehrkraft da)
+            foreach (var k in klausuren)
+                if (Klausurkopplung.Erweitern(d, k, regel) && k.Importiert) UntPlan.Core.Austausch.StundenplanAenderungen.UnterrichtZuordnen(d, k);
             foreach (var k in klausuren)
                 for (var s = k.StundeVon; s <= Math.Max(k.StundeVon, k.StundeBis); s++)
                     foreach (var l in k.LehrerIds.DefaultIfEmpty(-1))

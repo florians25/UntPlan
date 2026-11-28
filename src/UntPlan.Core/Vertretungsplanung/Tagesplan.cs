@@ -178,6 +178,8 @@ public sealed class Tagesplan
             return;
         }
         if (v.VertretungsKlassenIds != null) e.KlassenIds = v.VertretungsKlassenIds.ToList();
+        // Prüfung, die den Unterricht ihrer Aufsicht ersetzt: gilt für alle Klassen der Prüfung (gekoppelte Stunde: die ganze Kopplung)
+        else if (v.Art == VertretungsArt.Klausur && v.Quelle == VertretungsQuelle.Klausur && v.KlassenIds.Count > 0) e.KlassenIds = v.KlassenIds.ToList();
         if (v.VertretungsfachId.HasValue) e.FachId = v.VertretungsfachId;
         if (v.VertretungsraumId.HasValue) e.RaumIds = new List<int> { v.VertretungsraumId.Value };
         // Raum verdrängt bzw. Raum gelöscht: die Stunde belegt keinen Raum mehr

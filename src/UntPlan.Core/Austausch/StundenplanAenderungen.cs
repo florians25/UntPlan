@@ -214,6 +214,8 @@ public static class StundenplanAenderungen
         ISet<DateOnly> tage, string benutzer = "", bool pausenaufsichten = false)
     {
         var name = string.IsNullOrWhiteSpace(m.Titel) ? "Klausur" : m.Titel!.Trim();
+        // Prüfung in einer gekoppelten Stunde: gilt für alle Klassen der Kopplung (UntPlanWeb meldet ggf. nur die Klasse der Karte)
+        klassen = Klausurkopplung.Klassen(d, datum, von, bis, klassen, lehrer);
         var k = d.Klausuren.FirstOrDefault(x => x.WebId == m.Id)
                 ?? d.Klausuren.FirstOrDefault(x => x.Datum == datum && x.StundeVon == von && Math.Max(x.StundeVon, x.StundeBis) == bis
                                                    && x.KlassenIds.ToHashSet().SetEquals(klassen) && TitelPasst(name, x.Name));
