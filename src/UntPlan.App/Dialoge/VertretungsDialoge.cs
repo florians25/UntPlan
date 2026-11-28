@@ -731,6 +731,14 @@ public static class KlausurDialog
             Datum = datum, StundeVon = stunde, StundeBis = stunde, KlassenIds = e?.KlassenIds.ToList() ?? new(), LehrerIds = e?.LehrerIds.ToList() ?? new(),
             RaumIds = e?.RaumIds.ToList() ?? new(), UnterrichtId = e?.Unterricht?.Id, Name = e is null ? "Klausur" : $"Klausur {AppZustand.Doc.Index.KFach(e.FachId)}".Trim(),
         };
+        // Stunde einer Kopplung: die Klausur gilt für alle Klassen der Kopplung
+        var dazu = Klausurkopplung.FehlendeKlassen(AppZustand.D, k);
+        if (dazu.Count > 0)
+        {
+            k.KlassenIds = k.KlassenIds.Concat(dazu).Distinct().ToList();
+            Ui.Info("Die Stunde ist gekoppelt. Die Klausur gilt für alle Klassen der Kopplung, daher wurden ergänzt: "
+                + string.Join(", ", dazu.Select(id => AppZustand.Doc.Index.K(ElementTyp.Klasse, id))) + ".");
+        }
         if (!Zeigen(owner, k, true)) return;
         try
         {

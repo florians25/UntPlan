@@ -78,6 +78,8 @@ public static class UntPlanWebExport
         StundenplanAenderungen.KlausurDublettenEntfernen(d);
         // ältere Importe: Prüfung im eigenen Kurs ließ parallelen Unterricht der Klasse entfallen (zweite Prüfung im Web)
         StundenplanAenderungen.ImportierteKlausurenZuordnen(d);
+        // ältere Teilprüfungen in gekoppelten Stunden: auf die ganze Kopplung erweitern, damit UntPlanWeb alle Klassen erhält
+        Klausurkopplung.AlleErweitern(d);
         var ix = new DatenIndex(d);
         var von = ab.AddDays(-Math.Max(0, o.TageZurueck));
         var bis = ExportBis(d, ab, o);

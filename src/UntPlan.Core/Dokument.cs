@@ -126,6 +126,8 @@ public sealed class Dokument
         // einmalig nachträglich: bestehende Unterrichte ohne Schülergruppe erhalten „Fach_Klassen_Lehrkraft“ (Einstellung
         // „Schülergruppen automatisch anlegen“); von Hand vergebene Schülergruppen bleiben unverändert
         Schuelergruppen.Ergaenzen(daten);
+        // ältere Dateien: Prüfungen, die nur einen Teil einer gekoppelten Stunde erfassen, gelten für die ganze Kopplung
+        Vertretungsplanung.Klausurkopplung.AlleErweitern(daten);
         return new Dokument(daten, pfad);
     }
 
