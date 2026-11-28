@@ -3084,7 +3084,9 @@ public sealed partial class HauptFenster
             AppZustand.Setzen(new Dokument(dd), false);
             try
             {
-                int Bereitschaften(StundenplanFenster f) { f.Plan.Refresh(); return f.Plan.GezeichneteTagesfelder.Count(x => x.UnterrichtId == ber.Unterricht.Id && x.Start <= ber.Stunde && x.Start + x.Laenge > ber.Stunde); }
+                // nur der Testtag: dieselbe Bereitschaft kann in der Woche an weiteren Tagen in derselben Stunde liegen (je nach Wochentag des Laufs)
+                var tagSpalte = tag.DayNumber - Kalender.Montag(tag).DayNumber;
+                int Bereitschaften(StundenplanFenster f) { f.Plan.Refresh(); return f.Plan.GezeichneteTagesfelder.Count(x => x.Tag == tagSpalte && x.UnterrichtId == ber.Unterricht.Id && x.Start <= ber.Stunde && x.Start + x.Laenge > ber.Stunde); }
                 var f = StundenplanFenster.Neu(ElementTyp.Lehrer, ber.LehrerId!.Value, false, true);
                 f.WindowState = FormWindowState.Normal;
                 f.Bounds = new Rectangle(100, 0, 272, 567);
